@@ -26,12 +26,18 @@ def test_azure_student_script_uses_free_tier_or_12_month_services():
 
     assert "Azure for Students" in script
     assert "Standard_B1ms" in script
-    assert "az postgres flexible-server create" in script
-    assert "az acr create" in script
-    assert "az containerapp create" in script
+    assert "postgres flexible-server create" in script
+    assert "acr create" in script
+    assert "containerapp create" in script
+    assert "docker build" in script
+    assert "docker push" in script
     assert "min-replicas 0" in script
     assert "PAPER_TRADING_ONLY=true" in script
-    assert "az consumption budget create" in script
+    assert "consumption budget create" in script
+    assert "--category cost" in script
+    assert "Invoke-Az" in script
+    assert "listOfAllowedLocations" in script
+    assert " -o " not in script
 
 
 def test_vercel_deploy_script_requires_public_api_url():
@@ -41,3 +47,15 @@ def test_vercel_deploy_script_requires_public_api_url():
     assert "--build-env" in script
     assert "--prod" in script
     assert "localhost" not in script.lower()
+
+
+def test_azure_app_service_fallback_uses_free_sku():
+    script = (ROOT / "scripts" / "deploy_azure_app_service_student.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--sku F1" in script
+    assert "webapp create" in script
+    assert "SCM_DO_BUILD_DURING_DEPLOYMENT=true" in script
+    assert "PAPER_TRADING_ONLY=true" in script
+    assert "alembic upgrade head" in script

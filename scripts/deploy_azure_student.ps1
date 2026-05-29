@@ -1,6 +1,6 @@
 param(
     [string]$ResourceGroup = "alphaedge-student-rg",
-    [string]$Location = "eastus",
+    [string]$Location = "centralus",
     [string]$NamePrefix = "alphaedge",
     [Parameter(Mandatory = $true)]
     [string]$AdminApiKey,
@@ -12,9 +12,41 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Invoke-Az {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$AzArgs
+    )
+
+    & az @AzArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "az $($AzArgs -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
 $account = az account show --output json | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+    throw "az account show failed"
+}
 if ($account.name -notlike "*Azure for Students*") {
     Write-Warning "Current subscription is '$($account.name)', not Azure for Students. Review cost before continuing."
+}
+
+$assignmentId = "/subscriptions/$($account.id)/providers/Microsoft.Authorization/policyAssignments/sys.regionrestriction"
+try {
+    $policyUrl = "https://management.azure.com$assignmentId" + "?api-version=2022-06-01"
+    $policyParams = Invoke-Az rest --method get --url $policyUrl --query "properties.parameters" --output json | ConvertFrom-Json
+    $allowedLocations = @($policyParams.listOfAllowedLocations.value)
+    if ($allowedLocations.Count -gt 0 -and $Location -notin $allowedLocations) {
+        $preferred = @("centralus", "northcentralus", "southcentralus", "westus3", "mexicocentral")
+        $Location = ($preferred | Where-Object { $_ -in $allowedLocations } | Select-Object -First 1)
+        if (-not $Location) {
+            $Location = $allowedLocations[0]
+        }
+        Write-Output "Using allowed Azure region from subscription policy: $Location"
+    }
+} catch {
+    Write-Warning "Could not inspect allowed-location policy. Continuing with requested location '$Location'."
 }
 
 $safeSuffix = ($account.id -replace "[^a-zA-Z0-9]", "").Substring(0, 8).ToLowerInvariant()
@@ -24,39 +56,48 @@ $containerEnv = "$NamePrefix-env"
 $containerApp = "$NamePrefix-api"
 $imageName = "$NamePrefix-api"
 
-az provider register --namespace Microsoft.App --wait
-az provider register --namespace Microsoft.ContainerRegistry --wait
-az provider register --namespace Microsoft.DBforPostgreSQL --wait
+Invoke-Az provider register --namespace Microsoft.App --wait
+Invoke-Az provider register --namespace Microsoft.ContainerRegistry --wait
+Invoke-Az provider register --namespace Microsoft.DBforPostgreSQL --wait
 
-az group create --name $ResourceGroup --location $Location --tags project=alphaedge accountType="Azure for Students"
+Invoke-Az group create --name $ResourceGroup --location $Location --tags project=alphaedge accountType="Azure for Students"
 
 $today = Get-Date
 $startDate = Get-Date -Year $today.Year -Month $today.Month -Day 1 -Format "yyyy-MM-dd"
 $endDate = Get-Date -Year ($today.Year + 10) -Month 12 -Day 31 -Format "yyyy-MM-dd"
 try {
-    az consumption budget create `
-        --resource-group $ResourceGroup `
+    Invoke-Az consumption budget create `
         --budget-name "$NamePrefix-student-budget" `
+        --category cost `
         --amount $BudgetAmountUsd `
         --time-grain Monthly `
         --start-date $startDate `
-        --end-date $endDate
+        --end-date $endDate `
+        --resource-group-filter $ResourceGroup
 } catch {
     Write-Warning "Budget creation failed. Create a manual Azure Cost Management budget before leaving resources running."
 }
 
-az acr create `
+Invoke-Az acr create `
     --resource-group $ResourceGroup `
     --name $acrName `
     --sku Standard `
     --admin-enabled true
 
-az acr build `
-    --registry $acrName `
-    --image "${imageName}:latest" `
-    ./backend
+$loginServer = Invoke-Az acr show --resource-group $ResourceGroup --name $acrName --query loginServer --output tsv
+Invoke-Az acr login --name $acrName
 
-az postgres flexible-server create `
+docker build -t "$loginServer/${imageName}:latest" ./backend
+if ($LASTEXITCODE -ne 0) {
+    throw "docker build failed with exit code $LASTEXITCODE"
+}
+
+docker push "$loginServer/${imageName}:latest"
+if ($LASTEXITCODE -ne 0) {
+    throw "docker push failed with exit code $LASTEXITCODE"
+}
+
+Invoke-Az postgres flexible-server create `
     --resource-group $ResourceGroup `
     --name $postgresServer `
     --location $Location `
@@ -69,22 +110,21 @@ az postgres flexible-server create `
     --public-access 0.0.0.0 `
     --yes
 
-az postgres flexible-server db create `
+Invoke-Az postgres flexible-server db create `
     --resource-group $ResourceGroup `
     --server-name $postgresServer `
     --database-name alphaedge
 
-az containerapp env create `
+Invoke-Az containerapp env create `
     --resource-group $ResourceGroup `
     --name $containerEnv `
     --location $Location
 
-$loginServer = az acr show --resource-group $ResourceGroup --name $acrName --query loginServer -o tsv
-$acrPassword = az acr credential show --resource-group $ResourceGroup --name $acrName --query "passwords[0].value" -o tsv
+$acrPassword = Invoke-Az acr credential show --resource-group $ResourceGroup --name $acrName --query "passwords[0].value" --output tsv
 $asyncDbUrl = "postgresql+asyncpg://alphaedgeadmin:$PostgresPassword@$postgresServer.postgres.database.azure.com:5432/alphaedge?ssl=require"
 $syncDbUrl = "postgresql://alphaedgeadmin:$PostgresPassword@$postgresServer.postgres.database.azure.com:5432/alphaedge?sslmode=require"
 
-az containerapp create `
+Invoke-Az containerapp create `
     --resource-group $ResourceGroup `
     --name $containerApp `
     --environment $containerEnv `
@@ -101,6 +141,6 @@ az containerapp create `
     --secrets "admin-api-key=$AdminApiKey" "database-url=$asyncDbUrl" "database-url-sync=$syncDbUrl" `
     --env-vars "PAPER_TRADING_ONLY=true" "ADMIN_API_KEY=secretref:admin-api-key" "DATABASE_URL=secretref:database-url" "DATABASE_URL_SYNC=secretref:database-url-sync" "REDIS_URL=redis://disabled:6379/0" "CORS_ORIGINS=$CorsOrigins"
 
-$fqdn = az containerapp show --resource-group $ResourceGroup --name $containerApp --query "properties.configuration.ingress.fqdn" -o tsv
+$fqdn = Invoke-Az containerapp show --resource-group $ResourceGroup --name $containerApp --query "properties.configuration.ingress.fqdn" --output tsv
 Write-Output "Azure API URL: https://$fqdn"
 Write-Output "Health: https://$fqdn/health"
