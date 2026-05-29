@@ -1,0 +1,43 @@
+name: Cursor 2.5 Task
+description: Execution task for Cursor 2.5 with Codex review gates
+title: "[Cursor] "
+labels: ["cursor-2.5", "implementation"]
+body:
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Gate
+      options:
+        - Week 1 CLOB/API
+        - Week 2 backtest/ML
+        - Week 3 eval/risk
+        - Week 4 agents/dashboard
+        - Week 5 deploy
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the concrete behavior to build or verify.
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files
+      description: List exact files expected to change.
+      value: |
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: List exact commands and expected results.
+      value: |
+        - `uv run --extra dev pytest -q`
+        - `uv run --extra dev ruff check app tests`
+    validations:
+      required: true

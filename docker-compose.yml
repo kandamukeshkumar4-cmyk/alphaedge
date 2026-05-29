@@ -1,0 +1,73 @@
+# AlphaEdge — paper-trading simulation (Week 1: db + redis + api; Week 5+: worker)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: alphaedge
+      POSTGRES_PASSWORD: alphaedge
+      POSTGRES_DB: alphaedge
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alphaedge -d alphaedge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PAPER_TRADING_ONLY: "true"
+      DATABASE_URL: postgresql+asyncpg://alphaedge:alphaedge@db:5432/alphaedge
+      DATABASE_URL_SYNC: postgresql://alphaedge:alphaedge@db:5432/alphaedge
+      REDIS_URL: redis://redis:6379/0
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      SYSTEM_ACCOUNT_ID: "00000000-0000-0000-0000-000000000001"
+      SYSTEM_INITIAL_BANKROLL: "100000.00"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  # Week 5: uncomment worker profile
+  worker:
+    profiles: ["full"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      PAPER_TRADING_ONLY: "true"
+      DATABASE_URL: postgresql+asyncpg://alphaedge:alphaedge@db:5432/alphaedge
+      DATABASE_URL_SYNC: postgresql://alphaedge:alphaedge@db:5432/alphaedge
+      REDIS_URL: redis://redis:6379/0
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m app.workers.main
+
+volumes:
+  pgdata:

@@ -1,0 +1,9 @@
+{
+  "market_count": 3,
+  "brier_score_min": 0.0,
+  "brier_score_max": 0.5,
+  "roi_min": -0.5,
+  "roi_max": 0.5,
+  "max_drawdown_max": 1.0,
+  "calibration_error_max": 0.5
+}

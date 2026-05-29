@@ -1,0 +1,4 @@
+game_id,date,home_team,away_team,market_slug
+g001,2025-01-10,LAL,BOS,nba-2025-01-10-lal-bos
+g002,2025-01-15,LAL,BOS,nba-2025-01-15-lal-bos
+g003,2025-01-20,GSW,PHX,nba-2025-01-20-gsw-phx

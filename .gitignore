@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ML artifacts (keep structure, ignore large binaries in dev)
+backend/ml_artifacts/*.json
+!backend/ml_artifacts/.gitkeep
+backend/backend/
+
+# Local data
+*.db
+*.sqlite3
