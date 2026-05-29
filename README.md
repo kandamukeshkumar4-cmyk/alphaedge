@@ -140,6 +140,10 @@ alphaedge/
 - Root directory: `frontend/`
 - Env: `NEXT_PUBLIC_API_URL=https://your-api.railway.app`
 
+### Azure for Students + Vercel
+
+See `docs/deploy/AZURE_VERCEL.md` for the free-tier-oriented Azure Container Apps/PostgreSQL backend script and Vercel frontend deploy script.
+
 ### GitHub Actions
 
 Push to `main` — CI runs `ruff` + `pytest` (CLOB + backtest golden fixtures).

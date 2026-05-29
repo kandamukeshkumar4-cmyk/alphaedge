@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+backend/
+ml_artifacts/*.joblib
+ml_artifacts/*.pkl
+ml_artifacts/*.json
