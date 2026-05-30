@@ -143,3 +143,19 @@ def test_koyeb_neon_deploy_doc_exists():
     assert "NEXT_PUBLIC_API_URL" in doc
     assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in doc
     assert "/health" in doc
+
+
+def test_koyeb_backend_github_workflow_is_manual_and_secret_driven():
+    workflow = (ROOT / ".github" / "workflows" / "deploy-koyeb-backend.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "workflow_dispatch" in workflow
+    assert "KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}" in workflow
+    assert "NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}" in workflow
+    assert "NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}" in workflow
+    assert "ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}" in workflow
+    assert "deploy_koyeb_neon.ps1" in workflow
+    assert "koyeb-cli/master/install.sh" in workflow
+    assert "curl --fail" in workflow
+    assert "/health" in workflow

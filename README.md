@@ -160,6 +160,8 @@ Use this when Azure Container Apps/App Service quotas block the backend and Verc
 
 See `docs/deploy/KOYEB_NEON.md`.
 
+There is also a manual GitHub Actions workflow, `Deploy Backend to Koyeb`, for running the Koyeb deploy after adding the required repository secrets.
+
 ### Azure for Students + Vercel
 
 See `docs/deploy/AZURE_VERCEL.md` for the free-tier-oriented Azure Container Apps/PostgreSQL backend script and Vercel frontend deploy script.

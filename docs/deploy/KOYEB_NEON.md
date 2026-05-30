@@ -81,6 +81,30 @@ status=ok
 paper_trading_only=true
 ```
 
+### GitHub Actions deploy option
+
+If you do not want to install the Koyeb CLI locally, set these GitHub repository secrets:
+
+```text
+KOYEB_TOKEN
+NEON_DATABASE_URL
+ADMIN_API_KEY
+```
+
+Optional:
+
+```text
+NEON_DATABASE_URL_SYNC
+```
+
+Then run the manual workflow:
+
+```text
+Deploy Backend to Koyeb
+```
+
+The workflow installs the Koyeb CLI on the GitHub runner, runs `scripts/deploy_koyeb_neon.ps1`, and verifies `/health`.
+
 ## 3. Point Azure Static Web Apps frontend at Koyeb
 
 After the Koyeb backend has a working HTTPS URL:
