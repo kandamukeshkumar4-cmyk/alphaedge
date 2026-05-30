@@ -123,6 +123,7 @@ def test_frontend_api_url_can_be_set_for_azure_static_web_apps():
     assert "NEXT_PUBLIC_API_URL: ${{ inputs.api_url || secrets.NEXT_PUBLIC_API_URL }}" in workflow
     assert "gh secret set NEXT_PUBLIC_API_URL" in script
     assert "gh workflow run" in script
+    assert "--field api_url=$ApiUrl" in script
     assert "azure-static-web-apps-proud-meadow-01b42b810.yml" in script
 
 

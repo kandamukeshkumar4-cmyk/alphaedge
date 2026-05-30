@@ -24,7 +24,7 @@ Write-Host "Setting GitHub Actions secret NEXT_PUBLIC_API_URL for $Repo."
 gh secret set NEXT_PUBLIC_API_URL --repo $Repo --body $ApiUrl
 
 Write-Host "Triggering Azure Static Web Apps workflow on $Branch."
-gh workflow run $Workflow --repo $Repo --ref $Branch
+gh workflow run $Workflow --repo $Repo --ref $Branch --field api_url=$ApiUrl
 
 Write-Host "Frontend redeploy requested. Track it with:"
 Write-Host "gh run list --repo $Repo --workflow $Workflow --limit 3"
