@@ -59,3 +59,29 @@ def test_azure_app_service_fallback_uses_free_sku():
     assert "SCM_DO_BUILD_DURING_DEPLOYMENT=true" in script
     assert "PAPER_TRADING_ONLY=true" in script
     assert "alembic upgrade head" in script
+
+
+def test_azure_static_web_apps_frontend_config():
+    next_config = (ROOT / "frontend" / "next.config.ts").read_text(encoding="utf-8")
+    package_json = (ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
+    config = (ROOT / "frontend" / "staticwebapp.config.json").read_text(encoding="utf-8")
+    script = (ROOT / "scripts" / "deploy_azure_static_webapp.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "output: \"export\"" in next_config
+    assert "\"build:static\"" in package_json
+    assert "\"navigationFallback\"" in config
+    assert "--sku Free" in script
+    assert "--app-location frontend" in script
+    assert "--output-location out" in script
+
+
+def test_public_frontend_does_not_default_to_localhost_api():
+    for path in [
+        ROOT / "frontend" / "src" / "app" / "admin" / "page.tsx",
+        ROOT / "frontend" / "src" / "app" / "markets" / "page.tsx",
+        ROOT / "frontend" / "src" / "app" / "eval" / "page.tsx",
+    ]:
+        source = path.read_text(encoding="utf-8")
+        assert "localhost" not in source.lower()

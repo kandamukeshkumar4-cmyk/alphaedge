@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
 type Market = { slug: string; title: string; status: string };
 
@@ -10,6 +10,10 @@ export default function MarketsPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
 
   useEffect(() => {
+    if (!API) {
+      return;
+    }
+
     fetch(`${API}/api/v1/markets`)
       .then((r) => r.json())
       .then(setMarkets)

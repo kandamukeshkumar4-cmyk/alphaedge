@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function EvalDashboard() {
   const [aggregates, setAggregates] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
+    if (!API) {
+      return;
+    }
+
     fetch(`${API}/api/v1/eval/aggregates`)
       .then((r) => r.json())
       .then(setAggregates)

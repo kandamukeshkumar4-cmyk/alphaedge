@@ -1,6 +1,6 @@
 "use client";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function AdminPage() {
   return (
@@ -10,9 +10,12 @@ export default function AdminPage() {
         Agent toggle, manual run, lock/resolve — uses admin API key server-side in production.
       </p>
       <ul className="mt-6 space-y-2 text-sm">
-        <li>API health: {API}/health</li>
-        <li>Run agent: POST {API}/admin/agents/run/nba-2025-01-15-lal-bos</li>
-        <li>Create market: POST {API}/admin/markets</li>
+        <li>API health: {API ? `${API}/health` : "API URL not configured"}</li>
+        <li>
+          Run agent: POST{" "}
+          {API ? `${API}/admin/agents/run/nba-2025-01-15-lal-bos` : "API URL not configured"}
+        </li>
+        <li>Create market: POST {API ? `${API}/admin/markets` : "API URL not configured"}</li>
       </ul>
     </main>
   );
