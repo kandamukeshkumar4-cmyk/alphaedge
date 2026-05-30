@@ -85,3 +85,61 @@ def test_public_frontend_does_not_default_to_localhost_api():
     ]:
         source = path.read_text(encoding="utf-8")
         assert "localhost" not in source.lower()
+
+
+def test_koyeb_neon_script_uses_free_web_service_and_neon_env():
+    script = (ROOT / "scripts" / "deploy_koyeb_neon.ps1").read_text(encoding="utf-8")
+
+    assert "KOYEB_TOKEN" in script
+    assert "koyeb apps init" in script
+    assert "--instance-type" in script
+    assert "free" in script
+    assert "--git-builder" in script
+    assert "docker" in script
+    assert "--git-workdir" in script
+    assert "backend" in script
+    assert "--git-docker-dockerfile" in script
+    assert "Dockerfile" in script
+    assert "--ports" in script
+    assert "8000:http" in script
+    assert "--routes" in script
+    assert "/:8000" in script
+    assert "PAPER_TRADING_ONLY=true" in script
+    assert "DATABASE_URL=" in script
+    assert "DATABASE_URL_SYNC=" in script
+    assert "CORS_ORIGINS=" in script
+    assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in script
+    assert "ADMIN_API_KEY=change-me" not in script
+
+
+def test_frontend_api_url_can_be_set_for_azure_static_web_apps():
+    workflow = (
+        ROOT / ".github" / "workflows" / "azure-static-web-apps-proud-meadow-01b42b810.yml"
+    ).read_text(encoding="utf-8")
+    script = (ROOT / "scripts" / "set_frontend_api_url.ps1").read_text(encoding="utf-8")
+
+    assert "NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}" in workflow
+    assert "gh secret set NEXT_PUBLIC_API_URL" in script
+    assert "gh workflow run" in script
+    assert "azure-static-web-apps-proud-meadow-01b42b810.yml" in script
+
+
+def test_koyebignore_limits_backend_redeploy_noise():
+    koyebignore = (ROOT / ".koyebignore").read_text(encoding="utf-8")
+
+    assert "frontend/" in koyebignore
+    assert "docs/" in koyebignore
+    assert "scripts/" in koyebignore
+    assert ".github/" in koyebignore
+
+
+def test_koyeb_neon_deploy_doc_exists():
+    doc = (ROOT / "docs" / "deploy" / "KOYEB_NEON.md").read_text(encoding="utf-8")
+
+    assert "Koyeb Free Web Service + Neon Free Postgres" in doc
+    assert "PAPER_TRADING_ONLY=true" in doc
+    assert "DATABASE_URL" in doc
+    assert "DATABASE_URL_SYNC" in doc
+    assert "NEXT_PUBLIC_API_URL" in doc
+    assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in doc
+    assert "/health" in doc

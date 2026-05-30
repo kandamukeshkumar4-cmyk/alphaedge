@@ -1,0 +1,8 @@
+# Koyeb deploys the backend service from backend/.
+# Ignore non-backend-only commits so the free backend does not redeploy for docs/UI churn.
+README.md
+docs/
+frontend/
+fixtures/
+scripts/
+.github/

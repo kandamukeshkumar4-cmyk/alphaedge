@@ -140,6 +140,26 @@ alphaedge/
 - Root directory: `frontend/`
 - Env: `NEXT_PUBLIC_API_URL=https://your-api.railway.app`
 
+### Azure Static Web Apps frontend
+
+The frontend is deployed as a static Next.js export on Azure Static Web Apps:
+
+```text
+https://proud-meadow-01b42b810.7.azurestaticapps.net
+```
+
+Set `NEXT_PUBLIC_API_URL` in GitHub Actions secrets before rebuilding the static frontend.
+
+### Koyeb + Neon backend fallback
+
+Use this when Azure Container Apps/App Service quotas block the backend and Vercel is unavailable:
+
+- Koyeb Free Web Service for the FastAPI Docker backend
+- Neon Free Postgres for `DATABASE_URL` and `DATABASE_URL_SYNC`
+- Existing Azure Static Web Apps frontend remains live
+
+See `docs/deploy/KOYEB_NEON.md`.
+
 ### Azure for Students + Vercel
 
 See `docs/deploy/AZURE_VERCEL.md` for the free-tier-oriented Azure Container Apps/PostgreSQL backend script and Vercel frontend deploy script.
