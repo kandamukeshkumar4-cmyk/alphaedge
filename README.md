@@ -162,6 +162,8 @@ See `docs/deploy/KOYEB_NEON.md`.
 
 There is also a manual GitHub Actions workflow, `Deploy Backend to Koyeb`, for running the Koyeb deploy after adding the required repository secrets.
 
+After creating the Neon DB and Koyeb token, `scripts/set_koyeb_neon_secrets.ps1` can set the required GitHub secrets and optionally trigger the deploy workflow.
+
 ### Azure for Students + Vercel
 
 See `docs/deploy/AZURE_VERCEL.md` for the free-tier-oriented Azure Container Apps/PostgreSQL backend script and Vercel frontend deploy script.

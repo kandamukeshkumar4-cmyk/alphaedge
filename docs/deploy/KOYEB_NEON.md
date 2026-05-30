@@ -97,6 +97,16 @@ Optional:
 NEON_DATABASE_URL_SYNC
 ```
 
+You can set the required GitHub secrets from this machine after creating the Neon DB and Koyeb token:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\set_koyeb_neon_secrets.ps1 `
+  -KoyebToken "koyeb_xxx" `
+  -NeonDatabaseUrl "postgresql://USER:PASSWORD@HOST/DB?sslmode=require" `
+  -AdminApiKey "use-a-long-random-secret" `
+  -TriggerDeploy
+```
+
 Then run the manual workflow:
 
 ```text

@@ -164,3 +164,19 @@ def test_koyeb_backend_github_workflow_is_manual_and_secret_driven():
     assert "actions: write" in workflow
     assert "gh workflow run azure-static-web-apps-proud-meadow-01b42b810.yml" in workflow
     assert "--field api_url=${{ inputs.api_url }}" in workflow
+
+
+def test_koyeb_neon_secret_bootstrap_script_sets_required_github_secrets():
+    script = (ROOT / "scripts" / "set_koyeb_neon_secrets.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "gh secret set KOYEB_TOKEN" in script
+    assert "gh secret set NEON_DATABASE_URL" in script
+    assert "gh secret set ADMIN_API_KEY" in script
+    assert "gh secret set NEON_DATABASE_URL_SYNC" in script
+    assert "deploy-koyeb-backend.yml" in script
+    assert "gh workflow run" in script
+    assert "-TriggerDeploy" in script
+    assert "https://alphaedge-api.koyeb.app" in script
+    assert "change-me" not in script
