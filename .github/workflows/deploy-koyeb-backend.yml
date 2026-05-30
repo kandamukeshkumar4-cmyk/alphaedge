@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: deploy-koyeb-backend
@@ -39,3 +40,11 @@ jobs:
       - name: Verify backend health
         run: |
           curl --fail --show-error --silent "${{ inputs.api_url }}/health"
+
+      - name: Rebuild Azure Static Web Apps frontend with backend URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run azure-static-web-apps-proud-meadow-01b42b810.yml \
+            --ref "${{ github.ref_name }}" \
+            --field api_url=${{ inputs.api_url }}

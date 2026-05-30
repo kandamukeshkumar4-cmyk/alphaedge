@@ -103,11 +103,11 @@ Then run the manual workflow:
 Deploy Backend to Koyeb
 ```
 
-The workflow installs the Koyeb CLI on the GitHub runner, runs `scripts/deploy_koyeb_neon.ps1`, and verifies `/health`.
+The workflow installs the Koyeb CLI on the GitHub runner, runs `scripts/deploy_koyeb_neon.ps1`, verifies `/health`, and then triggers the Azure Static Web Apps workflow with the same backend URL.
 
 ## 3. Point Azure Static Web Apps frontend at Koyeb
 
-After the Koyeb backend has a working HTTPS URL:
+After the Koyeb backend has a working HTTPS URL, this manual command is still available:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\set_frontend_api_url.ps1 -ApiUrl "https://alphaedge-api.koyeb.app"
@@ -120,6 +120,8 @@ NEXT_PUBLIC_API_URL=https://alphaedge-api.koyeb.app
 ```
 
 Then it triggers the Azure Static Web Apps workflow. The workflow injects that secret at build time because the frontend is a static Next.js export.
+
+If you use `Deploy Backend to Koyeb`, this frontend rebuild happens automatically and the API URL is passed as a workflow input.
 
 ## 4. Current limitations
 

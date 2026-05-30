@@ -118,7 +118,9 @@ def test_frontend_api_url_can_be_set_for_azure_static_web_apps():
     ).read_text(encoding="utf-8")
     script = (ROOT / "scripts" / "set_frontend_api_url.ps1").read_text(encoding="utf-8")
 
-    assert "NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}" in workflow
+    assert "workflow_dispatch" in workflow
+    assert "api_url:" in workflow
+    assert "NEXT_PUBLIC_API_URL: ${{ inputs.api_url || secrets.NEXT_PUBLIC_API_URL }}" in workflow
     assert "gh secret set NEXT_PUBLIC_API_URL" in script
     assert "gh workflow run" in script
     assert "azure-static-web-apps-proud-meadow-01b42b810.yml" in script
@@ -159,3 +161,6 @@ def test_koyeb_backend_github_workflow_is_manual_and_secret_driven():
     assert "koyeb-cli/master/install.sh" in workflow
     assert "curl --fail" in workflow
     assert "/health" in workflow
+    assert "actions: write" in workflow
+    assert "gh workflow run azure-static-web-apps-proud-meadow-01b42b810.yml" in workflow
+    assert "--field api_url=${{ inputs.api_url }}" in workflow
