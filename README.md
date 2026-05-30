@@ -164,6 +164,22 @@ There is also a manual GitHub Actions workflow, `Deploy Backend to Koyeb`, for r
 
 After creating the Neon DB and Koyeb token, `scripts/set_koyeb_neon_secrets.ps1` can set the required GitHub secrets and optionally trigger the deploy workflow.
 
+### Hugging Face Spaces + Neon backend fallback
+
+Use this when the Koyeb account flow requires payment verification but you still need a free/no-card public backend for the portfolio demo:
+
+- Hugging Face Docker Space for the FastAPI backend
+- Neon Free Postgres for `DATABASE_URL` and `DATABASE_URL_SYNC`
+- Existing Azure Static Web Apps frontend remains live
+
+Current public API:
+
+```text
+https://mukeshkumarkanda-alphaedge-api.hf.space
+```
+
+See `docs/deploy/HUGGINGFACE_NEON.md`.
+
 ### Azure for Students + Vercel
 
 See `docs/deploy/AZURE_VERCEL.md` for the free-tier-oriented Azure Container Apps/PostgreSQL backend script and Vercel frontend deploy script.

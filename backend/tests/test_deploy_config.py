@@ -148,6 +148,23 @@ def test_koyeb_neon_deploy_doc_exists():
     assert "/health" in doc
 
 
+def test_huggingface_neon_deploy_doc_exists():
+    doc = (ROOT / "docs" / "deploy" / "HUGGINGFACE_NEON.md").read_text(
+        encoding="utf-8"
+    )
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "Hugging Face Spaces + Neon Postgres" in doc
+    assert "mukeshkumarkanda-alphaedge-api.hf.space" in doc
+    assert "PAPER_TRADING_ONLY=true" in doc
+    assert "DATABASE_URL" in doc
+    assert "DATABASE_URL_SYNC" in doc
+    assert "NEXT_PUBLIC_API_URL" in doc
+    assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in doc
+    assert "/health" in doc
+    assert "HUGGINGFACE_NEON.md" in readme
+
+
 def test_koyeb_backend_github_workflow_is_manual_and_secret_driven():
     workflow = (ROOT / ".github" / "workflows" / "deploy-koyeb-backend.yml").read_text(
         encoding="utf-8"
