@@ -15,10 +15,15 @@ def async_engine_settings(database_url: str) -> tuple[str, dict[str, Any]]:
 
     if url.drivername == "postgresql+asyncpg":
         sslmode = url.query.get("sslmode")
+        ssl = url.query.get("ssl")
         unsupported_query_keys = ["channel_binding"]
         if sslmode:
             unsupported_query_keys.append("sslmode")
             if sslmode != "disable":
+                kwargs["connect_args"] = {"ssl": True}
+        if ssl:
+            unsupported_query_keys.append("ssl")
+            if ssl != "false":
                 kwargs["connect_args"] = {"ssl": True}
         url = url.difference_update_query(unsupported_query_keys)
 
