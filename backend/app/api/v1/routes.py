@@ -16,13 +16,13 @@ router = APIRouter(prefix="/api/v1", tags=["public"])
 @router.get("/markets", response_model=list[MarketResponse])
 async def list_markets(db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
-    return await svc.list_markets()
+    return await svc.list_public_markets()
 
 
 @router.get("/markets/{slug}", response_model=MarketResponse)
 async def get_market(slug: str, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
-    market = await svc.get_market_by_slug(slug)
+    market = await svc.get_public_market_by_slug(slug)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
     return market

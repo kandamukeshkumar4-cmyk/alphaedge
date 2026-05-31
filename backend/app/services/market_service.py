@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import String, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -14,6 +15,7 @@ from app.db.models import (
     Position,
 )
 from app.events.bus import DomainEventBus
+from app.schemas.market import MarketResponse
 from app.services.ledger_service import LedgerService
 
 
@@ -111,9 +113,51 @@ class MarketService:
         result = await self.session.execute(select(Market).order_by(Market.created_at.desc()))
         return list(result.scalars().all())
 
+    async def list_public_markets(self) -> list[MarketResponse]:
+        result = await self.session.execute(
+            select(
+                Market.id,
+                Market.slug,
+                Market.title,
+                Market.question,
+                cast(Market.status, String).label("status"),
+                Market.lock_at,
+                Market.resolved_at,
+                cast(Market.winning_outcome, String).label("winning_outcome"),
+            ).order_by(Market.created_at.desc())
+        )
+        return [self._market_response_from_row(row._mapping) for row in result.all()]
+
     async def get_market_by_slug(self, slug: str) -> Market | None:
         result = await self.session.execute(select(Market).where(Market.slug == slug))
         return result.scalar_one_or_none()
+
+    async def get_public_market_by_slug(self, slug: str) -> MarketResponse | None:
+        result = await self.session.execute(
+            select(
+                Market.id,
+                Market.slug,
+                Market.title,
+                Market.question,
+                cast(Market.status, String).label("status"),
+                Market.lock_at,
+                Market.resolved_at,
+                cast(Market.winning_outcome, String).label("winning_outcome"),
+            ).where(Market.slug == slug)
+        )
+        row = result.first()
+        if row is None:
+            return None
+        return self._market_response_from_row(row._mapping)
+
+    @staticmethod
+    def _market_response_from_row(row) -> MarketResponse:
+        data = dict(row)
+        if data.get("status"):
+            data["status"] = str(data["status"]).lower()
+        if data.get("winning_outcome"):
+            data["winning_outcome"] = str(data["winning_outcome"]).lower()
+        return MarketResponse.model_validate(data)
 
     async def seed_canonical_market(self) -> Market | None:
         """Idempotent seed for Lakers vs Celtics demo market."""
