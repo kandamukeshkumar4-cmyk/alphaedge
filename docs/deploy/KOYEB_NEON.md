@@ -115,7 +115,28 @@ Deploy Backend to Koyeb
 
 The workflow installs the Koyeb CLI on the GitHub runner, runs `scripts/deploy_koyeb_neon.ps1`, verifies `/health`, and then triggers the Azure Static Web Apps workflow with the same backend URL.
 
-## 3. Point Azure Static Web Apps frontend at Koyeb
+## 3. Preflight and final verification
+
+Before and after running the Koyeb deploy, this command reports exactly what is
+missing:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify_koyeb_neon_ready.ps1
+```
+
+It checks:
+
+```text
+KOYEB_TOKEN, NEON_DATABASE_URL, ADMIN_API_KEY GitHub secrets
+https://alphaedge-api.koyeb.app/health
+https://alphaedge-api.koyeb.app/api/v1/markets
+Azure Static Web Apps frontend bundle points at the Koyeb URL
+```
+
+If Koyeb returns `404: No active service`, the app hostname exists but the
+backend service still needs to be created or redeployed.
+
+## 4. Point Azure Static Web Apps frontend at Koyeb
 
 After the Koyeb backend has a working HTTPS URL, this manual command is still available:
 
@@ -133,7 +154,7 @@ Then it triggers the Azure Static Web Apps workflow. The workflow injects that s
 
 If you use `Deploy Backend to Koyeb`, this frontend rebuild happens automatically and the API URL is passed as a workflow input.
 
-## 4. Current limitations
+## 5. Current limitations
 
 - Koyeb free web services sleep after idle time.
 - No worker is deployed on the Koyeb free service.

@@ -169,6 +169,9 @@ There is also a manual GitHub Actions workflow, `Deploy Backend to Koyeb`, for r
 
 After creating the Neon DB and Koyeb token, `scripts/set_koyeb_neon_secrets.ps1` can set the required GitHub secrets and optionally trigger the deploy workflow.
 
+Use `scripts/verify_koyeb_neon_ready.ps1` to verify Koyeb secrets, backend health,
+canonical market data, and the frontend API URL after deployment.
+
 ### Hugging Face Spaces + Neon backend fallback
 
 Use this when the Koyeb account flow requires payment verification but you still need a free/no-card public backend for the portfolio demo:

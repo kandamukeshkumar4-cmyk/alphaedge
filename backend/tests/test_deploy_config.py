@@ -221,3 +221,22 @@ def test_koyeb_neon_secret_bootstrap_script_sets_required_github_secrets():
     assert "-TriggerDeploy" in script
     assert "https://alphaedge-api.koyeb.app" in script
     assert "change-me" not in script
+
+
+def test_koyeb_neon_readiness_script_checks_backend_and_frontend():
+    script = (ROOT / "scripts" / "verify_koyeb_neon_ready.ps1").read_text(
+        encoding="utf-8"
+    )
+    doc = (ROOT / "docs" / "deploy" / "KOYEB_NEON.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "KOYEB_TOKEN" in script
+    assert "NEON_DATABASE_URL" in script
+    assert "ADMIN_API_KEY" in script
+    assert "$ApiUrl/health" in script
+    assert "$ApiUrl/api/v1/markets" in script
+    assert "nba-2025-01-15-lal-bos" in script
+    assert "No active service" in script
+    assert "Frontend markets bundle is not pointed at" in script
+    assert "verify_koyeb_neon_ready.ps1" in doc
+    assert "verify_koyeb_neon_ready.ps1" in readme
