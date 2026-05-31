@@ -103,13 +103,28 @@ if (-not $NoWait) {
 Write-Host "Deploying AlphaEdge backend to Koyeb app '$AppName' from $GitRepo@$GitBranch."
 Write-Host "Using Koyeb free web instance in region '$Region'. Secrets will not be printed."
 
-# Create path: koyeb apps init alphaedge-api ...
 & koyeb @globalArgs apps get $AppName *> $null
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Koyeb app exists; updating service '$AppName/$ServiceName'."
-    & koyeb @globalArgs services update "$AppName/$ServiceName" @deployArgs
+$appExists = $LASTEXITCODE -eq 0
+$serviceExists = $false
+
+if ($appExists) {
+    & koyeb @globalArgs services get "$AppName/$ServiceName" *> $null
+    $serviceExists = $LASTEXITCODE -eq 0
+
+    if ($serviceExists) {
+        Write-Host "Koyeb app and service exist; updating service '$AppName/$ServiceName'."
+    } else {
+        Write-Host "Koyeb app exists but service '$ServiceName' is missing; creating service."
+    }
 } else {
     Write-Host "Koyeb app does not exist; creating app and service."
+}
+
+if ($appExists -and $serviceExists) {
+    & koyeb @globalArgs services update "$AppName/$ServiceName" @deployArgs
+} elseif ($appExists) {
+    & koyeb @globalArgs services create $ServiceName --app $AppName @deployArgs
+} else {
     & koyeb @globalArgs apps init $AppName @deployArgs
 }
 

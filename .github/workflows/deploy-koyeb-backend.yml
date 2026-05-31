@@ -39,7 +39,14 @@ jobs:
 
       - name: Verify backend health
         run: |
-          curl --fail --show-error --silent "${{ inputs.api_url }}/health"
+          for i in {1..20}; do
+            if curl --fail --show-error --silent "${{ inputs.api_url }}/health"; then
+              exit 0
+            fi
+            echo "Backend not healthy yet; retry $i/20"
+            sleep 15
+          done
+          exit 1
 
       - name: Rebuild Azure Static Web Apps frontend with backend URL
         env:

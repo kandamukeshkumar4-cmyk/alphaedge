@@ -11,6 +11,8 @@ def test_backend_dockerfile_has_cloud_start_command():
     assert "alembic upgrade head" in dockerfile
     assert "uvicorn app.main:app" in dockerfile
     assert "${PORT:-8000}" in dockerfile
+    assert "libgomp1" in dockerfile
+    assert '-e ".[dev]"' not in dockerfile
 
 
 def test_backend_dockerignore_excludes_local_artifacts():
@@ -109,7 +111,9 @@ def test_koyeb_neon_script_uses_free_web_service_and_neon_env():
     script = (ROOT / "scripts" / "deploy_koyeb_neon.ps1").read_text(encoding="utf-8")
 
     assert "KOYEB_TOKEN" in script
-    assert "koyeb apps init" in script
+    assert "apps init" in script
+    assert "services get" in script
+    assert "services create" in script
     assert "--instance-type" in script
     assert "free" in script
     assert "--git-builder" in script
@@ -196,6 +200,7 @@ def test_koyeb_backend_github_workflow_is_manual_and_secret_driven():
     assert "deploy_koyeb_neon.ps1" in workflow
     assert "koyeb-cli/master/install.sh" in workflow
     assert "curl --fail" in workflow
+    assert "retry $i/20" in workflow
     assert "/health" in workflow
     assert "actions: write" in workflow
     assert "gh workflow run azure-static-web-apps-proud-meadow-01b42b810.yml" in workflow
