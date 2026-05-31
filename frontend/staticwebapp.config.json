@@ -1,7 +1,13 @@
 {
+  "routes": [
+    {
+      "route": "/health",
+      "rewrite": "/api/health"
+    }
+  ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/_next/*", "/favicon.ico", "/robots.txt"]
+    "exclude": ["/_next/*", "/api/*", "/favicon.ico", "/robots.txt"]
   },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",

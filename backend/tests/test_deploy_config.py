@@ -77,6 +77,22 @@ def test_azure_static_web_apps_frontend_config():
     assert "--output-location out" in script
 
 
+def test_azure_static_web_apps_managed_api_unblocks_public_demo():
+    workflow = (
+        ROOT / ".github" / "workflows" / "azure-static-web-apps-proud-meadow-01b42b810.yml"
+    ).read_text(encoding="utf-8")
+    api_function = (ROOT / "api" / "src" / "functions" / "alphaedge.js").read_text(
+        encoding="utf-8"
+    )
+    config = (ROOT / "frontend" / "staticwebapp.config.json").read_text(encoding="utf-8")
+
+    assert 'api_location: "api"' in workflow
+    assert 'route: "v1/markets"' in api_function
+    assert 'route: "v1/eval/aggregates"' in api_function
+    assert "Lakers vs Celtics" in api_function
+    assert '"/api/*"' in config
+
+
 def test_public_frontend_does_not_default_to_localhost_api():
     for path in [
         ROOT / "frontend" / "src" / "app" / "admin" / "page.tsx",

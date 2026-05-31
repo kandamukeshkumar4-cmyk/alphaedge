@@ -150,6 +150,11 @@ https://proud-meadow-01b42b810.7.azurestaticapps.net
 
 Set `NEXT_PUBLIC_API_URL` in GitHub Actions secrets before rebuilding the static frontend.
 
+The live demo also includes a small Azure Static Web Apps managed API under `api/`.
+It serves `/api/health`, `/api/v1/markets`, and `/api/v1/eval/aggregates` from the
+same free Static Web App so the public portfolio pages stay usable even when a
+separate container backend is blocked by free-tier quota or payment verification.
+
 ### Koyeb + Neon backend fallback
 
 Use this when Azure Container Apps/App Service quotas block the backend and Vercel is unavailable:
