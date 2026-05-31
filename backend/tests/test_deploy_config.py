@@ -84,9 +84,11 @@ def test_azure_static_web_apps_managed_api_unblocks_public_demo():
     api_function = (ROOT / "api" / "src" / "functions" / "alphaedge.js").read_text(
         encoding="utf-8"
     )
+    api_package = (ROOT / "api" / "package.json").read_text(encoding="utf-8")
     config = (ROOT / "frontend" / "staticwebapp.config.json").read_text(encoding="utf-8")
 
     assert 'api_location: "api"' in workflow
+    assert '"main": "src/functions/*.js"' in api_package
     assert 'route: "v1/markets"' in api_function
     assert 'route: "v1/eval/aggregates"' in api_function
     assert "Lakers vs Celtics" in api_function
