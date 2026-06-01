@@ -1,0 +1,62 @@
+name: Deploy Backend to Railway
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Public Railway API URL (leave blank on first deploy, then set it once the domain exists)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: deploy-railway-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy FastAPI backend
+        shell: pwsh
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          ./scripts/deploy_railway.ps1 -ApiUrl "${{ inputs.api_url }}"
+
+      - name: Verify backend health
+        if: ${{ inputs.api_url != '' }}
+        run: |
+          for i in {1..20}; do
+            if curl --fail --show-error --silent "${{ inputs.api_url }}/health"; then
+              exit 0
+            fi
+            echo "Backend not healthy yet; retry $i/20"
+            sleep 15
+          done
+          exit 1
+
+      - name: Rebuild Azure Static Web Apps frontend with backend URL
+        if: ${{ inputs.api_url != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run azure-static-web-apps-proud-meadow-01b42b810.yml \
+            --ref "${{ github.ref_name }}" \
+            --field api_url=${{ inputs.api_url }}

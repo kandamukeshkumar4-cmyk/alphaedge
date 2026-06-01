@@ -130,10 +130,19 @@ alphaedge/
 
 ### Railway (API + worker)
 
-- API: `railway.toml` at repo root
-- Worker: `backend/railway.worker.toml` — `python -m app.workers.main`
-- Env: `DATABASE_URL`, `REDIS_URL`, `ADMIN_API_KEY`, `PAPER_TRADING_ONLY=true`
-- Run migrations: `alembic upgrade head`
+- API service config: `backend/railway.toml` (Dockerfile build; service **Root Directory must be `backend`**)
+- Worker service config: `backend/railway.worker.toml` — `python -m app.workers.main`
+- Env: `DATABASE_URL`, `DATABASE_URL_SYNC`, `REDIS_URL`, `ADMIN_API_KEY`, `CORS_ORIGINS`, `PAPER_TRADING_ONLY=true`
+- Migrations run automatically via the start command (`alembic upgrade head && uvicorn ...`)
+
+One-token deploy (reuses the existing Neon Postgres):
+
+1. Create a Railway project + a service named `alphaedge-api`, set its Root Directory to `backend`, and generate a **project token** (Project Settings → Tokens).
+2. `scripts/set_railway_secrets.ps1` sets `RAILWAY_TOKEN`, `NEON_DATABASE_URL`, and `ADMIN_API_KEY` as GitHub secrets and can trigger the deploy.
+3. The manual GitHub Actions workflow **Deploy Backend to Railway** (`deploy-railway-backend.yml`) runs `scripts/deploy_railway.ps1`, which pushes the service variables and deploys the `backend/` Docker image.
+4. Once Railway assigns a public domain, pass it as the workflow `api_url` (or run `scripts/set_frontend_api_url.ps1`) to point the Azure frontend at the new backend.
+
+`scripts/deploy_railway.ps1` can also be run locally with the Railway CLI for a one-off deploy. Verify with `scripts/verify_koyeb_neon_ready.ps1 -ApiUrl https://<your-app>.up.railway.app`.
 
 ### Vercel (frontend)
 
