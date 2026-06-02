@@ -178,16 +178,13 @@ jobs:
 
       - name: Smoke-test markets endpoint
         run: |
-          body="$(mktemp)"
-          status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
-            https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets || echo 000)
-          if [ "$status" != "200" ]; then
-            echo "ERROR: /api/v1/markets returned HTTP $status"
-            cat "$body"
-            exit 1
-          fi
-
-          python3 - "$body" << 'PY'
+          echo "Waiting for markets endpoint to return canonical market (up to 10 min)..."
+          for i in $(seq 1 40); do
+            body="$(mktemp)"
+            status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
+              https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets || echo 000)
+            if [ "$status" = "200" ]; then
+              if python3 - "$body" << 'PY'
           import json
           import sys
 
@@ -199,3 +196,14 @@ jobs:
 
           print("/api/v1/markets returned 200 with canonical market")
           PY
+              then
+                exit 0
+              fi
+            else
+              echo "Attempt $i/40: /api/v1/markets HTTP $status - retrying in 15s"
+              cat "$body"
+            fi
+            sleep 15
+          done
+          echo "ERROR: /api/v1/markets did not return the canonical market in time."
+          exit 1

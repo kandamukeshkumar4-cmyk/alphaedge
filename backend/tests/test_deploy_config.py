@@ -226,6 +226,9 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "git push" in workflow
     assert "Expected paper_trading_only=true from /health" in workflow
     assert "Canonical Lakers vs Celtics market was not returned" in workflow
+    assert "Waiting for markets endpoint to return canonical market" in workflow
+    assert "Attempt $i/40: /api/v1/markets HTTP $status" in workflow
+    assert "ERROR: /api/v1/markets did not return the canonical market in time." in workflow
     assert "ERROR: health check timed out" in workflow
     assert "WARNING: health check timed out" not in workflow
     assert "WARNING: /api/v1/markets" not in workflow
