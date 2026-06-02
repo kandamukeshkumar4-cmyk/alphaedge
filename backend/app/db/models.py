@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -88,6 +89,13 @@ class Market(Base):
     slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(64), default="Sports")
+    icon: Mapped[str] = mapped_column(String(32), default="basketball")
+    volume: Mapped[int] = mapped_column(Integer, default=0)
+    traders: Mapped[int] = mapped_column(Integer, default=0)
+    market_count: Mapped[int] = mapped_column(Integer, default=1)
+    description: Mapped[str] = mapped_column(Text, default="")
+    resolution: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[MarketStatus] = mapped_column(
         _pg_enum(MarketStatus, name="market_status"),
         default=MarketStatus.OPEN,

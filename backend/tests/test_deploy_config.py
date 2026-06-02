@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -226,12 +227,47 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "git push" in workflow
     assert "Expected paper_trading_only=true from /health" in workflow
     assert "Canonical Lakers vs Celtics market was not returned" in workflow
+    assert "Los Angeles mayoral election market was not returned" in workflow
+    assert "Expected Politics category on election market" in workflow
+    assert "/api/v1/markets/elect-la-mayor-2026/snapshot" in workflow
+    assert "Expected snapshot route to return the election market" in workflow
     assert "Waiting for markets endpoint to return canonical market" in workflow
     assert "Attempt $i/40: /api/v1/markets HTTP $status" in workflow
     assert "ERROR: /api/v1/markets did not return the canonical market in time." in workflow
     assert "ERROR: health check timed out" in workflow
     assert "WARNING: health check timed out" not in workflow
     assert "WARNING: /api/v1/markets" not in workflow
+
+
+def test_market_catalog_metadata_uses_incremental_migration():
+    initial = (ROOT / "backend" / "alembic" / "versions" / "001_initial_schema.py").read_text(
+        encoding="utf-8"
+    )
+    migration = (
+        ROOT / "backend" / "alembic" / "versions" / "002_market_catalog_metadata.py"
+    ).read_text(encoding="utf-8")
+    initial_markets_table = initial.split('op.create_table(\n        "markets",', 1)[1].split(
+        'op.create_index("ix_markets_slug"',
+        1,
+    )[0]
+
+    catalog_columns = [
+        "category",
+        "icon",
+        "volume",
+        "traders",
+        "market_count",
+        "description",
+        "resolution",
+    ]
+    for column in catalog_columns:
+        assert f'"{column}"' not in initial_markets_table
+        assert re.search(
+            rf'op\.add_column\(\s*"markets",\s*sa\.Column\("{column}"',
+            migration,
+        )
+
+    assert 'down_revision: Union[str, None] = "001"' in migration
 
 
 def test_huggingface_neon_doc_uses_automated_deploy_not_sha_pinning():

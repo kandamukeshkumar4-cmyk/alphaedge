@@ -1,6 +1,6 @@
-"""AlphaEdge backend — paper-trading prediction market simulation."""
+"""AlphaEdge backend — paper-trading prediction market platform."""
 
 PAPER_TRADING_DISCLAIMER = (
-    "This project is a paper-trading simulation for research and portfolio "
-    "demonstration only. No real-money trading, betting, or settlement is supported."
+    "This project is a paper-trading simulation for sports and election markets "
+    "using simulated funds for research and portfolio demonstration only."
 )

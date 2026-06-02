@@ -22,5 +22,5 @@ Gate claimed:
 
 ## Risk
 
-- Paper-trading only: no real-money trading, betting, wallet, or settlement support.
+- Paper-trading only: simulated funds only, with no cash funding or external execution paths.
 - Agent safety: raw LLM text cannot bypass `RiskService`.

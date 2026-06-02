@@ -1,7 +1,7 @@
 [project]
 name = "alphaedge"
 version = "0.1.0"
-description = "Paper-trading NBA prediction market simulation with real CLOB"
+description = "Paper-trading sports and election prediction market platform with real CLOB"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

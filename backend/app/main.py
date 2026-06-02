@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
             Decimal(str(settings.system_initial_bankroll)),
             "System Paper Account",
         )
-        await svc.seed_canonical_market()
+        await svc.seed_catalog_markets()
         await session.commit()
     yield
 

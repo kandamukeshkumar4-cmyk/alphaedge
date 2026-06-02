@@ -34,7 +34,7 @@ def _heuristic_drift(summary: str, model: str) -> dict:
 
 def _call_gemini(summary: str, model: str, api_key: str) -> dict:
     prompt = (
-        "You are a drift monitor for a paper-trading NBA prediction market simulation. "
+        "You are a drift monitor for a paper-trading sports and election prediction market platform. "
         "Given evaluation summary metrics, respond with JSON only: "
         '{"drift_detected": boolean, "reason": string}. '
         f"Summary:\n{summary[:3000]}"

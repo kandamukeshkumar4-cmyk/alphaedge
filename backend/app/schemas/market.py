@@ -13,6 +13,13 @@ class MarketCreate(BaseModel):
     title: str
     question: str
     lock_at: Optional[datetime] = None
+    category: str = "Sports"
+    icon: str = "basketball"
+    volume: int = 0
+    traders: int = 0
+    market_count: int = 1
+    description: str = ""
+    resolution: str = ""
 
 
 class MarketResponse(BaseModel):
@@ -20,6 +27,13 @@ class MarketResponse(BaseModel):
     slug: str
     title: str
     question: str
+    category: str = "Sports"
+    icon: str = "basketball"
+    volume: int = 0
+    traders: int = 0
+    market_count: int = 1
+    description: str = ""
+    resolution: str = ""
     status: MarketStatus
     lock_at: Optional[datetime]
     resolved_at: Optional[datetime]
@@ -28,8 +42,63 @@ class MarketResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BookLevel(BaseModel):
+    price: float
+    size: float
+
+
+class OutcomeBookSnapshot(BaseModel):
+    bids: list[BookLevel]
+    asks: list[BookLevel]
+
+
+class OrderBookSnapshot(BaseModel):
+    yes: OutcomeBookSnapshot
+    no: OutcomeBookSnapshot
+
+
+class MarketActivityItem(BaseModel):
+    id: UUID
+    outcome: OrderOutcome
+    price: float
+    quantity: float
+    created_at: datetime
+
+
+class MarketForecastSnapshot(BaseModel):
+    predicted_prob: float
+    confidence: float
+    edge_vs_book: Optional[float]
+    input_feature_hash: Optional[str]
+
+
+class MarketEvaluationSnapshot(BaseModel):
+    latest_brier_score: float
+    predicted_prob: Optional[float]
+    actual_outcome: int
+    closing_implied: Optional[float]
+
+
+class MarketSnapshotResponse(BaseModel):
+    paper_trading_only: bool
+    disclaimer: str
+    market: MarketResponse
+    book: OrderBookSnapshot
+    activity: list[MarketActivityItem]
+    forecast: Optional[MarketForecastSnapshot]
+    evaluation: Optional[MarketEvaluationSnapshot]
+
+
 class MarketResolve(BaseModel):
     winning_outcome: OrderOutcome
+
+
+class OrderRiskInput(BaseModel):
+    predicted_prob: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    edge: float
+    current_drawdown: float = Field(default=0, ge=0)
+    minutes_before_start: int = Field(ge=0)
 
 
 class OrderCreate(BaseModel):
@@ -39,6 +108,7 @@ class OrderCreate(BaseModel):
     order_type: OrderType
     quantity: Decimal = Field(gt=0)
     price: Optional[Decimal] = Field(default=None, ge=0.01, le=0.99)
+    risk: OrderRiskInput
 
 
 class OrderResponse(BaseModel):
@@ -62,6 +132,16 @@ class PositionResponse(BaseModel):
     no_shares: Decimal
     avg_yes_cost: Decimal
     avg_no_cost: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PaperAccountResponse(BaseModel):
+    id: UUID
+    name: str
+    cash_balance: Decimal
+    paper_trading_only: bool
+    positions: list[PositionResponse]
 
     model_config = {"from_attributes": True}
 

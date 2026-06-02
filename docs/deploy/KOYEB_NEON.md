@@ -159,4 +159,4 @@ If you use `Deploy Backend to Koyeb`, this frontend rebuild happens automaticall
 - Koyeb free web services sleep after idle time.
 - No worker is deployed on the Koyeb free service.
 - `REDIS_URL=redis://disabled:6379/0` is only a placeholder for the API-only service; do not enable the worker without a real Redis provider.
-- This remains paper-trading only. No real-money trading, betting, or settlement is supported.
+- This remains paper-trading only with simulated funds and no external execution paths.

@@ -1,0 +1,283 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createChart,
+  AreaSeries,
+  CandlestickSeries,
+  HistogramSeries,
+  ColorType,
+  CrosshairMode,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import { generateCandles, cents, type Candle } from "@/lib/mock-data";
+import { cn } from "@/lib/cn";
+
+type RangeKey = "1H" | "6H" | "1D" | "1W" | "ALL";
+const RANGES: { key: RangeKey; points: number; stepSec: number }[] = [
+  { key: "1H", points: 60, stepSec: 60 },
+  { key: "6H", points: 72, stepSec: 300 },
+  { key: "1D", points: 96, stepSec: 900 },
+  { key: "1W", points: 168, stepSec: 3600 },
+  { key: "ALL", points: 180, stepSec: 14400 },
+];
+
+type Mode = "area" | "candle";
+
+export function PriceChart({
+  slug,
+  endPrice,
+  height = 360,
+  compact = false,
+}: {
+  slug: string;
+  endPrice: number;
+  height?: number;
+  compact?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const areaRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const dataRef = useRef<Candle[]>([]);
+
+  const [range, setRange] = useState<RangeKey>("1D");
+  const [mode, setMode] = useState<Mode>("area");
+  const [last, setLast] = useState(endPrice);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [openPrice, setOpenPrice] = useState(endPrice);
+  const [flash, setFlash] = useState<"up" | "down" | null>(null);
+
+  const cfg = useMemo(
+    () => RANGES.find((r) => r.key === range) ?? RANGES[2],
+    [range],
+  );
+
+  // Build / rebuild the chart instance once.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const chart = createChart(el, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#939AAC",
+        fontFamily: "var(--font-mono), monospace",
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: "rgba(36,36,48,0.6)" },
+        horzLines: { color: "rgba(36,36,48,0.6)" },
+      },
+      rightPriceScale: { borderColor: "#242430" },
+      timeScale: { borderColor: "#242430", timeVisible: true, secondsVisible: false },
+      crosshair: {
+        mode: CrosshairMode.Magnet,
+        vertLine: { color: "#4D8DFF", width: 1, style: 2, labelBackgroundColor: "#4D8DFF" },
+        horzLine: { color: "#4D8DFF", width: 1, style: 2, labelBackgroundColor: "#4D8DFF" },
+      },
+      handleScale: { mouseWheel: true, pinch: true },
+      handleScroll: true,
+      autoSize: true,
+    });
+    chartRef.current = chart;
+
+    const area = chart.addSeries(AreaSeries, {
+      lineColor: "#2F6BFF",
+      topColor: "rgba(47,107,255,0.30)",
+      bottomColor: "rgba(47,107,255,0.0)",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+    });
+    areaRef.current = area;
+
+    const candle = chart.addSeries(CandlestickSeries, {
+      upColor: "#2F6BFF",
+      downColor: "#FF3B47",
+      borderUpColor: "#2F6BFF",
+      borderDownColor: "#FF3B47",
+      wickUpColor: "#2F6BFF",
+      wickDownColor: "#FF3B47",
+      priceLineVisible: false,
+      visible: false,
+    });
+    candleRef.current = candle;
+
+    if (!compact) {
+      const vol = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceScaleId: "vol",
+        color: "rgba(77,141,255,0.28)",
+      });
+      vol.priceScale().applyOptions({
+        scaleMargins: { top: 0.82, bottom: 0 },
+      });
+      volRef.current = vol;
+    }
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.point || param.time === undefined) {
+        setHovered(null);
+        return;
+      }
+      const v = param.seriesData.get(area) as { value?: number } | undefined;
+      const c = param.seriesData.get(candle) as { close?: number } | undefined;
+      const price = v?.value ?? c?.close;
+      if (typeof price === "number") setHovered(price);
+    });
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [compact]);
+
+  // Load data when range changes.
+  useEffect(() => {
+    const candles = generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    dataRef.current = candles;
+    const areaData = candles.map((c) => ({
+      time: c.time as UTCTimestamp,
+      value: c.close,
+    }));
+    const candleData = candles.map((c) => ({
+      time: c.time as UTCTimestamp,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    const volData = candles.map((c) => ({
+      time: c.time as UTCTimestamp,
+      value: Math.abs(c.close - c.open) * 90000 + 2000,
+      color:
+        c.close >= c.open ? "rgba(47,107,255,0.45)" : "rgba(255,59,71,0.45)",
+    }));
+    areaRef.current?.setData(areaData);
+    candleRef.current?.setData(candleData);
+    volRef.current?.setData(volData);
+    chartRef.current?.timeScale().fitContent();
+    setOpenPrice(candles[0]?.close ?? endPrice);
+    setLast(candles[candles.length - 1]?.close ?? endPrice);
+  }, [slug, cfg, endPrice]);
+
+  // Toggle series visibility.
+  useEffect(() => {
+    areaRef.current?.applyOptions({ visible: mode === "area" });
+    candleRef.current?.applyOptions({ visible: mode === "candle" });
+  }, [mode]);
+
+  // Live ticks: nudge the last candle, occasionally append a new one.
+  useEffect(() => {
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+
+    const interval = setInterval(() => {
+      const data = dataRef.current;
+      if (data.length === 0) return;
+      const lastCandle = data[data.length - 1];
+      const drift = (Math.random() - 0.5) * 0.018;
+      const newClose = Math.min(0.97, Math.max(0.03, lastCandle.close + drift));
+      const updated: Candle = {
+        ...lastCandle,
+        close: newClose,
+        high: Math.max(lastCandle.high, newClose),
+        low: Math.min(lastCandle.low, newClose),
+      };
+      data[data.length - 1] = updated;
+      const t = updated.time as UTCTimestamp;
+      areaRef.current?.update({ time: t, value: newClose });
+      candleRef.current?.update({
+        time: t,
+        open: updated.open,
+        high: updated.high,
+        low: updated.low,
+        close: newClose,
+      });
+      setFlash(newClose >= lastCandle.close ? "up" : "down");
+      setLast(newClose);
+      setTimeout(() => setFlash(null), 700);
+    }, 1800);
+    return () => clearInterval(interval);
+  }, []);
+
+  const shown = hovered ?? last;
+  const change = shown - openPrice;
+  const changePct = openPrice ? (change / openPrice) * 100 : 0;
+  const up = change >= 0;
+
+  return (
+    <div className="flex flex-col">
+      <div className="flex flex-wrap items-end justify-between gap-3 px-1">
+        <div>
+          <div className="flex items-baseline gap-3">
+            <span
+              className={cn(
+                "rounded px-1 font-mono text-3xl font-black tabular sm:text-4xl",
+                flash === "up" && "animate-flash-green",
+                flash === "down" && "animate-flash-red",
+              )}
+            >
+              {cents(shown)}
+            </span>
+            <span
+              className={cn(
+                "font-mono text-sm font-bold tabular",
+                up ? "text-primary" : "text-danger",
+              )}
+            >
+              {up ? "▲" : "▼"} {Math.abs(change * 100).toFixed(1)}¢ ({up ? "+" : ""}
+              {changePct.toFixed(1)}%)
+            </span>
+          </div>
+          <div className="mt-0.5 text-xs text-muted">
+            {hovered !== null ? "hovered" : "YES price · live"}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-border bg-surface p-0.5">
+            {(["area", "candle"] as Mode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-semibold capitalize transition",
+                  mode === m ? "bg-surface-3 text-text" : "text-muted hover:text-text",
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-lg border border-border bg-surface p-0.5">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={cn(
+                  "rounded-md px-2 py-1 text-xs font-semibold transition",
+                  range === r.key ? "bg-surface-3 text-text" : "text-muted hover:text-text",
+                )}
+              >
+                {r.key}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref={containerRef}
+        className="mt-3 w-full"
+        style={{ height }}
+      />
+    </div>
+  );
+}

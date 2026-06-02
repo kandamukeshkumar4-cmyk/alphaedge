@@ -1,8 +1,8 @@
 # AlphaEdge
 
-**AlphaEdge** is a paper-trading NBA prediction market **simulation** for research and portfolio demonstration. It combines a real central limit order book (CLOB), NBA odds ingestion, XGBoost modeling, LangGraph agents, risk controls, and continuous evaluation (Brier, calibration, drift).
+**AlphaEdge** is a paper-trading prediction market **simulation** for NBA, broader sports, and election markets. It combines a real central limit order book (CLOB), sports/election fixtures, XGBoost modeling, LangGraph agents, risk controls, and continuous evaluation (Brier, calibration, drift).
 
-> **Paper-trading disclaimer:** This project is a paper-trading simulation for research and portfolio demonstration only. No real-money trading, betting, or settlement is supported.
+> **Paper-trading disclaimer:** This project uses simulated funds for research and portfolio demonstration only.
 
 `PAPER_TRADING_ONLY=true` is required.
 
@@ -195,6 +195,11 @@ Current public API:
 https://mukeshkumarkanda-alphaedge-api.hf.space
 ```
 
+After creating the Neon DB and Hugging Face write token,
+`scripts/set_hf_space_secrets.ps1` can set the required GitHub secrets and
+optionally trigger the HF Space deploy workflow. The workflow syncs those
+secrets into the Space before rebuilding it.
+
 See `docs/deploy/HUGGINGFACE_NEON.md`.
 
 ### Azure for Students + Vercel
@@ -209,8 +214,8 @@ Push to `main` — CI runs `ruff` + `pytest` (CLOB + backtest golden fixtures).
 
 ## Resume bullet
 
-> Architected AlphaEdge, an event-driven AI paper-trading platform using FastAPI, Redis workers, XGBoost, LangGraph, and Postgres to simulate NBA prediction markets with real CLOB execution, risk controls, Brier scoring, calibration tracking, and drift monitoring.
+> Architected AlphaEdge, an event-driven AI paper-trading platform using FastAPI, Redis workers, XGBoost, LangGraph, and Postgres to simulate sports and election prediction markets with real CLOB execution, risk controls, Brier scoring, calibration tracking, and drift monitoring.
 
 ---
 
-*Paper-trading simulation only — no real-money trading.*
+*Paper-trading simulation with simulated funds only.*

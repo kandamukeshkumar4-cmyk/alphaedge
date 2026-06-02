@@ -1,6 +1,6 @@
 # Azure Student + Vercel Deployment
 
-This project stays paper-trading only. Do not deploy real-money trading, wallet, betting, or settlement features.
+This project stays paper-trading only. Do not deploy cash funding, payment rails, or external execution features.
 
 ## Target Cloud Shape
 

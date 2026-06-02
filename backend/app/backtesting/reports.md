@@ -1,6 +1,6 @@
 # Backtest Report Template
 
-> Paper-trading simulation only — no real-money trading.
+> Paper-trading simulation with simulated funds only.
 
 ## Summary
 

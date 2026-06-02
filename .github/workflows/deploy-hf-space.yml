@@ -193,8 +193,16 @@ jobs:
 
           if not any(market.get("slug") == "nba-2025-01-15-lal-bos" for market in markets):
               raise SystemExit("Canonical Lakers vs Celtics market was not returned")
+          election = next(
+              (market for market in markets if market.get("slug") == "elect-la-mayor-2026"),
+              None,
+          )
+          if election is None:
+              raise SystemExit("Los Angeles mayoral election market was not returned")
+          if election.get("category") != "Politics":
+              raise SystemExit("Expected Politics category on election market")
 
-          print("/api/v1/markets returned 200 with canonical market")
+          print("/api/v1/markets returned 200 with canonical and election markets")
           PY
               then
                 exit 0
@@ -206,4 +214,39 @@ jobs:
             sleep 15
           done
           echo "ERROR: /api/v1/markets did not return the canonical market in time."
+          exit 1
+
+      - name: Smoke-test market snapshot endpoint
+        run: |
+          echo "Waiting for election snapshot endpoint (up to 10 min)..."
+          for i in $(seq 1 40); do
+            body="$(mktemp)"
+            status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
+              https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets/elect-la-mayor-2026/snapshot || echo 000)
+            if [ "$status" = "200" ]; then
+              if python3 - "$body" << 'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              snapshot = json.load(fh)
+
+          market = snapshot.get("market") or {}
+          if market.get("slug") != "elect-la-mayor-2026":
+              raise SystemExit("Expected snapshot route to return the election market")
+          if snapshot.get("paper_trading_only") is not True:
+              raise SystemExit("Expected paper_trading_only=true from election snapshot")
+
+          print("/api/v1/markets/elect-la-mayor-2026/snapshot returned 200")
+          PY
+              then
+                exit 0
+              fi
+            else
+              echo "Attempt $i/40: election snapshot HTTP $status - retrying in 15s"
+              cat "$body"
+            fi
+            sleep 15
+          done
+          echo "ERROR: election snapshot endpoint did not return in time."
           exit 1

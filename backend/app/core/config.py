@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     @classmethod
     def must_be_paper_only(cls, v: bool) -> bool:
         if not v:
-            raise ValueError("PAPER_TRADING_ONLY must be true — real-money trading is not supported.")
+            raise ValueError("PAPER_TRADING_ONLY must be true for simulated-funds operation.")
         return v
 
     @property
@@ -53,7 +53,8 @@ class Settings(BaseSettings):
     @property
     def openapi_description(self) -> str:
         return (
-            f"**AlphaEdge** — NBA paper-trading prediction market simulation.\n\n"
+            "**AlphaEdge** — paper-trading prediction market platform for NBA, "
+            "broader sports, and election markets.\n\n"
             f"> {PAPER_TRADING_DISCLAIMER}\n\n"
             "LLM agents (Week 4+) can explain and adjust confidence but **cannot bypass RiskAgent**. "
             "Orders flow only through RiskService → validated OrderIntent → OrderBookService."

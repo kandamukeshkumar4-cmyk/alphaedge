@@ -11,8 +11,8 @@ These instructions apply inside `E:\polymarket clone`.
 
 ## AlphaEdge Scope Rules
 
-- This is a paper-trading NBA prediction market simulation only.
-- No real-money trading, betting, wallet, settlement, or production wagering language.
+- This is a paper-trading prediction market platform for NBA, broader sports, and election markets.
+- All markets use simulated funds. Do not add cash funding, payment rails, or external execution language.
 - `PAPER_TRADING_ONLY=true` is required in local, CI, and deploy contexts.
 - LLM/agent code cannot submit raw orders. The only allowed path is `RiskService` -> validated `OrderIntent` -> `OrderBookService`.
 - The canonical test market is `nba-2025-01-15-lal-bos`, Lakers vs Celtics, YES/NO, Lakers win resolves YES at `$1`.

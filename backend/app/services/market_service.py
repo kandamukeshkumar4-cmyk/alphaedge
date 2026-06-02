@@ -31,11 +31,25 @@ class MarketService:
         title: str,
         question: str,
         lock_at: datetime | None = None,
+        category: str = "Sports",
+        icon: str = "basketball",
+        volume: int = 0,
+        traders: int = 0,
+        market_count: int = 1,
+        description: str = "",
+        resolution: str = "",
     ) -> Market:
         market = Market(
             slug=slug,
             title=title,
             question=question,
+            category=category,
+            icon=icon,
+            volume=volume,
+            traders=traders,
+            market_count=market_count,
+            description=description,
+            resolution=resolution,
             status=MarketStatus.OPEN,
             lock_at=lock_at,
         )
@@ -120,6 +134,13 @@ class MarketService:
                 Market.slug,
                 Market.title,
                 Market.question,
+                Market.category,
+                Market.icon,
+                Market.volume,
+                Market.traders,
+                Market.market_count,
+                Market.description,
+                Market.resolution,
                 cast(Market.status, String).label("status"),
                 Market.lock_at,
                 Market.resolved_at,
@@ -139,6 +160,13 @@ class MarketService:
                 Market.slug,
                 Market.title,
                 Market.question,
+                Market.category,
+                Market.icon,
+                Market.volume,
+                Market.traders,
+                Market.market_count,
+                Market.description,
+                Market.resolution,
                 cast(Market.status, String).label("status"),
                 Market.lock_at,
                 Market.resolved_at,
@@ -161,18 +189,58 @@ class MarketService:
 
     async def seed_canonical_market(self) -> Market | None:
         """Idempotent seed for Lakers vs Celtics demo market."""
-        slug = "nba-2025-01-15-lal-bos"
-        existing = await self.get_market_by_slug(slug)
-        if existing:
-            return existing
-        from datetime import datetime, timezone
+        seeded = await self.seed_catalog_markets()
+        return next((market for market in seeded if market.slug == "nba-2025-01-15-lal-bos"), None)
 
-        return await self.create_market(
-            slug=slug,
-            title="Lakers vs Celtics",
-            question="Will the Lakers win?",
-            lock_at=datetime(2025, 1, 15, 19, 30, tzinfo=timezone.utc),
-        )
+    async def seed_catalog_markets(self) -> list[Market]:
+        from datetime import datetime, timedelta, timezone
+
+        specs = [
+            {
+                "slug": "nba-2025-01-15-lal-bos",
+                "title": "Lakers vs Celtics",
+                "question": "Will the Lakers win?",
+                "lock_at": datetime(2026, 6, 2, 23, 0, tzinfo=timezone.utc),
+                "category": "Sports",
+                "icon": "🏀",
+                "volume": 2_413_000,
+                "traders": 3_214,
+                "market_count": 3,
+                "description": "Head-to-head paper market on the Lakers vs Celtics matchup.",
+                "resolution": "Resolves YES if the Lakers win the game, otherwise NO.",
+            },
+            {
+                "slug": "elect-la-mayor-2026",
+                "title": "Los Angeles mayoral election",
+                "question": "Will the incumbent win re-election?",
+                "lock_at": datetime.now(timezone.utc) + timedelta(days=30),
+                "category": "Politics",
+                "icon": "🗳️",
+                "volume": 842_000,
+                "traders": 1_104,
+                "market_count": 1,
+                "description": "Paper market on the certified Los Angeles mayoral result.",
+                "resolution": "Resolves to the certified winner of the election.",
+            },
+        ]
+        markets = []
+        for spec in specs:
+            existing = await self.get_market_by_slug(spec["slug"])
+            if existing:
+                existing.title = spec["title"]
+                existing.question = spec["question"]
+                existing.lock_at = spec["lock_at"]
+                existing.category = spec["category"]
+                existing.icon = spec["icon"]
+                existing.volume = spec["volume"]
+                existing.traders = spec["traders"]
+                existing.market_count = spec["market_count"]
+                existing.description = spec["description"]
+                existing.resolution = spec["resolution"]
+                markets.append(existing)
+                continue
+            markets.append(await self.create_market(**spec))
+        return markets
 
     async def seed_system_account(self, account_id: UUID, bankroll: Decimal, name: str) -> Account:
         result = await self.session.execute(select(Account).where(Account.id == account_id))
