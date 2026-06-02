@@ -4,6 +4,7 @@ param(
     [string]$AdminApiKey = "",
     [string]$NeonDatabaseUrlSync = "",
     [string]$Repo = "kandamukeshkumar4-cmyk/alphaedge",
+    [switch]$ReplaceHfToken,
     [switch]$SetNeonDatabaseUrlSync,
     [switch]$TriggerDeploy
 )
@@ -28,7 +29,8 @@ function Set-GitHubSecret {
     param(
         [string]$Name,
         [string]$Value,
-        [switch]$Required
+        [switch]$Required,
+        [switch]$ReplaceExisting
     )
 
     if (-not [string]::IsNullOrWhiteSpace($Value)) {
@@ -37,7 +39,7 @@ function Set-GitHubSecret {
         return
     }
 
-    if ($script:ExistingSecrets.ContainsKey($Name)) {
+    if ($script:ExistingSecrets.ContainsKey($Name) -and -not $ReplaceExisting) {
         Write-Host "$Name already exists on $Repo; leaving it unchanged."
         return
     }
@@ -63,7 +65,7 @@ gh secret list --repo $Repo | ForEach-Object {
 }
 
 Write-Host "Setting Hugging Face Space deployment secrets for $Repo."
-Set-GitHubSecret "HF_TOKEN" $HfToken -Required
+Set-GitHubSecret "HF_TOKEN" $HfToken -Required -ReplaceExisting:$ReplaceHfToken
 Set-GitHubSecret "NEON_DATABASE_URL" $NeonDatabaseUrl -Required
 Set-GitHubSecret "ADMIN_API_KEY" $AdminApiKey -Required
 

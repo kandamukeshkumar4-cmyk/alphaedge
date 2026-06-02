@@ -185,6 +185,7 @@ def test_huggingface_neon_deploy_doc_exists():
     assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in doc
     assert "/health" in doc
     assert "set_hf_space_secrets.ps1" in doc
+    assert "-ReplaceHfToken" in doc
     assert "HUGGINGFACE_NEON.md" in readme
 
 
@@ -251,6 +252,8 @@ def test_huggingface_space_secret_bootstrap_script_sets_required_github_secrets(
 
     assert "gh secret set $Name --repo $Repo" in script
     assert 'Set-GitHubSecret "HF_TOKEN" $HfToken -Required' in script
+    assert "-ReplaceExisting:$ReplaceHfToken" in script
+    assert "ReplaceHfToken" in script
     assert 'Set-GitHubSecret "NEON_DATABASE_URL" $NeonDatabaseUrl -Required' in script
     assert 'Set-GitHubSecret "ADMIN_API_KEY" $AdminApiKey -Required' in script
     assert 'Set-GitHubSecret "NEON_DATABASE_URL_SYNC" $NeonDatabaseUrlSync -Required' in script

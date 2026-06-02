@@ -93,6 +93,12 @@ The script prompts for `HF_TOKEN`, `NEON_DATABASE_URL`, and `ADMIN_API_KEY`
 through GitHub CLI when they are missing, so secret values do not need to
 appear in the command line. Existing secrets are left unchanged unless you pass
 replacement values.
+If `HF_TOKEN` was created empty or needs to be rotated, rerun:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "E:\polymarket clone\scripts\set_hf_space_secrets.ps1" -ReplaceHfToken
+```
+
 Use `-SetNeonDatabaseUrlSync` only if you want to provide a separate
 `NEON_DATABASE_URL_SYNC`; otherwise the workflow derives it.
 
