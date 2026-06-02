@@ -7,7 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
 from app.core.config import get_settings
-from app.db.models import Account, Evaluation, Fill, PredictionLog
+from app.db.models import (
+    Account,
+    Evaluation,
+    Fill,
+    Market,
+    Order,
+    OrderSide,
+    OrderStatus,
+    PredictionLog,
+)
 from app.db.models import Position
 from app.db.session import get_db
 from app.risk.rules import OrderIntent, RiskService
@@ -17,6 +26,7 @@ from app.schemas.market import (
     MarketForecastSnapshot,
     MarketResponse,
     MarketSnapshotResponse,
+    OpenOrderResponse,
     OrderCreate,
     OrderResponse,
     PaperAccountResponse,
@@ -138,15 +148,53 @@ async def get_paper_account(db: AsyncSession = Depends(get_db)):
         Decimal(str(settings.system_initial_bankroll)),
         "System Paper Account",
     )
+    obs = OrderBookService(db)
+    reserved_cash = (await obs.reserved_cash(account.id)).quantize(Decimal("0.0001"))
+    available_cash = (account.cash_balance - reserved_cash).quantize(Decimal("0.0001"))
     positions_result = await db.execute(
         select(Position).where(Position.account_id == account.id)
     )
+    open_orders_result = await db.execute(
+        select(Order, Market)
+        .join(Market, Market.id == Order.market_id)
+        .where(
+            Order.account_id == account.id,
+            Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
+        )
+        .order_by(Order.created_at.desc())
+    )
+    open_orders = []
+    for order, market in open_orders_result.all():
+        remaining = order.quantity - order.filled_quantity
+        reserved_notional = Decimal("0")
+        if order.side == OrderSide.BUY and order.price is not None:
+            reserved_notional = order.price * remaining
+        open_orders.append(
+            OpenOrderResponse(
+                id=order.id,
+                market_id=order.market_id,
+                market_slug=market.slug,
+                market_title=market.title,
+                side=order.side,
+                outcome=order.outcome,
+                order_type=order.order_type,
+                price=order.price,
+                quantity=order.quantity,
+                filled_quantity=order.filled_quantity,
+                remaining_quantity=remaining,
+                reserved_notional=reserved_notional.quantize(Decimal("0.0001")),
+                status=order.status,
+            )
+        )
     return PaperAccountResponse(
         id=account.id,
         name=account.name,
         cash_balance=account.cash_balance.quantize(Decimal("0.0001")),
+        reserved_cash=reserved_cash,
+        available_cash=available_cash,
         paper_trading_only=settings.paper_trading_only,
         positions=list(positions_result.scalars().all()),
+        open_orders=open_orders,
     )
 
 

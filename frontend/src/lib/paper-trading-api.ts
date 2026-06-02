@@ -2,11 +2,31 @@ import { API_BASE } from "./alphaedge-api";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
-type PaperAccountResponse = {
+export type BackendOpenOrderResponse = {
+  id: string;
+  market_id: string;
+  market_slug: string;
+  market_title: string;
+  side: "buy" | "sell";
+  outcome: "yes" | "no";
+  order_type: "limit" | "market";
+  price: string | null;
+  quantity: string;
+  filled_quantity: string;
+  remaining_quantity: string;
+  reserved_notional: string;
+  status: "open" | "partial" | "filled" | "cancelled";
+};
+
+export type PaperAccountResponse = {
   id: string;
   name: string;
   cash_balance: string;
+  reserved_cash: string;
+  available_cash: string;
   paper_trading_only: boolean;
+  positions: unknown[];
+  open_orders: BackendOpenOrderResponse[];
 };
 
 type BackendOrderResponse = {
@@ -62,10 +82,10 @@ export async function submitPaperOrder(
 
   const fetcher = input.fetcher ?? fetch;
   try {
-    const account = await fetchJson<PaperAccountResponse>(
-      fetcher,
-      `${apiBase}/api/v1/paper-account`,
-    );
+    const account = await fetchPaperAccount({ apiBase, fetcher });
+    if (!account) {
+      return localFallback();
+    }
     if (!account.paper_trading_only) {
       return {
         ok: false,
@@ -103,15 +123,35 @@ export async function submitPaperOrder(
     }
 
     const order = (await response.json()) as BackendOrderResponse;
+    const updatedAccount = (await fetchPaperAccount({ apiBase, fetcher })) ?? account;
     return {
       ok: true,
       mode: "api",
       message: `Backend order accepted: ${order.status}`,
       order,
-      account,
+      account: updatedAccount,
     };
   } catch {
     return localFallback();
+  }
+}
+
+export async function fetchPaperAccount(input?: {
+  apiBase?: string;
+  fetcher?: Fetcher;
+}): Promise<PaperAccountResponse | null> {
+  const apiBase = normalizeApiBase(input?.apiBase ?? API_BASE);
+  if (!apiBase) {
+    return null;
+  }
+
+  try {
+    return await fetchJson<PaperAccountResponse>(
+      input?.fetcher ?? fetch,
+      `${apiBase}/api/v1/paper-account`,
+    );
+  } catch {
+    return null;
   }
 }
 

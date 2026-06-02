@@ -62,8 +62,27 @@ class OrderBookService:
 
     async def _reserve_cash(self, account_id: UUID, amount: Decimal) -> None:
         account = await self.ledger.get_account(account_id)
-        if account.cash_balance < amount:
-            raise ValueError("Insufficient cash balance")
+        reserved = await self.reserved_cash(account_id)
+        available = account.cash_balance - reserved
+        if available < amount:
+            raise ValueError("Insufficient available cash")
+
+    async def reserved_cash(self, account_id: UUID) -> Decimal:
+        result = await self.session.execute(
+            select(Order).where(
+                Order.account_id == account_id,
+                Order.side == OrderSide.BUY,
+                Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
+            )
+        )
+        total = Decimal("0")
+        for order in result.scalars().all():
+            if order.price is None:
+                continue
+            remaining = order.quantity - order.filled_quantity
+            if remaining > 0:
+                total += order.price * remaining
+        return total
 
     async def submit_order(
         self,

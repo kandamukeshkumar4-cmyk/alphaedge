@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatUSD, cents, type Market } from "@/lib/mock-data";
-import { submitPaperOrder } from "@/lib/paper-trading-api";
+import { fetchPaperAccount, submitPaperOrder } from "@/lib/paper-trading-api";
 import { placeOrder, readPortfolio, subscribePortfolio } from "@/lib/portfolio-store";
 import { useToast } from "./ToastProvider";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -18,7 +18,17 @@ export function TradePanel({ market }: { market: Market }) {
 
   useEffect(() => {
     setBalance(readPortfolio().balance);
-    return subscribePortfolio(() => setBalance(readPortfolio().balance));
+    let cancelled = false;
+    fetchPaperAccount().then((account) => {
+      if (!cancelled && account?.paper_trading_only) {
+        setBalance(Number(account.available_cash));
+      }
+    });
+    const unsubscribe = subscribePortfolio(() => setBalance(readPortfolio().balance));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const outcome = market.outcomes[outcomeIdx];
@@ -57,7 +67,7 @@ export function TradePanel({ market }: { market: Market }) {
     });
 
     if (apiResult.ok) {
-      setBalance(Number(apiResult.account.cash_balance));
+      setBalance(Number(apiResult.account.available_cash));
       setSubmitting(false);
       toast({
         title: "Order accepted",

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.db.models import MarketStatus, OrderOutcome, OrderSide, OrderType
+from app.db.models import MarketStatus, OrderOutcome, OrderSide, OrderStatus, OrderType
 
 
 class MarketCreate(BaseModel):
@@ -136,12 +136,31 @@ class PositionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OpenOrderResponse(BaseModel):
+    id: UUID
+    market_id: UUID
+    market_slug: str
+    market_title: str
+    side: OrderSide
+    outcome: OrderOutcome
+    order_type: OrderType
+    price: Optional[Decimal]
+    quantity: Decimal
+    filled_quantity: Decimal
+    remaining_quantity: Decimal
+    reserved_notional: Decimal
+    status: OrderStatus
+
+
 class PaperAccountResponse(BaseModel):
     id: UUID
     name: str
     cash_balance: Decimal
+    reserved_cash: Decimal
+    available_cash: Decimal
     paper_trading_only: bool
     positions: list[PositionResponse]
+    open_orders: list[OpenOrderResponse]
 
     model_config = {"from_attributes": True}
 

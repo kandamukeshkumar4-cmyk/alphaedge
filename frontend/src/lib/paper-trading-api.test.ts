@@ -1,19 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { submitPaperOrder } from "./paper-trading-api";
+import { fetchPaperAccount, submitPaperOrder } from "./paper-trading-api";
 
 describe("paper trading API", () => {
   it("loads the paper account and submits a risk-gated backend order", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
+    let accountCalls = 0;
     const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url.endsWith("/api/v1/paper-account")) {
+        accountCalls += 1;
         return jsonResponse({
           id: "00000000-0000-0000-0000-000000000001",
           name: "System Paper Account",
           cash_balance: "100000.0000",
+          reserved_cash: accountCalls === 1 ? "0.0000" : "5.5000",
+          available_cash: accountCalls === 1 ? "100000.0000" : "99994.5000",
           paper_trading_only: true,
           positions: [],
+          open_orders: [],
         });
       }
       if (url.endsWith("/api/v1/markets/nba-2025-01-15-lal-bos/orders")) {
@@ -53,8 +58,12 @@ describe("paper trading API", () => {
       ok: true,
       mode: "api",
       message: "Backend order accepted: open",
+      account: {
+        available_cash: "99994.5000",
+        reserved_cash: "5.5000",
+      },
     });
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     expect(calls[1].url).toBe(
       "https://api.example.test/api/v1/markets/nba-2025-01-15-lal-bos/orders",
     );
@@ -96,6 +105,55 @@ describe("paper trading API", () => {
       ok: false,
       mode: "local",
       message: "Backend API unavailable; use local paper fill fallback.",
+    });
+  });
+
+  it("loads backend available cash and open paper orders", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      expect(url).toBe("https://api.example.test/api/v1/paper-account");
+      return jsonResponse({
+        id: "00000000-0000-0000-0000-000000000001",
+        name: "System Paper Account",
+        cash_balance: "100000.0000",
+        reserved_cash: "5.5000",
+        available_cash: "99994.5000",
+        paper_trading_only: true,
+        positions: [],
+        open_orders: [
+          {
+            id: "11111111-1111-1111-1111-111111111111",
+            market_id: "22222222-2222-2222-2222-222222222222",
+            market_slug: "nba-2025-01-15-lal-bos",
+            market_title: "Lakers vs Celtics",
+            side: "buy",
+            outcome: "yes",
+            order_type: "limit",
+            price: "0.5500",
+            quantity: "10.0000",
+            filled_quantity: "0.0000",
+            remaining_quantity: "10.0000",
+            reserved_notional: "5.5000",
+            status: "open",
+          },
+        ],
+      });
+    });
+
+    const account = await fetchPaperAccount({
+      apiBase: "https://api.example.test",
+      fetcher,
+    });
+
+    expect(account).toMatchObject({
+      available_cash: "99994.5000",
+      reserved_cash: "5.5000",
+      open_orders: [
+        {
+          market_slug: "nba-2025-01-15-lal-bos",
+          market_title: "Lakers vs Celtics",
+          reserved_notional: "5.5000",
+        },
+      ],
     });
   });
 });

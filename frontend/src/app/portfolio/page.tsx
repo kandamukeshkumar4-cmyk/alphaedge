@@ -8,6 +8,12 @@ import {
   resetPortfolio,
   type PortfolioState,
 } from "@/lib/portfolio-store";
+import {
+  buildPaperAccountView,
+  selectDisplayedPortfolioState,
+  type PaperAccountView,
+} from "@/lib/paper-account-view-model";
+import { fetchPaperAccount } from "@/lib/paper-trading-api";
 import { getMarket, formatUSD, cents, PAPER_BALANCE } from "@/lib/mock-data";
 import { Sparkline } from "@/components/Sparkline";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
@@ -26,45 +32,62 @@ export default function PortfolioPage() {
     positions: [],
     history: [],
   });
+  const [accountView, setAccountView] = useState<PaperAccountView | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setState(readPortfolio());
-    return subscribePortfolio(() => setState(readPortfolio()));
+    let cancelled = false;
+    fetchPaperAccount().then((account) => {
+      if (!cancelled && account?.paper_trading_only) {
+        setAccountView(buildPaperAccountView(account));
+      }
+    });
+    const unsubscribe = subscribePortfolio(() => setState(readPortfolio()));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
+
+  const displayState = useMemo(
+    () => selectDisplayedPortfolioState(state, accountView),
+    [state, accountView],
+  );
 
   const metrics = useMemo(() => {
     let costBasis = 0;
     let currentValue = 0;
     let wins = 0;
-    for (const p of state.positions) {
+    for (const p of displayState.positions) {
       const cur = currentPriceFor(p.slug, p.outcome, p.side);
       costBasis += p.entryPrice * p.shares;
       currentValue += cur * p.shares;
       if (cur >= p.entryPrice) wins += 1;
     }
     const unrealized = currentValue - costBasis;
-    const equity = state.balance + currentValue;
+    const accountCash = displayState.balance;
+    const equity = accountCash + currentValue + (accountView?.reservedCash ?? 0);
     const pnl = equity - PAPER_BALANCE;
     const roi = (pnl / PAPER_BALANCE) * 100;
-    const winRate = state.positions.length
-      ? (wins / state.positions.length) * 100
+    const winRate = displayState.positions.length
+      ? (wins / displayState.positions.length) * 100
       : 0;
     return { unrealized, equity, pnl, roi, winRate, currentValue };
-  }, [state]);
+  }, [displayState, accountView]);
 
   // Equity curve from history (deterministic-ish reconstruction).
   const equityCurve = useMemo(() => {
     const pts: number[] = [PAPER_BALANCE];
     let running = PAPER_BALANCE;
-    for (const h of [...state.history].reverse()) {
+    for (const h of [...displayState.history].reverse()) {
       running += (currentPriceFor(h.slug, h.outcome, h.side) - h.entryPrice) * h.shares;
       pts.push(running);
     }
     pts.push(metrics.equity);
     return pts.length >= 2 ? pts : [PAPER_BALANCE, PAPER_BALANCE];
-  }, [state.history, metrics.equity]);
+  }, [displayState.history, metrics.equity]);
 
   if (!mounted) {
     return (
@@ -74,7 +97,8 @@ export default function PortfolioPage() {
     );
   }
 
-  const empty = state.positions.length === 0;
+  const openOrders = accountView?.openOrders ?? [];
+  const empty = displayState.positions.length === 0 && openOrders.length === 0;
 
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6">
@@ -95,7 +119,14 @@ export default function PortfolioPage() {
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Balance" >
           <AnimatedNumber
-            value={state.balance}
+            value={displayState.balance}
+            format={formatUSD}
+            className="font-mono text-2xl font-black text-text"
+          />
+        </MetricCard>
+        <MetricCard label="Reserved">
+          <AnimatedNumber
+            value={accountView?.reservedCash ?? 0}
             format={formatUSD}
             className="font-mono text-2xl font-black text-text"
           />
@@ -166,8 +197,9 @@ export default function PortfolioPage() {
         </div>
       ) : (
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <PositionsTable state={state} />
-          <HistoryTable state={state} />
+          {openOrders.length ? <OpenOrdersTable orders={openOrders} /> : null}
+          {displayState.positions.length ? <PositionsTable state={displayState} /> : null}
+          {displayState.history.length ? <HistoryTable state={displayState} /> : null}
         </div>
       )}
     </main>
@@ -187,6 +219,60 @@ function MetricCard({
         {label}
       </div>
       <div className="mt-1 flex items-baseline">{children}</div>
+    </div>
+  );
+}
+
+function OpenOrdersTable({ orders }: { orders: PaperAccountView["openOrders"] }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h2 className="text-sm font-black text-text">Open backend orders</h2>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
+            <tr>
+              <th className="pb-2">Market</th>
+              <th className="pb-2">Side</th>
+              <th className="pb-2 text-right">Remaining</th>
+              <th className="pb-2 text-right">Limit</th>
+              <th className="pb-2 text-right">Reserved</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr key={order.id} className="border-t border-border">
+                <td className="py-2">
+                  <Link href={`/markets/${order.marketSlug}`} className="hover:text-accent">
+                    <span className="text-text">{order.marketTitle}</span>
+                    <span className="block text-[11px] text-muted">{order.outcome}</span>
+                  </Link>
+                </td>
+                <td className="py-2">
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
+                      order.outcome === "YES"
+                        ? "bg-primary-dim text-primary"
+                        : "bg-danger-dim text-danger",
+                    )}
+                  >
+                    {order.side}
+                  </span>
+                </td>
+                <td className="py-2 text-right font-mono text-muted">
+                  {order.remainingShares}
+                </td>
+                <td className="py-2 text-right font-mono text-text">
+                  {cents(order.price)}
+                </td>
+                <td className="py-2 text-right font-mono font-bold text-text">
+                  {formatUSD(order.reservedNotional)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
