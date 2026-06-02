@@ -1,0 +1,201 @@
+name: Deploy Backend to HF Space
+
+on:
+  push:
+    branches: [codex/alphaedge-base]
+    paths: ["backend/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-hf-space
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required deploy secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "HF_TOKEN GitHub Actions secret is required to push to the Hugging Face Space."
+            exit 1
+          fi
+          if [ -z "$NEON_DATABASE_URL" ]; then
+            echo "NEON_DATABASE_URL GitHub Actions secret is required for the Hugging Face Space database."
+            exit 1
+          fi
+          if [ -z "$ADMIN_API_KEY" ]; then
+            echo "ADMIN_API_KEY GitHub Actions secret is required for protected backend routes."
+            exit 1
+          fi
+
+      - name: Sync runtime secrets to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          python3 -m pip install --quiet "huggingface_hub>=0.22"
+          python3 << 'PY'
+          import os
+
+          from huggingface_hub import HfApi
+
+          SPACE_ID = "mukeshkumarkanda/alphaedge-api"
+
+          def require(name: str) -> str:
+              value = os.environ.get(name, "").strip()
+              if not value:
+                  raise SystemExit(f"{name} is required.")
+              return value
+
+          def to_async_pg_url(url: str) -> str:
+              if url.startswith("postgresql+asyncpg://"):
+                  return url
+              if url.startswith("postgresql://"):
+                  return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+              if url.startswith("postgres://"):
+                  return url.replace("postgres://", "postgresql+asyncpg://", 1)
+              raise SystemExit(
+                  "NEON_DATABASE_URL must start with postgresql://, postgres://, "
+                  "or postgresql+asyncpg://"
+              )
+
+          def to_sync_pg_url(url: str) -> str:
+              if url.startswith("postgresql+asyncpg://"):
+                  return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+              if url.startswith("postgres://"):
+                  return url.replace("postgres://", "postgresql://", 1)
+              if url.startswith("postgresql://"):
+                  return url
+              raise SystemExit(
+                  "NEON_DATABASE_URL_SYNC must start with postgresql://, postgres://, "
+                  "or postgresql+asyncpg://"
+              )
+
+          hf_token = require("HF_TOKEN")
+          neon_database_url = require("NEON_DATABASE_URL")
+          admin_api_key = require("ADMIN_API_KEY")
+          neon_database_url_sync = os.environ.get("NEON_DATABASE_URL_SYNC", "").strip()
+
+          database_url = to_async_pg_url(neon_database_url)
+          database_url_sync = to_sync_pg_url(neon_database_url_sync or neon_database_url)
+
+          api = HfApi()
+          for key, value in {
+              "DATABASE_URL": database_url,
+              "DATABASE_URL_SYNC": database_url_sync,
+              "ADMIN_API_KEY": admin_api_key,
+          }.items():
+              api.add_space_secret(repo_id=SPACE_ID, key=key, value=value, token=hf_token)
+
+          print("Synced HF Space runtime secrets: DATABASE_URL, DATABASE_URL_SYNC, ADMIN_API_KEY")
+          PY
+
+      - name: Stage backend for HF Space
+        run: |
+          mkdir -p hf_stage
+          cp -r backend/. hf_stage/
+          # Replace standard Dockerfile with HF-specific one (port 7860, fixed env)
+          cp hf_stage/Dockerfile.hfspace hf_stage/Dockerfile
+          rm hf_stage/Dockerfile.hfspace
+          # Write HF Space metadata header
+          cat > hf_stage/README.md << 'HFEOF'
+          ---
+          title: AlphaEdge API
+          emoji: 📈
+          colorFrom: blue
+          colorTo: green
+          sdk: docker
+          pinned: false
+          app_port: 7860
+          ---
+          AlphaEdge paper-trading prediction market API.
+          HFEOF
+
+      - name: Push to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "ci@alphaedge.app"
+          git config --global user.name "AlphaEdge CI"
+
+          git clone "https://mukeshkumarkanda:${HF_TOKEN}@huggingface.co/spaces/mukeshkumarkanda/alphaedge-api" hf_space
+
+          cd hf_space
+          # Clear old content but preserve .git
+          find . -mindepth 1 -not -path './.git' -not -path './.git/*' -delete
+          cp -r ../hf_stage/. .
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes - skipping push"
+          else
+            git commit -m "deploy: backend @ ${{ github.sha }}"
+            git push
+          fi
+
+      - name: Wait for Space to become healthy
+        run: |
+          echo "Waiting for HF Space rebuild (up to 10 min)..."
+          for i in $(seq 1 40); do
+            body="$(mktemp)"
+            status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
+              https://mukeshkumarkanda-alphaedge-api.hf.space/health || echo 000)
+            if [ "$status" = "200" ]; then
+              echo "Space healthy after attempt $i"
+              python3 - "$body" << 'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              payload = json.load(fh)
+
+          if payload.get("status") != "ok":
+              raise SystemExit(f"Expected health status 'ok', got {payload.get('status')!r}")
+          if payload.get("paper_trading_only") is not True:
+              raise SystemExit("Expected paper_trading_only=true from /health")
+
+          print(json.dumps(payload, indent=2))
+          PY
+              exit 0
+            fi
+            echo "Attempt $i/40: HTTP $status - retrying in 15s"
+            sleep 15
+          done
+          echo "ERROR: health check timed out; Space may still be building or failed to start."
+          exit 1
+
+      - name: Smoke-test markets endpoint
+        run: |
+          body="$(mktemp)"
+          status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
+            https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets || echo 000)
+          if [ "$status" != "200" ]; then
+            echo "ERROR: /api/v1/markets returned HTTP $status"
+            cat "$body"
+            exit 1
+          fi
+
+          python3 - "$body" << 'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              markets = json.load(fh)
+
+          if not any(market.get("slug") == "nba-2025-01-15-lal-bos" for market in markets):
+              raise SystemExit("Canonical Lakers vs Celtics market was not returned")
+
+          print("/api/v1/markets returned 200 with canonical market")
+          PY

@@ -184,7 +184,83 @@ def test_huggingface_neon_deploy_doc_exists():
     assert "NEXT_PUBLIC_API_URL" in doc
     assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in doc
     assert "/health" in doc
+    assert "set_hf_space_secrets.ps1" in doc
     assert "HUGGINGFACE_NEON.md" in readme
+
+
+def test_huggingface_space_dockerfile_is_self_contained():
+    dockerfile = (ROOT / "backend" / "Dockerfile.hfspace").read_text(
+        encoding="utf-8"
+    )
+
+    assert "COPY . ." in dockerfile
+    assert "EXPOSE 7860" in dockerfile
+    assert "--port 7860" in dockerfile
+    assert "PAPER_TRADING_ONLY=true" in dockerfile
+    assert "libgomp1" in dockerfile
+    assert "git clone" not in dockerfile
+    assert "git checkout" not in dockerfile
+    assert "${PORT" not in dockerfile
+
+
+def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
+    workflow = (ROOT / ".github" / "workflows" / "deploy-hf-space.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'paths: ["backend/**"]' in workflow
+    assert "HF_TOKEN: ${{ secrets.HF_TOKEN }}" in workflow
+    assert "NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}" in workflow
+    assert "NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}" in workflow
+    assert "ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}" in workflow
+    assert "HF_TOKEN GitHub Actions secret is required" in workflow
+    assert "NEON_DATABASE_URL GitHub Actions secret is required" in workflow
+    assert "ADMIN_API_KEY GitHub Actions secret is required" in workflow
+    assert "api.add_space_secret" in workflow
+    assert "api.add_space_variable" not in workflow
+    assert "DATABASE_URL_SYNC" in workflow
+    assert "cp -r backend/. hf_stage/" in workflow
+    assert "cp hf_stage/Dockerfile.hfspace hf_stage/Dockerfile" in workflow
+    assert "app_port: 7860" in workflow
+    assert "git push" in workflow
+    assert "Expected paper_trading_only=true from /health" in workflow
+    assert "Canonical Lakers vs Celtics market was not returned" in workflow
+    assert "ERROR: health check timed out" in workflow
+    assert "WARNING: health check timed out" not in workflow
+    assert "WARNING: /api/v1/markets" not in workflow
+
+
+def test_huggingface_neon_doc_uses_automated_deploy_not_sha_pinning():
+    doc = (ROOT / "docs" / "deploy" / "HUGGINGFACE_NEON.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".github/workflows/deploy-hf-space.yml" in doc
+    assert "HF_TOKEN" in doc
+    assert "NEON_DATABASE_URL" in doc
+    assert "workflow syncs those GitHub secrets" in doc
+    assert "Dockerfile.hfspace" in doc
+    assert "git checkout" not in doc
+    assert "update the pinned" not in doc.lower()
+
+
+def test_huggingface_space_secret_bootstrap_script_sets_required_github_secrets():
+    script = (ROOT / "scripts" / "set_hf_space_secrets.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "gh secret set $Name --repo $Repo" in script
+    assert 'Set-GitHubSecret "HF_TOKEN" $HfToken -Required' in script
+    assert 'Set-GitHubSecret "NEON_DATABASE_URL" $NeonDatabaseUrl -Required' in script
+    assert 'Set-GitHubSecret "ADMIN_API_KEY" $AdminApiKey -Required' in script
+    assert 'Set-GitHubSecret "NEON_DATABASE_URL_SYNC" $NeonDatabaseUrlSync -Required' in script
+    assert "gh secret list --repo $Repo" in script
+    assert "already exists on $Repo; leaving it unchanged" in script
+    assert "Paste $Name when prompted by GitHub CLI" in script
+    assert "deploy-hf-space.yml" in script
+    assert "gh workflow run" in script
+    assert "-TriggerDeploy" in script
+    assert "hf_xxx" not in script
 
 
 def test_koyeb_backend_github_workflow_is_manual_and_secret_driven():
