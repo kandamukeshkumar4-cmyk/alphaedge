@@ -48,8 +48,10 @@ jobs:
           python3 -m pip install --quiet "huggingface_hub>=0.22"
           python3 << 'PY'
           import os
+          import time
 
           from huggingface_hub import HfApi
+          from huggingface_hub.errors import HfHubHTTPError
 
           SPACE_ID = "mukeshkumarkanda/alphaedge-api"
 
@@ -92,12 +94,34 @@ jobs:
           database_url_sync = to_sync_pg_url(neon_database_url_sync or neon_database_url)
 
           api = HfApi()
+
+          def add_space_secret_with_retry(key: str, value: str) -> None:
+              for attempt in range(1, 6):
+                  try:
+                      api.add_space_secret(
+                          repo_id=SPACE_ID,
+                          key=key,
+                          value=value,
+                          token=hf_token,
+                      )
+                      return
+                  except HfHubHTTPError as error:
+                      status_code = getattr(error.response, "status_code", None)
+                      if status_code != 429 or attempt == 5:
+                          raise
+                      delay = min(60, attempt * 10)
+                      print(
+                          f"Retrying HF Space secret sync after 429 "
+                          f"for {key} in {delay}s (attempt {attempt}/5)"
+                      )
+                      time.sleep(delay)
+
           for key, value in {
               "DATABASE_URL": database_url,
               "DATABASE_URL_SYNC": database_url_sync,
               "ADMIN_API_KEY": admin_api_key,
           }.items():
-              api.add_space_secret(repo_id=SPACE_ID, key=key, value=value, token=hf_token)
+              add_space_secret_with_retry(key, value)
 
           print("Synced HF Space runtime secrets: DATABASE_URL, DATABASE_URL_SYNC, ADMIN_API_KEY")
           PY
