@@ -5,24 +5,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Red / Blue / Black palette
-        bg: "#08080C",
-        surface: "#121219",
-        "surface-2": "#1A1A24",
-        "surface-3": "#23232F",
-        border: "#242430",
-        "border-light": "#33334A",
-        text: "#F4F6FB",
-        muted: "#939AAC",
-        "muted-2": "#5C6273",
-        primary: "#2F6BFF", // blue — YES / Buy / brand
-        "primary-dim": "#0E1A33",
-        danger: "#FF3B47", // red — NO / Sell
-        "danger-dim": "#2A0E13",
-        accent: "#4D8DFF", // lighter blue — hover / links / focus
-        up: "#2F6BFF", // blue candle
-        down: "#FF3B47", // red candle
-        gold: "#FFB020",
+        // Kalshi-inspired market shell: green/red on deep charcoal.
+        bg: "#090C0F",
+        surface: "#0F1417",
+        "surface-2": "#151B20",
+        "surface-3": "#1D252B",
+        border: "#243039",
+        "border-light": "#33444D",
+        text: "#F2F7F3",
+        muted: "#9EA9A3",
+        "muted-2": "#66716B",
+        primary: "#24C66D",
+        "primary-dim": "#0C2618",
+        danger: "#FF4D4F",
+        "danger-dim": "#2B1012",
+        accent: "#58E28C",
+        up: "#24C66D",
+        down: "#FF4D4F",
+        gold: "#F6A524",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
@@ -31,8 +31,8 @@ const config: Config = {
       boxShadow: {
         card: "0 2px 8px rgba(0,0,0,0.35)",
         lift: "0 8px 28px rgba(0,0,0,0.5)",
-        glow: "0 0 0 1px rgba(77,141,255,0.45), 0 8px 28px rgba(47,107,255,0.1)",
-        "glow-blue": "0 0 24px rgba(47,107,255,0.28)",
+        glow: "0 0 0 1px rgba(36,198,109,0.36), 0 12px 32px rgba(36,198,109,0.1)",
+        "glow-blue": "0 0 24px rgba(36,198,109,0.22)",
       },
       keyframes: {
         "fade-up": {
@@ -40,9 +40,9 @@ const config: Config = {
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         "flash-green": {
-          "0%": { backgroundColor: "rgba(47,107,255,0.0)" },
-          "30%": { backgroundColor: "rgba(47,107,255,0.24)" },
-          "100%": { backgroundColor: "rgba(47,107,255,0.0)" },
+          "0%": { backgroundColor: "rgba(36,198,109,0.0)" },
+          "30%": { backgroundColor: "rgba(36,198,109,0.24)" },
+          "100%": { backgroundColor: "rgba(36,198,109,0.0)" },
         },
         "flash-red": {
           "0%": { backgroundColor: "rgba(255,59,71,0.0)" },

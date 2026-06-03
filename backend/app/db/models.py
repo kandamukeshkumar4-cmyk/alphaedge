@@ -136,6 +136,26 @@ class Order(Base):
     account: Mapped["Account"] = relationship(back_populates="orders")
 
 
+class PaperSignal(Base):
+    __tablename__ = "paper_signals"
+    __table_args__ = (
+        Index("ix_paper_signals_account_market", "account_id", "market_id", unique=True),
+        Index("ix_paper_signals_market_outcome", "market_id", "outcome"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("markets.id"), nullable=False)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id"), nullable=False)
+    outcome: Mapped[OrderOutcome] = mapped_column(
+        _pg_enum(OrderOutcome, name="order_outcome", create_type=False),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Fill(Base):
     __tablename__ = "fills"
 

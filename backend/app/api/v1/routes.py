@@ -31,10 +31,13 @@ from app.schemas.market import (
     OrderCreate,
     OrderResponse,
     PaperAccountResponse,
+    PaperSignalCreate,
+    PaperSignalSummaryResponse,
     PositionResponse,
 )
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
+from app.services.paper_signal_service import PaperSignalService
 
 router = APIRouter(prefix="/api/v1", tags=["public"])
 settings = get_settings()
@@ -139,6 +142,44 @@ async def get_order_book(slug: str, depth: int = 10, db: AsyncSession = Depends(
         raise HTTPException(status_code=404, detail="Market not found")
     obs = OrderBookService(db)
     return await obs.get_l2(market.id, depth)
+
+
+@router.get("/markets/{slug}/signals", response_model=PaperSignalSummaryResponse)
+async def get_market_signals(
+    slug: str,
+    account_id: UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    svc = MarketService(db)
+    market = await svc.get_market_by_slug(slug)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    signals = PaperSignalService(db)
+    return await signals.get_summary(market, settings.paper_trading_only, account_id)
+
+
+@router.post("/markets/{slug}/signals", response_model=PaperSignalSummaryResponse)
+async def submit_market_signal(
+    slug: str,
+    body: PaperSignalCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    svc = MarketService(db)
+    market = await svc.get_market_by_slug(slug)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    signals = PaperSignalService(db)
+    try:
+        return await signals.submit_signal(
+            market,
+            body.account_id,
+            body.outcome,
+            settings.paper_trading_only,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/paper-account", response_model=PaperAccountResponse)

@@ -24,7 +24,7 @@ export function Sparkline({
   });
   const line = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const area = `${line} L${width},${height} L0,${height} Z`;
-  const color = up ? "#2F6BFF" : "#FF3B47";
+  const color = up ? "#24C66D" : "#FF4D4F";
   const id = `spark-${up ? "u" : "d"}-${Math.round(min * 1000)}-${data.length}`;
 
   return (

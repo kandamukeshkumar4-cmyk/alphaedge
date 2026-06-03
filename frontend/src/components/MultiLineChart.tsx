@@ -15,11 +15,11 @@ import { generateCandles, pct, type Market, type OutcomeTone } from "@/lib/mock-
 import { cn } from "@/lib/cn";
 
 const LINE: Record<OutcomeTone, string> = {
-  primary: "#2F6BFF",
-  danger: "#FF3B47",
-  accent: "#4D8DFF",
+  primary: "#24C66D",
+  danger: "#FF4D4F",
+  accent: "#39B8FF",
   gold: "#FFB020",
-  muted: "#939AAC",
+  muted: "#9EA9A3",
 };
 
 const DOT: Record<OutcomeTone, string> = {
@@ -75,22 +75,22 @@ export function MultiLineChart({
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#939AAC",
+        textColor: "#9EA9A3",
         fontFamily: "var(--font-mono), monospace",
         attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },
-        horzLines: { color: "rgba(36,36,48,0.6)" },
+        horzLines: { color: "rgba(36,48,57,0.64)" },
       },
       rightPriceScale: {
-        borderColor: "#242430",
+        borderColor: "#243039",
         scaleMargins: { top: 0.1, bottom: 0.1 },
       },
-      timeScale: { borderColor: "#242430", timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: "#243039", timeVisible: true, secondsVisible: false },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#4D8DFF", width: 1, style: 2, labelBackgroundColor: "#4D8DFF" },
+        vertLine: { color: "#24C66D", width: 1, style: 2, labelBackgroundColor: "#24C66D" },
         horzLine: { visible: false, labelVisible: false },
       },
       autoSize: true,
@@ -194,13 +194,13 @@ export function MultiLineChart({
         </div>
 
         {/* Range tabs */}
-        <div className="flex rounded-lg border border-border bg-surface p-0.5">
+        <div className="flex rounded-md border border-border bg-bg p-0.5">
           {RANGES.map((r) => (
             <button
               key={r.key}
               onClick={() => setRange(r.key)}
               className={cn(
-                "rounded-md px-2 py-1 text-xs font-semibold transition",
+                "rounded px-2 py-1 text-[11px] font-semibold transition",
                 range === r.key ? "bg-surface-3 text-text" : "text-muted hover:text-text",
               )}
             >

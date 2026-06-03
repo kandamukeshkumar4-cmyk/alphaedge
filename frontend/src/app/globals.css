@@ -13,23 +13,26 @@ html {
 body {
   @apply bg-bg text-text antialiased;
   font-feature-settings: "tnum" 1, "ss01" 1;
+  background:
+    linear-gradient(180deg, rgba(13, 20, 23, 0.72) 0%, rgba(9, 12, 15, 0) 220px),
+    #090c0f;
 }
 
 /* Thin dark scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a3a transparent;
+  scrollbar-color: #27353d transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2a2a3a;
+  background: #27353d;
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #3a3a50;
+  background: #33444d;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
@@ -48,10 +51,10 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    #121219 0%,
-    #1c1c2a 20%,
-    #121219 40%,
-    #121219 100%
+    #0f1417 0%,
+    #1a2328 20%,
+    #0f1417 40%,
+    #0f1417 100%
   );
   background-size: 936px 100%;
   @apply animate-shimmer rounded;

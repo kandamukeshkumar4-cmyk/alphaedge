@@ -16,6 +16,7 @@ import { TradePanel } from "@/components/TradePanel";
 import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
+import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
 import { cn } from "@/lib/cn";
 import { fetchMarketDetail } from "@/lib/alphaedge-api";
 
@@ -126,8 +127,9 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
         </div>
 
         {/* Right: sticky trade panel */}
-        <div className="lg:sticky lg:top-28 lg:self-start">
+        <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
           <TradePanel market={market} />
+          <DecisionSignalPanel market={market} />
         </div>
       </div>
     </main>

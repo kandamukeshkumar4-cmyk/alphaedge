@@ -115,6 +115,26 @@ class OrderCancelRequest(BaseModel):
     account_id: UUID
 
 
+class PaperSignalCreate(BaseModel):
+    account_id: UUID
+    outcome: OrderOutcome
+
+
+class PaperSignalOption(BaseModel):
+    outcome: OrderOutcome
+    count: int
+    percentage: float
+
+
+class PaperSignalSummaryResponse(BaseModel):
+    paper_trading_only: bool
+    market_id: UUID
+    market_slug: str
+    selected_outcome: Optional[OrderOutcome]
+    total_signals: int
+    options: list[PaperSignalOption]
+
+
 class OrderResponse(BaseModel):
     id: UUID
     market_id: UUID
