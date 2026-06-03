@@ -277,6 +277,15 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "Expected paper-trading simulation disclaimer from agent proof" in workflow
     assert "Expected risk step in deployed agent proof" in workflow
     assert "Deployed agent proof unexpectedly created execution artifacts" in workflow
+    assert "Smoke-test paper order lifecycle" in workflow
+    assert "/api/v1/paper-account" in workflow
+    assert 'MARKET_SLUG = "nba-2025-01-15-lal-bos"' in workflow
+    assert 'f"/api/v1/markets/{MARKET_SLUG}/orders"' in workflow
+    assert 'f"/api/v1/orders/{order_id}/cancel"' in workflow
+    assert "Expected paper account endpoint to report paper_trading_only=true" in workflow
+    assert "Expected risk-gated paper order to open" in workflow
+    assert "Expected cancellation to release smoke-test order" in workflow
+    assert "Smoke paper order was not removed from open orders after cancel" in workflow
     assert "Attempt $i/40: /api/v1/markets HTTP $status" in workflow
     assert "ERROR: /api/v1/markets did not return the canonical market in time." in workflow
     assert "ERROR: health check timed out" in workflow
