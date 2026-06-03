@@ -283,13 +283,6 @@ class OrderBookService:
         for m in matches:
             await self._record_fill(taker.market_id, m)
 
-        filled = sum((m.quantity for m in matches), Decimal("0"))
-        taker.filled_quantity += filled
-        if taker.filled_quantity >= taker.quantity:
-            taker.status = OrderStatus.FILLED
-        elif taker.filled_quantity > 0:
-            taker.status = OrderStatus.PARTIAL
-
     async def _record_fill(self, market_id: UUID, match) -> None:
         fill = Fill(
             market_id=market_id,
@@ -306,6 +299,9 @@ class OrderBookService:
             result = await self.session.execute(select(Order).where(Order.id == order_id))
             order = result.scalar_one()
             await self._apply_fill_to_position(order, match.price, match.quantity)
+            self._advance_order_fill_state(order, match.quantity)
+
+        await self.session.flush()
 
         await self.events.emit(
             "order_filled",
@@ -317,6 +313,14 @@ class OrderBookService:
                 "outcome": match.outcome.value,
             },
         )
+
+    @staticmethod
+    def _advance_order_fill_state(order: Order, quantity: Decimal) -> None:
+        order.filled_quantity += quantity
+        if order.filled_quantity >= order.quantity:
+            order.status = OrderStatus.FILLED
+        elif order.filled_quantity > 0:
+            order.status = OrderStatus.PARTIAL
 
     async def _apply_fill_to_position(
         self, order: Order, price: Decimal, quantity: Decimal

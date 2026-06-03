@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from app.db.models import Account, LedgerEntry, LedgerEntryType, OrderOutcome, OrderSide, OrderType
+from app.db.models import Account, LedgerEntry, LedgerEntryType, OrderOutcome, OrderSide, OrderStatus, OrderType
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
 
@@ -207,6 +207,47 @@ async def test_short_yes_position_pays_settlement_liability_when_yes_wins(db_ses
   assert settlement_entry.amount == Decimal("-100.0000")
   assert settlement_entry.balance_after == Decimal("0.0000")
   assert "liability" in settlement_entry.description
+
+
+@pytest.mark.asyncio
+async def test_resting_order_fill_state_advances_when_matched(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-resting-order-fill-state-market",
+      title="Resting Order Fill State Market",
+      question="Will resting orders persist fill state?",
+      lock_at=LOCK_AT,
+  )
+  maker = Account(name="Resting State Maker", cash_balance=Decimal("45"))
+  taker = Account(name="Resting State Taker", cash_balance=Decimal("5000"))
+  db_session.add_all([maker, taker])
+  await db_session.flush()
+
+  maker_order = await obs.submit_order(
+      market.id,
+      maker.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+  await obs.submit_order(
+      market.id,
+      taker.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+  await db_session.refresh(maker_order)
+
+  assert maker_order.filled_quantity == Decimal("100")
+  assert maker_order.status == OrderStatus.FILLED
+  assert await obs.reserved_cash(maker.id) == Decimal("100.0000")
 
 
 @pytest.mark.asyncio
