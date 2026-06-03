@@ -104,8 +104,8 @@ def test_azure_static_web_apps_admin_proxy_is_viewer_token_gated():
     )
     proxy = (ROOT / "api" / "src" / "admin-proxy.js").read_text(encoding="utf-8")
 
-    assert 'route: "admin/agents/runs"' in api_function
-    assert 'route: "admin/agents/runs/{runId}"' in api_function
+    assert 'route: "admin-proof/agents/runs"' in api_function
+    assert 'route: "admin-proof/agents/runs/{runId}"' in api_function
     assert "proxyAdminAgentRuns" in api_function
     assert "proxyAdminAgentRunDetail" in api_function
     assert "ADMIN_VIEWER_TOKEN" in proxy

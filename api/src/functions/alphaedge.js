@@ -74,13 +74,13 @@ app.http("evalAggregates", {
 app.http("adminAgentRuns", {
   methods: ["GET"],
   authLevel: "anonymous",
-  route: "admin/agents/runs",
+  route: "admin-proof/agents/runs",
   handler: proxyAdminAgentRuns,
 });
 
 app.http("adminAgentRunDetail", {
   methods: ["GET"],
   authLevel: "anonymous",
-  route: "admin/agents/runs/{runId}",
+  route: "admin-proof/agents/runs/{runId}",
   handler: proxyAdminAgentRunDetail,
 });
