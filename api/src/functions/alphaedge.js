@@ -1,5 +1,6 @@
 const { app } = require("@azure/functions");
 const {
+  proxyAdminAgentRun,
   proxyAdminAgentRunDetail,
   proxyAdminAgentRuns,
 } = require("../admin-proxy");
@@ -76,6 +77,13 @@ app.http("adminAgentRuns", {
   authLevel: "anonymous",
   route: "proof/agents/runs",
   handler: proxyAdminAgentRuns,
+});
+
+app.http("adminAgentRun", {
+  methods: ["POST"],
+  authLevel: "anonymous",
+  route: "proof/agents/run/{slug}",
+  handler: proxyAdminAgentRun,
 });
 
 app.http("adminAgentRunDetail", {

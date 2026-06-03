@@ -5,14 +5,17 @@ import { FormEvent, useMemo, useState } from "react";
 import {
   fetchAdminAgentRunDetail,
   fetchAdminAgentRuns,
+  runAdminAgentProof,
   type AdminAgentRunDetail,
   type AdminAgentRunSummary,
 } from "@/lib/admin-proof-api";
 
 const RUN_LIMIT = 10;
+const DEFAULT_MARKET_SLUG = "nba-2025-01-15-lal-bos";
 
 export default function AdminPage() {
   const [viewerToken, setViewerToken] = useState("");
+  const [marketSlug, setMarketSlug] = useState(DEFAULT_MARKET_SLUG);
   const [runs, setRuns] = useState<AdminAgentRunSummary[]>([]);
   const [selectedRun, setSelectedRun] = useState<AdminAgentRunDetail | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -20,6 +23,7 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [isRunningProof, setIsRunningProof] = useState(false);
 
   const approvedCount = useMemo(
     () => runs.filter((run) => run.approved).length,
@@ -71,6 +75,29 @@ export default function AdminPage() {
     setSelectedRun(result.run);
   }
 
+  async function handleRunProof(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsRunningProof(true);
+    setMessage("");
+
+    const result = await runAdminAgentProof({
+      viewerToken,
+      marketSlug,
+    });
+
+    setIsRunningProof(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+
+    setSelectedRun(result.run);
+    setSelectedRunId(result.run.run_id);
+    setDisclaimer(result.run.disclaimer);
+    setRuns((currentRuns) => upsertRunSummary(currentRuns, result.run));
+    setMessage("Agent proof recorded.");
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
@@ -113,6 +140,28 @@ export default function AdminPage() {
           {message}
         </div>
       ) : null}
+
+      <form
+        className="flex flex-col gap-2 rounded border border-border bg-surface p-4 sm:flex-row"
+        onSubmit={handleRunProof}
+      >
+        <label className="sr-only" htmlFor="market-slug">
+          Market slug
+        </label>
+        <input
+          id="market-slug"
+          className="min-h-11 flex-1 rounded border border-border bg-bg px-3 font-mono text-sm text-text outline-none transition focus:border-primary"
+          value={marketSlug}
+          onChange={(event) => setMarketSlug(event.target.value)}
+        />
+        <button
+          className="min-h-11 rounded border border-primary/45 px-4 text-sm font-semibold text-primary transition hover:border-primary hover:text-accent disabled:cursor-not-allowed disabled:border-border disabled:text-muted-2"
+          disabled={isRunningProof}
+          type="submit"
+        >
+          {isRunningProof ? "Running" : "Run Proof"}
+        </button>
+      </form>
 
       <section className="grid gap-4 md:grid-cols-3">
         <Metric label="Runs" value={runs.length.toString()} />
@@ -281,6 +330,25 @@ function StatusBadge({ approved, status }: { approved: boolean; status: string }
       {approved ? "Approved" : status}
     </span>
   );
+}
+
+function upsertRunSummary(
+  runs: AdminAgentRunSummary[],
+  run: AdminAgentRunDetail,
+): AdminAgentRunSummary[] {
+  const summary = {
+    run_id: run.run_id,
+    market_id: run.market_id,
+    market_slug: run.market_slug,
+    market_title: run.market_title,
+    status: run.status,
+    graph_version: run.graph_version,
+    approved: run.approved,
+    step_count: run.steps.length,
+    errors: run.errors,
+    created_at: run.created_at,
+  };
+  return [summary, ...runs.filter((item) => item.run_id !== run.run_id)].slice(0, RUN_LIMIT);
 }
 
 function formatDate(value: string) {

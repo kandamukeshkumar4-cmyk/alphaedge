@@ -106,13 +106,30 @@ def test_azure_static_web_apps_admin_proxy_is_viewer_token_gated():
 
     assert 'route: "proof/agents/runs"' in api_function
     assert 'route: "proof/agents/runs/{runId}"' in api_function
+    assert 'route: "proof/agents/run/{slug}"' in api_function
     assert "proxyAdminAgentRuns" in api_function
     assert "proxyAdminAgentRunDetail" in api_function
+    assert "proxyAdminAgentRun" in api_function
     assert "ADMIN_VIEWER_TOKEN" in proxy
     assert "ADMIN_API_KEY" in proxy
     assert "ALPHAEDGE_BACKEND_API_URL" in proxy
     assert "X-Admin-API-Key" in proxy
     assert "x-alphaedge-admin-viewer-token" in proxy
+
+
+def test_admin_dashboard_uses_proof_proxy_for_run_actions():
+    admin_page = (
+        ROOT / "frontend" / "src" / "app" / "admin" / "page.tsx"
+    ).read_text(encoding="utf-8")
+    client = (
+        ROOT / "frontend" / "src" / "lib" / "admin-proof-api.ts"
+    ).read_text(encoding="utf-8")
+
+    assert "runAdminAgentProof" in admin_page
+    assert "marketSlug" in admin_page
+    assert "`/api/proof/agents/run/${encodeURIComponent(marketSlug)}`" in client
+    assert "ADMIN_API_KEY" not in admin_page
+    assert "X-Admin-API-Key" not in client
 
 
 def test_public_frontend_does_not_default_to_localhost_api():

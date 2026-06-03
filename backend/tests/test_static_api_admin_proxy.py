@@ -149,3 +149,70 @@ def test_static_api_admin_agent_run_detail_proxy_forwards_run_id_without_exposin
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_static_api_admin_agent_run_proxy_posts_slug_without_exposing_key():
+    script = textwrap.dedent(
+        """
+        (async () => {
+          const assert = require("node:assert/strict");
+          const { proxyAdminAgentRun } = require("./api/src/admin-proxy");
+
+          const calls = [];
+          const response = await proxyAdminAgentRun(
+            {
+              params: { slug: "nba-2025-01-15-lal-bos" },
+              headers: new Map([["x-alphaedge-admin-viewer-token", "viewer-secret"]]),
+            },
+            {
+              env: {
+                ADMIN_VIEWER_TOKEN: "viewer-secret",
+                ADMIN_API_KEY: "backend-secret",
+                ALPHAEDGE_BACKEND_API_URL: "https://api.example.test",
+              },
+              fetchImpl: async (url, init) => {
+                calls.push({ url, init });
+                return {
+                  status: 200,
+                  async json() {
+                    return {
+                      run_id: "run-1",
+                      market_slug: "nba-2025-01-15-lal-bos",
+                      approved: false,
+                    };
+                  },
+                };
+              },
+            },
+          );
+
+          assert.equal(response.status, 200);
+          assert.deepEqual(response.jsonBody, {
+            run_id: "run-1",
+            market_slug: "nba-2025-01-15-lal-bos",
+            approved: false,
+          });
+          assert.equal(calls.length, 1);
+          assert.equal(
+            calls[0].url,
+            "https://api.example.test/admin/agents/run/nba-2025-01-15-lal-bos",
+          );
+          assert.equal(calls[0].init.method, "POST");
+          assert.equal(calls[0].init.headers["X-Admin-API-Key"], "backend-secret");
+          assert.ok(!JSON.stringify(response).includes("backend-secret"));
+        })().catch((error) => {
+          console.error(error);
+          process.exit(1);
+        });
+        """
+    )
+
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr

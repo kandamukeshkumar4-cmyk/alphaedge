@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fetchAdminAgentRunDetail, fetchAdminAgentRuns } from "./admin-proof-api";
+import {
+  fetchAdminAgentRunDetail,
+  fetchAdminAgentRuns,
+  runAdminAgentProof,
+} from "./admin-proof-api";
 
 describe("admin proof API", () => {
   it("loads agent run summaries through the same-origin viewer-token proxy", async () => {
@@ -88,6 +92,53 @@ describe("admin proof API", () => {
       run: {
         run_id: "run-1",
         steps: [{ step_name: "risk" }],
+      },
+    });
+  });
+
+  it("runs one agent proof through the same-origin proof proxy", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("/api/proof/agents/run/nba-2025-01-15-lal-bos");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toEqual({
+        "x-alphaedge-admin-viewer-token": "viewer-secret",
+      });
+      expect(JSON.stringify(init)).not.toContain("backend-secret");
+      return jsonResponse({
+        run_id: "run-1",
+        market_id: "market-1",
+        market_slug: "nba-2025-01-15-lal-bos",
+        market_title: "Lakers vs Celtics",
+        status: "blocked",
+        graph_version: "v1",
+        approved: false,
+        predicted_prob: 0.58,
+        confidence: 0.75,
+        reasoning: "Risk rejected.",
+        errors: ["edge 3.00% < 5%"],
+        created_at: "2026-06-03T15:00:00Z",
+        disclaimer: "Paper-trading simulation only.",
+        steps: [
+          {
+            step_name: "risk",
+            input_data: { predicted_prob: 0.58 },
+            output_data: { approved: false, errors: ["edge 3.00% < 5%"] },
+          },
+        ],
+      });
+    });
+
+    const result = await runAdminAgentProof({
+      fetcher,
+      viewerToken: "viewer-secret",
+      marketSlug: "nba-2025-01-15-lal-bos",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      run: {
+        run_id: "run-1",
+        market_slug: "nba-2025-01-15-lal-bos",
       },
     });
   });

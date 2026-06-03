@@ -48,6 +48,12 @@ type FetchAdminAgentRunDetailInput = {
   runId: string;
 };
 
+type RunAdminAgentProofInput = {
+  fetcher?: Fetcher;
+  viewerToken: string;
+  marketSlug: string;
+};
+
 export type FetchAdminAgentRunsResult =
   | {
       ok: true;
@@ -68,6 +74,8 @@ export type FetchAdminAgentRunDetailResult =
       ok: false;
       message: string;
     };
+
+export type RunAdminAgentProofResult = FetchAdminAgentRunDetailResult;
 
 export async function fetchAdminAgentRuns(
   input: FetchAdminAgentRunsInput,
@@ -115,14 +123,47 @@ export async function fetchAdminAgentRunDetail(
   };
 }
 
+export async function runAdminAgentProof(
+  input: RunAdminAgentProofInput,
+): Promise<RunAdminAgentProofResult> {
+  const viewerToken = input.viewerToken.trim();
+  if (!viewerToken) {
+    return missingToken();
+  }
+
+  const marketSlug = input.marketSlug.trim();
+  if (!marketSlug) {
+    return {
+      ok: false,
+      message: "Market slug is required.",
+    };
+  }
+
+  const response = await fetchProofJson<AdminAgentRunDetail>(
+    input.fetcher ?? fetch,
+    `/api/proof/agents/run/${encodeURIComponent(marketSlug)}`,
+    viewerToken,
+    "POST",
+  );
+  if (!response.ok) {
+    return response;
+  }
+  return {
+    ok: true,
+    run: response.body,
+  };
+}
+
 async function fetchProofJson<T>(
   fetcher: Fetcher,
   url: string,
   viewerToken: string,
+  method = "GET",
 ): Promise<{ ok: true; body: T } | { ok: false; message: string }> {
   try {
     const response = await fetcher(url, {
       cache: "no-store",
+      method,
       headers: {
         "x-alphaedge-admin-viewer-token": viewerToken,
       },

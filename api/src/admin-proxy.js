@@ -4,6 +4,18 @@ async function proxyAdminAgentRuns(request, options = {}) {
   return proxyAdminProof(request, "/admin/agents/runs", options);
 }
 
+async function proxyAdminAgentRun(request, options = {}) {
+  const slug = request.params?.slug;
+  if (!slug) {
+    return json(400, { detail: "Market slug is required" });
+  }
+  return proxyAdminProof(
+    request,
+    `/admin/agents/run/${encodeURIComponent(slug)}`,
+    { ...options, method: "POST" },
+  );
+}
+
 async function proxyAdminAgentRunDetail(request, options = {}) {
   const runId = request.params?.runId;
   if (!runId) {
@@ -33,7 +45,7 @@ async function proxyAdminProof(request, backendPath, options) {
   const query = queryString(request.query);
   const fetchImpl = options.fetchImpl || fetch;
   const response = await fetchImpl(`${backendApiUrl}${backendPath}${query}`, {
-    method: "GET",
+    method: options.method || "GET",
     headers: {
       "X-Admin-API-Key": adminApiKey,
     },
@@ -88,6 +100,7 @@ function json(status, jsonBody) {
 }
 
 module.exports = {
+  proxyAdminAgentRun,
   proxyAdminAgentRunDetail,
   proxyAdminAgentRuns,
 };
