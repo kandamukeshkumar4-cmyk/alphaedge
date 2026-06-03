@@ -12,6 +12,7 @@ from app.db.models import (
     Market,
     MarketStatus,
     Order,
+    LedgerEntryType,
     OrderOutcome,
     OrderSide,
     OrderStatus,
@@ -232,29 +233,53 @@ class OrderBookService:
         self, order: Order, price: Decimal, quantity: Decimal
     ) -> None:
         pos = await self._get_or_create_position(order.account_id, order.market_id)
-        account = await self.ledger.get_account(order.account_id)
+        notional = price * quantity
+        description = (
+            f"Filled {order.side.value} {order.outcome.value.upper()} "
+            f"@ {price} x {quantity}"
+        )
 
         if order.outcome == OrderOutcome.YES:
             if order.side == OrderSide.BUY:
-                cost = price * quantity
-                account.cash_balance -= cost
+                await self.ledger.debit(
+                    order.account_id,
+                    notional,
+                    LedgerEntryType.TRADE,
+                    description,
+                    order.market_id,
+                )
                 pos.yes_shares += quantity
                 if pos.yes_shares > 0:
                     pos.avg_yes_cost = price
             else:
-                proceeds = price * quantity
-                account.cash_balance += proceeds
+                await self.ledger.credit(
+                    order.account_id,
+                    notional,
+                    LedgerEntryType.TRADE,
+                    description,
+                    order.market_id,
+                )
                 pos.yes_shares -= quantity
         else:
             if order.side == OrderSide.BUY:
-                cost = price * quantity
-                account.cash_balance -= cost
+                await self.ledger.debit(
+                    order.account_id,
+                    notional,
+                    LedgerEntryType.TRADE,
+                    description,
+                    order.market_id,
+                )
                 pos.no_shares += quantity
                 if pos.no_shares > 0:
                     pos.avg_no_cost = price
             else:
-                proceeds = price * quantity
-                account.cash_balance += proceeds
+                await self.ledger.credit(
+                    order.account_id,
+                    notional,
+                    LedgerEntryType.TRADE,
+                    description,
+                    order.market_id,
+                )
                 pos.no_shares -= quantity
 
         await self.session.flush()

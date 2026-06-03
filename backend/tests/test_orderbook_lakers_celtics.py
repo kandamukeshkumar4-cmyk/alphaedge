@@ -5,8 +5,9 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
-from app.db.models import Account, OrderOutcome, OrderSide, OrderType
+from app.db.models import Account, LedgerEntry, LedgerEntryType, OrderOutcome, OrderSide, OrderType
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
 
@@ -71,6 +72,59 @@ async def test_lakers_celtics_matching_and_pnl(db_session):
 
   # Maker sold YES: received 55, no winning shares
   assert maker.cash_balance >= Decimal("5055")
+
+
+@pytest.mark.asyncio
+async def test_matched_trade_writes_buyer_and_seller_ledger_entries(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-ledger-audit-market",
+      title="Ledger Audit Market",
+      question="Will matched trades write ledger entries?",
+      lock_at=LOCK_AT,
+  )
+  maker = Account(name="Ledger Maker", cash_balance=Decimal("5000"))
+  taker = Account(name="Ledger Taker", cash_balance=Decimal("5000"))
+  db_session.add_all([maker, taker])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      maker.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+  await obs.submit_order(
+      market.id,
+      taker.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+
+  result = await db_session.execute(
+      select(LedgerEntry).where(LedgerEntry.entry_type == LedgerEntryType.TRADE)
+  )
+  entries_by_account = {entry.account_id: entry for entry in result.scalars().all()}
+
+  assert set(entries_by_account) == {maker.id, taker.id}
+  buyer_entry = entries_by_account[taker.id]
+  seller_entry = entries_by_account[maker.id]
+  assert buyer_entry.market_id == market.id
+  assert buyer_entry.amount == Decimal("-55.0000")
+  assert buyer_entry.balance_after == Decimal("4945.0000")
+  assert "buy YES" in buyer_entry.description
+  assert seller_entry.market_id == market.id
+  assert seller_entry.amount == Decimal("55.0000")
+  assert seller_entry.balance_after == Decimal("5055.0000")
+  assert "sell YES" in seller_entry.description
 
 
 @pytest.mark.asyncio
