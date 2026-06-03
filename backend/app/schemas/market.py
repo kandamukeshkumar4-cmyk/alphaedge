@@ -146,6 +146,8 @@ class AgentRunStepResponse(BaseModel):
 class AgentRunResponse(BaseModel):
     run_id: UUID
     market_id: UUID
+    market_slug: str
+    market_title: str
     status: str
     graph_version: str
     approved: bool
@@ -153,8 +155,27 @@ class AgentRunResponse(BaseModel):
     confidence: float
     reasoning: str
     errors: list[str]
+    created_at: datetime
     steps: list[AgentRunStepResponse]
     disclaimer: str
+
+
+class AgentRunSummaryResponse(BaseModel):
+    run_id: UUID
+    market_id: UUID
+    market_slug: str
+    market_title: str
+    status: str
+    graph_version: str
+    approved: bool
+    step_count: int
+    errors: list[str]
+    created_at: datetime
+
+
+class AgentRunListResponse(BaseModel):
+    disclaimer: str
+    runs: list[AgentRunSummaryResponse]
 
 
 class OrderResponse(BaseModel):
