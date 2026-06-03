@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -133,6 +133,28 @@ class PaperSignalSummaryResponse(BaseModel):
     selected_outcome: Optional[OrderOutcome]
     total_signals: int
     options: list[PaperSignalOption]
+
+
+class AgentRunStepResponse(BaseModel):
+    step_name: str
+    input_data: dict[str, Any]
+    output_data: dict[str, Any]
+
+    model_config = {"from_attributes": True}
+
+
+class AgentRunResponse(BaseModel):
+    run_id: UUID
+    market_id: UUID
+    status: str
+    graph_version: str
+    approved: bool
+    predicted_prob: float
+    confidence: float
+    reasoning: str
+    errors: list[str]
+    steps: list[AgentRunStepResponse]
+    disclaimer: str
 
 
 class OrderResponse(BaseModel):

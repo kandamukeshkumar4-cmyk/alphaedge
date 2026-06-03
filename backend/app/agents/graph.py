@@ -27,6 +27,45 @@ class AgentState:
     errors: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class AgentTraceStep:
+    step_name: str
+    input_data: dict[str, Any]
+    output_data: dict[str, Any]
+
+
+def _order_intent_snapshot(intent: OrderIntent | None) -> dict[str, Any] | None:
+    if intent is None:
+        return None
+    return {
+        "market_slug": intent.market_slug,
+        "side": intent.side,
+        "outcome": intent.outcome,
+        "quantity": str(intent.quantity),
+        "price": str(intent.price) if intent.price is not None else None,
+        "predicted_prob": intent.predicted_prob,
+        "confidence": intent.confidence,
+        "edge": intent.edge,
+        "bankroll": str(intent.bankroll),
+        "current_drawdown": intent.current_drawdown,
+        "minutes_before_start": intent.minutes_before_start,
+        "agent_enabled": intent.agent_enabled,
+    }
+
+
+def agent_state_snapshot(state: AgentState) -> dict[str, Any]:
+    return {
+        "market_slug": state.market_slug,
+        "features": dict(state.features),
+        "predicted_prob": state.predicted_prob,
+        "confidence": state.confidence,
+        "reasoning": state.reasoning,
+        "order_intent": _order_intent_snapshot(state.order_intent),
+        "approved": state.approved,
+        "errors": list(state.errors),
+    }
+
+
 def data_node(state: AgentState) -> AgentState:
     state.features = {"implied_yes": state.features.get("implied_yes", 0.5)}
     return state
@@ -130,3 +169,22 @@ def run_agent_graph(market_slug: str, features: dict | None = None) -> AgentStat
     if _COMPILED_GRAPH is not None:
         return _coerce_agent_state(_COMPILED_GRAPH.invoke(initial))
     return _run_manual_graph(initial)
+
+
+def run_agent_graph_with_trace(
+    market_slug: str,
+    features: dict | None = None,
+) -> tuple[AgentState, list[AgentTraceStep]]:
+    state = AgentState(market_slug=market_slug, features=features or {})
+    trace: list[AgentTraceStep] = []
+    for name, node in GRAPH_NODES:
+        input_data = agent_state_snapshot(state)
+        state = node(state)
+        trace.append(
+            AgentTraceStep(
+                step_name=name,
+                input_data=input_data,
+                output_data=agent_state_snapshot(state),
+            )
+        )
+    return state, trace
