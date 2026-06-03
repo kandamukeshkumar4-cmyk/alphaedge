@@ -98,6 +98,23 @@ def test_azure_static_web_apps_managed_api_unblocks_public_demo():
     assert '"/api/*"' in config
 
 
+def test_azure_static_web_apps_admin_proxy_is_viewer_token_gated():
+    api_function = (ROOT / "api" / "src" / "functions" / "alphaedge.js").read_text(
+        encoding="utf-8"
+    )
+    proxy = (ROOT / "api" / "src" / "admin-proxy.js").read_text(encoding="utf-8")
+
+    assert 'route: "admin/agents/runs"' in api_function
+    assert 'route: "admin/agents/runs/{runId}"' in api_function
+    assert "proxyAdminAgentRuns" in api_function
+    assert "proxyAdminAgentRunDetail" in api_function
+    assert "ADMIN_VIEWER_TOKEN" in proxy
+    assert "ADMIN_API_KEY" in proxy
+    assert "ALPHAEDGE_BACKEND_API_URL" in proxy
+    assert "X-Admin-API-Key" in proxy
+    assert "x-alphaedge-admin-viewer-token" in proxy
+
+
 def test_public_frontend_does_not_default_to_localhost_api():
     for path in [
         ROOT / "frontend" / "src" / "app" / "admin" / "page.tsx",

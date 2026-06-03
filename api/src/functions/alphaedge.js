@@ -1,4 +1,8 @@
 const { app } = require("@azure/functions");
+const {
+  proxyAdminAgentRunDetail,
+  proxyAdminAgentRuns,
+} = require("../admin-proxy");
 
 const DISCLAIMER =
   "This project is a paper-trading simulation for research and portfolio demonstration only. No real-money trading, betting, or settlement is supported.";
@@ -65,4 +69,18 @@ app.http("evalAggregates", {
       market_count: 250,
     },
   }),
+});
+
+app.http("adminAgentRuns", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  route: "admin/agents/runs",
+  handler: proxyAdminAgentRuns,
+});
+
+app.http("adminAgentRunDetail", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  route: "admin/agents/runs/{runId}",
+  handler: proxyAdminAgentRunDetail,
 });
