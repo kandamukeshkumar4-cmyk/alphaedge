@@ -266,6 +266,13 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "/api/v1/markets/elect-la-mayor-2026/snapshot" in workflow
     assert "Expected snapshot route to return the election market" in workflow
     assert "Waiting for markets endpoint to return canonical market" in workflow
+    assert "Smoke-test admin agent proof endpoint" in workflow
+    assert "/admin/agents/run/nba-2025-01-15-lal-bos" in workflow
+    assert "X-Admin-API-Key: ${ADMIN_API_KEY}" in workflow
+    assert "Expected agent proof for canonical Lakers vs Celtics market" in workflow
+    assert "Expected paper-trading simulation disclaimer from agent proof" in workflow
+    assert "Expected risk step in deployed agent proof" in workflow
+    assert "Deployed agent proof unexpectedly created execution artifacts" in workflow
     assert "Attempt $i/40: /api/v1/markets HTTP $status" in workflow
     assert "ERROR: /api/v1/markets did not return the canonical market in time." in workflow
     assert "ERROR: health check timed out" in workflow

@@ -250,3 +250,60 @@ jobs:
           done
           echo "ERROR: election snapshot endpoint did not return in time."
           exit 1
+
+      - name: Smoke-test admin agent proof endpoint
+        env:
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          echo "Waiting for admin agent proof endpoint (up to 10 min)..."
+          for i in $(seq 1 40); do
+            body="$(mktemp)"
+            status=$(curl --silent --show-error --location --request POST --output "$body" --write-out "%{http_code}" \
+              --header "X-Admin-API-Key: ${ADMIN_API_KEY}" \
+              https://mukeshkumarkanda-alphaedge-api.hf.space/admin/agents/run/nba-2025-01-15-lal-bos || echo 000)
+            if [ "$status" = "200" ]; then
+              if python3 - "$body" << 'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              proof = json.load(fh)
+
+          if proof.get("market_slug") != "nba-2025-01-15-lal-bos":
+              raise SystemExit("Expected agent proof for canonical Lakers vs Celtics market")
+          if "paper-trading simulation" not in str(proof.get("disclaimer", "")).lower():
+              raise SystemExit("Expected paper-trading simulation disclaimer from agent proof")
+          if proof.get("status") != "blocked" or proof.get("approved") is not False:
+              raise SystemExit("Expected deployed agent proof to remain blocked by risk")
+
+          steps = proof.get("steps") or []
+          risk_step = next((step for step in steps if step.get("step_name") == "risk"), None)
+          if risk_step is None:
+              raise SystemExit("Expected risk step in deployed agent proof")
+          risk_output = risk_step.get("output_data") or {}
+          if risk_output.get("approved") is not False:
+              raise SystemExit("Expected deployed risk step to reject weak edge")
+          if not any("edge" in str(error).lower() for error in risk_output.get("errors", [])):
+              raise SystemExit("Expected deployed risk step to report edge rejection")
+
+          execute_step = next(
+              (step for step in steps if step.get("step_name") == "execute"),
+              None,
+          )
+          execute_output = json.dumps((execute_step or {}).get("output_data") or {})
+          if "order_id" in execute_output or "execution_id" in execute_output:
+              raise SystemExit("Deployed agent proof unexpectedly created execution artifacts")
+
+          print("/admin/agents/run/nba-2025-01-15-lal-bos returned guarded proof")
+          PY
+              then
+                exit 0
+              fi
+            else
+              echo "Attempt $i/40: admin agent proof HTTP $status - retrying in 15s"
+              cat "$body"
+            fi
+            sleep 15
+          done
+          echo "ERROR: admin agent proof endpoint did not return guarded proof in time."
+          exit 1
