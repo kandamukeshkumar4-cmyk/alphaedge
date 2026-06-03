@@ -69,11 +69,26 @@ class OrderBookService:
             raise ValueError("Insufficient available cash")
 
     async def reserved_cash(self, account_id: UUID) -> Decimal:
+        position_result = await self.session.execute(
+            select(Position).where(Position.account_id == account_id)
+        )
+        positions = position_result.scalars().all()
+        available_shares: dict[tuple[UUID, OrderOutcome], Decimal] = {}
+        for position in positions:
+            available_shares[(position.market_id, OrderOutcome.YES)] = max(
+                position.yes_shares,
+                Decimal("0"),
+            )
+            available_shares[(position.market_id, OrderOutcome.NO)] = max(
+                position.no_shares,
+                Decimal("0"),
+            )
+
         result = await self.session.execute(
             select(Order).where(
                 Order.account_id == account_id,
                 Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
-            )
+            ).order_by(Order.created_at.asc(), Order.id.asc())
         )
         total = Decimal("0")
         for order in result.scalars().all():
@@ -84,17 +99,63 @@ class OrderBookService:
                 if order.side == OrderSide.BUY:
                     total += order.price * remaining
                 else:
-                    total += (Decimal("1") - order.price) * remaining
+                    key = (order.market_id, order.outcome)
+                    covered = min(available_shares.get(key, Decimal("0")), remaining)
+                    available_shares[key] = available_shares.get(key, Decimal("0")) - covered
+                    uncovered = remaining - covered
+                    total += (Decimal("1") - order.price) * uncovered
 
-        position_result = await self.session.execute(
-            select(Position).where(Position.account_id == account_id)
-        )
-        for position in position_result.scalars().all():
+        for position in positions:
             if position.yes_shares < 0:
                 total += -position.yes_shares
             if position.no_shares < 0:
                 total += -position.no_shares
         return total
+
+    async def _sell_cash_collateral_for_new_order(
+        self,
+        account_id: UUID,
+        market_id: UUID,
+        outcome: OrderOutcome,
+        quantity: Decimal,
+        price: Decimal,
+    ) -> Decimal:
+        position_result = await self.session.execute(
+            select(Position).where(
+                Position.account_id == account_id,
+                Position.market_id == market_id,
+            )
+        )
+        position = position_result.scalar_one_or_none()
+        held = Decimal("0")
+        if position is not None:
+            shares = (
+                position.yes_shares
+                if outcome == OrderOutcome.YES
+                else position.no_shares
+            )
+            held = max(shares, Decimal("0"))
+
+        order_result = await self.session.execute(
+            select(Order).where(
+                Order.account_id == account_id,
+                Order.market_id == market_id,
+                Order.outcome == outcome,
+                Order.side == OrderSide.SELL,
+                Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
+            )
+        )
+        existing_sell_quantity = sum(
+            (
+                order.quantity - order.filled_quantity
+                for order in order_result.scalars().all()
+            ),
+            Decimal("0"),
+        )
+        uncovered_before = max(existing_sell_quantity - held, Decimal("0"))
+        uncovered_after = max(existing_sell_quantity + quantity - held, Decimal("0"))
+        incremental_uncovered = uncovered_after - uncovered_before
+        return (Decimal("1") - price) * incremental_uncovered
 
     async def submit_order(
         self,
@@ -114,7 +175,13 @@ class OrderBookService:
             if side == OrderSide.BUY:
                 notional = price * quantity
             else:
-                notional = (Decimal("1") - price) * quantity
+                notional = await self._sell_cash_collateral_for_new_order(
+                    account_id,
+                    market_id,
+                    outcome,
+                    quantity,
+                    price,
+                )
             await self._reserve_cash(account_id, notional)
         else:
             book = self._get_book(market_id)
@@ -127,7 +194,14 @@ class OrderBookService:
             if side == OrderSide.BUY:
                 await self._reserve_cash(account_id, price * quantity)
             else:
-                await self._reserve_cash(account_id, (Decimal("1") - price) * quantity)
+                notional = await self._sell_cash_collateral_for_new_order(
+                    account_id,
+                    market_id,
+                    outcome,
+                    quantity,
+                    price,
+                )
+                await self._reserve_cash(account_id, notional)
 
         order = Order(
             market_id=market_id,

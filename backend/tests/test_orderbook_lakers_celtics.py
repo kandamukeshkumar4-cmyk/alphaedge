@@ -210,6 +210,102 @@ async def test_short_yes_position_pays_settlement_liability_when_yes_wins(db_ses
 
 
 @pytest.mark.asyncio
+async def test_covered_sell_order_uses_existing_shares_before_cash_collateral(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-covered-sell-market",
+      title="Covered Sell Market",
+      question="Will owned shares cover sell orders?",
+      lock_at=LOCK_AT,
+  )
+  market_maker = Account(name="Covered Sell Maker", cash_balance=Decimal("45"))
+  trader = Account(name="Covered Sell Trader", cash_balance=Decimal("100"))
+  db_session.add_all([market_maker, trader])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      market_maker.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+  await obs.submit_order(
+      market.id,
+      trader.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+
+  await obs.submit_order(
+      market.id,
+      trader.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.60"),
+  )
+
+  assert await obs.reserved_cash(trader.id) == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_sell_order_collateralizes_only_uncovered_share_quantity(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-partially-covered-sell-market",
+      title="Partially Covered Sell Market",
+      question="Will only uncovered sell quantity reserve cash?",
+      lock_at=LOCK_AT,
+  )
+  market_maker = Account(name="Partial Cover Maker", cash_balance=Decimal("27"))
+  trader = Account(name="Partial Cover Trader", cash_balance=Decimal("53"))
+  db_session.add_all([market_maker, trader])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      market_maker.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("60"),
+      Decimal("0.55"),
+  )
+  await obs.submit_order(
+      market.id,
+      trader.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("60"),
+      Decimal("0.55"),
+  )
+
+  await obs.submit_order(
+      market.id,
+      trader.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.60"),
+  )
+
+  assert await obs.reserved_cash(trader.id) == Decimal("16.00")
+
+
+@pytest.mark.asyncio
 async def test_order_book_price_time_priority():
   """Unit-style: earlier order at same price has priority."""
   from app.market.order_book import OrderBook, Outcome, Side
