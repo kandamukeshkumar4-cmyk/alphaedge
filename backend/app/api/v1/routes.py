@@ -2,7 +2,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
@@ -26,6 +26,7 @@ from app.schemas.market import (
     MarketForecastSnapshot,
     MarketResponse,
     MarketSnapshotResponse,
+    AccountOrderHistoryResponse,
     OpenOrderResponse,
     OrderCancelRequest,
     OrderCreate,
@@ -228,6 +229,70 @@ async def get_paper_account(db: AsyncSession = Depends(get_db)):
                 status=order.status,
             )
         )
+    order_history_result = await db.execute(
+        select(Order, Market)
+        .join(Market, Market.id == Order.market_id)
+        .where(
+            Order.account_id == account.id,
+            Order.status.in_([OrderStatus.FILLED, OrderStatus.CANCELLED]),
+        )
+        .order_by(Order.created_at.desc(), Order.id.desc())
+        .limit(25)
+    )
+    historical_orders = order_history_result.all()
+    historical_order_ids = [order.id for order, _market in historical_orders]
+    fill_metrics: dict[UUID, tuple[Decimal, Decimal]] = {}
+    if historical_order_ids:
+        fills_result = await db.execute(
+            select(Fill).where(
+                or_(
+                    Fill.buy_order_id.in_(historical_order_ids),
+                    Fill.sell_order_id.in_(historical_order_ids),
+                )
+            )
+        )
+        for fill in fills_result.scalars().all():
+            for order_id in (fill.buy_order_id, fill.sell_order_id):
+                if order_id not in historical_order_ids:
+                    continue
+                quantity, notional = fill_metrics.get(
+                    order_id,
+                    (Decimal("0"), Decimal("0")),
+                )
+                fill_metrics[order_id] = (
+                    quantity + fill.quantity,
+                    notional + (fill.price * fill.quantity),
+                )
+    order_history = []
+    for order, market in historical_orders:
+        filled_quantity, filled_notional = fill_metrics.get(
+            order.id,
+            (Decimal("0"), Decimal("0")),
+        )
+        average_fill_price = None
+        if filled_quantity > 0:
+            average_fill_price = (filled_notional / filled_quantity).quantize(
+                Decimal("0.0001")
+            )
+        order_history.append(
+            AccountOrderHistoryResponse(
+                id=order.id,
+                market_id=order.market_id,
+                market_slug=market.slug,
+                market_title=market.title,
+                side=order.side,
+                outcome=order.outcome,
+                order_type=order.order_type,
+                price=order.price,
+                quantity=order.quantity,
+                filled_quantity=order.filled_quantity,
+                remaining_quantity=order.quantity - order.filled_quantity,
+                filled_notional=filled_notional.quantize(Decimal("0.0001")),
+                average_fill_price=average_fill_price,
+                status=order.status,
+                created_at=order.created_at,
+            )
+        )
     return PaperAccountResponse(
         id=account.id,
         name=account.name,
@@ -237,6 +302,7 @@ async def get_paper_account(db: AsyncSession = Depends(get_db)):
         paper_trading_only=settings.paper_trading_only,
         positions=list(positions_result.scalars().all()),
         open_orders=open_orders,
+        order_history=order_history,
     )
 
 

@@ -219,6 +219,24 @@ class OpenOrderResponse(BaseModel):
     status: OrderStatus
 
 
+class AccountOrderHistoryResponse(BaseModel):
+    id: UUID
+    market_id: UUID
+    market_slug: str
+    market_title: str
+    side: OrderSide
+    outcome: OrderOutcome
+    order_type: OrderType
+    price: Optional[Decimal]
+    quantity: Decimal
+    filled_quantity: Decimal
+    remaining_quantity: Decimal
+    filled_notional: Decimal
+    average_fill_price: Optional[Decimal]
+    status: OrderStatus
+    created_at: datetime
+
+
 class PaperAccountResponse(BaseModel):
     id: UUID
     name: str
@@ -228,6 +246,7 @@ class PaperAccountResponse(BaseModel):
     paper_trading_only: bool
     positions: list[PositionResponse]
     open_orders: list[OpenOrderResponse]
+    order_history: list[AccountOrderHistoryResponse]
 
     model_config = {"from_attributes": True}
 

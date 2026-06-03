@@ -325,6 +325,92 @@ async def test_order_cancel_releases_reserved_cash_and_removes_open_order_from_a
 
 
 @pytest.mark.asyncio
+async def test_paper_account_reports_closed_order_history_for_partial_market_fill(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-account-order-history-market",
+        title="Account order history market",
+        question="Will closed order history expose partial market fills?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    seller = Account(name="History Liquidity Seller", cash_balance=Decimal("22.50"))
+    db_session.add(seller)
+    account = await market_service.seed_system_account(
+        UUID("00000000-0000-0000-0000-000000000001"),
+        Decimal("100000"),
+        "System Paper Account",
+    )
+    await db_session.flush()
+
+    order_book = OrderBookService(db_session)
+    await order_book.submit_order(
+        market.id,
+        seller.id,
+        OrderSide.SELL,
+        OrderOutcome.YES,
+        OrderType.LIMIT,
+        Decimal("50"),
+        Decimal("0.55"),
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            order_response = await client.post(
+                f"/api/v1/markets/{market.slug}/orders",
+                json={
+                    "account_id": str(account.id),
+                    "side": "buy",
+                    "outcome": "yes",
+                    "order_type": "market",
+                    "quantity": "100",
+                    "risk": {
+                        "predicted_prob": 0.62,
+                        "confidence": 0.8,
+                        "edge": 0.07,
+                        "current_drawdown": 0,
+                        "minutes_before_start": 120,
+                    },
+                },
+            )
+            account_response = await client.get("/api/v1/paper-account")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert order_response.status_code == 200
+    assert order_response.json()["status"] == "cancelled"
+    assert Decimal(order_response.json()["filled_quantity"]) == Decimal("50")
+
+    payload = account_response.json()
+    assert payload["open_orders"] == []
+    assert payload["order_history"] == [
+        {
+            "id": order_response.json()["id"],
+            "market_id": str(market.id),
+            "market_slug": "nba-account-order-history-market",
+            "market_title": "Account order history market",
+            "side": "buy",
+            "outcome": "yes",
+            "order_type": "market",
+            "price": "0.5500",
+            "quantity": "100.0000",
+            "filled_quantity": "50.0000",
+            "remaining_quantity": "50.0000",
+            "filled_notional": "27.5000",
+            "average_fill_price": "0.5500",
+            "status": "cancelled",
+            "created_at": payload["order_history"][0]["created_at"],
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_cancelled_order_is_removed_from_in_memory_book_before_matching(db_session):
     market_service = MarketService(db_session)
     market = await market_service.create_market(
