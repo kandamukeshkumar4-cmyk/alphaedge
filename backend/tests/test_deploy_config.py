@@ -256,7 +256,11 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "HfHubHTTPError" in workflow
     assert "add_space_secret_with_retry" in workflow
     assert "Retrying HF Space secret sync after 429" in workflow
-    assert "for attempt in range(1, 6)" in workflow
+    assert "secret_sync_deadline = time.monotonic() + 600" in workflow
+    assert "attempt = 1" in workflow
+    assert "time.monotonic() >= secret_sync_deadline" in workflow
+    assert "attempt += 1" in workflow
+    assert "for attempt in range(1, 6)" not in workflow
     assert "api.add_space_variable" not in workflow
     assert "DATABASE_URL_SYNC" in workflow
     assert "cp -r backend/. hf_stage/" in workflow
