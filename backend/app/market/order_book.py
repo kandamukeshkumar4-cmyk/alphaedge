@@ -158,12 +158,57 @@ class OrderBook:
         outcome: Outcome,
         quantity: Decimal,
     ) -> List[MatchResult]:
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive")
+
         opposite = self._opposite_book(outcome, side)
         if not opposite:
             raise ValueError("No liquidity for market order")
-        # Walk the book at best prices
-        price = opposite[0].price if side == Side.BUY else opposite[0].price
-        return self.add_limit(order_id, account_id, side, outcome, price, quantity)
+
+        matches: List[MatchResult] = []
+        remaining = quantity
+        while remaining > 0 and opposite:
+            best = opposite[0]
+            fill_qty = min(remaining, best.remaining)
+            if side == Side.BUY:
+                buy_id, sell_id = order_id, best.order_id
+            else:
+                buy_id, sell_id = best.order_id, order_id
+
+            matches.append(
+                MatchResult(
+                    buy_order_id=buy_id,
+                    sell_order_id=sell_id,
+                    outcome=outcome,
+                    price=best.price,
+                    quantity=fill_qty,
+                )
+            )
+            remaining -= fill_qty
+            best.remaining -= fill_qty
+            if best.remaining <= 0:
+                opposite.pop(0)
+
+        return matches
+
+    def quote_market(
+        self,
+        side: Side,
+        outcome: Outcome,
+        quantity: Decimal,
+    ) -> List[tuple[Decimal, Decimal]]:
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive")
+
+        remaining = quantity
+        levels: List[tuple[Decimal, Decimal]] = []
+        for order in self._opposite_book(outcome, side):
+            fill_qty = min(remaining, order.remaining)
+            levels.append((order.price, fill_qty))
+            remaining -= fill_qty
+            if remaining <= 0:
+                break
+        return levels
 
     def cancel(self, order_id: UUID) -> bool:
         removed = False

@@ -120,6 +120,20 @@ class OrderBookService:
         quantity: Decimal,
         price: Decimal,
     ) -> Decimal:
+        return await self._sell_cash_collateral_for_order_levels(
+            account_id,
+            market_id,
+            outcome,
+            [(price, quantity)],
+        )
+
+    async def _sell_cash_collateral_for_order_levels(
+        self,
+        account_id: UUID,
+        market_id: UUID,
+        outcome: OrderOutcome,
+        price_levels: list[tuple[Decimal, Decimal]],
+    ) -> Decimal:
         position_result = await self.session.execute(
             select(Position).where(
                 Position.account_id == account_id,
@@ -152,10 +166,14 @@ class OrderBookService:
             ),
             Decimal("0"),
         )
-        uncovered_before = max(existing_sell_quantity - held, Decimal("0"))
-        uncovered_after = max(existing_sell_quantity + quantity - held, Decimal("0"))
-        incremental_uncovered = uncovered_after - uncovered_before
-        return (Decimal("1") - price) * incremental_uncovered
+        covered_remaining = max(held - existing_sell_quantity, Decimal("0"))
+        total = Decimal("0")
+        for price, quantity in price_levels:
+            covered = min(covered_remaining, quantity)
+            covered_remaining -= covered
+            uncovered = quantity - covered
+            total += (Decimal("1") - price) * uncovered
+        return total
 
     async def submit_order(
         self,
@@ -187,19 +205,22 @@ class OrderBookService:
             book = self._get_book(market_id)
             ob_side = Side.BUY if side == OrderSide.BUY else Side.SELL
             ob_outcome = Outcome.YES if outcome == OrderOutcome.YES else Outcome.NO
-            opposite = book._opposite_book(ob_outcome, ob_side)
-            if not opposite:
+            quote = book.quote_market(ob_side, ob_outcome, quantity)
+            if not quote:
                 raise ValueError("No liquidity for market order")
-            price = opposite[0].price
+            price = quote[0][0]
             if side == OrderSide.BUY:
-                await self._reserve_cash(account_id, price * quantity)
+                notional = sum(
+                    (level_price * level_quantity for level_price, level_quantity in quote),
+                    Decimal("0"),
+                )
+                await self._reserve_cash(account_id, notional)
             else:
-                notional = await self._sell_cash_collateral_for_new_order(
+                notional = await self._sell_cash_collateral_for_order_levels(
                     account_id,
                     market_id,
                     outcome,
-                    quantity,
-                    price,
+                    quote,
                 )
                 await self._reserve_cash(account_id, notional)
 
@@ -282,6 +303,13 @@ class OrderBookService:
 
         for m in matches:
             await self._record_fill(taker.market_id, m)
+
+        if (
+            taker.order_type == OrderType.MARKET
+            and taker.filled_quantity < taker.quantity
+        ):
+            taker.status = OrderStatus.CANCELLED
+            await self.session.flush()
 
     async def _record_fill(self, market_id: UUID, match) -> None:
         fill = Fill(

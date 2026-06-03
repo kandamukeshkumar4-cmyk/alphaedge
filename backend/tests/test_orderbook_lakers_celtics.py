@@ -251,6 +251,108 @@ async def test_resting_order_fill_state_advances_when_matched(db_session):
 
 
 @pytest.mark.asyncio
+async def test_market_buy_partial_liquidity_cancels_remainder_without_resting(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-market-partial-liquidity-market",
+      title="Market Partial Liquidity Market",
+      question="Will market orders avoid resting partial remainders?",
+      lock_at=LOCK_AT,
+  )
+  seller = Account(name="Market Partial Seller", cash_balance=Decimal("22.50"))
+  buyer = Account(name="Market Partial Buyer", cash_balance=Decimal("100"))
+  db_session.add_all([seller, buyer])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      seller.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("50"),
+      Decimal("0.55"),
+  )
+  market_order = await obs.submit_order(
+      market.id,
+      buyer.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.MARKET,
+      Decimal("100"),
+  )
+  await db_session.refresh(buyer)
+
+  assert market_order.filled_quantity == Decimal("50")
+  assert market_order.status == OrderStatus.CANCELLED
+  assert await obs.reserved_cash(buyer.id) == Decimal("0")
+  assert buyer.cash_balance == Decimal("72.5000")
+
+  l2 = await obs.get_l2(market.id)
+  assert l2["yes"]["bids"] == []
+  assert l2["yes"]["asks"] == []
+
+
+@pytest.mark.asyncio
+async def test_market_buy_requires_cash_for_all_quoted_price_levels(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-market-multi-level-cash-market",
+      title="Market Multi-Level Cash Market",
+      question="Will market buys reserve cash for all price levels?",
+      lock_at=LOCK_AT,
+  )
+  seller_one = Account(name="Market Cash Seller One", cash_balance=Decimal("22.50"))
+  seller_two = Account(name="Market Cash Seller Two", cash_balance=Decimal("20"))
+  buyer = Account(name="Market Cash Buyer", cash_balance=Decimal("55"))
+  db_session.add_all([seller_one, seller_two, buyer])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      seller_one.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("50"),
+      Decimal("0.55"),
+  )
+  await obs.submit_order(
+      market.id,
+      seller_two.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("50"),
+      Decimal("0.60"),
+  )
+
+  with pytest.raises(ValueError, match="Insufficient available cash"):
+    await obs.submit_order(
+        market.id,
+        buyer.id,
+        OrderSide.BUY,
+        OrderOutcome.YES,
+        OrderType.MARKET,
+        Decimal("100"),
+    )
+
+  await db_session.refresh(buyer)
+  assert buyer.cash_balance == Decimal("55.0000")
+  assert await obs.reserved_cash(buyer.id) == Decimal("0")
+
+  l2 = await obs.get_l2(market.id)
+  assert l2["yes"]["asks"] == [
+      {"price": 0.55, "size": 50.0},
+      {"price": 0.6, "size": 50.0},
+  ]
+
+
+@pytest.mark.asyncio
 async def test_covered_sell_order_uses_existing_shares_before_cash_collateral(db_session):
   market_svc = MarketService(db_session)
   obs = OrderBookService(db_session)
