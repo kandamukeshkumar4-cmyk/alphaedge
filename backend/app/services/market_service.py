@@ -105,10 +105,15 @@ class MarketService:
 
         for pos in positions:
             payout = Decimal("0")
+            liability = Decimal("0")
             if winner == OrderOutcome.YES and pos.yes_shares > 0:
                 payout = pos.yes_shares * Decimal("1")
+            elif winner == OrderOutcome.YES and pos.yes_shares < 0:
+                liability = -pos.yes_shares
             elif winner == OrderOutcome.NO and pos.no_shares > 0:
                 payout = pos.no_shares * Decimal("1")
+            elif winner == OrderOutcome.NO and pos.no_shares < 0:
+                liability = -pos.no_shares
 
             if payout > 0:
                 await self.ledger.credit(
@@ -116,6 +121,14 @@ class MarketService:
                     payout,
                     LedgerEntryType.SETTLEMENT,
                     f"Settlement for {market.slug} ({winner.value})",
+                    market.id,
+                )
+            if liability > 0:
+                await self.ledger.debit(
+                    pos.account_id,
+                    liability,
+                    LedgerEntryType.SETTLEMENT,
+                    f"Settlement liability for {market.slug} ({winner.value})",
                     market.id,
                 )
             pos.yes_shares = Decimal("0")

@@ -72,7 +72,6 @@ class OrderBookService:
         result = await self.session.execute(
             select(Order).where(
                 Order.account_id == account_id,
-                Order.side == OrderSide.BUY,
                 Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
             )
         )
@@ -82,7 +81,19 @@ class OrderBookService:
                 continue
             remaining = order.quantity - order.filled_quantity
             if remaining > 0:
-                total += order.price * remaining
+                if order.side == OrderSide.BUY:
+                    total += order.price * remaining
+                else:
+                    total += (Decimal("1") - order.price) * remaining
+
+        position_result = await self.session.execute(
+            select(Position).where(Position.account_id == account_id)
+        )
+        for position in position_result.scalars().all():
+            if position.yes_shares < 0:
+                total += -position.yes_shares
+            if position.no_shares < 0:
+                total += -position.no_shares
         return total
 
     async def submit_order(
@@ -100,9 +111,11 @@ class OrderBookService:
         if order_type == OrderType.LIMIT:
             if price is None:
                 raise ValueError("Limit orders require price")
-            notional = price * quantity
             if side == OrderSide.BUY:
-                await self._reserve_cash(account_id, notional)
+                notional = price * quantity
+            else:
+                notional = (Decimal("1") - price) * quantity
+            await self._reserve_cash(account_id, notional)
         else:
             book = self._get_book(market_id)
             ob_side = Side.BUY if side == OrderSide.BUY else Side.SELL
@@ -113,6 +126,8 @@ class OrderBookService:
             price = opposite[0].price
             if side == OrderSide.BUY:
                 await self._reserve_cash(account_id, price * quantity)
+            else:
+                await self._reserve_cash(account_id, (Decimal("1") - price) * quantity)
 
         order = Order(
             market_id=market_id,

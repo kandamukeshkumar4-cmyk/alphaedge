@@ -70,8 +70,8 @@ async def test_lakers_celtics_matching_and_pnl(db_session):
   # Cash: started 5000, paid 55 for shares, received 100 settlement = 5045
   assert taker.cash_balance == Decimal("5045.00") or taker.cash_balance == Decimal("5045")
 
-  # Maker sold YES: received 55, no winning shares
-  assert maker.cash_balance >= Decimal("5055")
+  # Maker sold YES short: received 55, then paid 100 when YES resolved.
+  assert maker.cash_balance == Decimal("4955.0000")
 
 
 @pytest.mark.asyncio
@@ -125,6 +125,88 @@ async def test_matched_trade_writes_buyer_and_seller_ledger_entries(db_session):
   assert seller_entry.amount == Decimal("55.0000")
   assert seller_entry.balance_after == Decimal("5055.0000")
   assert "sell YES" in seller_entry.description
+
+
+@pytest.mark.asyncio
+async def test_open_sell_order_reserves_max_loss_collateral(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-sell-collateral-market",
+      title="Sell Collateral Market",
+      question="Will open sells reserve max loss?",
+      lock_at=LOCK_AT,
+  )
+  seller = Account(name="Collateral Seller", cash_balance=Decimal("45"))
+  db_session.add(seller)
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      seller.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+
+  assert await obs.reserved_cash(seller.id) == Decimal("45.00")
+
+
+@pytest.mark.asyncio
+async def test_short_yes_position_pays_settlement_liability_when_yes_wins(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-short-liability-market",
+      title="Short Liability Market",
+      question="Will short YES liability settle correctly?",
+      lock_at=LOCK_AT,
+  )
+  maker = Account(name="Short Maker", cash_balance=Decimal("45"))
+  taker = Account(name="Long Taker", cash_balance=Decimal("5000"))
+  db_session.add_all([maker, taker])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      maker.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+  await obs.submit_order(
+      market.id,
+      taker.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("100"),
+      Decimal("0.55"),
+  )
+
+  await market_svc.lock_market(market.id)
+  await market_svc.resolve_market(market.id, OrderOutcome.YES)
+  await db_session.refresh(maker)
+  await db_session.refresh(taker)
+
+  assert maker.cash_balance == Decimal("0.0000")
+  assert taker.cash_balance == Decimal("5045.0000")
+
+  result = await db_session.execute(
+      select(LedgerEntry)
+      .where(LedgerEntry.account_id == maker.id)
+      .where(LedgerEntry.entry_type == LedgerEntryType.SETTLEMENT)
+  )
+  settlement_entry = result.scalar_one()
+  assert settlement_entry.amount == Decimal("-100.0000")
+  assert settlement_entry.balance_after == Decimal("0.0000")
+  assert "liability" in settlement_entry.description
 
 
 @pytest.mark.asyncio
