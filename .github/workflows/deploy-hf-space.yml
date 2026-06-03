@@ -5,6 +5,12 @@ on:
     branches: [codex/alphaedge-base]
     paths: ["backend/**"]
   workflow_dispatch:
+    inputs:
+      sync_runtime_secrets:
+        description: Sync GitHub Actions secrets into the HF Space before deploying
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -39,6 +45,7 @@ jobs:
           fi
 
       - name: Sync runtime secrets to HF Space
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_runtime_secrets }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
@@ -130,6 +137,11 @@ jobs:
 
           print("Synced HF Space runtime secrets: DATABASE_URL, DATABASE_URL_SYNC, ADMIN_API_KEY")
           PY
+
+      - name: Skip runtime secret sync
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sync_runtime_secrets) }}
+        run: |
+          echo "Skipping HF Space runtime secret sync; use workflow_dispatch with sync_runtime_secrets=true after rotating secrets."
 
       - name: Stage backend for HF Space
         run: |

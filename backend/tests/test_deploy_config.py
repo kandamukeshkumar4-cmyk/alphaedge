@@ -252,6 +252,10 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "HF_TOKEN GitHub Actions secret is required" in workflow
     assert "NEON_DATABASE_URL GitHub Actions secret is required" in workflow
     assert "ADMIN_API_KEY GitHub Actions secret is required" in workflow
+    assert "sync_runtime_secrets:" in workflow
+    assert "Sync GitHub Actions secrets into the HF Space before deploying" in workflow
+    assert "github.event_name == 'workflow_dispatch' && inputs.sync_runtime_secrets" in workflow
+    assert "Skipping HF Space runtime secret sync" in workflow
     assert "api.add_space_secret" in workflow
     assert "HfHubHTTPError" in workflow
     assert "add_space_secret_with_retry" in workflow
@@ -336,7 +340,8 @@ def test_huggingface_neon_doc_uses_automated_deploy_not_sha_pinning():
     assert ".github/workflows/deploy-hf-space.yml" in doc
     assert "HF_TOKEN" in doc
     assert "NEON_DATABASE_URL" in doc
-    assert "workflow syncs those GitHub secrets" in doc
+    assert "sync_runtime_secrets=true" in doc
+    assert "Routine push deploys do not rewrite HF Space secrets" in doc
     assert "Dockerfile.hfspace" in doc
     assert "git checkout" not in doc
     assert "update the pinned" not in doc.lower()
@@ -359,6 +364,7 @@ def test_huggingface_space_secret_bootstrap_script_sets_required_github_secrets(
     assert "Paste $Name when prompted by GitHub CLI" in script
     assert "deploy-hf-space.yml" in script
     assert "gh workflow run" in script
+    assert "--field sync_runtime_secrets=true" in script
     assert "-TriggerDeploy" in script
     assert "hf_xxx" not in script
 

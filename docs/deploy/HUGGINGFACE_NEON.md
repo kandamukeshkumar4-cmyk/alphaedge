@@ -33,7 +33,8 @@ NEON_DATABASE_URL_SYNC=<optional neon sync SQLAlchemy URL>
 ADMIN_API_KEY=<long random secret>
 ```
 
-The deploy workflow syncs those GitHub secrets into the Hugging Face Space as:
+The deploy workflow can sync those GitHub secrets into the Hugging Face Space
+during a manual/bootstrap run as:
 
 ```text
 DATABASE_URL
@@ -42,7 +43,9 @@ ADMIN_API_KEY
 ```
 
 If `NEON_DATABASE_URL_SYNC` is omitted, the workflow derives it from
-`NEON_DATABASE_URL`.
+`NEON_DATABASE_URL`. Routine push deploys do not rewrite HF Space secrets; this
+avoids Hugging Face API rate limits. Use the manual `sync_runtime_secrets=true`
+input after first setup or secret rotation.
 
 The Space Dockerfile sets these non-secret runtime defaults:
 
@@ -69,11 +72,13 @@ The workflow `.github/workflows/deploy-hf-space.yml` triggers automatically on
 any push to `codex/alphaedge-base` that touches `backend/**`. It:
 
 1. Stages `backend/` as the Space root.
-2. Syncs GitHub Actions secrets and runtime variables to the HF Space.
-3. Renames `Dockerfile.hfspace` to `Dockerfile`.
-4. Git-pushes to `https://huggingface.co/spaces/mukeshkumarkanda/alphaedge-api`.
-5. Waits up to 10 min for `/health` to return 200 with `paper_trading_only=true`.
-6. Smoke-tests `/api/v1/markets` and requires the canonical Lakers/Celtics market.
+2. Renames `Dockerfile.hfspace` to `Dockerfile`.
+3. Git-pushes to `https://huggingface.co/spaces/mukeshkumarkanda/alphaedge-api`.
+4. Waits up to 10 min for `/health` to return 200 with `paper_trading_only=true`.
+5. Smoke-tests `/api/v1/markets` and requires the canonical Lakers/Celtics market.
+
+Manual runs can also sync GitHub Actions secrets and runtime variables to the
+HF Space before deploying when `sync_runtime_secrets=true`.
 
 The workflow fails if either runtime proof step fails.
 
@@ -108,13 +113,27 @@ You can also add the secrets manually at:
 First-time order:
 
 1. Run `scripts/set_hf_space_secrets.ps1` to create the GitHub secrets.
-2. Commit and push this repo change so GitHub receives `deploy-hf-space.yml`.
-3. The push triggers the workflow automatically if it includes `backend/**`.
+2. Trigger the workflow once with `sync_runtime_secrets=true` to write the
+   runtime secrets into the HF Space.
+3. Commit and push repo changes. Backend pushes trigger deploys automatically
+   if they include `backend/**`.
+
+To set GitHub secrets and immediately trigger the bootstrap sync deploy:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\set_hf_space_secrets.ps1 -TriggerDeploy
+```
 
 To trigger a manual redeploy without a code change:
 
 ```bash
 gh workflow run deploy-hf-space.yml
+```
+
+To manually resync rotated runtime secrets before redeploying:
+
+```bash
+gh workflow run deploy-hf-space.yml --field sync_runtime_secrets=true
 ```
 
 The workflow must exist on the remote branch before GitHub can run it.

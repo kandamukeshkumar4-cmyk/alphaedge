@@ -75,7 +75,7 @@ if ($SetNeonDatabaseUrlSync -or -not [string]::IsNullOrWhiteSpace($NeonDatabaseU
 
 if ($TriggerDeploy) {
     Write-Host "Triggering Deploy Backend to HF Space workflow."
-    gh workflow run deploy-hf-space.yml --repo $Repo --ref codex/alphaedge-base
+    gh workflow run deploy-hf-space.yml --repo $Repo --ref codex/alphaedge-base --field sync_runtime_secrets=true
     Write-Host "Track the deployment with:"
     Write-Host "gh run list --repo $Repo --workflow deploy-hf-space.yml --limit 3"
 } else {
