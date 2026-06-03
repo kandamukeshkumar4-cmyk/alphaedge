@@ -27,6 +27,7 @@ from app.schemas.market import (
     MarketResponse,
     MarketSnapshotResponse,
     OpenOrderResponse,
+    OrderCancelRequest,
     OrderCreate,
     OrderResponse,
     PaperAccountResponse,
@@ -243,6 +244,26 @@ async def place_order(slug: str, body: OrderCreate, db: AsyncSession = Depends(g
         return order
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/orders/{order_id}/cancel", response_model=OrderResponse)
+async def cancel_order(
+    order_id: UUID,
+    body: OrderCancelRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    account_result = await db.execute(select(Account).where(Account.id == body.account_id))
+    account = account_result.scalar_one_or_none()
+    if account is None:
+        raise HTTPException(status_code=400, detail="Account not found")
+
+    obs = OrderBookService(db)
+    try:
+        return await obs.cancel_order(order_id, body.account_id)
+    except ValueError as e:
+        detail = str(e)
+        status_code = 404 if detail == "Order not found" else 400
+        raise HTTPException(status_code=status_code, detail=detail) from e
 
 
 @router.get("/accounts/{account_id}/positions", response_model=list[PositionResponse])

@@ -13,10 +13,11 @@ import {
   selectDisplayedPortfolioState,
   type PaperAccountView,
 } from "@/lib/paper-account-view-model";
-import { fetchPaperAccount } from "@/lib/paper-trading-api";
+import { cancelPaperOrder, fetchPaperAccount } from "@/lib/paper-trading-api";
 import { getMarket, formatUSD, cents, PAPER_BALANCE } from "@/lib/mock-data";
 import { Sparkline } from "@/components/Sparkline";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { useToast } from "@/components/ToastProvider";
 import { cn } from "@/lib/cn";
 
 function currentPriceFor(slug: string, outcome: string, side: "YES" | "NO"): number {
@@ -27,12 +28,14 @@ function currentPriceFor(slug: string, outcome: string, side: "YES" | "NO"): num
 }
 
 export default function PortfolioPage() {
+  const { toast } = useToast();
   const [state, setState] = useState<PortfolioState>({
     balance: PAPER_BALANCE,
     positions: [],
     history: [],
   });
   const [accountView, setAccountView] = useState<PaperAccountView | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -99,6 +102,21 @@ export default function PortfolioPage() {
 
   const openOrders = accountView?.openOrders ?? [];
   const empty = displayState.positions.length === 0 && openOrders.length === 0;
+  async function handleCancelOrder(orderId: string) {
+    if (cancellingOrderId) return;
+    setCancellingOrderId(orderId);
+    try {
+      const result = await cancelPaperOrder({ orderId });
+      if (result.ok) {
+        setAccountView(buildPaperAccountView(result.account));
+        toast({ title: "Order cancelled", tone: "success" });
+        return;
+      }
+      toast({ title: "Cancel failed", body: result.message, tone: "error" });
+    } finally {
+      setCancellingOrderId(null);
+    }
+  }
 
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6">
@@ -197,7 +215,13 @@ export default function PortfolioPage() {
         </div>
       ) : (
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          {openOrders.length ? <OpenOrdersTable orders={openOrders} /> : null}
+          {openOrders.length ? (
+            <OpenOrdersTable
+              orders={openOrders}
+              cancellingOrderId={cancellingOrderId}
+              onCancel={handleCancelOrder}
+            />
+          ) : null}
           {displayState.positions.length ? <PositionsTable state={displayState} /> : null}
           {displayState.history.length ? <HistoryTable state={displayState} /> : null}
         </div>
@@ -223,7 +247,15 @@ function MetricCard({
   );
 }
 
-function OpenOrdersTable({ orders }: { orders: PaperAccountView["openOrders"] }) {
+function OpenOrdersTable({
+  orders,
+  cancellingOrderId,
+  onCancel,
+}: {
+  orders: PaperAccountView["openOrders"];
+  cancellingOrderId: string | null;
+  onCancel: (orderId: string) => void;
+}) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-sm font-black text-text">Open backend orders</h2>
@@ -236,40 +268,54 @@ function OpenOrdersTable({ orders }: { orders: PaperAccountView["openOrders"] })
               <th className="pb-2 text-right">Remaining</th>
               <th className="pb-2 text-right">Limit</th>
               <th className="pb-2 text-right">Reserved</th>
+              <th className="pb-2 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => (
-              <tr key={order.id} className="border-t border-border">
-                <td className="py-2">
-                  <Link href={`/markets/${order.marketSlug}`} className="hover:text-accent">
-                    <span className="text-text">{order.marketTitle}</span>
-                    <span className="block text-[11px] text-muted">{order.outcome}</span>
-                  </Link>
-                </td>
-                <td className="py-2">
-                  <span
-                    className={cn(
-                      "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                      order.outcome === "YES"
-                        ? "bg-primary-dim text-primary"
-                        : "bg-danger-dim text-danger",
-                    )}
-                  >
-                    {order.side}
-                  </span>
-                </td>
-                <td className="py-2 text-right font-mono text-muted">
-                  {order.remainingShares}
-                </td>
-                <td className="py-2 text-right font-mono text-text">
-                  {cents(order.price)}
-                </td>
-                <td className="py-2 text-right font-mono font-bold text-text">
-                  {formatUSD(order.reservedNotional)}
-                </td>
-              </tr>
-            ))}
+            {orders.map((order) => {
+              const isCancelling = cancellingOrderId === order.id;
+              return (
+                <tr key={order.id} className="border-t border-border">
+                  <td className="py-2">
+                    <Link href={`/markets/${order.marketSlug}`} className="hover:text-accent">
+                      <span className="text-text">{order.marketTitle}</span>
+                      <span className="block text-[11px] text-muted">{order.outcome}</span>
+                    </Link>
+                  </td>
+                  <td className="py-2">
+                    <span
+                      className={cn(
+                        "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
+                        order.outcome === "YES"
+                          ? "bg-primary-dim text-primary"
+                          : "bg-danger-dim text-danger",
+                      )}
+                    >
+                      {order.side}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right font-mono text-muted">
+                    {order.remainingShares}
+                  </td>
+                  <td className="py-2 text-right font-mono text-text">
+                    {cents(order.price)}
+                  </td>
+                  <td className="py-2 text-right font-mono font-bold text-text">
+                    {formatUSD(order.reservedNotional)}
+                  </td>
+                  <td className="py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onCancel(order.id)}
+                      disabled={isCancelling || cancellingOrderId !== null}
+                      className="min-w-20 rounded-md border border-border px-2 py-1 text-xs font-bold text-muted transition hover:border-danger hover:text-danger disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {isCancelling ? "Cancelling" : "Cancel"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

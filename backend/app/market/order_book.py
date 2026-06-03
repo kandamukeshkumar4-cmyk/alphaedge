@@ -165,6 +165,14 @@ class OrderBook:
         price = opposite[0].price if side == Side.BUY else opposite[0].price
         return self.add_limit(order_id, account_id, side, outcome, price, quantity)
 
+    def cancel(self, order_id: UUID) -> bool:
+        removed = False
+        for book in (self.yes_bids, self.yes_asks, self.no_bids, self.no_asks):
+            original_len = len(book)
+            book[:] = [order for order in book if order.order_id != order_id]
+            removed = removed or len(book) != original_len
+        return removed
+
     def l2_snapshot(self, depth: int = 10) -> dict:
         def aggregate(book: List[BookOrder], reverse: bool = False) -> list:
             levels: dict[Decimal, Decimal] = {}

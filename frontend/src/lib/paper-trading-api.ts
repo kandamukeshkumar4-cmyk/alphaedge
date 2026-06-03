@@ -72,6 +72,26 @@ export type SubmitPaperOrderResult =
       message: string;
     };
 
+export type CancelPaperOrderInput = {
+  apiBase?: string;
+  fetcher?: Fetcher;
+  orderId: string;
+};
+
+export type CancelPaperOrderResult =
+  | {
+      ok: true;
+      mode: "api";
+      message: string;
+      order: BackendOrderResponse;
+      account: PaperAccountResponse;
+    }
+  | {
+      ok: false;
+      mode: "api" | "local";
+      message: string;
+    };
+
 export async function submitPaperOrder(
   input: SubmitPaperOrderInput,
 ): Promise<SubmitPaperOrderResult> {
@@ -136,6 +156,58 @@ export async function submitPaperOrder(
   }
 }
 
+export async function cancelPaperOrder(
+  input: CancelPaperOrderInput,
+): Promise<CancelPaperOrderResult> {
+  const apiBase = normalizeApiBase(input.apiBase ?? API_BASE);
+  if (!apiBase) {
+    return cancelFallback("local");
+  }
+
+  const fetcher = input.fetcher ?? fetch;
+  try {
+    const account = await fetchPaperAccount({ apiBase, fetcher });
+    if (!account) {
+      return cancelFallback("local");
+    }
+    if (!account.paper_trading_only) {
+      return {
+        ok: false,
+        mode: "api",
+        message: "Backend is not in paper-trading mode.",
+      };
+    }
+
+    const response = await fetcher(`${apiBase}/api/v1/orders/${input.orderId}/cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        account_id: account.id,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        mode: "api",
+        message: await errorMessage(response),
+      };
+    }
+
+    const order = (await response.json()) as BackendOrderResponse;
+    const updatedAccount = (await fetchPaperAccount({ apiBase, fetcher })) ?? account;
+    return {
+      ok: true,
+      mode: "api",
+      message: "Backend order cancelled.",
+      order,
+      account: updatedAccount,
+    };
+  } catch {
+    return cancelFallback("api");
+  }
+}
+
 export async function fetchPaperAccount(input?: {
   apiBase?: string;
   fetcher?: Fetcher;
@@ -188,5 +260,13 @@ function localFallback(): SubmitPaperOrderResult {
     ok: false,
     mode: "local",
     message: "Backend API unavailable; use local paper fill fallback.",
+  };
+}
+
+function cancelFallback(mode: "api" | "local"): CancelPaperOrderResult {
+  return {
+    ok: false,
+    mode,
+    message: "Backend API unavailable; cannot cancel backend order.",
   };
 }

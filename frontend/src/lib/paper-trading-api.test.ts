@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fetchPaperAccount, submitPaperOrder } from "./paper-trading-api";
+import { cancelPaperOrder, fetchPaperAccount, submitPaperOrder } from "./paper-trading-api";
 
 describe("paper trading API", () => {
   it("loads the paper account and submits a risk-gated backend order", async () => {
@@ -154,6 +154,85 @@ describe("paper trading API", () => {
           reserved_notional: "5.5000",
         },
       ],
+    });
+  });
+
+  it("cancels a backend paper order and returns the refreshed account", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    let accountCalls = 0;
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.endsWith("/api/v1/paper-account")) {
+        accountCalls += 1;
+        return jsonResponse({
+          id: "00000000-0000-0000-0000-000000000001",
+          name: "System Paper Account",
+          cash_balance: "100000.0000",
+          reserved_cash: accountCalls === 1 ? "5.5000" : "0.0000",
+          available_cash: accountCalls === 1 ? "99994.5000" : "100000.0000",
+          paper_trading_only: true,
+          positions: [],
+          open_orders:
+            accountCalls === 1
+              ? [
+                  {
+                    id: "11111111-1111-1111-1111-111111111111",
+                    market_id: "22222222-2222-2222-2222-222222222222",
+                    market_slug: "nba-2025-01-15-lal-bos",
+                    market_title: "Lakers vs Celtics",
+                    side: "buy",
+                    outcome: "yes",
+                    order_type: "limit",
+                    price: "0.5500",
+                    quantity: "10.0000",
+                    filled_quantity: "0.0000",
+                    remaining_quantity: "10.0000",
+                    reserved_notional: "5.5000",
+                    status: "open",
+                  },
+                ]
+              : [],
+        });
+      }
+      if (url.endsWith("/api/v1/orders/11111111-1111-1111-1111-111111111111/cancel")) {
+        return jsonResponse({
+          id: "11111111-1111-1111-1111-111111111111",
+          market_id: "22222222-2222-2222-2222-222222222222",
+          account_id: "00000000-0000-0000-0000-000000000001",
+          side: "buy",
+          outcome: "yes",
+          order_type: "limit",
+          price: "0.55",
+          quantity: "10",
+          filled_quantity: "0",
+          status: "cancelled",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const result = await cancelPaperOrder({
+      apiBase: "https://api.example.test",
+      fetcher,
+      orderId: "11111111-1111-1111-1111-111111111111",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      mode: "api",
+      message: "Backend order cancelled.",
+      account: {
+        available_cash: "100000.0000",
+        reserved_cash: "0.0000",
+        open_orders: [],
+      },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(calls[1].url).toBe(
+      "https://api.example.test/api/v1/orders/11111111-1111-1111-1111-111111111111/cancel",
+    );
+    expect(JSON.parse(String(calls[1].init?.body))).toEqual({
+      account_id: "00000000-0000-0000-0000-000000000001",
     });
   });
 });

@@ -111,6 +111,10 @@ class OrderCreate(BaseModel):
     risk: OrderRiskInput
 
 
+class OrderCancelRequest(BaseModel):
+    account_id: UUID
+
+
 class OrderResponse(BaseModel):
     id: UUID
     market_id: UUID

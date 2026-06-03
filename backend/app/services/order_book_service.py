@@ -142,6 +142,35 @@ class OrderBookService:
         await self._match_order(order)
         return order
 
+    async def cancel_order(self, order_id: UUID, account_id: UUID) -> Order:
+        result = await self.session.execute(select(Order).where(Order.id == order_id))
+        order = result.scalar_one_or_none()
+        if order is None:
+            raise ValueError("Order not found")
+        if order.account_id != account_id:
+            raise ValueError("Order does not belong to account")
+        if order.status not in (OrderStatus.OPEN, OrderStatus.PARTIAL):
+            raise ValueError("Only open or partial orders can be cancelled")
+
+        book = self._books.get(order.market_id)
+        if book is not None:
+            book.cancel(order.id)
+
+        order.status = OrderStatus.CANCELLED
+        await self.session.flush()
+        await self.events.emit(
+            "order_cancelled",
+            {
+                "order_id": str(order.id),
+                "market_id": str(order.market_id),
+                "account_id": str(order.account_id),
+                "side": order.side.value,
+                "outcome": order.outcome.value,
+                "remaining_quantity": str(order.quantity - order.filled_quantity),
+            },
+        )
+        return order
+
     async def _match_order(self, taker: Order) -> None:
         book = self._get_book(taker.market_id)
         ob_side = Side.BUY if taker.side == OrderSide.BUY else Side.SELL

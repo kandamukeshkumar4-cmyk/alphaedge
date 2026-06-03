@@ -8,10 +8,12 @@ from sqlalchemy import select
 
 from app.db.models import (
     Account,
+    Fill,
     LedgerEntry,
     Order,
     OrderOutcome,
     OrderSide,
+    OrderStatus,
     OrderType,
 )
 from app.db.session import get_db
@@ -253,3 +255,113 @@ async def test_order_book_rejects_buy_when_open_orders_reserve_cash(db_session):
             Decimal("20"),
             Decimal("0.60"),
         )
+
+
+@pytest.mark.asyncio
+async def test_order_cancel_releases_reserved_cash_and_removes_open_order_from_account(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-cancel-reserved-cash-market",
+        title="Cancel reserved cash market",
+        question="Will cancellation release reserved paper cash?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    account = await market_service.seed_system_account(
+        UUID("00000000-0000-0000-0000-000000000001"),
+        Decimal("100000"),
+        "System Paper Account",
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            order_response = await client.post(
+                f"/api/v1/markets/{market.slug}/orders",
+                json={
+                    "account_id": str(account.id),
+                    "side": "buy",
+                    "outcome": "yes",
+                    "order_type": "limit",
+                    "quantity": "10",
+                    "price": "0.55",
+                    "risk": {
+                        "predicted_prob": 0.62,
+                        "confidence": 0.8,
+                        "edge": 0.07,
+                        "current_drawdown": 0,
+                        "minutes_before_start": 120,
+                    },
+                },
+            )
+            before_cancel = await client.get("/api/v1/paper-account")
+            cancel_response = await client.post(
+                f"/api/v1/orders/{order_response.json()['id']}/cancel",
+                json={"account_id": str(account.id)},
+            )
+            after_cancel = await client.get("/api/v1/paper-account")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert order_response.status_code == 200
+    assert before_cancel.status_code == 200
+    assert before_cancel.json()["reserved_cash"] == "5.5000"
+    assert len(before_cancel.json()["open_orders"]) == 1
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelled"
+    payload = after_cancel.json()
+    assert payload["reserved_cash"] == "0.0000"
+    assert payload["available_cash"] == "100000.0000"
+    assert payload["open_orders"] == []
+
+    order = await db_session.get(Order, UUID(order_response.json()["id"]))
+    assert order is not None
+    assert order.status == OrderStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_cancelled_order_is_removed_from_in_memory_book_before_matching(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-cancel-book-market",
+        title="Cancel book market",
+        question="Will cancelled orders stop matching?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    buyer = Account(name="Cancel Buyer", cash_balance=Decimal("100"))
+    seller = Account(name="Cancel Seller", cash_balance=Decimal("100"))
+    db_session.add_all([buyer, seller])
+    await db_session.flush()
+
+    order_book = OrderBookService(db_session)
+    buy_order = await order_book.submit_order(
+        market.id,
+        buyer.id,
+        OrderSide.BUY,
+        OrderOutcome.YES,
+        OrderType.LIMIT,
+        Decimal("10"),
+        Decimal("0.70"),
+    )
+
+    cancelled_order = await order_book.cancel_order(buy_order.id, buyer.id)
+    assert cancelled_order.status == OrderStatus.CANCELLED
+
+    sell_order = await order_book.submit_order(
+        market.id,
+        seller.id,
+        OrderSide.SELL,
+        OrderOutcome.YES,
+        OrderType.LIMIT,
+        Decimal("10"),
+        Decimal("0.60"),
+    )
+
+    fills = (await db_session.execute(select(Fill))).scalars().all()
+    assert fills == []
+    assert sell_order.status == OrderStatus.OPEN
