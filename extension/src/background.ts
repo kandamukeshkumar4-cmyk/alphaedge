@@ -1,5 +1,9 @@
 import { isLockForecastMessage, isResolveMarketMessage } from "./messaging";
-import { resolveExternalMarket, sendForecastToBackend } from "./backend-client";
+import {
+  recordMirrorTelemetryEvent,
+  resolveExternalMarket,
+  sendForecastToBackend,
+} from "./backend-client";
 import {
   enqueueForecast,
   idempotencyKeyFor,
@@ -9,10 +13,31 @@ import {
   syncQueuedForecasts,
 } from "./queue";
 import { getSettings } from "./storage";
+import {
+  isRecordTelemetryMessage,
+  telemetryForLockResult,
+  telemetryForSyncedQueue,
+  type MirrorTelemetryEvent,
+} from "./telemetry";
 
 let queueRetryTimer: number | undefined;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isRecordTelemetryMessage(message)) {
+    void (async () => {
+      try {
+        await recordTelemetry(message.payload);
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Telemetry failed.",
+        });
+      }
+    })();
+    return true;
+  }
+
   if (isResolveMarketMessage(message)) {
     void (async () => {
       try {
@@ -56,17 +81,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             result.error,
           );
           scheduleQueueRetry();
+          void recordTelemetry(telemetryForLockResult("queued"));
           sendResponse({ ok: true, data: { queued: true, queueId: queued.id } });
           return;
         }
         sendResponse({ ok: false, error: result.error });
         return;
       }
+      void recordTelemetry(telemetryForLockResult("locked"));
       sendResponse({ ok: true, data: result.data });
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Forecast lock failed.";
       const queued = await enqueueForecast(indexedDbForecastQueueStore, message, undefined, detail);
       scheduleQueueRetry();
+      void recordTelemetry(telemetryForLockResult("queued"));
       sendResponse({ ok: true, data: { queued: true, queueId: queued.id } });
     }
   })();
@@ -88,7 +116,7 @@ function scheduleQueueRetry() {
 
 async function syncQueueOnce() {
   const settings = await getSettings();
-  await syncQueuedForecasts(indexedDbForecastQueueStore, async (queued) => {
+  const result = await syncQueuedForecasts(indexedDbForecastQueueStore, async (queued) => {
     try {
       const response = await sendForecastToBackend({
         apiBase: settings.apiBase,
@@ -106,6 +134,9 @@ async function syncQueueOnce() {
       };
     }
   });
+  for (const event of telemetryForSyncedQueue(result.synced)) {
+    void recordTelemetry(event);
+  }
 
   const rows = await indexedDbForecastQueueStore.loadQueue();
   const retryable = rows.filter((row) => row.status !== "synced");
@@ -130,4 +161,13 @@ function delayUntilRetry(row: { nextAttemptAt?: string; attempts: number }): num
     return retryDelayMs(row.attempts);
   }
   return Math.max(1_000, timestamp - Date.now());
+}
+
+async function recordTelemetry(event: MirrorTelemetryEvent): Promise<void> {
+  const settings = await getSettings();
+  await recordMirrorTelemetryEvent({
+    apiBase: settings.apiBase,
+    token: settings.token || undefined,
+    event,
+  });
 }

@@ -8,6 +8,7 @@ export type ForecastSource = "web" | "extension" | "backfill";
 export type ForecasterCreateResponse = {
   id: string;
   token: string;
+  recovery_code: string;
   disclaimer: string;
 };
 
@@ -111,6 +112,12 @@ export type CreateAnonymousForecasterInput = {
   fetcher?: Fetcher;
 };
 
+export type RecoverForecasterInput = {
+  apiBase?: string;
+  fetcher?: Fetcher;
+  recoveryCode: string;
+};
+
 export type LockForecastInput = {
   apiBase?: string;
   fetcher?: Fetcher;
@@ -143,6 +150,21 @@ export async function createAnonymousForecaster(
     `${apiBase}/api/v1/forecasters/anonymous`,
     {
       method: "POST",
+    },
+  );
+}
+
+export async function recoverForecaster(
+  input: RecoverForecasterInput,
+): Promise<ForecasterCreateResponse> {
+  const apiBase = requireApiBase(input.apiBase ?? API_BASE);
+  return fetchJson<ForecasterCreateResponse>(
+    input.fetcher ?? fetch,
+    `${apiBase}/api/v1/forecasters/recover`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ recovery_code: input.recoveryCode }),
     },
   );
 }

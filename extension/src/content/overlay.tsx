@@ -7,6 +7,7 @@ import type { ParsedSupportedMarket } from "../platforms";
 import type { MarketPrefill } from "../prefill";
 import { buildForecastReceipt } from "../receipt";
 import { getSettings } from "../storage";
+import { buildRecordTelemetryMessage } from "../telemetry";
 
 type Props = {
   market: ParsedSupportedMarket;
@@ -154,6 +155,10 @@ export function MirrorOverlay({ market, prefill }: Props) {
     setNotice({ tone: "success", text: "Forecast receipt copied." });
   }
 
+  function handleDashboardOpen() {
+    chrome.runtime.sendMessage(buildRecordTelemetryMessage({ eventType: "dashboard_opened" }));
+  }
+
   return (
     <>
       <style>{styles}</style>
@@ -249,7 +254,7 @@ export function MirrorOverlay({ market, prefill }: Props) {
         </form>
 
         <div className="ae-actions">
-          <a href={dashboardUrl} target="_blank" rel="noreferrer">
+          <a href={dashboardUrl} target="_blank" rel="noreferrer" onClick={handleDashboardOpen}>
             View dashboard
           </a>
           <button disabled={!lastReceipt} type="button" onClick={() => void handleCopyReceipt()}>

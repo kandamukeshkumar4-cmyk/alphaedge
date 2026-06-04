@@ -422,12 +422,13 @@ class ForecastSource(str, enum.Enum):
 
 
 class Forecaster(Base):
-    """Pseudonymous forecaster identity. We only store hashes, never raw tokens/emails."""
+    """Pseudonymous forecaster identity. We only store hashes, never raw secrets."""
 
     __tablename__ = "forecasters"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    recovery_code_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     recovery_email_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

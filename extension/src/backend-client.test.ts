@@ -3,13 +3,71 @@ import { describe, expect, it, vi } from "vitest";
 import { buildLockForecastMessage } from "./messaging";
 import { idempotencyKeyFor, type QueuedForecast } from "./queue";
 import {
+  createAnonymousForecaster,
   fetchForecastDashboard,
   fetchForecastLifecycle,
+  recoverForecaster,
   resolveExternalMarket,
   sendForecastToBackend,
 } from "./backend-client";
 
 describe("backend client", () => {
+  it("creates an anonymous profile with a separate recovery code", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({
+        id: "forecaster-id",
+        token: "forecaster-token",
+        recovery_code: "recovery-code",
+        disclaimer: "Paper simulation only.",
+      }),
+    );
+
+    const profile = await createAnonymousForecaster({
+      apiBase: "https://api.example.test",
+      fetcher,
+    });
+
+    expect(profile).toMatchObject({
+      token: "forecaster-token",
+      recovery_code: "recovery-code",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.test/api/v1/forecasters/anonymous",
+      { method: "POST" },
+    );
+  });
+
+  it("recovers a lost profile token with a recovery code", async () => {
+    const fetcher = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse({
+        id: "forecaster-id",
+        token: "new-token",
+        recovery_code: "new-recovery-code",
+        disclaimer: "Paper simulation only.",
+      }),
+    );
+
+    const profile = await recoverForecaster({
+      apiBase: "https://api.example.test",
+      recoveryCode: "old-recovery-code",
+      fetcher,
+    });
+
+    expect(profile).toMatchObject({
+      token: "new-token",
+      recovery_code: "new-recovery-code",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.test/api/v1/forecasters/recover",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ recovery_code: "old-recovery-code" }),
+      },
+    );
+    expect(JSON.stringify(fetcher.mock.calls[0][1])).not.toContain("new-token");
+  });
+
   it("sends queued forecast idempotency keys to the backend", async () => {
     const message = buildLockForecastMessage({
       token: "forecaster-token",

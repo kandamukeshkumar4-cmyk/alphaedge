@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
-from app.db.models import Forecaster
+from app.db.models import DomainEvent, Forecaster, ForecastLog
 from app.db.session import get_db
+from app.events.bus import DomainEventBus
 from app.forecasting.market_source import MarketSnapshot
 from app.schemas.forecast import (
     AdminResolveRequest,
@@ -20,7 +24,12 @@ from app.schemas.forecast import (
     ForecastCreateRequest,
     ForecastLifecycleResponse,
     ForecasterCreateResponse,
+    ForecasterRecoverRequest,
+    ForecasterRecoverResponse,
     ForecastResponse,
+    MirrorDogfoodReportResponse,
+    MirrorTelemetryEventRequest,
+    MirrorTelemetryEventResponse,
     RecoveryEmailRequest,
     ResolveUrlRequest,
 )
@@ -48,10 +57,28 @@ async def _require_forecaster(
 
 @router.post("/forecasters/anonymous", response_model=ForecasterCreateResponse)
 async def create_forecaster(db: AsyncSession = Depends(get_db)):
-    forecaster, raw_token = await ForecasterService(db).create_anonymous()
+    forecaster, raw_token, recovery_code = await ForecasterService(db).create_anonymous()
     return ForecasterCreateResponse(
         id=forecaster.id,
         token=raw_token,
+        recovery_code=recovery_code,
+        disclaimer=PAPER_TRADING_DISCLAIMER,
+    )
+
+
+@router.post("/forecasters/recover", response_model=ForecasterRecoverResponse)
+async def recover_forecaster(
+    body: ForecasterRecoverRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    recovered = await ForecasterService(db).recover_with_code(body.recovery_code)
+    if recovered is None:
+        raise HTTPException(status_code=401, detail="Invalid recovery code")
+    forecaster, raw_token, recovery_code = recovered
+    return ForecasterRecoverResponse(
+        id=forecaster.id,
+        token=raw_token,
+        recovery_code=recovery_code,
         disclaimer=PAPER_TRADING_DISCLAIMER,
     )
 
@@ -171,6 +198,72 @@ async def get_forecast_lifecycle(
     return await ForecastDashboardService(db).lifecycle(forecaster.id)
 
 
+@router.post("/telemetry/mirror/events", response_model=MirrorTelemetryEventResponse)
+async def record_mirror_telemetry_event(
+    body: MirrorTelemetryEventRequest,
+    x_forecaster_token: str | None = Header(default=None, alias="X-Forecaster-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    forecaster: Forecaster | None = None
+    if x_forecaster_token:
+        forecaster = await _require_forecaster(db, x_forecaster_token)
+
+    payload: dict[str, object] = {
+        "client_event_id": body.client_event_id,
+    }
+    if forecaster is not None:
+        payload["forecaster_id"] = str(forecaster.id)
+    if body.platform is not None:
+        payload["platform"] = body.platform.value
+    if body.provider is not None:
+        payload["provider"] = body.provider
+    if body.capture_mode is not None:
+        payload["capture_mode"] = body.capture_mode
+    if body.queue_status is not None:
+        payload["queue_status"] = body.queue_status
+
+    event = await DomainEventBus(db).emit(f"mirror.{body.event_type}", payload)
+    return MirrorTelemetryEventResponse(ok=True, event_id=event.id)
+
+
+@router.get("/admin/dogfood/mirror-report", response_model=MirrorDogfoodReportResponse)
+async def get_mirror_dogfood_report(
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    events_result = await db.execute(
+        select(DomainEvent).where(DomainEvent.event_type.like("mirror.%"))
+    )
+    events = list(events_result.scalars().all())
+    forecasts_result = await db.execute(
+        select(ForecastLog).where(ForecastLog.source == "extension")
+    )
+    forecasts = list(forecasts_result.scalars().all())
+
+    event_counts = Counter(_mirror_event_name(event.event_type) for event in events)
+    forecasts_per_user = Counter(str(forecast.forecaster_id) for forecast in forecasts)
+    users = set(forecasts_per_user)
+    users.update(
+        str(event.payload["forecaster_id"])
+        for event in events
+        if isinstance(event.payload, dict) and event.payload.get("forecaster_id")
+    )
+
+    return MirrorDogfoodReportResponse(
+        active_users=len(users),
+        forecasts_per_user=dict(forecasts_per_user),
+        event_counts=dict(event_counts),
+        parser_success_rate=_rate(
+            event_counts["market_detected"],
+            event_counts["market_detected"] + event_counts["parser_failed"],
+        ),
+        queue_failure_rate=_queue_failure_rate(
+            event_counts["forecast_queued"], event_counts["forecast_synced"]
+        ),
+        three_day_retention_rate=_three_day_retention_rate(events),
+    )
+
+
 @router.get("/backfill/markets", response_model=list[BackfillMarketResponse])
 async def list_backfill_markets(db: AsyncSession = Depends(get_db)):
     """Resolved markets for practice calibration. Outcome is intentionally hidden."""
@@ -229,3 +322,53 @@ def _external_market_response(
             else None
         ),
     )
+
+
+def _mirror_event_name(event_type: str) -> str:
+    return event_type.removeprefix("mirror.")
+
+
+def _rate(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return numerator / denominator
+
+
+def _queue_failure_rate(queued: int, synced: int) -> float | None:
+    if queued <= 0:
+        return None
+    return max(queued - synced, 0) / queued
+
+
+def _three_day_retention_rate(events: list[DomainEvent]) -> float | None:
+    now = datetime.now(timezone.utc)
+    activity: dict[str, list[datetime]] = defaultdict(list)
+    for event in events:
+        if not isinstance(event.payload, dict):
+            continue
+        forecaster_id = event.payload.get("forecaster_id")
+        if not forecaster_id:
+            continue
+        occurred_at = _as_aware(event.occurred_at)
+        activity[str(forecaster_id)].append(occurred_at)
+
+    eligible = 0
+    retained = 0
+    for timestamps in activity.values():
+        first = min(timestamps)
+        latest = max(timestamps)
+        if first > now - timedelta(days=3):
+            continue
+        eligible += 1
+        if latest >= first + timedelta(days=3):
+            retained += 1
+
+    if eligible == 0:
+        return None
+    return retained / eligible
+
+
+def _as_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value

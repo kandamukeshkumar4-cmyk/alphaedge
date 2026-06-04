@@ -4,6 +4,7 @@ import {
   createAnonymousForecaster,
   fetchForecastDashboard,
   lockForecast,
+  recoverForecaster,
 } from "./forecast-mirror-api";
 
 describe("forecast mirror API", () => {
@@ -14,6 +15,7 @@ describe("forecast mirror API", () => {
       return jsonResponse({
         id: "11111111-1111-1111-1111-111111111111",
         token: "raw-token-shown-once",
+        recovery_code: "recovery-code-shown-once",
         disclaimer: "paper trading only",
       });
     });
@@ -26,6 +28,37 @@ describe("forecast mirror API", () => {
     expect(forecaster).toEqual({
       id: "11111111-1111-1111-1111-111111111111",
       token: "raw-token-shown-once",
+      recovery_code: "recovery-code-shown-once",
+      disclaimer: "paper trading only",
+    });
+  });
+
+  it("recovers a forecaster by rotating the lost token and recovery code", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://api.example.test/api/v1/forecasters/recover");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toEqual({ "content-type": "application/json" });
+      expect(JSON.parse(String(init?.body))).toEqual({
+        recovery_code: "old-recovery-code",
+      });
+      return jsonResponse({
+        id: "11111111-1111-1111-1111-111111111111",
+        token: "new-raw-token",
+        recovery_code: "new-recovery-code",
+        disclaimer: "paper trading only",
+      });
+    });
+
+    const forecaster = await recoverForecaster({
+      apiBase: "https://api.example.test/",
+      fetcher,
+      recoveryCode: "old-recovery-code",
+    });
+
+    expect(forecaster).toEqual({
+      id: "11111111-1111-1111-1111-111111111111",
+      token: "new-raw-token",
+      recovery_code: "new-recovery-code",
       disclaimer: "paper trading only",
     });
   });

@@ -205,7 +205,7 @@ def test_synthetic_pnl_direction():
 
 # ---------------- service: lock sequence + integrity ----------------
 async def _new_forecaster(db_session):
-    forecaster, _token = await ForecasterService(db_session).create_anonymous()
+    forecaster, _token, _recovery_code = await ForecasterService(db_session).create_anonymous()
     return forecaster
 
 

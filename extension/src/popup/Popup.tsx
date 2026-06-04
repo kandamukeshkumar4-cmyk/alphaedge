@@ -1,14 +1,18 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import {
+  createAnonymousForecaster,
   fetchForecastDashboard,
   fetchForecastLifecycle,
+  recoverForecaster,
+  recordMirrorTelemetryEvent,
   sendForecastToBackend,
   type ForecastDashboardSummary,
   type ForecastLifecycleSummary,
 } from "../backend-client";
 import { indexedDbForecastQueueStore, syncQueuedForecasts, type QueuedForecast } from "../queue";
 import { getSettings, normalizeApiBase, normalizeUrl, saveSettings } from "../storage";
+import { telemetryForSyncedQueue } from "../telemetry";
 import { buildPopupDashboardView } from "./popup-dashboard";
 
 type Notice = {
@@ -20,6 +24,8 @@ export function Popup() {
   const [apiBase, setApiBase] = useState("http://localhost:8000");
   const [dashboardUrl, setDashboardUrl] = useState("http://localhost:3000/forecast");
   const [tokenDraft, setTokenDraft] = useState("");
+  const [recoveryCodeDraft, setRecoveryCodeDraft] = useState("");
+  const [latestRecoveryCode, setLatestRecoveryCode] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [queue, setQueue] = useState<QueuedForecast[]>([]);
   const [dashboard, setDashboard] = useState<ForecastDashboardSummary | null>(null);
@@ -64,17 +70,14 @@ export function Popup() {
     setIsCreating(true);
     try {
       const normalizedApiBase = normalizeApiBase(apiBase);
-      const response = await fetch(`${normalizedApiBase}/api/v1/forecasters/anonymous`, {
-        method: "POST",
+      const data = await createAnonymousForecaster({
+        apiBase: normalizedApiBase,
       });
-      const data = (await response.json()) as { token?: string; detail?: string };
-      if (!response.ok || !data.token) {
-        throw new Error(data.detail ?? "Could not create profile.");
-      }
       await saveSettings({ apiBase: normalizedApiBase, token: data.token });
+      setLatestRecoveryCode(data.recovery_code);
       setHasToken(true);
       setTokenDraft("");
-      setNotice({ tone: "success", text: "Forecaster profile created." });
+      setNotice({ tone: "success", text: "Forecaster profile created. Save the recovery code." });
     } catch (error) {
       setNotice({
         tone: "error",
@@ -82,6 +85,27 @@ export function Popup() {
       });
     } finally {
       setIsCreating(false);
+    }
+  }
+
+  async function handleRecoverProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      const normalizedApiBase = normalizeApiBase(apiBase);
+      const data = await recoverForecaster({
+        apiBase: normalizedApiBase,
+        recoveryCode: recoveryCodeDraft.trim(),
+      });
+      await saveSettings({ apiBase: normalizedApiBase, token: data.token });
+      setLatestRecoveryCode(data.recovery_code);
+      setRecoveryCodeDraft("");
+      setHasToken(true);
+      setNotice({ tone: "success", text: "Profile recovered. Save the new recovery code." });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Could not recover profile.",
+      });
     }
   }
 
@@ -151,6 +175,13 @@ export function Popup() {
     await refreshQueue();
     await refreshLifecycle();
     await refreshDashboard();
+    for (const event of telemetryForSyncedQueue(result.synced)) {
+      void recordMirrorTelemetryEvent({
+        apiBase: settings.apiBase,
+        token: settings.token || undefined,
+        event,
+      });
+    }
     setNotice({
       tone: result.failed ? "error" : "success",
       text: `Synced ${result.synced}; failed ${result.failed}.`,
@@ -189,6 +220,28 @@ export function Popup() {
       <button disabled={isCreating} type="button" onClick={() => void handleCreateProfile()}>
         {isCreating ? "Creating" : "Create anonymous profile"}
       </button>
+
+      {latestRecoveryCode ? (
+        <section className="recovery-code">
+          <strong>Recovery code</strong>
+          <input readOnly value={latestRecoveryCode} />
+        </section>
+      ) : null}
+
+      <form onSubmit={handleRecoverProfile}>
+        <label>
+          <span>Recovery code</span>
+          <input
+            type="password"
+            placeholder="Paste recovery code"
+            value={recoveryCodeDraft}
+            onChange={(event) => setRecoveryCodeDraft(event.target.value)}
+          />
+        </label>
+        <button disabled={!recoveryCodeDraft.trim()} type="submit">
+          Recover profile
+        </button>
+      </form>
 
       <section className="queue">
         <div className="queue-head">
@@ -272,6 +325,19 @@ const styles = `
   }
   button + button { margin-top: 8px; }
   button:disabled { opacity: .55; }
+  .recovery-code {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+    border: 1px solid #4b4a2f;
+    border-radius: 6px;
+    background: #1e1d12;
+    padding: 10px;
+  }
+  .recovery-code strong {
+    color: #e4d36b;
+    font-size: 12px;
+  }
   .queue {
     margin-top: 12px;
     border: 1px solid #243039;

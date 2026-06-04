@@ -7,6 +7,12 @@ import { parseSupportedUrl } from "../platforms";
 import { prefillForMarket } from "../prefill";
 import { getSettings } from "../storage";
 import type { ExternalMarketResolveResponse } from "../backend-client";
+import {
+  buildRecordTelemetryMessage,
+  telemetryForParsedMarket,
+  telemetryForParserMiss,
+  type MirrorTelemetryEvent,
+} from "../telemetry";
 
 export async function mountMirrorOverlay(input: {
   url: string;
@@ -15,6 +21,7 @@ export async function mountMirrorOverlay(input: {
 }) {
   const parsed = parseSupportedUrl(input.url, input.title);
   if (!parsed) {
+    sendTelemetry(telemetryForParserMiss());
     return;
   }
 
@@ -25,11 +32,25 @@ export async function mountMirrorOverlay(input: {
     pageTitle: input.title,
     resolveMarket: resolveMarketThroughServiceWorker,
   });
+  for (const event of telemetryForParsedMarket(parsed, prefill.source)) {
+    sendTelemetry(event);
+  }
 
   const { shadowRoot } = createOverlayHost(input.document);
   const mount = input.document.createElement("div") as unknown as HTMLElement;
   (shadowRoot as ShadowRoot).appendChild(mount);
   createRoot(mount).render(<MirrorOverlay market={parsed} prefill={prefill} />);
+}
+
+function sendTelemetry(event: MirrorTelemetryEvent) {
+  chrome.runtime.sendMessage(buildRecordTelemetryMessage({
+    eventType: event.event_type,
+    clientEventId: event.client_event_id,
+    platform: event.platform,
+    provider: event.provider,
+    captureMode: event.capture_mode,
+    queueStatus: event.queue_status,
+  }));
 }
 
 void mountMirrorOverlay({

@@ -72,6 +72,25 @@ npm run dev      # dev server at http://localhost:3000
 
 Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `frontend/.env.local` for live API calls.
 
+### AlphaEdge Mirror extension
+
+AlphaEdge Mirror is the research-only forecasting skill tracker. It lets a
+forecaster lock their own probability before resolution, then scores the locked
+forecast after resolution with Brier, calibration, edge-over-market, timing
+buckets, anchoring, and synthetic paper P&L.
+
+```bash
+cd extension
+npm install
+npm run test
+npm run build
+```
+
+Load `extension/dist/` as an unpacked Chrome MV3 extension. Host permissions are
+limited to Polymarket, Kalshi, FanDuel, localhost API, and deployed AlphaEdge API
+hosts. Polymarket and Kalshi snapshots are requested through server-side
+read-only API adapters. FanDuel is manual capture only.
+
 ### Seed Lakers market manually (optional)
 
 ```bash
@@ -110,6 +129,7 @@ alphaedge/
 ├── docker-compose.yml
 ├── fixtures/
 ├── backend/
+├── extension/
 ├── frontend/
 └── scripts/
 ```

@@ -15,22 +15,26 @@ def _hash(value: str) -> str:
 
 
 class ForecasterService:
-    """Pseudonymous identities. We persist only SHA-256 hashes of the token and
-    optional recovery email — never the raw values."""
+    """Pseudonymous identities. We persist only SHA-256 hashes of tokens and
+    recovery material — never the raw values."""
 
     def __init__(self, session: AsyncSession, correlation_id: str | None = None):
         self.session = session
         self.events = DomainEventBus(session, correlation_id)
 
-    async def create_anonymous(self) -> tuple[Forecaster, str]:
-        """Create a forecaster and return (model, raw_token). The raw token is
-        shown to the client exactly once and must be stored client-side."""
-        raw_token = secrets.token_urlsafe(32)
-        forecaster = Forecaster(token_hash=_hash(raw_token))
+    async def create_anonymous(self) -> tuple[Forecaster, str, str]:
+        """Create a forecaster and return (model, raw_token, recovery_code).
+        Raw values are shown exactly once and stored client-side by the extension."""
+        raw_token = _new_secret()
+        recovery_code = _new_secret()
+        forecaster = Forecaster(
+            token_hash=_hash(raw_token),
+            recovery_code_hash=_hash(recovery_code),
+        )
         self.session.add(forecaster)
         await self.session.flush()
         await self.events.emit("forecaster_created", {"forecaster_id": str(forecaster.id)})
-        return forecaster, raw_token
+        return forecaster, raw_token, recovery_code
 
     async def get_by_token(self, raw_token: str) -> Forecaster | None:
         if not raw_token:
@@ -47,3 +51,28 @@ class ForecasterService:
             "forecaster_recovery_attached", {"forecaster_id": str(forecaster.id)}
         )
         return forecaster
+
+    async def recover_with_code(self, recovery_code: str) -> tuple[Forecaster, str, str] | None:
+        if not recovery_code:
+            return None
+        result = await self.session.execute(
+            select(Forecaster).where(Forecaster.recovery_code_hash == _hash(recovery_code))
+        )
+        forecaster = result.scalar_one_or_none()
+        if forecaster is None:
+            return None
+
+        raw_token = _new_secret()
+        next_recovery_code = _new_secret()
+        forecaster.token_hash = _hash(raw_token)
+        forecaster.recovery_code_hash = _hash(next_recovery_code)
+        await self.session.flush()
+        await self.events.emit(
+            "forecaster_recovered",
+            {"forecaster_id": str(forecaster.id)},
+        )
+        return forecaster, raw_token, next_recovery_code
+
+
+def _new_secret() -> str:
+    return secrets.token_urlsafe(32)

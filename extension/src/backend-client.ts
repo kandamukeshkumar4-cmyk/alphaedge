@@ -1,6 +1,14 @@
 import type { LockForecastMessage } from "./messaging";
+import type { MirrorTelemetryEvent } from "./telemetry";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
+
+export type ForecasterProfileResponse = {
+  id: string;
+  token: string;
+  recovery_code: string;
+  disclaimer: string;
+};
 
 export type ForecastLifecycleSummary = {
   unresolved_count: number;
@@ -66,6 +74,39 @@ export type ExternalMarketResolveResponse = {
   } | null;
   snapshot_metadata?: Record<string, unknown> | null;
 };
+
+export async function createAnonymousForecaster(input: {
+  apiBase: string;
+  fetcher?: Fetcher;
+}): Promise<ForecasterProfileResponse> {
+  const fetcher = input.fetcher ?? fetch;
+  const response = await fetcher(`${input.apiBase}/api/v1/forecasters/anonymous`, {
+    method: "POST",
+  });
+  const data = await safeJson(response);
+  if (!response.ok) {
+    throw new Error(detailFrom(data) ?? `HTTP ${response.status}`);
+  }
+  return data as ForecasterProfileResponse;
+}
+
+export async function recoverForecaster(input: {
+  apiBase: string;
+  recoveryCode: string;
+  fetcher?: Fetcher;
+}): Promise<ForecasterProfileResponse> {
+  const fetcher = input.fetcher ?? fetch;
+  const response = await fetcher(`${input.apiBase}/api/v1/forecasters/recover`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ recovery_code: input.recoveryCode }),
+  });
+  const data = await safeJson(response);
+  if (!response.ok) {
+    throw new Error(detailFrom(data) ?? `HTTP ${response.status}`);
+  }
+  return data as ForecasterProfileResponse;
+}
 
 export async function sendForecastToBackend(input: {
   apiBase: string;
@@ -152,6 +193,31 @@ export async function fetchForecastDashboard(input: {
     throw new Error(detailFrom(data) ?? `HTTP ${response.status}`);
   }
   return data as ForecastDashboardSummary;
+}
+
+export async function recordMirrorTelemetryEvent(input: {
+  apiBase: string;
+  event: MirrorTelemetryEvent;
+  token?: string;
+  fetcher?: Fetcher;
+}): Promise<{ ok: true; event_id: string }> {
+  const fetcher = input.fetcher ?? fetch;
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  if (input.token) {
+    headers["X-Forecaster-Token"] = input.token;
+  }
+  const response = await fetcher(`${input.apiBase}/api/v1/telemetry/mirror/events`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(input.event),
+  });
+  const data = await safeJson(response);
+  if (!response.ok) {
+    throw new Error(detailFrom(data) ?? `HTTP ${response.status}`);
+  }
+  return data as { ok: true; event_id: string };
 }
 
 async function safeJson(response: Response): Promise<unknown> {

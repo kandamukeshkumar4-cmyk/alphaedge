@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -10,6 +10,18 @@ from app.db.models import ExternalMarketStatus, ForecastMode, ForecastSource, Pl
 class ForecasterCreateResponse(BaseModel):
     id: UUID
     token: str = Field(description="Raw token. Shown once; store it client-side to keep your history.")
+    recovery_code: str = Field(description="Shown once. Use it to rotate a lost local token.")
+    disclaimer: str
+
+
+class ForecasterRecoverRequest(BaseModel):
+    recovery_code: str
+
+
+class ForecasterRecoverResponse(BaseModel):
+    id: UUID
+    token: str = Field(description="New raw token. Shown once; store it client-side.")
+    recovery_code: str = Field(description="New recovery code. Shown once; replaces the old code.")
     disclaimer: str
 
 
@@ -191,3 +203,43 @@ class ForecastLifecycleResponse(BaseModel):
     recently_resolved_count: int
     unresolved: list[ForecastLifecycleItem]
     recently_resolved: list[ForecastLifecycleItem]
+
+
+# ----- dogfood telemetry -----
+MirrorTelemetryEventType = Literal[
+    "overlay_opened",
+    "market_detected",
+    "parser_failed",
+    "forecast_locked",
+    "forecast_queued",
+    "forecast_synced",
+    "dashboard_opened",
+]
+
+MirrorCaptureMode = Literal["server", "manual", "fallback"]
+MirrorQueueStatus = Literal["pending", "syncing", "synced", "failed"]
+
+
+class MirrorTelemetryEventRequest(BaseModel):
+    event_type: MirrorTelemetryEventType
+    client_event_id: str = Field(min_length=3, max_length=128)
+    platform: Optional[Platform] = None
+    provider: Optional[str] = Field(default=None, max_length=32)
+    capture_mode: Optional[MirrorCaptureMode] = None
+    queue_status: Optional[MirrorQueueStatus] = None
+
+    model_config = {"extra": "forbid"}
+
+
+class MirrorTelemetryEventResponse(BaseModel):
+    ok: bool
+    event_id: UUID
+
+
+class MirrorDogfoodReportResponse(BaseModel):
+    active_users: int
+    forecasts_per_user: dict[str, int]
+    event_counts: dict[str, int]
+    parser_success_rate: Optional[float]
+    queue_failure_rate: Optional[float]
+    three_day_retention_rate: Optional[float]
