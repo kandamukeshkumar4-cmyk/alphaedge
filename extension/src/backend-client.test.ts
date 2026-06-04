@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildLockForecastMessage } from "./messaging";
 import { idempotencyKeyFor, type QueuedForecast } from "./queue";
-import { fetchForecastLifecycle, sendForecastToBackend } from "./backend-client";
+import {
+  fetchForecastDashboard,
+  fetchForecastLifecycle,
+  resolveExternalMarket,
+  sendForecastToBackend,
+} from "./backend-client";
 
 describe("backend client", () => {
   it("sends queued forecast idempotency keys to the backend", async () => {
@@ -68,6 +73,72 @@ describe("backend client", () => {
     expect(fetcher).toHaveBeenCalledWith(
       "https://api.example.test/api/v1/forecasters/me/forecast-lifecycle",
       {
+        headers: {
+          "X-Forecaster-Token": "secret-token",
+        },
+      },
+    );
+  });
+
+  it("resolves external markets through the AlphaEdge API", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({
+        id: "market-id",
+        platform: "kalshi",
+        external_id: "fed/fed-26jun",
+        url: "https://kalshi.com/markets/fed/fed-26jun",
+        title: "Fed decision",
+        category: "Economics",
+        status: "open",
+        close_at: null,
+        resolved_at: null,
+      }),
+    );
+
+    const market = await resolveExternalMarket({
+      apiBase: "https://api.example.test",
+      url: "https://kalshi.com/markets/fed/fed-26jun",
+      title: "Fed decision",
+      fetcher,
+    });
+
+    expect(market.title).toBe("Fed decision");
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.test/api/v1/markets/external/resolve-url",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  });
+
+  it("fetches compact dashboard metrics for the popup", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({
+        paper_trading_only: true,
+        live: {
+          resolved_count: 10,
+          unresolved_count: 2,
+          independent_count: 8,
+          anchored_count: 1,
+          mean_user_brier: 0.22,
+          mean_brier_delta: 0.04,
+          synthetic_pnl_total: 1.2,
+        },
+      }),
+    );
+
+    const dashboard = await fetchForecastDashboard({
+      apiBase: "https://api.example.test",
+      token: "secret-token",
+      fetcher,
+    });
+
+    expect(dashboard.live.independent_count).toBe(8);
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.test/api/v1/forecasters/me/dashboard",
+      {
+        cache: "no-store",
         headers: {
           "X-Forecaster-Token": "secret-token",
         },

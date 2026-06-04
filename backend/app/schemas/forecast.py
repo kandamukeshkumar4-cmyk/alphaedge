@@ -35,8 +35,16 @@ class ExternalMarketResponse(BaseModel):
     status: ExternalMarketStatus
     close_at: Optional[datetime]
     resolved_at: Optional[datetime]
+    market_implied_probability: Optional[float] = None
+    snapshot: Optional["ExternalMarketSnapshotResponse"] = None
 
     model_config = {"from_attributes": True}
+
+
+class ExternalMarketSnapshotResponse(BaseModel):
+    implied_probability: Optional[float]
+    source: str
+    metadata: dict[str, object] = Field(default_factory=dict)
 
 
 class BackfillMarketResponse(BaseModel):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -8,7 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ExternalMarket, ExternalMarketStatus
 from app.events.bus import DomainEventBus
-from app.forecasting.market_source import get_adapter, parse_market_url
+from app.forecasting.market_source import MarketSnapshot, get_adapter, parse_market_url
+
+
+@dataclass(frozen=True)
+class ResolvedExternalMarket:
+    market: ExternalMarket
+    snapshot: MarketSnapshot
 
 
 class ExternalMarketService:
@@ -24,6 +31,16 @@ class ExternalMarketService:
         close_at: datetime | None = None,
     ) -> ExternalMarket:
         """Get-or-create the ExternalMarket for a recognized platform URL."""
+        resolved = await self.resolve_url_with_snapshot(url, title, category, close_at)
+        return resolved.market
+
+    async def resolve_url_with_snapshot(
+        self,
+        url: str,
+        title: str | None = None,
+        category: str | None = None,
+        close_at: datetime | None = None,
+    ) -> ResolvedExternalMarket:
         parsed = parse_market_url(url)
         if parsed is None:
             raise ValueError("Unrecognized market URL (Polymarket, Kalshi, and FanDuel only)")
@@ -32,6 +49,8 @@ class ExternalMarketService:
         metadata = adapter_snapshot.metadata or {}
         adapter_title = metadata.get("title")
         adapter_category = metadata.get("category")
+        adapter_close_at = _metadata_datetime(metadata.get("close_at"))
+        next_close_at = close_at or adapter_close_at
 
         existing = await self._get_by_external_id(parsed.platform.value, parsed.external_id)
         if existing is not None:
@@ -44,12 +63,12 @@ class ExternalMarketService:
             if next_category and existing.category != next_category:
                 existing.category = next_category
                 updated = True
-            if close_at and existing.close_at != close_at:
-                existing.close_at = close_at
+            if next_close_at and existing.close_at != next_close_at:
+                existing.close_at = next_close_at
                 updated = True
             if updated:
                 await self.session.flush()
-            return existing
+            return ResolvedExternalMarket(existing, adapter_snapshot)
 
         market = ExternalMarket(
             platform=parsed.platform,
@@ -58,7 +77,7 @@ class ExternalMarketService:
             title=title or (str(adapter_title) if adapter_title else parsed.external_id),
             category=category or (str(adapter_category) if adapter_category else "Uncategorized"),
             status=ExternalMarketStatus.OPEN,
-            close_at=close_at,
+            close_at=next_close_at,
         )
         self.session.add(market)
         await self.session.flush()
@@ -70,7 +89,7 @@ class ExternalMarketService:
                 "external_id": parsed.external_id,
             },
         )
-        return market
+        return ResolvedExternalMarket(market, adapter_snapshot)
 
     async def get(self, external_market_id: UUID) -> ExternalMarket | None:
         return await self.session.get(ExternalMarket, external_market_id)
@@ -120,3 +139,17 @@ class ExternalMarketService:
             )
         )
         return result.scalar_one_or_none()
+
+
+def _metadata_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed

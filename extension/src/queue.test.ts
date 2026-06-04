@@ -4,6 +4,8 @@ import { buildLockForecastMessage } from "./messaging";
 import {
   enqueueForecast,
   idempotencyKeyFor,
+  retryDelayMs,
+  isReadyForRetry,
   syncQueuedForecasts,
   type ForecastQueueStore,
   type QueuedForecast,
@@ -58,19 +60,95 @@ describe("offline forecast queue", () => {
     expect(result).toEqual({ synced: 0, failed: 1, pending: 0 });
     expect(queued.status).toBe("failed");
     expect(queued.lastError).toBe("Backend unavailable");
+    expect(queued.nextAttemptAt).toBeDefined();
     expect(queued.lockedAt).toBe("2026-06-04T15:00:00.000Z");
+  });
+
+  it("uses exponential backoff and does not retry before the next attempt time", async () => {
+    const store = memoryStore();
+    const message = sampleMessage();
+    const now = new Date("2026-06-04T15:00:00.000Z");
+    await enqueueForecast(store, message, now.toISOString());
+
+    await syncQueuedForecasts(
+      store,
+      async () => ({ ok: false, error: "Backend unavailable" }),
+      { now },
+    );
+    expect((await store.loadQueue())[0].nextAttemptAt).toBe(
+      new Date(now.getTime() + retryDelayMs(1)).toISOString(),
+    );
+
+    const early = await syncQueuedForecasts(
+      store,
+      async () => ({ ok: true }),
+      { now: new Date("2026-06-04T15:00:00.500Z") },
+    );
+    expect(early).toEqual({ synced: 0, failed: 0, pending: 0 });
+    expect((await store.loadQueue())[0].status).toBe("failed");
+
+    const late = await syncQueuedForecasts(
+      store,
+      async () => ({ ok: true }),
+      { now: new Date("2026-06-04T15:00:01.000Z") },
+    );
+    expect(late).toEqual({ synced: 1, failed: 0, pending: 0 });
+    expect((await store.loadQueue())[0].status).toBe("synced");
+  });
+
+  it("dedupes and syncs a 100-forecast offline stress batch exactly once", async () => {
+    const store = memoryStore();
+    for (let index = 0; index < 100; index += 1) {
+      const message = sampleMessage(0.01 + index / 1_000);
+      await enqueueForecast(store, message, `2026-06-04T15:${String(index).padStart(2, "0")}:00.000Z`);
+      await enqueueForecast(store, message, `2026-06-04T15:${String(index).padStart(2, "0")}:01.000Z`);
+    }
+
+    const sent = new Set<string>();
+    const result = await syncQueuedForecasts(store, async (queued) => {
+      sent.add(queued.idempotencyKey);
+      return { ok: true };
+    });
+
+    expect(await store.loadQueue()).toHaveLength(100);
+    expect(sent.size).toBe(100);
+    expect(result).toEqual({ synced: 100, failed: 0, pending: 0 });
+    expect((await store.loadQueue()).every((row) => row.status === "synced")).toBe(true);
+  });
+
+  it("exposes retry readiness for the service worker scheduler", () => {
+    const row = {
+      ...queuedMessage(),
+      nextAttemptAt: "2026-06-04T15:00:01.000Z",
+    };
+
+    expect(isReadyForRetry(row, new Date("2026-06-04T15:00:00.999Z"))).toBe(false);
+    expect(isReadyForRetry(row, new Date("2026-06-04T15:00:01.000Z"))).toBe(true);
   });
 });
 
-function sampleMessage() {
+function sampleMessage(userProbability = 0.64) {
   return buildLockForecastMessage({
     token: "forecaster-token",
     url: "https://polymarket.com/event/will-fed-cut-rates-in-july",
-    userProbability: 0.64,
+    userProbability,
     marketImpliedProbability: null,
     outcomeLabel: "YES",
     snapshotMetadata: { provider: "polymarket" },
   });
+}
+
+function queuedMessage(): QueuedForecast {
+  const message = sampleMessage();
+  return {
+    id: "queue-row",
+    idempotencyKey: idempotencyKeyFor(message.payload),
+    status: "failed",
+    message,
+    lockedAt: "2026-06-04T15:00:00.000Z",
+    updatedAt: "2026-06-04T15:00:00.000Z",
+    attempts: 1,
+  };
 }
 
 function memoryStore(initial: QueuedForecast[] = []): ForecastQueueStore {

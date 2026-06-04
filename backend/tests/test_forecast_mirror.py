@@ -47,6 +47,7 @@ class _FakeAdapter:
                 "title": f"Official {external_id}",
                 "category": "Sports",
                 "status": "active",
+                "close_at": "2026-06-10T20:00:00Z",
             },
         )
 
@@ -141,6 +142,44 @@ def test_kalshi_adapter_extracts_metadata_and_price(monkeypatch):
     assert snapshot.source == "kalshi.rest"
     assert snapshot.metadata["title"] == "Will it rain in NYC?"
     assert snapshot.metadata["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_resolve_external_url_returns_server_snapshot_prefill(db_session):
+    register_adapter(Platform.POLYMARKET, _FakeAdapter())
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                "/api/v1/markets/external/resolve-url",
+                json={"url": POLY_URL},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["title"] == "Official will-it-rain-2026"
+    assert payload["category"] == "Sports"
+    assert payload["close_at"] == "2026-06-10T20:00:00Z"
+    assert payload["market_implied_probability"] == pytest.approx(0.61)
+    assert payload["snapshot"] == {
+        "implied_probability": 0.61,
+        "source": "polymarket.gamma",
+        "metadata": {
+            "title": "Official will-it-rain-2026",
+            "category": "Sports",
+            "status": "active",
+            "close_at": "2026-06-10T20:00:00Z",
+        },
+    }
 
 
 # ---------------- pure: scoring math ----------------

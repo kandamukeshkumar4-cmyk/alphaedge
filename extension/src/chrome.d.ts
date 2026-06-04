@@ -24,4 +24,8 @@ declare const chrome: {
       set: (items: Record<string, unknown>, callback?: () => void) => void;
     };
   };
+  action?: {
+    setBadgeText: (details: { text: string }) => void;
+    setBadgeBackgroundColor?: (details: { color: string }) => void;
+  };
 };

@@ -10,11 +10,13 @@ from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
 from app.db.models import Forecaster
 from app.db.session import get_db
+from app.forecasting.market_source import MarketSnapshot
 from app.schemas.forecast import (
     AdminResolveRequest,
     BackfillMarketResponse,
     DashboardResponse,
     ExternalMarketResponse,
+    ExternalMarketSnapshotResponse,
     ForecastCreateRequest,
     ForecastLifecycleResponse,
     ForecasterCreateResponse,
@@ -70,12 +72,12 @@ async def resolve_external_url(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        market = await ExternalMarketService(db).resolve_url(
+        resolved = await ExternalMarketService(db).resolve_url_with_snapshot(
             body.url, body.title, body.category, body.close_at
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    return market
+    return _external_market_response(resolved.market, resolved.snapshot)
 
 
 @router.post("/forecasts", response_model=ForecastResponse)
@@ -198,3 +200,32 @@ async def admin_resolve_external_market(
     # Score all locked forecasts on this market now that it has resolved.
     await ScoringService(db).score_market(market)
     return market
+
+
+def _external_market_response(
+    market,
+    snapshot: MarketSnapshot | None = None,
+) -> ExternalMarketResponse:
+    return ExternalMarketResponse(
+        id=market.id,
+        platform=market.platform,
+        external_id=market.external_id,
+        url=market.url,
+        title=market.title,
+        category=market.category,
+        status=market.status,
+        close_at=market.close_at,
+        resolved_at=market.resolved_at,
+        market_implied_probability=(
+            snapshot.implied_probability if snapshot is not None else None
+        ),
+        snapshot=(
+            ExternalMarketSnapshotResponse(
+                implied_probability=snapshot.implied_probability,
+                source=snapshot.source,
+                metadata=snapshot.metadata or {},
+            )
+            if snapshot is not None
+            else None
+        ),
+    )

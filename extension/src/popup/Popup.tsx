@@ -1,8 +1,15 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { fetchForecastLifecycle, sendForecastToBackend } from "../backend-client";
-import { chromeForecastQueueStore, syncQueuedForecasts, type QueuedForecast } from "../queue";
+import {
+  fetchForecastDashboard,
+  fetchForecastLifecycle,
+  sendForecastToBackend,
+  type ForecastDashboardSummary,
+  type ForecastLifecycleSummary,
+} from "../backend-client";
+import { indexedDbForecastQueueStore, syncQueuedForecasts, type QueuedForecast } from "../queue";
 import { getSettings, normalizeApiBase, normalizeUrl, saveSettings } from "../storage";
+import { buildPopupDashboardView } from "./popup-dashboard";
 
 type Notice = {
   tone: "success" | "error" | "muted";
@@ -15,6 +22,8 @@ export function Popup() {
   const [tokenDraft, setTokenDraft] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [queue, setQueue] = useState<QueuedForecast[]>([]);
+  const [dashboard, setDashboard] = useState<ForecastDashboardSummary | null>(null);
+  const [lifecycle, setLifecycle] = useState<ForecastLifecycleSummary | null>(null);
   const [unresolvedCount, setUnresolvedCount] = useState(0);
   const [resolvedCount, setResolvedCount] = useState(0);
   const [notice, setNotice] = useState<Notice>({
@@ -31,7 +40,10 @@ export function Popup() {
     });
     void refreshQueue();
     void refreshLifecycle();
+    void refreshDashboard();
   }, []);
+
+  const miniDashboard = buildPopupDashboardView({ dashboard, lifecycle, queue });
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,7 +86,7 @@ export function Popup() {
   }
 
   async function refreshQueue() {
-    setQueue(await chromeForecastQueueStore.loadQueue());
+    setQueue(await indexedDbForecastQueueStore.loadQueue());
   }
 
   async function refreshLifecycle() {
@@ -87,17 +99,38 @@ export function Popup() {
         apiBase: settings.apiBase,
         token: settings.token,
       });
+      setLifecycle(lifecycle);
       setUnresolvedCount(lifecycle.unresolved_count);
       setResolvedCount(lifecycle.recently_resolved_count);
+      updateResolvedBadge(lifecycle.recently_resolved_count);
     } catch {
+      setLifecycle(null);
       setUnresolvedCount(0);
       setResolvedCount(0);
+      updateResolvedBadge(0);
+    }
+  }
+
+  async function refreshDashboard() {
+    const settings = await getSettings();
+    if (!settings.token) {
+      return;
+    }
+    try {
+      setDashboard(
+        await fetchForecastDashboard({
+          apiBase: settings.apiBase,
+          token: settings.token,
+        }),
+      );
+    } catch {
+      setDashboard(null);
     }
   }
 
   async function handleSyncQueue() {
     const settings = await getSettings();
-    const result = await syncQueuedForecasts(chromeForecastQueueStore, async (queued) => {
+    const result = await syncQueuedForecasts(indexedDbForecastQueueStore, async (queued) => {
       try {
         const response = await sendForecastToBackend({
           apiBase: settings.apiBase,
@@ -117,6 +150,7 @@ export function Popup() {
     });
     await refreshQueue();
     await refreshLifecycle();
+    await refreshDashboard();
     setNotice({
       tone: result.failed ? "error" : "success",
       text: `Synced ${result.synced}; failed ${result.failed}.`,
@@ -158,19 +192,35 @@ export function Popup() {
 
       <section className="queue">
         <div className="queue-head">
-          <strong>Lifecycle</strong>
+          <strong>Mini-dashboard</strong>
           <span>{unresolvedCount} unresolved</span>
         </div>
         <div className="queue-grid">
-          <span>Unresolved {unresolvedCount}</span>
+          <span>Brier {miniDashboard.rollingBrier}</span>
+          <span>Independent {miniDashboard.independentCount}</span>
+          <span>Anchored {miniDashboard.anchoredCount}</span>
           <span>Recently scored {resolvedCount}</span>
         </div>
+        {miniDashboard.lastResolved.length ? (
+          <ol className="resolved-list">
+            {miniDashboard.lastResolved.map((row) => (
+              <li key={`${row.title}-${row.score}`}>
+                <strong>{row.title}</strong>
+                <span>
+                  {row.score} · {row.pnl}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="empty-mini">No resolved forecasts yet.</p>
+        )}
       </section>
 
       <section className="queue">
         <div className="queue-head">
           <strong>Queue</strong>
-          <span>{queue.filter((row) => row.status !== "synced").length} open</span>
+          <span>{miniDashboard.pendingText}</span>
         </div>
         <div className="queue-grid">
           <span>Pending {queue.filter((row) => row.status === "pending").length}</span>
@@ -243,8 +293,41 @@ const styles = `
     color: #9ea9a3;
     font-size: 12px;
   }
+  .resolved-list {
+    display: grid;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .resolved-list li {
+    display: grid;
+    gap: 2px;
+    border-top: 1px solid #243039;
+    padding-top: 6px;
+  }
+  .resolved-list strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .resolved-list span,
+  .empty-mini {
+    margin: 0;
+    color: #9ea9a3;
+    font-size: 12px;
+  }
   .notice { margin-top: 10px; border-radius: 6px; padding: 8px; font-size: 12px; }
   .muted { background: #151b20; color: #9ea9a3; }
   .success { background: #0c2618; color: #24c66d; }
   .error { background: #2b1012; color: #ff6b6d; }
 `;
+
+function updateResolvedBadge(count: number) {
+  if (!chrome.action) {
+    return;
+  }
+  chrome.action.setBadgeText({ text: count > 0 ? String(Math.min(count, 99)) : "" });
+  chrome.action.setBadgeBackgroundColor?.({ color: "#24c66d" });
+}
