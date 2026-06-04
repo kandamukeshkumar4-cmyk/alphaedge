@@ -16,6 +16,22 @@ export type PaperAccountView = {
     reservedNotional: number;
     status: string;
   }>;
+  orderHistory: Array<{
+    id: string;
+    marketSlug: string;
+    marketTitle: string;
+    side: "BUY" | "SELL";
+    outcome: "YES" | "NO";
+    orderType: "limit" | "market";
+    price: number | null;
+    quantity: number;
+    filledQuantity: number;
+    remainingQuantity: number;
+    filledNotional: number;
+    averageFillPrice: number | null;
+    status: string;
+    createdAt: string;
+  }>;
 };
 
 export function buildPaperAccountView(account: PaperAccountResponse): PaperAccountView {
@@ -33,6 +49,23 @@ export function buildPaperAccountView(account: PaperAccountResponse): PaperAccou
       remainingShares: Number(order.remaining_quantity),
       reservedNotional: Number(order.reserved_notional),
       status: order.status,
+    })),
+    orderHistory: account.order_history.map((order) => ({
+      id: order.id,
+      marketSlug: order.market_slug,
+      marketTitle: order.market_title,
+      side: order.side.toUpperCase() as "BUY" | "SELL",
+      outcome: order.outcome.toUpperCase() as "YES" | "NO",
+      orderType: order.order_type,
+      price: order.price === null ? null : Number(order.price),
+      quantity: Number(order.quantity),
+      filledQuantity: Number(order.filled_quantity),
+      remainingQuantity: Number(order.remaining_quantity),
+      filledNotional: Number(order.filled_notional),
+      averageFillPrice:
+        order.average_fill_price === null ? null : Number(order.average_fill_price),
+      status: order.status,
+      createdAt: order.created_at,
     })),
   };
 }

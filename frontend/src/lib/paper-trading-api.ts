@@ -18,6 +18,24 @@ export type BackendOpenOrderResponse = {
   status: "open" | "partial" | "filled" | "cancelled";
 };
 
+export type BackendOrderHistoryResponse = {
+  id: string;
+  market_id: string;
+  market_slug: string;
+  market_title: string;
+  side: "buy" | "sell";
+  outcome: "yes" | "no";
+  order_type: "limit" | "market";
+  price: string | null;
+  quantity: string;
+  filled_quantity: string;
+  remaining_quantity: string;
+  filled_notional: string;
+  average_fill_price: string | null;
+  status: "open" | "partial" | "filled" | "cancelled";
+  created_at: string;
+};
+
 export type PaperAccountResponse = {
   id: string;
   name: string;
@@ -27,6 +45,7 @@ export type PaperAccountResponse = {
   paper_trading_only: boolean;
   positions: unknown[];
   open_orders: BackendOpenOrderResponse[];
+  order_history: BackendOrderHistoryResponse[];
 };
 
 type BackendOrderResponse = {

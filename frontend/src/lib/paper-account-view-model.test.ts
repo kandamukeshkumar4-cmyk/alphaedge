@@ -29,6 +29,25 @@ const account: PaperAccountResponse = {
       status: "open",
     },
   ],
+  order_history: [
+    {
+      id: "33333333-3333-3333-3333-333333333333",
+      market_id: "22222222-2222-2222-2222-222222222222",
+      market_slug: "nba-2025-01-15-lal-bos",
+      market_title: "Lakers vs Celtics",
+      side: "buy",
+      outcome: "yes",
+      order_type: "market",
+      price: null,
+      quantity: "12.0000",
+      filled_quantity: "7.0000",
+      remaining_quantity: "5.0000",
+      filled_notional: "3.8500",
+      average_fill_price: "0.5500",
+      status: "cancelled",
+      created_at: "2026-06-03T14:15:00.000Z",
+    },
+  ],
 };
 
 describe("paper account view model", () => {
@@ -50,6 +69,24 @@ describe("paper account view model", () => {
           remainingShares: 10,
           reservedNotional: 5.5,
           status: "open",
+        },
+      ],
+      orderHistory: [
+        {
+          id: "33333333-3333-3333-3333-333333333333",
+          marketSlug: "nba-2025-01-15-lal-bos",
+          marketTitle: "Lakers vs Celtics",
+          side: "BUY",
+          outcome: "YES",
+          orderType: "market",
+          price: null,
+          quantity: 12,
+          filledQuantity: 7,
+          remainingQuantity: 5,
+          filledNotional: 3.85,
+          averageFillPrice: 0.55,
+          status: "cancelled",
+          createdAt: "2026-06-03T14:15:00.000Z",
         },
       ],
     });

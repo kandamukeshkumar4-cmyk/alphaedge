@@ -101,7 +101,11 @@ export default function PortfolioPage() {
   }
 
   const openOrders = accountView?.openOrders ?? [];
-  const empty = displayState.positions.length === 0 && openOrders.length === 0;
+  const orderHistory = accountView?.orderHistory ?? [];
+  const empty =
+    displayState.positions.length === 0 &&
+    openOrders.length === 0 &&
+    orderHistory.length === 0;
   async function handleCancelOrder(orderId: string) {
     if (cancellingOrderId) return;
     setCancellingOrderId(orderId);
@@ -224,6 +228,7 @@ export default function PortfolioPage() {
           ) : null}
           {displayState.positions.length ? <PositionsTable state={displayState} /> : null}
           {displayState.history.length ? <HistoryTable state={displayState} /> : null}
+          {orderHistory.length ? <OrderHistoryTable orders={orderHistory} /> : null}
         </div>
       )}
     </main>
@@ -323,6 +328,69 @@ function OpenOrdersTable({
   );
 }
 
+function OrderHistoryTable({ orders }: { orders: PaperAccountView["orderHistory"] }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h2 className="text-sm font-black text-text">Backend order history</h2>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
+            <tr>
+              <th className="pb-2">Market</th>
+              <th className="pb-2">Side</th>
+              <th className="pb-2 text-right">Filled</th>
+              <th className="pb-2 text-right">Avg</th>
+              <th className="pb-2 text-right">Notional</th>
+              <th className="pb-2 text-right">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => {
+              const executionPrice = order.averageFillPrice ?? order.price;
+              return (
+                <tr key={order.id} className="border-t border-border">
+                  <td className="py-2">
+                    <Link href={`/markets/${order.marketSlug}`} className="hover:text-accent">
+                      <span className="text-text">{order.marketTitle}</span>
+                      <span className="block text-[11px] text-muted">
+                        {order.outcome} / {formatOrderTimestamp(order.createdAt)}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="py-2">
+                    <span
+                      className={cn(
+                        "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
+                        order.outcome === "YES"
+                          ? "bg-primary-dim text-primary"
+                          : "bg-danger-dim text-danger",
+                      )}
+                    >
+                      {order.side}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right font-mono text-muted">
+                    {order.filledQuantity}
+                  </td>
+                  <td className="py-2 text-right font-mono text-text">
+                    {executionPrice === null ? "--" : cents(executionPrice)}
+                  </td>
+                  <td className="py-2 text-right font-mono font-bold text-text">
+                    {formatUSD(order.filledNotional)}
+                  </td>
+                  <td className="py-2 text-right font-mono text-[11px] uppercase text-muted">
+                    {order.status}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function PositionsTable({ state }: { state: PortfolioState }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
@@ -383,6 +451,20 @@ function PositionsTable({ state }: { state: PortfolioState }) {
       </div>
     </div>
   );
+}
+
+function formatOrderTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function HistoryTable({ state }: { state: PortfolioState }) {
