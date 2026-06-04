@@ -5,6 +5,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_github_workflows_opt_into_node24_action_runtime():
+    workflow_paths = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+    assert workflow_paths
+    for workflow_path in workflow_paths:
+        workflow = workflow_path.read_text(encoding="utf-8")
+        assert (
+            'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' in workflow
+        ), f"{workflow_path.name} must opt JavaScript actions into Node 24"
+
+
 def test_backend_dockerfile_has_cloud_start_command():
     dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
 

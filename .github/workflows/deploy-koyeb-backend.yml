@@ -8,6 +8,9 @@ on:
         required: true
         default: "https://alphaedge-api.koyeb.app"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   contents: read
   actions: write
