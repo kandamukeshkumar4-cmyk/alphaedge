@@ -462,6 +462,29 @@ class ExternalMarket(Base):
     forecasts: Mapped[list["ForecastLog"]] = relationship(back_populates="external_market")
 
 
+class MarketSnapshot(Base):
+    """API/manual market state captured at lock time.
+
+    This preserves what AlphaEdge knew at the moment of the forecast without
+    giving the extension authority to mutate external-market metadata later.
+    """
+
+    __tablename__ = "market_snapshots"
+    __table_args__ = (Index("ix_market_snapshots_market_captured", "external_market_id", "captured_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_market_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("external_markets.id"), nullable=False
+    )
+    platform: Mapped[Platform] = mapped_column(
+        _pg_enum(Platform, name="platform", create_type=False), nullable=False
+    )
+    implied_probability: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4), nullable=True)
+    source: Mapped[str] = mapped_column(String(64), default="manual")
+    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ForecastLog(Base):
     """Append-only, immutable locked forecast. A forecaster may lock multiple times
     on the same market (a belief update) — each is a new row with an incremented seq."""
@@ -483,7 +506,15 @@ class ForecastLog(Base):
     external_market_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("external_markets.id"), nullable=False
     )
+    market_snapshot_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("market_snapshots.id"), nullable=True
+    )
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    platform: Mapped[Platform] = mapped_column(
+        _pg_enum(Platform, name="platform", create_type=False), nullable=False
+    )
+    market_url: Mapped[str] = mapped_column(String(512), default="")
+    outcome_label: Mapped[str] = mapped_column(String(128), default="YES")
     # P(market resolves YES) as believed by the forecaster.
     user_probability: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
     # Market implied P(YES) snapshotted at lock time (API-first). Null if unavailable.
@@ -501,6 +532,7 @@ class ForecastLog(Base):
         _pg_enum(ForecastSource, name="forecast_source"),
         default=ForecastSource.WEB,
     )
+    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     time_to_resolution_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     locked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -508,6 +540,7 @@ class ForecastLog(Base):
 
     forecaster: Mapped["Forecaster"] = relationship(back_populates="forecasts")
     external_market: Mapped["ExternalMarket"] = relationship(back_populates="forecasts")
+    market_snapshot: Mapped[Optional["MarketSnapshot"]] = relationship()
     score: Mapped[Optional["ForecastScore"]] = relationship(
         back_populates="forecast", uselist=False
     )

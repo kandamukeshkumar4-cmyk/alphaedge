@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ExternalMarket, ExternalMarketStatus
 from app.events.bus import DomainEventBus
-from app.forecasting.market_source import parse_market_url
+from app.forecasting.market_source import get_adapter, parse_market_url
 
 
 class ExternalMarketService:
@@ -26,16 +26,23 @@ class ExternalMarketService:
         """Get-or-create the ExternalMarket for a recognized platform URL."""
         parsed = parse_market_url(url)
         if parsed is None:
-            raise ValueError("Unrecognized market URL (Polymarket and Kalshi only)")
+            raise ValueError("Unrecognized market URL (Polymarket, Kalshi, and FanDuel only)")
+
+        adapter_snapshot = get_adapter(parsed.platform).fetch_snapshot(parsed.external_id)
+        metadata = adapter_snapshot.metadata or {}
+        adapter_title = metadata.get("title")
+        adapter_category = metadata.get("category")
 
         existing = await self._get_by_external_id(parsed.platform.value, parsed.external_id)
         if existing is not None:
             updated = False
-            if title and existing.title != title:
-                existing.title = title
+            next_title = title or (str(adapter_title) if adapter_title else None)
+            if next_title and existing.title != next_title:
+                existing.title = next_title
                 updated = True
-            if category and existing.category != category:
-                existing.category = category
+            next_category = category or (str(adapter_category) if adapter_category else None)
+            if next_category and existing.category != next_category:
+                existing.category = next_category
                 updated = True
             if close_at and existing.close_at != close_at:
                 existing.close_at = close_at
@@ -48,8 +55,8 @@ class ExternalMarketService:
             platform=parsed.platform,
             external_id=parsed.external_id,
             url=parsed.canonical_url,
-            title=title or parsed.external_id,
-            category=category or "Uncategorized",
+            title=title or (str(adapter_title) if adapter_title else parsed.external_id),
+            category=category or (str(adapter_category) if adapter_category else "Uncategorized"),
             status=ExternalMarketStatus.OPEN,
             close_at=close_at,
         )

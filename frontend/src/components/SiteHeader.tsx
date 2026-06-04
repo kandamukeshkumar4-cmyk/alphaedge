@@ -11,6 +11,7 @@ const NAV = [
   { label: "Politics", href: "/markets?cat=Politics" },
   { label: "Crypto", href: "/markets?cat=Crypto" },
   { label: "Culture", href: "/markets?cat=Culture" },
+  { label: "Mirror", href: "/forecast" },
   { label: "Portfolio", href: "/portfolio" },
 ];
 

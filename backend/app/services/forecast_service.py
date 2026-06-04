@@ -13,9 +13,12 @@ from app.db.models import (
     ForecastLog,
     ForecastMode,
     ForecastSource,
+    MarketSnapshot,
+    Platform,
 )
 from app.events.bus import DomainEventBus
 from app.forecasting import scoring
+from app.forecasting.market_source import get_adapter
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -43,6 +46,8 @@ class ForecastService:
         snapshot_source: str = "manual",
         mode: ForecastMode = ForecastMode.LIVE,
         source: ForecastSource = ForecastSource.WEB,
+        outcome_label: str = "YES",
+        snapshot_metadata: dict[str, object] | None = None,
     ) -> ForecastLog:
         if not 0.0 <= user_probability <= 1.0:
             raise ValueError("user_probability must be in [0, 1]")
@@ -60,6 +65,31 @@ class ForecastService:
 
         next_seq = (latest.seq + 1) if latest is not None else 1
         locked_at = datetime.now(timezone.utc)
+        effective_implied = market_implied_probability
+        effective_source = snapshot_source
+        effective_metadata: dict[str, object] = dict(snapshot_metadata or {})
+
+        adapter = get_adapter(external_market.platform)
+        adapter_snapshot = adapter.fetch_snapshot(external_market.external_id)
+        if external_market.platform in (Platform.POLYMARKET, Platform.KALSHI):
+            adapter_metadata = adapter_snapshot.metadata or {}
+            if adapter_snapshot.implied_probability is not None:
+                effective_implied = adapter_snapshot.implied_probability
+                effective_source = adapter_snapshot.source
+            if adapter_metadata and adapter_metadata.get("status") != "unavailable":
+                effective_source = adapter_snapshot.source
+                effective_metadata.update(adapter_metadata)
+
+        snapshot = MarketSnapshot(
+            external_market_id=external_market.id,
+            platform=external_market.platform,
+            implied_probability=_dec(effective_implied) if effective_implied is not None else None,
+            source=effective_source,
+            snapshot_metadata=effective_metadata,
+            captured_at=locked_at,
+        )
+        self.session.add(snapshot)
+        await self.session.flush()
 
         ttr_seconds: int | None = None
         close_at = _as_utc(external_market.close_at)
@@ -69,19 +99,24 @@ class ForecastService:
         forecast = ForecastLog(
             forecaster_id=forecaster.id,
             external_market_id=external_market.id,
+            market_snapshot_id=snapshot.id,
             seq=next_seq,
+            platform=external_market.platform,
+            market_url=external_market.url,
+            outcome_label=outcome_label,
             user_probability=_dec(user_probability),
             market_implied_probability=(
-                _dec(market_implied_probability)
-                if market_implied_probability is not None
+                _dec(effective_implied)
+                if effective_implied is not None
                 else None
             ),
-            snapshot_source=snapshot_source,
+            snapshot_source=effective_source,
             is_independent=scoring.is_independent(
-                user_probability, market_implied_probability
+                user_probability, effective_implied
             ),
             mode=mode,
             source=source,
+            snapshot_metadata=effective_metadata,
             time_to_resolution_seconds=ttr_seconds,
             locked_at=locked_at,
         )

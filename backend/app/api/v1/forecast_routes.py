@@ -85,7 +85,12 @@ async def create_forecast(
     forecaster = await _require_forecaster(db, body.token)
     market_service = ExternalMarketService(db)
     try:
-        market = await market_service.resolve_url(body.url)
+        market = await market_service.resolve_url(
+            body.url,
+            body.market_title,
+            body.category,
+            body.close_at,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -98,6 +103,8 @@ async def create_forecast(
             snapshot_source=body.snapshot_source,
             mode=body.mode,
             source=body.source,
+            outcome_label=body.outcome_label,
+            snapshot_metadata=body.snapshot_metadata,
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
@@ -106,12 +113,17 @@ async def create_forecast(
         id=forecast.id,
         external_market_id=forecast.external_market_id,
         seq=forecast.seq,
+        platform=forecast.platform,
+        market_url=forecast.market_url,
+        outcome_label=forecast.outcome_label,
         user_probability=float(forecast.user_probability),
         market_implied_probability=(
             float(forecast.market_implied_probability)
             if forecast.market_implied_probability is not None
             else None
         ),
+        snapshot_source=forecast.snapshot_source,
+        snapshot_metadata=forecast.snapshot_metadata,
         is_independent=forecast.is_independent,
         mode=forecast.mode,
         source=forecast.source,
@@ -127,8 +139,8 @@ async def get_dashboard(
     db: AsyncSession = Depends(get_db),
 ):
     forecaster = await _require_forecaster(db, x_forecaster_token)
-    live, practice, calibration, categories = await ForecastDashboardService(db).build(
-        forecaster.id
+    live, practice, calibration, categories, platforms, time_buckets, brier_trend = (
+        await ForecastDashboardService(db).build(forecaster.id)
     )
     return DashboardResponse(
         forecaster_id=forecaster.id,
@@ -138,6 +150,9 @@ async def get_dashboard(
         practice=practice,
         calibration=calibration,
         category_breakdown=categories,
+        platform_breakdown=platforms,
+        time_breakdown=time_buckets,
+        brier_trend=brier_trend,
     )
 
 

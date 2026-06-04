@@ -18,11 +18,16 @@ from app.forecasting import (
     CALIBRATION_MIN_SAMPLE,
 )
 from app.schemas.forecast import (
+    BrierTrendPoint,
     CalibrationBin,
     CategoryEdge,
     DashboardMetrics,
+    PlatformEdge,
     PracticeMetrics,
+    TimeBucketEdge,
 )
+
+TIME_BUCKETS = ("7d+", "1-7d", "6-24h", "1-6h", "<1h", "unknown")
 
 
 class _Row:
@@ -67,28 +72,32 @@ class ForecastDashboardService:
         practice = self._practice_metrics(practice_scored)
         calibration = self._calibration(live_scored)
         categories = self._category_breakdown(live_scored)
-        return live, practice, calibration, categories
+        platforms = self._platform_breakdown(live_scored)
+        time_buckets = self._time_breakdown(live_scored)
+        brier_trend = self._brier_trend(live_scored)
+        return live, practice, calibration, categories, platforms, time_buckets, brier_trend
 
     def _live_metrics(self, live_scored: list[_Row], unresolved_count: int) -> DashboardMetrics:
         independent = [r for r in live_scored if r.forecast.is_independent]
         anchored = [r for r in live_scored if not r.forecast.is_independent]
+        headline = [r for r in independent if _time_bucket(r.forecast) != "<1h"]
 
-        user_briers = [float(r.score.user_brier) for r in live_scored]
+        user_briers = [float(r.score.user_brier) for r in headline]
         market_briers = [
-            float(r.score.market_brier) for r in live_scored if r.score.market_brier is not None
+            float(r.score.market_brier) for r in headline if r.score.market_brier is not None
         ]
-        # Edge-over-market only counts independent forecasts (anchored ones carry no signal).
         deltas = [
             float(r.score.brier_delta)
-            for r in independent
+            for r in headline
             if r.score.brier_delta is not None
         ]
-        pnl_total = round(sum(float(r.score.synthetic_pnl) for r in live_scored), 4)
+        pnl_total = round(sum(float(r.score.synthetic_pnl) for r in headline), 4)
 
         resolved_count = len(live_scored)
         return DashboardMetrics(
             resolved_count=resolved_count,
             unresolved_count=unresolved_count,
+            headline_count=len(headline),
             independent_count=len(independent),
             anchored_count=len(anchored),
             mean_user_brier=_mean(user_briers),
@@ -140,7 +149,9 @@ class ForecastDashboardService:
         return bins
 
     def _category_breakdown(self, live_scored: list[_Row]) -> list[CategoryEdge]:
-        independent = [r for r in live_scored if r.forecast.is_independent]
+        independent = [
+            r for r in live_scored if r.forecast.is_independent and _time_bucket(r.forecast) != "<1h"
+        ]
         by_category: dict[str, list[float]] = {}
         counts: dict[str, int] = {}
         for r in independent:
@@ -153,6 +164,74 @@ class ForecastDashboardService:
                 category=cat,
                 count=counts[cat],
                 mean_brier_delta=_mean(by_category.get(cat, [])),
+                provisional=counts[cat] < 20,
             )
             for cat in sorted(counts)
         ]
+
+    def _platform_breakdown(self, live_scored: list[_Row]) -> list[PlatformEdge]:
+        by_platform: dict[object, list[float]] = {}
+        counts: dict[object, int] = {}
+        for r in live_scored:
+            platform = r.forecast.platform
+            counts[platform] = counts.get(platform, 0) + 1
+            if r.forecast.is_independent and _time_bucket(r.forecast) != "<1h":
+                if r.score.brier_delta is not None:
+                    by_platform.setdefault(platform, []).append(float(r.score.brier_delta))
+        return [
+            PlatformEdge(
+                platform=platform,
+                count=counts[platform],
+                mean_brier_delta=_mean(by_platform.get(platform, [])),
+            )
+            for platform in sorted(counts, key=lambda p: p.value)
+        ]
+
+    def _time_breakdown(self, live_scored: list[_Row]) -> list[TimeBucketEdge]:
+        by_bucket: dict[str, list[float]] = {bucket: [] for bucket in TIME_BUCKETS}
+        counts: dict[str, int] = {bucket: 0 for bucket in TIME_BUCKETS}
+        for r in live_scored:
+            bucket = _time_bucket(r.forecast)
+            counts[bucket] += 1
+            if r.forecast.is_independent and bucket != "<1h" and r.score.brier_delta is not None:
+                by_bucket[bucket].append(float(r.score.brier_delta))
+        return [
+            TimeBucketEdge(
+                bucket=bucket,
+                count=counts[bucket],
+                mean_brier_delta=_mean(by_bucket[bucket]),
+            )
+            for bucket in TIME_BUCKETS
+        ]
+
+    def _brier_trend(self, live_scored: list[_Row]) -> list[BrierTrendPoint]:
+        headline = [
+            r for r in live_scored if r.forecast.is_independent and _time_bucket(r.forecast) != "<1h"
+        ]
+        ordered = sorted(headline, key=lambda r: r.forecast.locked_at)
+        return [
+            BrierTrendPoint(
+                seq=index,
+                locked_at=r.forecast.locked_at,
+                user_brier=float(r.score.user_brier),
+                market_brier=(
+                    float(r.score.market_brier) if r.score.market_brier is not None else None
+                ),
+            )
+            for index, r in enumerate(ordered, start=1)
+        ]
+
+
+def _time_bucket(forecast: ForecastLog) -> str:
+    seconds = forecast.time_to_resolution_seconds
+    if seconds is None:
+        return "unknown"
+    if seconds >= 7 * 24 * 60 * 60:
+        return "7d+"
+    if seconds >= 24 * 60 * 60:
+        return "1-7d"
+    if seconds >= 6 * 60 * 60:
+        return "6-24h"
+    if seconds >= 60 * 60:
+        return "1-6h"
+    return "<1h"

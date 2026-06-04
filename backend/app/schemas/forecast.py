@@ -59,6 +59,11 @@ class ForecastCreateRequest(BaseModel):
     user_probability: float = Field(ge=0.0, le=1.0, description="Your P(YES) belief.")
     market_implied_probability: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     snapshot_source: str = "manual"
+    outcome_label: str = "YES"
+    snapshot_metadata: dict[str, object] = Field(default_factory=dict)
+    market_title: Optional[str] = None
+    category: Optional[str] = None
+    close_at: Optional[datetime] = None
     mode: ForecastMode = ForecastMode.LIVE
     source: ForecastSource = ForecastSource.WEB
 
@@ -67,8 +72,13 @@ class ForecastResponse(BaseModel):
     id: UUID
     external_market_id: UUID
     seq: int
+    platform: Platform
+    market_url: str
+    outcome_label: str
     user_probability: float
     market_implied_probability: Optional[float]
+    snapshot_source: str
+    snapshot_metadata: dict[str, object]
     is_independent: bool
     mode: ForecastMode
     source: ForecastSource
@@ -95,11 +105,32 @@ class CategoryEdge(BaseModel):
     category: str
     count: int
     mean_brier_delta: Optional[float]
+    provisional: bool
+
+
+class PlatformEdge(BaseModel):
+    platform: Platform
+    count: int
+    mean_brier_delta: Optional[float]
+
+
+class TimeBucketEdge(BaseModel):
+    bucket: str
+    count: int
+    mean_brier_delta: Optional[float]
+
+
+class BrierTrendPoint(BaseModel):
+    seq: int
+    locked_at: datetime
+    user_brier: float
+    market_brier: Optional[float]
 
 
 class DashboardMetrics(BaseModel):
     resolved_count: int
     unresolved_count: int
+    headline_count: int
     independent_count: int
     anchored_count: int
     mean_user_brier: Optional[float]
@@ -124,3 +155,6 @@ class DashboardResponse(BaseModel):
     practice: PracticeMetrics
     calibration: list[CalibrationBin]
     category_breakdown: list[CategoryEdge]
+    platform_breakdown: list[PlatformEdge]
+    time_breakdown: list[TimeBucketEdge]
+    brier_trend: list[BrierTrendPoint]
