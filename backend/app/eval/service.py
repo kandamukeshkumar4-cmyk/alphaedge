@@ -58,7 +58,7 @@ class EvalService:
             cal_err = Decimal("0")
         else:
             mean_brier = Decimal(str(sum(float(e.brier_score) for e in evals) / len(evals)))
-            cal_err = mean_brier  # simplified stub
+            cal_err = _weighted_calibration_error(evals)
 
         agg = EvalAggregate(
             window_days=window_days,
@@ -84,3 +84,26 @@ class EvalService:
                 b["mean_pred"] /= b["count"]
                 b["mean_outcome"] /= b["count"]
         return bins
+
+
+def _weighted_calibration_error(evaluations: list[Evaluation], n_bins: int = 10) -> Decimal:
+    bins: list[list[tuple[float, int]]] = [[] for _ in range(n_bins)]
+    for ev in evaluations:
+        if ev.predicted_prob is None:
+            continue
+        predicted = float(ev.predicted_prob)
+        idx = min(max(int(predicted * n_bins), 0), n_bins - 1)
+        bins[idx].append((predicted, ev.actual_outcome))
+
+    total = sum(len(items) for items in bins)
+    if total == 0:
+        return Decimal("0")
+
+    weighted_error = 0.0
+    for items in bins:
+        if not items:
+            continue
+        mean_pred = sum(prediction for prediction, _ in items) / len(items)
+        mean_outcome = sum(outcome for _, outcome in items) / len(items)
+        weighted_error += (len(items) / total) * abs(mean_pred - mean_outcome)
+    return Decimal(str(round(weighted_error, 6)))
