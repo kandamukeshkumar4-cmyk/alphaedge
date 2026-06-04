@@ -210,4 +210,6 @@ Lakers vs Celtics - nba-2025-01-15-lal-bos (open)
 - Hugging Face free CPU Spaces can sleep or cold start.
 - This deploy runs the API only; no worker is attached to `REDIS_URL`.
 - Keep the Space public for the portfolio demo unless you add an auth layer.
+- The live paper-order smoke test uses the admin-only deployment smoke account
+  so deploy verification does not add cancelled orders to the public portfolio.
 - This remains paper-trading only with simulated funds and no external execution paths.

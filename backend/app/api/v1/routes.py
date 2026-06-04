@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
@@ -13,9 +13,6 @@ from app.db.models import (
     Evaluation,
     Fill,
     Market,
-    Order,
-    OrderSide,
-    OrderStatus,
     PredictionLog,
 )
 from app.db.models import Position
@@ -27,8 +24,6 @@ from app.schemas.market import (
     MarketForecastSnapshot,
     MarketResponse,
     MarketSnapshotResponse,
-    AccountOrderHistoryResponse,
-    OpenOrderResponse,
     OrderCancelRequest,
     OrderCreate,
     OrderResponse,
@@ -39,6 +34,7 @@ from app.schemas.market import (
 )
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
+from app.services.paper_account_service import PaperAccountService
 from app.services.paper_signal_service import PaperSignalService
 
 router = APIRouter(prefix="/api/v1", tags=["public"])
@@ -186,124 +182,11 @@ async def submit_market_signal(
 
 @router.get("/paper-account", response_model=PaperAccountResponse)
 async def get_paper_account(db: AsyncSession = Depends(get_db)):
-    svc = MarketService(db)
-    account = await svc.seed_system_account(
+    return await PaperAccountService(db).get_or_seed_response(
         UUID(settings.system_account_id),
         Decimal(str(settings.system_initial_bankroll)),
         "System Paper Account",
-    )
-    obs = OrderBookService(db)
-    reserved_cash = (await obs.reserved_cash(account.id)).quantize(Decimal("0.0001"))
-    available_cash = (account.cash_balance - reserved_cash).quantize(Decimal("0.0001"))
-    positions_result = await db.execute(
-        select(Position).where(Position.account_id == account.id)
-    )
-    open_orders_result = await db.execute(
-        select(Order, Market)
-        .join(Market, Market.id == Order.market_id)
-        .where(
-            Order.account_id == account.id,
-            Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
-        )
-        .order_by(Order.created_at.desc())
-    )
-    open_orders = []
-    for order, market in open_orders_result.all():
-        remaining = order.quantity - order.filled_quantity
-        reserved_notional = Decimal("0")
-        if order.side == OrderSide.BUY and order.price is not None:
-            reserved_notional = order.price * remaining
-        open_orders.append(
-            OpenOrderResponse(
-                id=order.id,
-                market_id=order.market_id,
-                market_slug=market.slug,
-                market_title=market.title,
-                side=order.side,
-                outcome=order.outcome,
-                order_type=order.order_type,
-                price=order.price,
-                quantity=order.quantity,
-                filled_quantity=order.filled_quantity,
-                remaining_quantity=remaining,
-                reserved_notional=reserved_notional.quantize(Decimal("0.0001")),
-                status=order.status,
-            )
-        )
-    order_history_result = await db.execute(
-        select(Order, Market)
-        .join(Market, Market.id == Order.market_id)
-        .where(
-            Order.account_id == account.id,
-            Order.status.in_([OrderStatus.FILLED, OrderStatus.CANCELLED]),
-        )
-        .order_by(Order.created_at.desc(), Order.id.desc())
-        .limit(25)
-    )
-    historical_orders = order_history_result.all()
-    historical_order_ids = [order.id for order, _market in historical_orders]
-    fill_metrics: dict[UUID, tuple[Decimal, Decimal]] = {}
-    if historical_order_ids:
-        fills_result = await db.execute(
-            select(Fill).where(
-                or_(
-                    Fill.buy_order_id.in_(historical_order_ids),
-                    Fill.sell_order_id.in_(historical_order_ids),
-                )
-            )
-        )
-        for fill in fills_result.scalars().all():
-            for order_id in (fill.buy_order_id, fill.sell_order_id):
-                if order_id not in historical_order_ids:
-                    continue
-                quantity, notional = fill_metrics.get(
-                    order_id,
-                    (Decimal("0"), Decimal("0")),
-                )
-                fill_metrics[order_id] = (
-                    quantity + fill.quantity,
-                    notional + (fill.price * fill.quantity),
-                )
-    order_history = []
-    for order, market in historical_orders:
-        filled_quantity, filled_notional = fill_metrics.get(
-            order.id,
-            (Decimal("0"), Decimal("0")),
-        )
-        average_fill_price = None
-        if filled_quantity > 0:
-            average_fill_price = (filled_notional / filled_quantity).quantize(
-                Decimal("0.0001")
-            )
-        order_history.append(
-            AccountOrderHistoryResponse(
-                id=order.id,
-                market_id=order.market_id,
-                market_slug=market.slug,
-                market_title=market.title,
-                side=order.side,
-                outcome=order.outcome,
-                order_type=order.order_type,
-                price=order.price,
-                quantity=order.quantity,
-                filled_quantity=order.filled_quantity,
-                remaining_quantity=order.quantity - order.filled_quantity,
-                filled_notional=filled_notional.quantize(Decimal("0.0001")),
-                average_fill_price=average_fill_price,
-                status=order.status,
-                created_at=order.created_at,
-            )
-        )
-    return PaperAccountResponse(
-        id=account.id,
-        name=account.name,
-        cash_balance=account.cash_balance.quantize(Decimal("0.0001")),
-        reserved_cash=reserved_cash,
-        available_cash=available_cash,
-        paper_trading_only=settings.paper_trading_only,
-        positions=list(positions_result.scalars().all()),
-        open_orders=open_orders,
-        order_history=order_history,
+        settings.paper_trading_only,
     )
 
 

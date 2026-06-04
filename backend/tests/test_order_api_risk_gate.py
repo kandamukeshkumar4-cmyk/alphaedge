@@ -374,6 +374,83 @@ async def test_order_cancel_releases_reserved_cash_and_removes_open_order_from_a
 
 
 @pytest.mark.asyncio
+async def test_admin_smoke_account_keeps_deploy_orders_out_of_public_portfolio(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-smoke-account-isolation-market",
+        title="Smoke account isolation market",
+        question="Will smoke tests stay out of the public paper account?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            public_before = await client.get("/api/v1/paper-account")
+            smoke_account = await client.get(
+                "/admin/smoke-account",
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+            order_response = await client.post(
+                f"/api/v1/markets/{market.slug}/orders",
+                json={
+                    "account_id": smoke_account.json()["id"],
+                    "side": "buy",
+                    "outcome": "yes",
+                    "order_type": "limit",
+                    "quantity": "10",
+                    "price": "0.55",
+                    "risk": {
+                        "predicted_prob": 0.62,
+                        "confidence": 0.8,
+                        "edge": 0.07,
+                        "current_drawdown": 0,
+                        "minutes_before_start": 120,
+                    },
+                },
+            )
+            public_after_order = await client.get("/api/v1/paper-account")
+            smoke_after_order = await client.get(
+                "/admin/smoke-account",
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+            cancel_response = await client.post(
+                f"/api/v1/orders/{order_response.json()['id']}/cancel",
+                json={"account_id": smoke_account.json()["id"]},
+            )
+            public_after_cancel = await client.get("/api/v1/paper-account")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert public_before.status_code == 200
+    assert smoke_account.status_code == 200
+    assert smoke_account.json()["name"] == "Deployment Smoke Account"
+    assert order_response.status_code == 200
+    assert order_response.json()["account_id"] == smoke_account.json()["id"]
+    assert public_after_order.status_code == 200
+    assert public_after_order.json()["reserved_cash"] == "0.0000"
+    assert public_after_order.json()["open_orders"] == []
+    assert public_after_order.json()["order_history"] == []
+    assert smoke_after_order.status_code == 200
+    assert smoke_after_order.json()["reserved_cash"] == "5.5000"
+    assert [order["id"] for order in smoke_after_order.json()["open_orders"]] == [
+        order_response.json()["id"]
+    ]
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelled"
+    assert public_after_cancel.status_code == 200
+    assert public_after_cancel.json()["reserved_cash"] == "0.0000"
+    assert public_after_cancel.json()["open_orders"] == []
+    assert public_after_cancel.json()["order_history"] == []
+
+
+@pytest.mark.asyncio
 async def test_paper_account_reports_closed_order_history_for_partial_market_fill(db_session):
     market_service = MarketService(db_session)
     market = await market_service.create_market(

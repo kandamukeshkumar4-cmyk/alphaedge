@@ -322,13 +322,16 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "Deployed agent proof unexpectedly created execution artifacts" in workflow
     assert "Smoke-test paper order lifecycle" in workflow
     assert "/api/v1/paper-account" in workflow
+    assert "/admin/smoke-account" in workflow
     assert 'MARKET_SLUG = "nba-2025-01-15-lal-bos"' in workflow
     assert 'f"/api/v1/markets/{MARKET_SLUG}/orders"' in workflow
     assert 'f"/api/v1/orders/{order_id}/cancel"' in workflow
     assert "Expected paper account endpoint to report paper_trading_only=true" in workflow
+    assert "Expected admin smoke account endpoint to report paper_trading_only=true" in workflow
     assert "Expected risk-gated paper order to open" in workflow
     assert "Expected cancellation to release smoke-test order" in workflow
-    assert "Smoke paper order was not removed from open orders after cancel" in workflow
+    assert "Smoke paper order leaked into the public paper account" in workflow
+    assert "Smoke paper order was not removed from smoke-account open orders" in workflow
     assert "Attempt $i/40: /api/v1/markets HTTP $status" in workflow
     assert "ERROR: /api/v1/markets did not return the canonical market in time." in workflow
     assert "ERROR: health check timed out" in workflow
@@ -396,6 +399,7 @@ def test_huggingface_paper_trading_ready_script_checks_live_order_lifecycle():
     assert "$ApiUrl/api/v1/markets" in script
     assert "$ApiUrl/api/v1/markets/$ElectionSlug/snapshot" in script
     assert "$ApiUrl/api/v1/paper-account" in script
+    assert "$ApiUrl/admin/smoke-account" in script
     assert "$ApiUrl/api/v1/markets/$MarketSlug/orders" in script
     assert "$ApiUrl/api/v1/orders/$orderId/cancel" in script
     assert "paper_trading_only" in script
@@ -407,6 +411,7 @@ def test_huggingface_paper_trading_ready_script_checks_live_order_lifecycle():
     assert "Expected risk-gated paper order to open" in script
     assert "lock_at must be in the future for browser paper trading" in script
     assert "Smoke paper order was not removed from open orders after cancel" in script
+    assert "Smoke paper order leaked into the public paper account" in script
     assert "X-Admin-API-Key" in script
     assert "SkipAdminProof" in script
     assert "Expected deployed risk step to reject weak edge" in script

@@ -1,12 +1,20 @@
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
 from app.db.session import get_db
-from app.schemas.market import MarketCreate, MarketResolve, MarketResponse
+from app.schemas.market import (
+    MarketCreate,
+    MarketResolve,
+    MarketResponse,
+    PaperAccountResponse,
+)
 from app.services.market_service import MarketService
+from app.services.paper_account_service import PaperAccountService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -20,6 +28,20 @@ async def create_market(
     svc = MarketService(db)
     market = await svc.create_market(body.slug, body.title, body.question, body.lock_at)
     return market
+
+
+@router.get("/smoke-account", response_model=PaperAccountResponse)
+async def get_smoke_account(
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    settings = get_settings()
+    return await PaperAccountService(db).get_or_seed_response(
+        UUID(settings.smoke_account_id),
+        Decimal(str(settings.system_initial_bankroll)),
+        "Deployment Smoke Account",
+        settings.paper_trading_only,
+    )
 
 
 @router.post("/markets/{market_id}/lock", response_model=MarketResponse)

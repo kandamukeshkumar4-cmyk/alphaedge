@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",
     )
+    smoke_account_id: str = Field(
+        default="00000000-0000-0000-0000-000000000002",
+        alias="SMOKE_ACCOUNT_ID",
+    )
     system_initial_bankroll: float = Field(default=100_000.0, alias="SYSTEM_INITIAL_BANKROLL")
 
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")

@@ -452,9 +452,12 @@ jobs:
           exit 1
 
       - name: Smoke-test paper order lifecycle
+        env:
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
           python3 << 'PY'
           import json
+          import os
           import sys
           import time
           import urllib.error
@@ -462,10 +465,19 @@ jobs:
 
           BASE_URL = "https://mukeshkumarkanda-alphaedge-api.hf.space"
           MARKET_SLUG = "nba-2025-01-15-lal-bos"
+          ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 
-          def request_json(method: str, path: str, payload: dict | None = None) -> tuple[int, dict]:
+          def request_json(
+              method: str,
+              path: str,
+              payload: dict | None = None,
+              *,
+              admin: bool = False,
+          ) -> tuple[int, dict]:
               data = None
               headers = {}
+              if admin:
+                  headers["X-Admin-API-Key"] = ADMIN_API_KEY
               if payload is not None:
                   data = json.dumps(payload).encode("utf-8")
                   headers["Content-Type"] = "application/json"
@@ -501,11 +513,19 @@ jobs:
               raise RuntimeError("Expected cancellation to release smoke-test order")
 
           def run_smoke() -> None:
-              status, account = request_json("GET", "/api/v1/paper-account")
+              status, public_account = request_json("GET", "/api/v1/paper-account")
               if status != 200:
-                  raise RuntimeError(f"/api/v1/paper-account returned HTTP {status}: {account}")
-              if account.get("paper_trading_only") is not True:
+                  raise RuntimeError(f"/api/v1/paper-account returned HTTP {status}: {public_account}")
+              if public_account.get("paper_trading_only") is not True:
                   raise RuntimeError("Expected paper account endpoint to report paper_trading_only=true")
+
+              status, account = request_json("GET", "/admin/smoke-account", admin=True)
+              if status != 200:
+                  raise RuntimeError(f"/admin/smoke-account returned HTTP {status}: {account}")
+              if account.get("paper_trading_only") is not True:
+                  raise RuntimeError("Expected admin smoke account endpoint to report paper_trading_only=true")
+              if account.get("name") != "Deployment Smoke Account":
+                  raise RuntimeError("Expected admin smoke account for deploy lifecycle proof")
 
               account_id = account["id"]
               order_id = ""
@@ -544,9 +564,19 @@ jobs:
               if status != 200:
                   raise RuntimeError(f"post-cancel paper account returned HTTP {status}: {after_cancel}")
               if any(order.get("id") == order_id for order in after_cancel.get("open_orders", [])):
-                  raise RuntimeError("Smoke paper order was not removed from open orders after cancel")
+                  raise RuntimeError("Smoke paper order leaked into the public paper account")
+              if any(order.get("id") == order_id for order in after_cancel.get("order_history", [])):
+                  raise RuntimeError("Smoke paper order leaked into public paper account history")
 
-              print("Paper order lifecycle smoke opened and cancelled one risk-gated order")
+              status, smoke_after_cancel = request_json("GET", "/admin/smoke-account", admin=True)
+              if status != 200:
+                  raise RuntimeError(
+                      f"post-cancel admin smoke account returned HTTP {status}: {smoke_after_cancel}"
+                  )
+              if any(order.get("id") == order_id for order in smoke_after_cancel.get("open_orders", [])):
+                  raise RuntimeError("Smoke paper order was not removed from smoke-account open orders")
+
+              print("Paper order lifecycle smoke opened and cancelled one isolated risk-gated order")
 
           for attempt in range(1, 41):
               try:

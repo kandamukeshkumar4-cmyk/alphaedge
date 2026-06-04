@@ -186,15 +186,32 @@ if (-not $SkipFrontendCheck) {
 $orderId = $null
 $smokeAccountId = $null
 try {
-    $account = Invoke-JsonWithRetry -Label "paper account" -Operation {
+    $publicAccount = Invoke-JsonWithRetry -Label "paper account" -Operation {
         Invoke-Json -Method Get -Uri "$ApiUrl/api/v1/paper-account"
     }
-    if ($account.paper_trading_only -ne $true) {
+    if ($publicAccount.paper_trading_only -ne $true) {
         Add-Failure "Expected paper account endpoint to report paper_trading_only=true."
+    }
+
+    if (-not $AdminApiKey) {
+        throw "AdminApiKey is required for isolated smoke account order lifecycle."
+    }
+
+    $account = Invoke-JsonWithRetry -Label "admin smoke account" -Operation {
+        Invoke-Json `
+            -Method Get `
+            -Uri "$ApiUrl/admin/smoke-account" `
+            -Headers @{ "X-Admin-API-Key" = $AdminApiKey }
+    }
+    if ($account.name -ne "Deployment Smoke Account") {
+        Add-Failure "Expected admin smoke account, got '$($account.name)'."
+    }
+    if ($account.paper_trading_only -ne $true) {
+        Add-Failure "Expected admin smoke account endpoint to report paper_trading_only=true."
     }
     $smokeAccountId = $account.id
     if (-not $smokeAccountId) {
-        throw "Paper account did not return an id."
+        throw "Admin smoke account did not return an id."
     }
 
     $order = Invoke-JsonWithRetry -Label "paper order create" -Operation {
@@ -249,15 +266,27 @@ try {
 
 if ($orderId) {
     try {
-        $afterCancel = Invoke-JsonWithRetry -Label "post-cancel paper account" -Operation {
-            Invoke-Json -Method Get -Uri "$ApiUrl/api/v1/paper-account"
+        $afterCancel = Invoke-JsonWithRetry -Label "post-cancel admin smoke account" -Operation {
+            Invoke-Json `
+                -Method Get `
+                -Uri "$ApiUrl/admin/smoke-account" `
+                -Headers @{ "X-Admin-API-Key" = $AdminApiKey }
         }
         $stillOpen = @($afterCancel.open_orders) | Where-Object { $_.id -eq $orderId }
         if ($stillOpen) {
             Add-Failure "Smoke paper order was not removed from open orders after cancel."
         }
+
+        $publicAfterCancel = Invoke-JsonWithRetry -Label "post-cancel public paper account" -Operation {
+            Invoke-Json -Method Get -Uri "$ApiUrl/api/v1/paper-account"
+        }
+        $publicOpen = @($publicAfterCancel.open_orders) | Where-Object { $_.id -eq $orderId }
+        $publicHistory = @($publicAfterCancel.order_history) | Where-Object { $_.id -eq $orderId }
+        if ($publicOpen -or $publicHistory) {
+            Add-Failure "Smoke paper order leaked into the public paper account."
+        }
     } catch {
-        Add-Failure "Post-cancel paper account check failed: $($_.Exception.Message)"
+        Add-Failure "Post-cancel smoke account check failed: $($_.Exception.Message)"
     }
 }
 
