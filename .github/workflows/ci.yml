@@ -52,9 +52,32 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend
         run: npm ci
+      - name: Test frontend
+        run: npm test
       - name: Lint frontend
         run: npm run lint
       - name: Typecheck frontend
         run: npm run typecheck
       - name: Build frontend
+        run: npm run build
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - name: Install extension
+        run: npm ci
+      - name: Test extension
+        run: npm test
+      - name: Typecheck extension
+        run: npm run typecheck
+      - name: Build extension
         run: npm run build
