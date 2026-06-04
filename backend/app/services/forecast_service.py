@@ -48,7 +48,13 @@ class ForecastService:
         source: ForecastSource = ForecastSource.WEB,
         outcome_label: str = "YES",
         snapshot_metadata: dict[str, object] | None = None,
+        idempotency_key: str | None = None,
     ) -> ForecastLog:
+        if idempotency_key:
+            existing = await self._get_by_idempotency_key(forecaster.id, idempotency_key)
+            if existing is not None:
+                return existing
+
         if not 0.0 <= user_probability <= 1.0:
             raise ValueError("user_probability must be in [0, 1]")
         if market_implied_probability is not None and not 0.0 <= market_implied_probability <= 1.0:
@@ -104,6 +110,7 @@ class ForecastService:
             platform=external_market.platform,
             market_url=external_market.url,
             outcome_label=outcome_label,
+            idempotency_key=idempotency_key,
             user_probability=_dec(user_probability),
             market_implied_probability=(
                 _dec(effective_implied)
@@ -143,6 +150,19 @@ class ForecastService:
                 ForecastLog.external_market_id == external_market_id,
             )
             .order_by(ForecastLog.seq.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_by_idempotency_key(
+        self, forecaster_id, idempotency_key: str
+    ) -> ForecastLog | None:
+        result = await self.session.execute(
+            select(ForecastLog)
+            .where(
+                ForecastLog.forecaster_id == forecaster_id,
+                ForecastLog.idempotency_key == idempotency_key,
+            )
             .limit(1)
         )
         return result.scalar_one_or_none()

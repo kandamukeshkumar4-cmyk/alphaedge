@@ -499,6 +499,12 @@ class ForecastLog(Base):
             unique=True,
         ),
         Index("ix_forecast_logs_market", "external_market_id"),
+        Index(
+            "ix_forecast_logs_forecaster_idempotency",
+            "forecaster_id",
+            "idempotency_key",
+            unique=True,
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -515,6 +521,7 @@ class ForecastLog(Base):
     )
     market_url: Mapped[str] = mapped_column(String(512), default="")
     outcome_label: Mapped[str] = mapped_column(String(128), default="YES")
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     # P(market resolves YES) as believed by the forecaster.
     user_probability: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
     # Market implied P(YES) snapshotted at lock time (API-first). Null if unavailable.

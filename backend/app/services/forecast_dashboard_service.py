@@ -22,6 +22,8 @@ from app.schemas.forecast import (
     CalibrationBin,
     CategoryEdge,
     DashboardMetrics,
+    ForecastLifecycleItem,
+    ForecastLifecycleResponse,
     PlatformEdge,
     PracticeMetrics,
     TimeBucketEdge,
@@ -76,6 +78,39 @@ class ForecastDashboardService:
         time_buckets = self._time_breakdown(live_scored)
         brier_trend = self._brier_trend(live_scored)
         return live, practice, calibration, categories, platforms, time_buckets, brier_trend
+
+    async def lifecycle(self, forecaster_id: UUID) -> ForecastLifecycleResponse:
+        result = await self.session.execute(
+            select(ForecastLog, ForecastScore, ExternalMarket)
+            .join(ExternalMarket, ExternalMarket.id == ForecastLog.external_market_id)
+            .outerjoin(ForecastScore, ForecastScore.forecast_id == ForecastLog.id)
+            .where(ForecastLog.forecaster_id == forecaster_id)
+            .order_by(ForecastLog.locked_at.desc())
+        )
+        rows = [_Row(f, s, m) for f, s, m in result.all() if f.mode == ForecastMode.LIVE]
+        unresolved = [
+            r
+            for r in rows
+            if r.score is None and r.market.status != ExternalMarketStatus.RESOLVED
+        ]
+        recently_resolved = [
+            r
+            for r in rows
+            if r.score is not None and r.market.status == ExternalMarketStatus.RESOLVED
+        ]
+        recently_resolved = sorted(
+            recently_resolved,
+            key=lambda row: row.market.resolved_at or row.forecast.locked_at,
+            reverse=True,
+        )
+        return ForecastLifecycleResponse(
+            unresolved_count=len(unresolved),
+            recently_resolved_count=len(recently_resolved),
+            unresolved=[_lifecycle_item(row, "unresolved") for row in unresolved[:50]],
+            recently_resolved=[
+                _lifecycle_item(row, "resolved") for row in recently_resolved[:25]
+            ],
+        )
 
     def _live_metrics(self, live_scored: list[_Row], unresolved_count: int) -> DashboardMetrics:
         independent = [r for r in live_scored if r.forecast.is_independent]
@@ -235,3 +270,27 @@ def _time_bucket(forecast: ForecastLog) -> str:
     if seconds >= 60 * 60:
         return "1-6h"
     return "<1h"
+
+
+def _lifecycle_item(row: _Row, status: str) -> ForecastLifecycleItem:
+    score = row.score
+    return ForecastLifecycleItem(
+        forecast_id=row.forecast.id,
+        external_market_id=row.market.id,
+        platform=row.forecast.platform,
+        title=row.market.title,
+        url=row.market.url,
+        outcome_label=row.forecast.outcome_label,
+        user_probability=float(row.forecast.user_probability),
+        market_implied_probability=(
+            float(row.forecast.market_implied_probability)
+            if row.forecast.market_implied_probability is not None
+            else None
+        ),
+        locked_at=row.forecast.locked_at,
+        status=status,
+        user_brier=float(score.user_brier) if score is not None else None,
+        brier_delta=float(score.brier_delta) if score is not None and score.brier_delta is not None else None,
+        synthetic_pnl=float(score.synthetic_pnl) if score is not None else None,
+        resolved_at=row.market.resolved_at,
+    )

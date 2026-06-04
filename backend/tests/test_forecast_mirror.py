@@ -3,11 +3,13 @@ from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from app.db.models import (
     ExternalMarketStatus,
     ForecastMode,
     ForecastSource,
+    ForecastLog,
     ForecastScore,
     Platform,
 )
@@ -405,6 +407,112 @@ async def test_full_flow_dashboard(db_session):
             assert dash["live"]["mean_brier_delta"] == pytest.approx(0.16)
             assert dash["live"]["brier_provisional"] is True  # well under 30 samples
             assert dash["live"]["synthetic_pnl_total"] == pytest.approx(0.5)
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_forecast_lock_is_idempotent_for_extension_retries(db_session):
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            created = await client.post("/api/v1/forecasters/anonymous")
+            token = created.json()["token"]
+            payload = {
+                "token": token,
+                "url": POLY_URL,
+                "user_probability": 0.66,
+                "market_implied_probability": 0.5,
+                "source": ForecastSource.EXTENSION.value,
+            }
+
+            first = await client.post(
+                "/api/v1/forecasts",
+                json=payload,
+                headers={"Idempotency-Key": "aeq_retry_same_forecast"},
+            )
+            retry = await client.post(
+                "/api/v1/forecasts",
+                json=payload,
+                headers={"Idempotency-Key": "aeq_retry_same_forecast"},
+            )
+
+            assert first.status_code == 200
+            assert retry.status_code == 200
+            assert retry.json()["id"] == first.json()["id"]
+            assert retry.json()["seq"] == 1
+
+            result = await db_session.execute(select(ForecastLog))
+            assert len(result.scalars().all()) == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_forecaster_lifecycle_lists_unresolved_and_recently_resolved(db_session):
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            created = await client.post("/api/v1/forecasters/anonymous")
+            token = created.json()["token"]
+
+            open_forecast = await client.post(
+                "/api/v1/forecasts",
+                json={
+                    "token": token,
+                    "url": "https://polymarket.com/event/open-lifecycle-market",
+                    "market_title": "Open lifecycle market",
+                    "category": "Sports",
+                    "user_probability": 0.62,
+                    "market_implied_probability": 0.5,
+                    "source": ForecastSource.EXTENSION.value,
+                },
+            )
+            resolved_forecast = await client.post(
+                "/api/v1/forecasts",
+                json={
+                    "token": token,
+                    "url": "https://kalshi.com/markets/LIFE/resolved-lifecycle-market",
+                    "market_title": "Resolved lifecycle market",
+                    "category": "Economics",
+                    "user_probability": 0.72,
+                    "market_implied_probability": 0.5,
+                    "source": ForecastSource.EXTENSION.value,
+                },
+            )
+            assert open_forecast.status_code == 200
+            assert resolved_forecast.status_code == 200
+
+            external_market_id = resolved_forecast.json()["external_market_id"]
+            resolved = await client.post(
+                f"/api/v1/admin/external-markets/{external_market_id}/resolve",
+                json={"winning_outcome": 1},
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+            assert resolved.status_code == 200
+
+            lifecycle = await client.get(
+                "/api/v1/forecasters/me/forecast-lifecycle",
+                headers={"X-Forecaster-Token": token},
+            )
+
+            assert lifecycle.status_code == 200
+            body = lifecycle.json()
+            assert body["unresolved_count"] == 1
+            assert body["recently_resolved_count"] == 1
+            assert body["unresolved"][0]["title"] == "Open lifecycle market"
+            assert body["recently_resolved"][0]["title"] == "Resolved lifecycle market"
+            assert body["recently_resolved"][0]["user_brier"] == pytest.approx(0.0784)
     finally:
         app.dependency_overrides.clear()
 

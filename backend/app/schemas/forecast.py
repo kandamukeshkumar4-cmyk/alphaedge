@@ -75,6 +75,7 @@ class ForecastResponse(BaseModel):
     platform: Platform
     market_url: str
     outcome_label: str
+    idempotency_key: Optional[str]
     user_probability: float
     market_implied_probability: Optional[float]
     snapshot_source: str
@@ -158,3 +159,27 @@ class DashboardResponse(BaseModel):
     platform_breakdown: list[PlatformEdge]
     time_breakdown: list[TimeBucketEdge]
     brier_trend: list[BrierTrendPoint]
+
+
+class ForecastLifecycleItem(BaseModel):
+    forecast_id: UUID
+    external_market_id: UUID
+    platform: Platform
+    title: str
+    url: str
+    outcome_label: str
+    user_probability: float
+    market_implied_probability: Optional[float]
+    locked_at: datetime
+    status: str
+    user_brier: Optional[float] = None
+    brier_delta: Optional[float] = None
+    synthetic_pnl: Optional[float] = None
+    resolved_at: Optional[datetime] = None
+
+
+class ForecastLifecycleResponse(BaseModel):
+    unresolved_count: int
+    recently_resolved_count: int
+    unresolved: list[ForecastLifecycleItem]
+    recently_resolved: list[ForecastLifecycleItem]

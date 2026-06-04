@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import { fetchForecastLifecycle, sendForecastToBackend } from "../backend-client";
 import { chromeForecastQueueStore, syncQueuedForecasts, type QueuedForecast } from "../queue";
 import { getSettings, normalizeApiBase, normalizeUrl, saveSettings } from "../storage";
 
@@ -14,6 +15,8 @@ export function Popup() {
   const [tokenDraft, setTokenDraft] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [queue, setQueue] = useState<QueuedForecast[]>([]);
+  const [unresolvedCount, setUnresolvedCount] = useState(0);
+  const [resolvedCount, setResolvedCount] = useState(0);
   const [notice, setNotice] = useState<Notice>({
     tone: "muted",
     text: "Research and paper simulation only.",
@@ -27,6 +30,7 @@ export function Popup() {
       setHasToken(Boolean(settings.token));
     });
     void refreshQueue();
+    void refreshLifecycle();
   }, []);
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
@@ -73,17 +77,35 @@ export function Popup() {
     setQueue(await chromeForecastQueueStore.loadQueue());
   }
 
+  async function refreshLifecycle() {
+    const settings = await getSettings();
+    if (!settings.token) {
+      return;
+    }
+    try {
+      const lifecycle = await fetchForecastLifecycle({
+        apiBase: settings.apiBase,
+        token: settings.token,
+      });
+      setUnresolvedCount(lifecycle.unresolved_count);
+      setResolvedCount(lifecycle.recently_resolved_count);
+    } catch {
+      setUnresolvedCount(0);
+      setResolvedCount(0);
+    }
+  }
+
   async function handleSyncQueue() {
     const settings = await getSettings();
     const result = await syncQueuedForecasts(chromeForecastQueueStore, async (queued) => {
       try {
-        const response = await fetch(`${settings.apiBase}${queued.message.endpoint}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(queued.message.payload),
+        const response = await sendForecastToBackend({
+          apiBase: settings.apiBase,
+          message: queued.message,
+          idempotencyKey: queued.idempotencyKey,
         });
         if (!response.ok) {
-          return { ok: false, error: `HTTP ${response.status}` };
+          return { ok: false, error: response.error };
         }
         return { ok: true };
       } catch (error) {
@@ -94,6 +116,7 @@ export function Popup() {
       }
     });
     await refreshQueue();
+    await refreshLifecycle();
     setNotice({
       tone: result.failed ? "error" : "success",
       text: `Synced ${result.synced}; failed ${result.failed}.`,
@@ -132,6 +155,17 @@ export function Popup() {
       <button disabled={isCreating} type="button" onClick={() => void handleCreateProfile()}>
         {isCreating ? "Creating" : "Create anonymous profile"}
       </button>
+
+      <section className="queue">
+        <div className="queue-head">
+          <strong>Lifecycle</strong>
+          <span>{unresolvedCount} unresolved</span>
+        </div>
+        <div className="queue-grid">
+          <span>Unresolved {unresolvedCount}</span>
+          <span>Recently scored {resolvedCount}</span>
+        </div>
+      </section>
 
       <section className="queue">
         <div className="queue-head">

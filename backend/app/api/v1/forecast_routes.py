@@ -16,6 +16,7 @@ from app.schemas.forecast import (
     DashboardResponse,
     ExternalMarketResponse,
     ForecastCreateRequest,
+    ForecastLifecycleResponse,
     ForecasterCreateResponse,
     ForecastResponse,
     RecoveryEmailRequest,
@@ -80,6 +81,7 @@ async def resolve_external_url(
 @router.post("/forecasts", response_model=ForecastResponse)
 async def create_forecast(
     body: ForecastCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
 ):
     forecaster = await _require_forecaster(db, body.token)
@@ -105,6 +107,7 @@ async def create_forecast(
             source=body.source,
             outcome_label=body.outcome_label,
             snapshot_metadata=body.snapshot_metadata,
+            idempotency_key=idempotency_key,
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
@@ -116,6 +119,7 @@ async def create_forecast(
         platform=forecast.platform,
         market_url=forecast.market_url,
         outcome_label=forecast.outcome_label,
+        idempotency_key=forecast.idempotency_key,
         user_probability=float(forecast.user_probability),
         market_implied_probability=(
             float(forecast.market_implied_probability)
@@ -154,6 +158,15 @@ async def get_dashboard(
         time_breakdown=time_buckets,
         brier_trend=brier_trend,
     )
+
+
+@router.get("/forecasters/me/forecast-lifecycle", response_model=ForecastLifecycleResponse)
+async def get_forecast_lifecycle(
+    x_forecaster_token: str | None = Header(default=None, alias="X-Forecaster-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    forecaster = await _require_forecaster(db, x_forecaster_token)
+    return await ForecastDashboardService(db).lifecycle(forecaster.id)
 
 
 @router.get("/backfill/markets", response_model=list[BackfillMarketResponse])
