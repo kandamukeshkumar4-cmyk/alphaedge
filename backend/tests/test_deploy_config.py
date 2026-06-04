@@ -7,6 +7,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_github_workflows_opt_into_node24_action_runtime():
     workflow_paths = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    legacy_node20_actions = [
+        "actions/checkout@v3",
+        "actions/checkout@v4",
+        "actions/setup-node@v4",
+        "actions/setup-python@v5",
+    ]
 
     assert workflow_paths
     for workflow_path in workflow_paths:
@@ -14,6 +20,16 @@ def test_github_workflows_opt_into_node24_action_runtime():
         assert (
             'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' in workflow
         ), f"{workflow_path.name} must opt JavaScript actions into Node 24"
+        for legacy_action in legacy_node20_actions:
+            assert (
+                legacy_action not in workflow
+            ), f"{workflow_path.name} still uses {legacy_action}"
+        if "actions/checkout@" in workflow:
+            assert "actions/checkout@v6" in workflow
+        if "actions/setup-node@" in workflow:
+            assert "actions/setup-node@v6" in workflow
+        if "actions/setup-python@" in workflow:
+            assert "actions/setup-python@v6" in workflow
 
 
 def test_backend_dockerfile_has_cloud_start_command():
