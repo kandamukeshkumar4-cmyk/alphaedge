@@ -258,6 +258,14 @@ export async function fetchPaperAccount(input?: {
   }
 }
 
+export async function resetPaperAccountSession(input?: {
+  apiBase?: string;
+  fetcher?: Fetcher;
+}): Promise<PaperAccountResponse | null> {
+  const paperAccountToken = storePaperAccountToken(randomToken());
+  return fetchPaperAccount({ ...input, paperAccountToken });
+}
+
 export function getPaperAccountToken(): string {
   const storage = safeLocalStorage();
   if (storage) {
@@ -267,9 +275,7 @@ export function getPaperAccountToken(): string {
       return existing;
     }
     const token = randomToken();
-    memoryPaperAccountToken = token;
-    storage.setItem(PAPER_ACCOUNT_TOKEN_KEY, token);
-    return token;
+    return storePaperAccountToken(token);
   }
 
   if (memoryPaperAccountToken) {
@@ -277,8 +283,7 @@ export function getPaperAccountToken(): string {
   }
 
   const token = randomToken();
-  memoryPaperAccountToken = token;
-  return token;
+  return storePaperAccountToken(token);
 }
 
 async function fetchJson<T>(fetcher: Fetcher, url: string, init?: RequestInit): Promise<T> {
@@ -325,6 +330,19 @@ function safeLocalStorage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function storePaperAccountToken(token: string): string {
+  memoryPaperAccountToken = token;
+  const storage = safeLocalStorage();
+  if (storage) {
+    try {
+      storage.setItem(PAPER_ACCOUNT_TOKEN_KEY, token);
+    } catch {
+      // Memory fallback still keeps the session isolated for this tab.
+    }
+  }
+  return token;
 }
 
 function randomToken(): string {

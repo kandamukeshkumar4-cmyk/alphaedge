@@ -13,7 +13,11 @@ import {
   selectDisplayedPortfolioState,
   type PaperAccountView,
 } from "@/lib/paper-account-view-model";
-import { cancelPaperOrder, fetchPaperAccount } from "@/lib/paper-trading-api";
+import {
+  cancelPaperOrder,
+  fetchPaperAccount,
+  resetPaperAccountSession,
+} from "@/lib/paper-trading-api";
 import { getMarket, formatUSD, cents, PAPER_BALANCE } from "@/lib/mock-data";
 import { Sparkline } from "@/components/Sparkline";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
@@ -36,6 +40,7 @@ export default function PortfolioPage() {
   });
   const [accountView, setAccountView] = useState<PaperAccountView | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [resettingAccount, setResettingAccount] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -122,6 +127,20 @@ export default function PortfolioPage() {
     }
   }
 
+  async function handleResetPaperAccount() {
+    if (resettingAccount) return;
+    setResettingAccount(true);
+    resetPortfolio();
+    setState(readPortfolio());
+    try {
+      const account = await resetPaperAccountSession();
+      setAccountView(account?.paper_trading_only ? buildPaperAccountView(account) : null);
+      toast({ title: "Paper account reset", tone: "success" });
+    } finally {
+      setResettingAccount(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -130,10 +149,12 @@ export default function PortfolioPage() {
           <p className="mt-1 text-sm text-muted">Paper-trading positions and P&L.</p>
         </div>
         <button
-          onClick={() => resetPortfolio()}
-          className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-muted transition hover:text-text"
+          type="button"
+          onClick={handleResetPaperAccount}
+          disabled={resettingAccount}
+          className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-muted transition hover:text-text disabled:cursor-wait disabled:opacity-50"
         >
-          Reset paper account
+          {resettingAccount ? "Resetting" : "Reset paper account"}
         </button>
       </div>
 

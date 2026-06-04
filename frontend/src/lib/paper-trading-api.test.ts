@@ -1,13 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   cancelPaperOrder,
   fetchPaperAccount,
   getPaperAccountToken,
+  resetPaperAccountSession,
   submitPaperOrder,
 } from "./paper-trading-api";
 
 describe("paper trading API", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("loads the paper account and submits a risk-gated backend order", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     let accountCalls = 0;
@@ -163,6 +169,57 @@ describe("paper trading API", () => {
         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       );
     }
+  });
+
+  it("rotates the browser paper account token and loads a fresh session account", async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => storage.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
+      removeItem: vi.fn((key: string) => storage.delete(key)),
+    });
+    vi.stubGlobal("crypto", {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+        .mockReturnValueOnce("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+    });
+
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://api.example.test/api/v1/paper-account");
+      expect(headersObject(init?.headers)["x-paper-account-token"]).toBe(
+        "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      );
+      return jsonResponse({
+        id: "77777777-7777-7777-7777-777777777777",
+        name: "Paper Session Account",
+        cash_balance: "100000.0000",
+        reserved_cash: "0.0000",
+        available_cash: "100000.0000",
+        paper_trading_only: true,
+        positions: [],
+        open_orders: [],
+        order_history: [],
+      });
+    });
+
+    expect(getPaperAccountToken()).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+
+    const account = await resetPaperAccountSession({
+      apiBase: "https://api.example.test",
+      fetcher,
+    });
+
+    expect(account).toMatchObject({
+      id: "77777777-7777-7777-7777-777777777777",
+      available_cash: "100000.0000",
+      reserved_cash: "0.0000",
+      open_orders: [],
+      order_history: [],
+    });
+    expect(getPaperAccountToken()).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    expect(localStorage.setItem).toHaveBeenCalledTimes(2);
+    expect(crypto.randomUUID).toHaveBeenCalledTimes(2);
   });
 
   it("fails closed when no API base is configured", async () => {
