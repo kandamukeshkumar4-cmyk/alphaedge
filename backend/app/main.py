@@ -10,6 +10,7 @@ from app import PAPER_TRADING_DISCLAIMER
 from app.admin.agent_routes import router as agent_admin_router
 from app.admin.routes import router as admin_router
 from app.api.v1.eval_routes import router as eval_router
+from app.api.v1.forecast_routes import router as forecast_router
 from app.api.v1.routes import router as v1_router
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -56,6 +57,7 @@ app.add_middleware(
 )
 
 app.include_router(v1_router)
+app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(admin_router)
 app.include_router(agent_admin_router)
