@@ -22,7 +22,7 @@ def upgrade() -> None:
         """
         UPDATE forecasters
         SET recovery_code_hash =
-            md5(id::text || ':alphaedge-recovery-code-v1') ||
+            md5(id::text || 'alphaedge-recovery-code-v1') ||
             md5('alphaedge-recovery-code-v1:' || id::text)
         WHERE recovery_code_hash IS NULL
         """

@@ -31,3 +31,4 @@ def test_forecaster_recovery_code_uses_incremental_migration():
     assert 'op.add_column("forecasters", sa.Column("recovery_code_hash"' in migration
     assert "ix_forecasters_recovery_code_hash" in migration
     assert "unique=True" in migration
+    assert "':alphaedge" not in migration
