@@ -4,30 +4,48 @@ import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 
-// Promo card (mirrors Kalshi's "Intro to…" card) — our own paper-trading copy.
+// Paper-trading card for the market rail.
 export function PromoCard() {
   const [closed, setClosed] = useState(false);
   if (closed) return null;
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="relative h-28 bg-[radial-gradient(120%_120%_at_50%_-20%,rgba(47,107,255,0.55),rgba(8,8,12,0.1))]">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+      <div className="relative p-4">
         <button
           onClick={() => setClosed(true)}
-          className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-md bg-black/30 text-muted transition hover:text-text"
+          className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-md border border-border text-muted transition hover:border-border-light hover:text-text"
           aria-label="Dismiss"
         >
           ✕
         </button>
-        <div className="absolute inset-0 opacity-40 [background-image:repeating-linear-gradient(90deg,transparent,transparent_7px,rgba(77,141,255,0.25)_8px)]" />
-      </div>
-      <div className="p-4 text-center">
-        <h3 className="text-sm font-black text-text">Intro to AlphaEdge</h3>
-        <p className="mt-1 text-xs leading-relaxed text-muted">
-          Practice AI-priced prediction markets with $100,000 in paper money.
+        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">
+          Paper trading
+        </div>
+        <h3 className="mt-3 text-xl font-black tracking-tight text-text">
+          Simulated funds only
+        </h3>
+        <p className="mt-2 max-w-[220px] text-sm leading-relaxed text-muted">
+          Practice trading with real market data. No real money at stake.
         </p>
+
+        <div className="mt-5 rounded-md border border-border bg-bg/65 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted">Paper balance</span>
+            <span className="font-mono text-lg font-black text-primary">$100,000</span>
+          </div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-3">
+            <div className="h-full w-[78%] rounded-full bg-primary" />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="h-8 rounded border border-border bg-surface-2" />
+            <div className="h-8 rounded border border-border bg-surface-2" />
+            <div className="h-8 rounded border border-border bg-surface-2" />
+          </div>
+        </div>
+
         <Link
           href="/auth/signup"
-          className="mt-3 inline-block w-full rounded-lg bg-primary py-2 text-sm font-bold text-white transition hover:bg-accent"
+          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary text-sm font-black text-bg shadow-glow transition hover:bg-accent"
         >
           Get started
         </Link>

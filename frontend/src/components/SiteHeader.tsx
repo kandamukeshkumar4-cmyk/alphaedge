@@ -15,14 +15,15 @@ const NAV = [
 ];
 
 const CATEGORY_TABS = [
-  "Trending",
-  "Sports",
-  "Politics",
-  "Crypto",
-  "Culture",
-  "Economics",
-  "Commodities",
-  "Tech",
+  { label: "All", href: "/" },
+  { label: "Sports", href: "/markets?cat=Sports" },
+  { label: "Politics", href: "/markets?cat=Politics" },
+  { label: "Crypto", href: "/markets?cat=Crypto" },
+  { label: "Culture", href: "/markets?cat=Culture" },
+  { label: "Economics", href: "/markets?cat=Economics" },
+  { label: "Tech", href: "/markets?cat=Tech" },
+  { label: "World", href: "/markets?cat=Politics" },
+  { label: "Paper trading", href: "/portfolio" },
 ];
 
 export function SiteHeader() {
@@ -31,29 +32,35 @@ export function SiteHeader() {
   const showCategoryBar = pathname === "/" || pathname.startsWith("/markets");
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:gap-5">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-sm font-black text-white">
-            α
+    <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-[60px] max-w-[1440px] items-center gap-4 px-4 sm:px-5">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="AlphaEdge home">
+          <span className="relative h-8 w-8 overflow-hidden rounded-md bg-primary-dim">
+            <span className="absolute bottom-0 left-1 h-6 w-2 -skew-x-[28deg] bg-primary" />
+            <span className="absolute bottom-0 left-3.5 h-8 w-2 -skew-x-[28deg] bg-accent" />
+            <span className="absolute bottom-0 right-1 h-4 w-2 -skew-x-[28deg] bg-primary/70" />
           </span>
-          <span className="text-base font-black tracking-tight text-text">
-            Alpha<span className="text-primary">Edge</span>
+          <span className="text-lg font-black tracking-tight text-text">
+            AlphaEdge
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-5 text-sm font-semibold text-muted lg:flex">
+        <nav className="hidden items-center gap-7 text-[12px] font-black uppercase tracking-[0.08em] text-muted lg:flex">
           {NAV.map((item) => {
+            const base = item.href.split("?")[0];
+            const isCategoryNav = item.href.includes("?cat=");
             const active =
-              item.href === pathname ||
-              (item.href !== "/markets" && pathname.startsWith(item.href.split("?")[0]) && item.href !== "/");
+              item.href === "/markets"
+                ? pathname.startsWith("/markets")
+                : !isCategoryNav && (pathname === base || pathname.startsWith(`${base}/`));
             return (
               <Link
                 key={item.label}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "transition hover:text-text",
-                  active && "text-primary",
+                  "relative py-5 transition hover:text-text",
+                  active && "text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary",
                 )}
               >
                 {item.label}
@@ -62,38 +69,35 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-md">
-          <div className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted transition focus-within:border-accent">
+        <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[430px]">
+          <label className="flex h-10 w-full items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-border-light focus-within:bg-surface-2">
             <SearchIcon />
             <input
-              className="w-full bg-transparent text-text placeholder:text-muted-2 focus:outline-none"
-              placeholder="Trade on anything…"
+              className="w-full bg-transparent text-sm font-medium text-text placeholder:text-muted-2 focus:outline-none"
+              placeholder="Search markets"
               aria-label="Search markets"
             />
-          </div>
+            <span className="hidden rounded border border-border-light px-1.5 py-0.5 font-mono text-[10px] text-muted-2 xl:inline">
+              /
+            </span>
+          </label>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 md:ml-3">
-          <button
-            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text"
-            aria-label="Notifications"
-          >
-            <BellIcon />
-          </button>
+        <div className="flex items-center gap-2">
           <Link
             href="/auth/login"
-            className="hidden rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text transition hover:border-border-light sm:block"
+            className="hidden h-10 items-center rounded-md border border-border px-5 text-sm font-bold text-text transition hover:border-border-light hover:bg-surface sm:inline-flex"
           >
             Log in
           </Link>
           <Link
             href="/auth/signup"
-            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-bold text-white transition hover:bg-accent"
+            className="inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-black text-bg shadow-glow transition hover:bg-accent"
           >
             Sign up
           </Link>
           <button
-            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted lg:hidden"
+            className="grid h-10 w-10 place-items-center rounded-md border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
             aria-label="Menu"
             onClick={() => setOpen((v) => !v)}
           >
@@ -103,22 +107,32 @@ export function SiteHeader() {
       </div>
 
       {showCategoryBar && (
-        <div className="border-t border-border/60">
-          <div className="no-scrollbar mx-auto flex max-w-[1400px] items-center gap-4 overflow-x-auto px-4 py-2 text-sm">
+        <div className="border-t border-border/70">
+          <div className="no-scrollbar mx-auto flex max-w-[1440px] items-center gap-7 overflow-x-auto px-4 py-3 text-sm sm:px-5">
             {CATEGORY_TABS.map((tab, i) => (
               <Link
-                key={tab}
-                href={tab === "Trending" ? "/" : `/markets?cat=${tab}`}
+                key={tab.label}
+                href={tab.href}
                 className={cn(
-                  "whitespace-nowrap font-semibold transition",
-                  i === 0
-                    ? "border-b-2 border-primary pb-1 text-text"
-                    : "text-muted hover:text-text",
+                  "group relative flex shrink-0 items-center gap-2 whitespace-nowrap pb-1 font-bold text-muted transition hover:text-text",
+                  i === 0 && "text-text after:absolute after:inset-x-0 after:-bottom-3 after:h-0.5 after:bg-primary",
                 )}
               >
-                {tab}
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-sm border border-border-light transition group-hover:border-primary",
+                    i === 0 ? "bg-primary" : "bg-surface-3",
+                  )}
+                />
+                {tab.label}
               </Link>
             ))}
+            <Link
+              href="/markets"
+              className="ml-auto hidden shrink-0 rounded-md border border-border px-4 py-2 text-xs font-black text-text transition hover:border-border-light hover:bg-surface xl:block"
+            >
+              View all
+            </Link>
           </div>
         </div>
       )}
@@ -148,15 +162,6 @@ function SearchIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="11" cy="11" r="7" />
       <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.7 21a2 2 0 0 1-3.4 0" strokeLinecap="round" />
     </svg>
   );
 }

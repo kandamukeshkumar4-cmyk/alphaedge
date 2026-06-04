@@ -46,7 +46,7 @@ export function OnboardingBanner() {
           </div>
           <Link
             href="/auth/signup"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-accent"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-bg transition hover:bg-accent"
           >
             Complete sign up
           </Link>

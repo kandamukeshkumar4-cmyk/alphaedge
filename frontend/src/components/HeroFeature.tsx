@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { MultiLineChart } from "./MultiLineChart";
 import {
   pct,
-  multiplier,
   formatCompactUSD,
   timeUntil,
   type Market,
@@ -13,138 +13,237 @@ import {
 } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
-const PILL: Record<OutcomeTone, string> = {
-  primary: "border-primary/40 text-primary",
-  danger: "border-danger/40 text-danger",
-  accent: "border-accent/40 text-accent",
-  gold: "border-gold/40 text-gold",
-  muted: "border-border-light text-muted",
+const TONE_BORDER: Record<OutcomeTone, string> = {
+  primary: "border-primary/45 bg-primary-dim/55 text-primary",
+  danger: "border-danger/45 bg-danger-dim/55 text-danger",
+  accent: "border-sky-400/45 bg-sky-400/10 text-sky-300",
+  gold: "border-gold/45 bg-gold/10 text-gold",
+  muted: "border-border-light bg-surface-2 text-muted",
 };
 
 export function HeroFeature({ markets }: { markets: Market[] }) {
   const [idx, setIdx] = useState(0);
-  const market = markets[idx];
+  const [selected, setSelected] = useState<string>("");
+  const market = markets[idx] ?? markets[0];
+  if (!market) return null;
+
   const count = markets.length;
   const shown = market.outcomes.slice(0, 4);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-surface-2 text-lg">
-            {market.icon}
-          </span>
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-2">
-              {market.category}
-            </div>
-            <Link
-              href={`/markets/${market.slug}`}
-              className="text-base font-black leading-tight text-text transition hover:text-accent sm:text-lg"
-            >
-              {market.title}
-            </Link>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <span className="font-mono text-xs">
-            {idx + 1} of {count}
-          </span>
-          <button
-            onClick={() => setIdx((p) => (p - 1 + count) % count)}
-            className="grid h-7 w-7 place-items-center rounded-md border border-border transition hover:border-border-light hover:text-text"
-            aria-label="Previous"
-          >
-            ‹
-          </button>
-          <button
-            onClick={() => setIdx((p) => (p + 1) % count)}
-            className="grid h-7 w-7 place-items-center rounded-md border border-border transition hover:border-border-light hover:text-text"
-            aria-label="Next"
-          >
-            ›
-          </button>
-        </div>
-      </div>
-
-      {/* Body: outcomes table (left) + chart (right) — Kalshi featured layout */}
-      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <div className="min-w-0">
-          {/* Column headers */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_56px] items-center gap-3 border-b border-border px-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-2">
-            <span>Market</span>
-            <span className="text-right">Payout</span>
-            <span className="text-right">Chance</span>
-          </div>
-
-          {/* Outcome rows */}
-          <div className="divide-y divide-border">
-            {shown.map((o) => (
+    <section className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
+      <div className="grid lg:grid-cols-[410px_minmax(0,1fr)]">
+        <div className="border-b border-border p-4 sm:p-5 lg:border-b-0 lg:border-r">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">
+                Featured market
+              </div>
               <Link
-                key={o.id}
                 href={`/markets/${market.slug}`}
-                className="grid grid-cols-[minmax(0,1fr)_auto_56px] items-center gap-3 px-1 py-2.5 transition hover:bg-surface-2"
+                className="mt-2 block text-3xl font-black leading-tight tracking-tight text-text transition hover:text-primary"
               >
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-2 text-sm">
-                    {o.emoji}
-                  </span>
-                  <span className="truncate text-sm font-semibold text-text">
-                    {o.label}
-                  </span>
-                </span>
-                <span className="text-right font-mono text-xs text-muted-2">
-                  {multiplier(o.price)}
-                </span>
-                <span
-                  className={cn(
-                    "rounded-md border py-1 text-center font-mono text-sm font-black",
-                    PILL[o.tone],
-                  )}
-                >
-                  {pct(o.price)}
-                </span>
+                {market.title}
               </Link>
-            ))}
+              <p className="mt-2 text-sm font-medium text-muted">
+                {market.question}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <IconButton label="Save market">
+                <StarIcon />
+              </IconButton>
+              <IconButton label="Share market">
+                <ShareIcon />
+              </IconButton>
+            </div>
           </div>
 
-          {/* AI line */}
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary-dim px-3 py-2">
-            <span className="text-sm">🤖</span>
-            <span className="text-xs font-semibold text-text">
-              AI model {pct(market.forecast.prob)}
-            </span>
-            <span className="ml-auto font-mono text-[11px] font-bold text-primary">
-              edge {market.forecast.edge >= 0 ? "+" : ""}
-              {Math.round(market.forecast.edge * 100)}%
-            </span>
+          <div className="mt-4 space-y-3">
+            {shown.map((outcome) => {
+              const yesKey = `${market.slug}:${outcome.id}:YES`;
+              const noKey = `${market.slug}:${outcome.id}:NO`;
+              const yesSelected = selected === yesKey;
+              const noSelected = selected === noKey;
+              return (
+                <div
+                  key={outcome.id}
+                  className="rounded-md border border-border bg-bg/65 p-2.5 transition hover:border-border-light hover:bg-surface-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border-light bg-surface text-xl">
+                      {outcome.emoji}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-base font-black text-text">
+                        {outcome.label}
+                      </div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-2">
+                        Paper order only
+                      </div>
+                    </div>
+                    <div className="font-mono text-2xl font-black tabular text-text">
+                      {pct(outcome.price)}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelected(yesKey)}
+                      className={cn(
+                        "rounded-md border px-3 py-2 font-mono text-sm font-black transition",
+                        yesSelected
+                          ? "border-primary bg-primary text-bg"
+                          : "border-primary/55 bg-primary-dim text-primary hover:bg-primary hover:text-bg",
+                      )}
+                    >
+                      YES {pct(outcome.price)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(noKey)}
+                      className={cn(
+                        "rounded-md border px-3 py-2 font-mono text-sm font-black transition",
+                        noSelected
+                          ? "border-danger bg-danger text-bg"
+                          : "border-danger/55 bg-danger-dim text-danger hover:bg-danger hover:text-bg",
+                      )}
+                    >
+                      NO {pct(1 - outcome.price)}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Footer stats + CTA */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-            <span className="font-mono">{formatCompactUSD(market.volume)} Vol.</span>
-            <span className="font-mono">{market.traders.toLocaleString()} traders</span>
-            <span className="font-mono">{timeUntil(market.endsAt)} left</span>
-          </div>
           <Link
             href={`/markets/${market.slug}`}
-            className="mt-3 inline-block w-full rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-accent"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-black text-bg shadow-glow transition hover:bg-accent"
           >
             Trade this market
           </Link>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-4 text-xs text-muted">
+            <Stat label="Volume" value={formatCompactUSD(market.volume)} />
+            <Stat label="Traders" value={market.traders.toLocaleString()} />
+            <Stat label="Closes" value={timeUntil(market.endsAt)} />
+          </div>
         </div>
 
-        {/* Multi-line outcome chart (live + hover-reactive) + context */}
-        <div className="min-w-0">
-          <div className="rounded-xl border border-border bg-bg/40 p-3">
-            <MultiLineChart market={market} height={260} />
+        <div className="min-w-0 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-gold">
+                {market.category}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                {shown.map((outcome) => (
+                  <span key={outcome.id} className="flex items-center gap-1.5 text-sm">
+                    <span
+                      className={cn(
+                        "h-2.5 w-2.5 rounded-full border",
+                        TONE_BORDER[outcome.tone],
+                      )}
+                    />
+                    <span className="font-semibold text-muted">{outcome.label}</span>
+                    <span className="font-mono font-black text-text tabular">
+                      {pct(outcome.price)}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="hidden rounded-md border border-primary/40 bg-primary-dim px-2.5 py-1 text-xs font-black uppercase tracking-[0.1em] text-primary sm:inline-flex">
+                Simulated funds only
+              </span>
+              <button
+                type="button"
+                onClick={() => setIdx((p) => (p - 1 + count) % count)}
+                className="grid h-9 w-9 place-items-center rounded-md border border-border text-muted transition hover:border-border-light hover:text-text"
+                aria-label="Previous featured market"
+              >
+                <ChevronLeftIcon />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIdx((p) => (p + 1) % count)}
+                className="grid h-9 w-9 place-items-center rounded-md border border-border text-muted transition hover:border-border-light hover:text-text"
+                aria-label="Next featured market"
+              >
+                <ChevronRightIcon />
+              </button>
+            </div>
           </div>
-          <p className="mt-2 line-clamp-2 px-1 text-xs leading-relaxed text-muted-2">
-            <span className="font-semibold text-muted">Context</span> · {market.forecast.reasoning}
-          </p>
+
+          <div className="mt-6 rounded-md border border-border bg-bg/55 p-3 sm:p-4">
+            <MultiLineChart market={market} height={270} />
+          </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-sm font-black text-text tabular">{value}</div>
+      <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-muted-2">
+        {label}
+      </div>
     </div>
+  );
+}
+
+function IconButton({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:border-border-light hover:text-text"
+    >
+      {children}
+    </button>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path
+        d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 16V4" strokeLinecap="round" />
+      <path d="m7 9 5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 14v5h14v-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

@@ -212,7 +212,7 @@ export default function PortfolioPage() {
           </p>
           <Link
             href="/"
-            className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-accent"
+            className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-bold text-bg transition hover:bg-accent"
           >
             Browse markets
           </Link>

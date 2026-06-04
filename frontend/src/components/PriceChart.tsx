@@ -64,20 +64,20 @@ export function PriceChart({
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#939AAC",
+        textColor: "#9EA9A3",
         fontFamily: "var(--font-mono), monospace",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(36,36,48,0.6)" },
-        horzLines: { color: "rgba(36,36,48,0.6)" },
+        vertLines: { color: "rgba(36,48,57,0.6)" },
+        horzLines: { color: "rgba(36,48,57,0.6)" },
       },
-      rightPriceScale: { borderColor: "#242430" },
-      timeScale: { borderColor: "#242430", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "#243039" },
+      timeScale: { borderColor: "#243039", timeVisible: true, secondsVisible: false },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#4D8DFF", width: 1, style: 2, labelBackgroundColor: "#4D8DFF" },
-        horzLine: { color: "#4D8DFF", width: 1, style: 2, labelBackgroundColor: "#4D8DFF" },
+        vertLine: { color: "#24C66D", width: 1, style: 2, labelBackgroundColor: "#24C66D" },
+        horzLine: { color: "#24C66D", width: 1, style: 2, labelBackgroundColor: "#24C66D" },
       },
       handleScale: { mouseWheel: true, pinch: true },
       handleScroll: true,
@@ -86,9 +86,9 @@ export function PriceChart({
     chartRef.current = chart;
 
     const area = chart.addSeries(AreaSeries, {
-      lineColor: "#2F6BFF",
-      topColor: "rgba(47,107,255,0.30)",
-      bottomColor: "rgba(47,107,255,0.0)",
+      lineColor: "#24C66D",
+      topColor: "rgba(36,198,109,0.30)",
+      bottomColor: "rgba(36,198,109,0.0)",
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -96,12 +96,12 @@ export function PriceChart({
     areaRef.current = area;
 
     const candle = chart.addSeries(CandlestickSeries, {
-      upColor: "#2F6BFF",
-      downColor: "#FF3B47",
-      borderUpColor: "#2F6BFF",
-      borderDownColor: "#FF3B47",
-      wickUpColor: "#2F6BFF",
-      wickDownColor: "#FF3B47",
+      upColor: "#24C66D",
+      downColor: "#FF4D4F",
+      borderUpColor: "#24C66D",
+      borderDownColor: "#FF4D4F",
+      wickUpColor: "#24C66D",
+      wickDownColor: "#FF4D4F",
       priceLineVisible: false,
       visible: false,
     });
@@ -111,7 +111,7 @@ export function PriceChart({
       const vol = chart.addSeries(HistogramSeries, {
         priceFormat: { type: "volume" },
         priceScaleId: "vol",
-        color: "rgba(77,141,255,0.28)",
+        color: "rgba(36,198,109,0.28)",
       });
       vol.priceScale().applyOptions({
         scaleMargins: { top: 0.82, bottom: 0 },
@@ -155,7 +155,7 @@ export function PriceChart({
       time: c.time as UTCTimestamp,
       value: Math.abs(c.close - c.open) * 90000 + 2000,
       color:
-        c.close >= c.open ? "rgba(47,107,255,0.45)" : "rgba(255,59,71,0.45)",
+        c.close >= c.open ? "rgba(36,198,109,0.45)" : "rgba(255,77,79,0.45)",
     }));
     areaRef.current?.setData(areaData);
     candleRef.current?.setData(candleData);

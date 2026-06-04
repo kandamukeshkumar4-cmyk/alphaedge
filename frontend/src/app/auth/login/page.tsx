@@ -53,7 +53,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-white transition hover:bg-accent"
+            className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-bg transition hover:bg-accent"
           >
             Log in
           </button>

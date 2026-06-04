@@ -113,7 +113,7 @@ export function TradePanel({ market }: { market: Market }) {
           onClick={() => setSide("YES")}
           className={cn(
             "rounded-md py-2 text-sm font-bold transition",
-            side === "YES" ? "bg-primary text-white" : "text-muted hover:text-text",
+            side === "YES" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
           Buy Yes
@@ -122,7 +122,7 @@ export function TradePanel({ market }: { market: Market }) {
           onClick={() => setSide("NO")}
           className={cn(
             "rounded-md py-2 text-sm font-bold transition",
-            side === "NO" ? "bg-danger text-white" : "text-muted hover:text-text",
+            side === "NO" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
           Buy No
@@ -223,8 +223,8 @@ export function TradePanel({ market }: { market: Market }) {
         className={cn(
           "mt-4 w-full rounded-lg py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
           side === "YES"
-            ? "bg-primary text-white hover:bg-accent"
-            : "bg-danger text-white hover:bg-[#ff5d67]",
+            ? "bg-primary text-bg hover:bg-accent"
+            : "bg-danger text-bg hover:bg-[#ff5d67]",
         )}
       >
         {submitting

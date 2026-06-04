@@ -13,6 +13,7 @@ import {
 } from "lightweight-charts";
 import { generateCandles, pct, type Market, type OutcomeTone } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
+import { formatProbabilityAxis } from "@/lib/probability-format";
 
 const LINE: Record<OutcomeTone, string> = {
   primary: "#24C66D",
@@ -107,7 +108,12 @@ export function MultiLineChart({
         lineType: LineType.WithSteps,
         priceLineVisible: false,
         lastValueVisible: true,
-        priceFormat: { type: "percent" },
+        priceFormat: {
+          type: "custom",
+          minMove: 0.01,
+          formatter: formatProbabilityAxis,
+          tickmarksFormatter: (prices: number[]) => prices.map(formatProbabilityAxis),
+        },
       }),
       data: [],
     }));
