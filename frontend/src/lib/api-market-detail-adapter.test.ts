@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { mergeApiSnapshotForDetail } from "./api-market-detail-adapter";
 import { MARKETS } from "./mock-data";
 import type { MarketSnapshot } from "./market-view-model";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const snapshot: MarketSnapshot = {
   paper_trading_only: true,
@@ -65,6 +69,54 @@ describe("api market detail adapter", () => {
       edge: 0.02,
       brier: 0.142,
     });
+  });
+
+  it("maps backend snapshot activity into detail activity tab trades", () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 5, 2, 17, 0, 0));
+
+    const market = mergeApiSnapshotForDetail(
+      {
+        ...snapshot,
+        activity: [
+          {
+            id: "33333333-3333-3333-3333-333333333333",
+            outcome: "yes",
+            price: 0.64,
+            quantity: 25,
+            created_at: "2026-06-02T16:58:00Z",
+          },
+          {
+            id: "44444444-4444-4444-4444-444444444444",
+            outcome: "no",
+            price: 0.36,
+            quantity: 14,
+            created_at: "2026-06-02T16:55:00Z",
+          },
+        ],
+      },
+      MARKETS,
+    );
+
+    expect(market.trades.slice(0, 2)).toEqual([
+      {
+        id: "33333333-3333-3333-3333-333333333333",
+        user: "market_feed",
+        side: "YES",
+        outcome: "Incumbent",
+        price: 0.64,
+        shares: 25,
+        tsOffsetSec: 120,
+      },
+      {
+        id: "44444444-4444-4444-4444-444444444444",
+        user: "market_feed",
+        side: "NO",
+        outcome: "Challenger",
+        price: 0.36,
+        shares: 14,
+        tsOffsetSec: 300,
+      },
+    ]);
   });
 
   it("creates a usable binary detail market for an API-only election snapshot", () => {

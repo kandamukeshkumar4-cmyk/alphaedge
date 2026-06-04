@@ -4,6 +4,7 @@ import {
   type Market,
   type MarketOutcome,
   type OutcomeTone,
+  type Trade,
 } from "./mock-data";
 import { mergeApiMarketsForCards } from "./api-market-adapter";
 
@@ -32,6 +33,9 @@ export function mergeApiSnapshotForDetail(
     bids: snapshot.book.yes.bids.length ? snapshot.book.yes.bids : catalogMarket.bids,
     asks: snapshot.book.yes.asks.length ? snapshot.book.yes.asks : catalogMarket.asks,
     forecast,
+    trades: snapshot.activity.length
+      ? mapSnapshotActivity(snapshot.activity, catalogMarket.outcomes, Date.now())
+      : catalogMarket.trades,
   };
 }
 
@@ -71,6 +75,31 @@ function bestPrice(
   fallback: number,
 ): number {
   return asks[0]?.price ?? bids[0]?.price ?? fallback;
+}
+
+function mapSnapshotActivity(
+  activity: MarketSnapshot["activity"],
+  outcomes: MarketOutcome[],
+  nowMs: number,
+): Trade[] {
+  return activity.map((item) => {
+    const side = item.outcome.toUpperCase() as "YES" | "NO";
+    const outcomeIndex = item.outcome === "yes" ? 0 : 1;
+    const createdAtMs = new Date(item.created_at).getTime();
+    const tsOffsetSec = Number.isNaN(createdAtMs)
+      ? 0
+      : Math.max(0, Math.round((nowMs - createdAtMs) / 1000));
+
+    return {
+      id: item.id,
+      user: "market_feed",
+      side,
+      outcome: outcomes[outcomeIndex]?.label ?? side,
+      price: item.price,
+      shares: item.quantity,
+      tsOffsetSec,
+    };
+  });
 }
 
 export type { Category };
