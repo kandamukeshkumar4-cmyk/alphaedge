@@ -307,6 +307,7 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "Space runtime is running the pushed revision" in workflow
     assert "Expected paper_trading_only=true from /health" in workflow
     assert "Canonical Lakers vs Celtics market was not returned" in workflow
+    assert "Canonical market lock_at must be in the future for browser paper trading" in workflow
     assert "Los Angeles mayoral election market was not returned" in workflow
     assert "Expected Politics category on election market" in workflow
     assert "/api/v1/markets/elect-la-mayor-2026/snapshot" in workflow
@@ -404,6 +405,7 @@ def test_huggingface_paper_trading_ready_script_checks_live_order_lifecycle():
     assert "Expand-JsonArray" in script
     assert "Attempt $attempt/${MaxAttempts}" in script
     assert "Expected risk-gated paper order to open" in script
+    assert "lock_at must be in the future for browser paper trading" in script
     assert "Smoke paper order was not removed from open orders after cancel" in script
     assert "X-Admin-API-Key" in script
     assert "SkipAdminProof" in script

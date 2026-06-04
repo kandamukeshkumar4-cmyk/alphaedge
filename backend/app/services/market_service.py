@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -206,14 +206,14 @@ class MarketService:
         return next((market for market in seeded if market.slug == "nba-2025-01-15-lal-bos"), None)
 
     async def seed_catalog_markets(self) -> list[Market]:
-        from datetime import datetime, timedelta, timezone
+        catalog_lock_at = datetime.now(timezone.utc) + timedelta(days=30)
 
         specs = [
             {
                 "slug": "nba-2025-01-15-lal-bos",
                 "title": "Lakers vs Celtics",
                 "question": "Will the Lakers win?",
-                "lock_at": datetime(2026, 6, 2, 23, 0, tzinfo=timezone.utc),
+                "lock_at": catalog_lock_at,
                 "category": "Sports",
                 "icon": "🏀",
                 "volume": 2_413_000,
@@ -226,7 +226,7 @@ class MarketService:
                 "slug": "elect-la-mayor-2026",
                 "title": "Los Angeles mayoral election",
                 "question": "Will the incumbent win re-election?",
-                "lock_at": datetime.now(timezone.utc) + timedelta(days=30),
+                "lock_at": catalog_lock_at,
                 "category": "Politics",
                 "icon": "🗳️",
                 "volume": 842_000,

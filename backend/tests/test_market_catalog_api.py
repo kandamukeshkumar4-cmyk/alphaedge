@@ -42,7 +42,7 @@ async def test_seed_catalog_markets_updates_existing_rows_with_catalog_metadata(
     assert canonical.description == "Head-to-head paper market on the Lakers vs Celtics matchup."
     assert canonical.resolution == "Resolves YES if the Lakers win the game, otherwise NO."
     assert canonical.lock_at is not None
-    assert canonical.lock_at > datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert canonical.lock_at > datetime.now(timezone.utc) + timedelta(days=7)
 
 
 @pytest.mark.asyncio

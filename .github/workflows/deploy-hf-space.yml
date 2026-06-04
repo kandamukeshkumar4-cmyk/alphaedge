@@ -314,14 +314,28 @@ jobs:
               https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets || echo 000)
             if [ "$status" = "200" ]; then
               if python3 - "$body" << 'PY'
+          from datetime import datetime, timedelta, timezone
           import json
           import sys
 
           with open(sys.argv[1], encoding="utf-8") as fh:
               markets = json.load(fh)
 
-          if not any(market.get("slug") == "nba-2025-01-15-lal-bos" for market in markets):
+          canonical = next(
+              (market for market in markets if market.get("slug") == "nba-2025-01-15-lal-bos"),
+              None,
+          )
+          if canonical is None:
               raise SystemExit("Canonical Lakers vs Celtics market was not returned")
+          raw_lock_at = canonical.get("lock_at")
+          if not raw_lock_at:
+              raise SystemExit("Canonical Lakers vs Celtics market did not return lock_at")
+          try:
+              lock_at = datetime.fromisoformat(raw_lock_at.replace("Z", "+00:00"))
+          except ValueError as exc:
+              raise SystemExit(f"Canonical Lakers vs Celtics market lock_at is invalid: {raw_lock_at}") from exc
+          if lock_at <= datetime.now(timezone.utc) + timedelta(minutes=5):
+              raise SystemExit("Canonical market lock_at must be in the future for browser paper trading")
           election = next(
               (market for market in markets if market.get("slug") == "elect-la-mayor-2026"),
               None,

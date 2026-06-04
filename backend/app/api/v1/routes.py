@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -328,7 +329,10 @@ async def place_order(slug: str, body: OrderCreate, db: AsyncSession = Depends(g
         edge=body.risk.edge,
         bankroll=account.cash_balance,
         current_drawdown=body.risk.current_drawdown,
-        minutes_before_start=body.risk.minutes_before_start,
+        minutes_before_start=_minutes_before_market_lock(
+            market,
+            fallback=body.risk.minutes_before_start,
+        ),
     )
     risk_ok, risk_failures = RiskService().validate(intent)
     if not risk_ok:
@@ -385,3 +389,13 @@ def _edge_vs_book(predicted_prob: float, book: dict) -> float | None:
     if not reference_levels:
         return None
     return round(predicted_prob - float(reference_levels[0]["price"]), 4)
+
+
+def _minutes_before_market_lock(market: Market, fallback: int) -> int:
+    if market.lock_at is None:
+        return fallback
+    lock_at = market.lock_at
+    if lock_at.tzinfo is None:
+        lock_at = lock_at.replace(tzinfo=timezone.utc)
+    seconds_until_lock = (lock_at - datetime.now(timezone.utc)).total_seconds()
+    return max(0, int(seconds_until_lock // 60))

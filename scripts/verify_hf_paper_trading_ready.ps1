@@ -76,6 +76,29 @@ function Expand-JsonArray {
     return @($Value)
 }
 
+function Assert-FutureMarketLock {
+    param(
+        [object]$Market,
+        [string]$Slug
+    )
+
+    if (-not $Market.lock_at) {
+        Add-Failure "$Slug did not return lock_at; browser paper trading cannot prove start-window risk."
+        return
+    }
+
+    try {
+        $lockAt = [DateTimeOffset]::Parse([string]$Market.lock_at)
+    } catch {
+        Add-Failure "$Slug returned unparsable lock_at '$($Market.lock_at)'."
+        return
+    }
+
+    if ($lockAt -le [DateTimeOffset]::UtcNow.AddMinutes(5)) {
+        Add-Failure "$Slug lock_at must be in the future for browser paper trading; got '$($Market.lock_at)'."
+    }
+}
+
 try {
     $health = Invoke-JsonWithRetry -Label "HF health" -Operation {
         Invoke-Json -Method Get -Uri "$ApiUrl/health"
@@ -99,6 +122,8 @@ try {
     $election = $markets | Where-Object { $_.slug -eq $ElectionSlug } | Select-Object -First 1
     if (-not $canonical) {
         Add-Failure "HF markets endpoint did not return $MarketSlug."
+    } else {
+        Assert-FutureMarketLock -Market $canonical -Slug $MarketSlug
     }
     if (-not $election) {
         Add-Failure "HF markets endpoint did not return $ElectionSlug."

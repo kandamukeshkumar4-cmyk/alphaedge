@@ -122,6 +122,55 @@ async def test_order_api_accepts_risk_approved_paper_order(db_session):
 
 
 @pytest.mark.asyncio
+async def test_order_api_derives_start_window_from_market_lock_at(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-stale-lock-risk-market",
+        title="Stale lock risk market",
+        question="Will stale markets ignore client risk timing?",
+        lock_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    account = Account(name="Stale Lock Trader", cash_balance=Decimal("10000"))
+    db_session.add(account)
+    await db_session.flush()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                f"/api/v1/markets/{market.slug}/orders",
+                json={
+                    "account_id": str(account.id),
+                    "side": "buy",
+                    "outcome": "yes",
+                    "order_type": "limit",
+                    "quantity": "10",
+                    "price": "0.55",
+                    "risk": {
+                        "predicted_prob": 0.62,
+                        "confidence": 0.8,
+                        "edge": 0.07,
+                        "current_drawdown": 0,
+                        "minutes_before_start": 120,
+                    },
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert "too close to game start" in response.json()["detail"]
+    orders = (await db_session.execute(select(Order))).scalars().all()
+    assert orders == []
+
+
+@pytest.mark.asyncio
 async def test_paper_account_endpoint_seeds_and_returns_account_once(db_session):
     async def override_get_db():
         yield db_session
