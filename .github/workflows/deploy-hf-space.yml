@@ -171,7 +171,37 @@ jobs:
           git config --global user.email "ci@alphaedge.app"
           git config --global user.name "AlphaEdge CI"
 
-          git clone "https://mukeshkumarkanda:${HF_TOKEN}@huggingface.co/spaces/mukeshkumarkanda/alphaedge-api" hf_space
+          retry_hf_git() {
+            local label="$1"
+            shift
+            local deadline=$((SECONDS + 600))
+            local attempt=1
+            while true; do
+              if "$@"; then
+                return 0
+              fi
+              local status=$?
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "ERROR: ${label} failed after retrying for up to 10 minutes."
+                return "$status"
+              fi
+              local remaining=$((deadline - SECONDS))
+              local delay=$((attempt * 10))
+              if [ "$delay" -gt 60 ]; then
+                delay=60
+              fi
+              if [ "$delay" -gt "$remaining" ]; then
+                delay="$remaining"
+              fi
+              echo "Retrying ${label} in ${delay}s (attempt ${attempt}, up to 10 minutes)"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+            done
+          }
+
+          rm -rf hf_space
+          retry_hf_git "HF Space clone" \
+            git clone "https://mukeshkumarkanda:${HF_TOKEN}@huggingface.co/spaces/mukeshkumarkanda/alphaedge-api" hf_space
 
           cd hf_space
           # Clear old content but preserve .git
@@ -183,7 +213,7 @@ jobs:
             echo "No changes - skipping push"
           else
             git commit -m "deploy: backend @ ${{ github.sha }}"
-            git push
+            retry_hf_git "HF Space push" git push
           fi
 
       - name: Wait for Space to become healthy
