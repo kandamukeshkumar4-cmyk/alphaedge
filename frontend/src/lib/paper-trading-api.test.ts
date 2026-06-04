@@ -85,7 +85,7 @@ describe("paper trading API", () => {
     });
   });
 
-  it("returns a local fallback signal when no API base is configured", async () => {
+  it("fails closed when no API base is configured", async () => {
     const result = await submitPaperOrder({
       apiBase: "",
       fetcher: vi.fn(),
@@ -104,8 +104,8 @@ describe("paper trading API", () => {
 
     expect(result).toEqual({
       ok: false,
-      mode: "local",
-      message: "Backend API unavailable; use local paper fill fallback.",
+      mode: "api",
+      message: "Backend API unavailable; paper orders require the risk-gated backend.",
     });
   });
 

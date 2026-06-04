@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatUSD, cents, type Market } from "@/lib/mock-data";
 import { fetchPaperAccount, submitPaperOrder } from "@/lib/paper-trading-api";
-import { placeOrder, readPortfolio, subscribePortfolio } from "@/lib/portfolio-store";
+import { readPortfolio, subscribePortfolio } from "@/lib/portfolio-store";
 import { useToast } from "./ToastProvider";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { cn } from "@/lib/cn";
@@ -77,32 +77,12 @@ export function TradePanel({ market }: { market: Market }) {
       return;
     }
 
-    if (apiResult.mode === "api") {
-      setSubmitting(false);
-      toast({
-        title: "Order rejected",
-        body: apiResult.message,
-        tone: "error",
-      });
-      return;
-    }
-
-    window.setTimeout(() => {
-      const res = placeOrder({
-        slug: market.slug,
-        market: market.title,
-        outcome: outcome.label,
-        side,
-        shares,
-        price,
-      });
-      setSubmitting(false);
-      toast({
-        title: res.ok ? "Order filled" : "Order rejected",
-        body: res.message,
-        tone: res.ok ? "success" : "error",
-      });
-    }, 450);
+    setSubmitting(false);
+    toast({
+      title: "Order rejected",
+      body: apiResult.message,
+      tone: "error",
+    });
   }
 
   return (

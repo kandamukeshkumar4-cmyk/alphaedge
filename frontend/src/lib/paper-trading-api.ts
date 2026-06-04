@@ -87,7 +87,7 @@ export type SubmitPaperOrderResult =
     }
   | {
       ok: false;
-      mode: "api" | "local";
+      mode: "api";
       message: string;
     };
 
@@ -116,14 +116,14 @@ export async function submitPaperOrder(
 ): Promise<SubmitPaperOrderResult> {
   const apiBase = normalizeApiBase(input.apiBase ?? API_BASE);
   if (!apiBase) {
-    return localFallback();
+    return backendUnavailable();
   }
 
   const fetcher = input.fetcher ?? fetch;
   try {
     const account = await fetchPaperAccount({ apiBase, fetcher });
     if (!account) {
-      return localFallback();
+      return backendUnavailable();
     }
     if (!account.paper_trading_only) {
       return {
@@ -171,7 +171,7 @@ export async function submitPaperOrder(
       account: updatedAccount,
     };
   } catch {
-    return localFallback();
+    return backendUnavailable();
   }
 }
 
@@ -274,11 +274,11 @@ function decimalString(value: number): string {
   return value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
 }
 
-function localFallback(): SubmitPaperOrderResult {
+function backendUnavailable(): SubmitPaperOrderResult {
   return {
     ok: false,
-    mode: "local",
-    message: "Backend API unavailable; use local paper fill fallback.",
+    mode: "api",
+    message: "Backend API unavailable; paper orders require the risk-gated backend.",
   };
 }
 
