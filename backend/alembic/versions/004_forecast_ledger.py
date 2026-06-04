@@ -61,27 +61,6 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "market_snapshots",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "external_market_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("external_markets.id"),
-            nullable=False,
-        ),
-        sa.Column("platform", platform, nullable=False),
-        sa.Column("implied_probability", sa.Numeric(6, 4), nullable=True),
-        sa.Column("source", sa.String(64), nullable=False, server_default="manual"),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="{}"),
-        sa.Column("captured_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
-    op.create_index(
-        "ix_market_snapshots_market_captured",
-        "market_snapshots",
-        ["external_market_id", "captured_at"],
-    )
-
-    op.create_table(
         "forecast_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
@@ -96,23 +75,13 @@ def upgrade() -> None:
             sa.ForeignKey("external_markets.id"),
             nullable=False,
         ),
-        sa.Column(
-            "market_snapshot_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("market_snapshots.id"),
-            nullable=True,
-        ),
         sa.Column("seq", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("platform", platform, nullable=False),
-        sa.Column("market_url", sa.String(512), nullable=False, server_default=""),
-        sa.Column("outcome_label", sa.String(128), nullable=False, server_default="YES"),
         sa.Column("user_probability", sa.Numeric(6, 4), nullable=False),
         sa.Column("market_implied_probability", sa.Numeric(6, 4), nullable=True),
         sa.Column("snapshot_source", sa.String(64), nullable=False, server_default="manual"),
         sa.Column("is_independent", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("mode", forecast_mode, nullable=False, server_default="live"),
         sa.Column("source", forecast_source, nullable=False, server_default="web"),
-        sa.Column("snapshot_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="{}"),
         sa.Column("time_to_resolution_seconds", sa.Integer(), nullable=True),
         sa.Column("locked_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -148,8 +117,6 @@ def downgrade() -> None:
     op.drop_index("ix_forecast_logs_market", table_name="forecast_logs")
     op.drop_index("ix_forecast_logs_forecaster_market_seq", table_name="forecast_logs")
     op.drop_table("forecast_logs")
-    op.drop_index("ix_market_snapshots_market_captured", table_name="market_snapshots")
-    op.drop_table("market_snapshots")
     op.drop_index("ix_external_markets_platform_external_id", table_name="external_markets")
     op.drop_table("external_markets")
     op.drop_index("ix_forecasters_recovery_email_hash", table_name="forecasters")
