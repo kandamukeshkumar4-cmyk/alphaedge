@@ -382,6 +382,48 @@ def test_huggingface_neon_doc_uses_automated_deploy_not_sha_pinning():
     assert "update the pinned" not in doc.lower()
 
 
+def test_huggingface_paper_trading_ready_script_checks_live_order_lifecycle():
+    script = (ROOT / "scripts" / "verify_hf_paper_trading_ready.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "https://mukeshkumarkanda-alphaedge-api.hf.space" in script
+    assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in script
+    assert "nba-2025-01-15-lal-bos" in script
+    assert "elect-la-mayor-2026" in script
+    assert "$ApiUrl/health" in script
+    assert "$ApiUrl/api/v1/markets" in script
+    assert "$ApiUrl/api/v1/markets/$ElectionSlug/snapshot" in script
+    assert "$ApiUrl/api/v1/paper-account" in script
+    assert "$ApiUrl/api/v1/markets/$MarketSlug/orders" in script
+    assert "$ApiUrl/api/v1/orders/$orderId/cancel" in script
+    assert "paper_trading_only" in script
+    assert "MaxAttempts = 40" in script
+    assert "RetryDelaySec = 15" in script
+    assert "Invoke-JsonWithRetry" in script
+    assert "Expand-JsonArray" in script
+    assert "Attempt $attempt/${MaxAttempts}" in script
+    assert "Expected risk-gated paper order to open" in script
+    assert "Smoke paper order was not removed from open orders after cancel" in script
+    assert "X-Admin-API-Key" in script
+    assert "SkipAdminProof" in script
+    assert "Expected deployed risk step to reject weak edge" in script
+    assert "Deployed agent proof unexpectedly created execution artifacts" in script
+    assert "Frontend markets bundle is not pointed at" in script
+
+
+def test_huggingface_neon_doc_and_readme_link_live_verifier():
+    doc = (ROOT / "docs" / "deploy" / "HUGGINGFACE_NEON.md").read_text(
+        encoding="utf-8"
+    )
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "scripts/verify_hf_paper_trading_ready.ps1" in doc
+    assert "scripts/verify_hf_paper_trading_ready.ps1" in readme
+    assert "paper order lifecycle" in doc
+    assert "admin agent proof" in doc
+
+
 def test_huggingface_space_secret_bootstrap_script_sets_required_github_secrets():
     script = (ROOT / "scripts" / "set_hf_space_secrets.ps1").read_text(
         encoding="utf-8"

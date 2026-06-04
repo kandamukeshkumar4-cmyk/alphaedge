@@ -77,7 +77,8 @@ any push to `codex/alphaedge-base` that touches `backend/**`. It:
 4. Waits for Hugging Face runtime metadata to report the pushed Space revision
    as `RUNNING`.
 5. Waits up to 10 min for `/health` to return 200 with `paper_trading_only=true`.
-6. Smoke-tests `/api/v1/markets` and requires the canonical Lakers/Celtics market.
+6. Smoke-tests `/api/v1/markets`, election market snapshots, admin agent proof,
+   and the paper order lifecycle.
 
 Manual runs can also sync GitHub Actions secrets and runtime variables to the
 HF Space before deploying when `sync_runtime_secrets=true`.
@@ -142,6 +143,24 @@ gh workflow run deploy-hf-space.yml --field sync_runtime_secrets=true
 The workflow must exist on the remote branch before GitHub can run it.
 
 ## Verify backend
+
+Run the reusable live verifier after deploys, frontend URL switches, or secret
+rotation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/verify_hf_paper_trading_ready.ps1
+```
+
+If you are running a public check without the admin secret, skip only the
+protected admin agent proof:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/verify_hf_paper_trading_ready.ps1 -SkipAdminProof
+```
+
+The script checks health, canonical NBA and election markets, the election
+snapshot, the Azure frontend bundle, one risk-gated paper order lifecycle, and
+admin agent proof when `ADMIN_API_KEY` or `-AdminApiKey` is supplied.
 
 ```powershell
 Invoke-RestMethod https://mukeshkumarkanda-alphaedge-api.hf.space/health

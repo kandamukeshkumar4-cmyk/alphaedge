@@ -220,6 +220,10 @@ After creating the Neon DB and Hugging Face write token,
 optionally trigger the HF Space deploy workflow. The workflow syncs those
 secrets into the Space before rebuilding it.
 
+Use `scripts/verify_hf_paper_trading_ready.ps1` to verify HF health, canonical
+market data, the paper order lifecycle, optional admin agent proof, and the
+Azure frontend API URL after deployment.
+
 See `docs/deploy/HUGGINGFACE_NEON.md`.
 
 ### Azure for Students + Vercel
