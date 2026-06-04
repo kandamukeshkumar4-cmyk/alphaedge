@@ -1,4 +1,5 @@
 import { isLockForecastMessage } from "./messaging";
+import { chromeForecastQueueStore, enqueueForecast } from "./queue";
 import { getSettings } from "./storage";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -21,15 +22,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           data && typeof data === "object" && "detail" in data
             ? String((data as { detail: unknown }).detail)
             : "Forecast lock failed.";
+        if (response.status >= 500) {
+          const queued = await enqueueForecast(chromeForecastQueueStore, message, undefined, detail);
+          sendResponse({ ok: true, data: { queued: true, queueId: queued.id } });
+          return;
+        }
         sendResponse({ ok: false, error: detail });
         return;
       }
       sendResponse({ ok: true, data });
     } catch (error) {
-      sendResponse({
-        ok: false,
-        error: error instanceof Error ? error.message : "Forecast lock failed.",
-      });
+      const detail = error instanceof Error ? error.message : "Forecast lock failed.";
+      const queued = await enqueueForecast(chromeForecastQueueStore, message, undefined, detail);
+      sendResponse({ ok: true, data: { queued: true, queueId: queued.id } });
     }
   })();
 

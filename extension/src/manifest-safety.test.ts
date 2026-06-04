@@ -34,6 +34,10 @@ describe("MV3 manifest and safety contract", () => {
     const source = [
       readFileSync(join(EXTENSION_ROOT, "src", "platforms.ts"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "messaging.ts"), "utf8"),
+      readFileSync(join(EXTENSION_ROOT, "src", "queue.ts"), "utf8"),
+      readFileSync(join(EXTENSION_ROOT, "src", "receipt.ts"), "utf8"),
+      readFileSync(join(EXTENSION_ROOT, "src", "storage.ts"), "utf8"),
+      readFileSync(join(EXTENSION_ROOT, "src", "lifecycle.ts"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "content", "overlay.tsx"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "background.ts"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "popup", "Popup.tsx"), "utf8"),

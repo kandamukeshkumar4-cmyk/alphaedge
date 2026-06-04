@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { lifecycleStateForMarket } from "../lifecycle";
 import { buildLockForecastMessage } from "../messaging";
 import type { ParsedSupportedMarket } from "../platforms";
+import { buildForecastReceipt } from "../receipt";
 import { getSettings } from "../storage";
 
 type Props = {
@@ -19,6 +21,9 @@ export function MirrorOverlay({ market }: Props) {
   const [outcomeLabel, setOutcomeLabel] = useState("YES");
   const [userProbability, setUserProbability] = useState(50);
   const [marketProbability, setMarketProbability] = useState("");
+  const [dashboardUrl, setDashboardUrl] = useState("http://localhost:3000/forecast");
+  const [lastReceipt, setLastReceipt] = useState("");
+  const [lifecycleLabel, setLifecycleLabel] = useState(lifecycleStateForMarket(market).label);
   const [notice, setNotice] = useState<Notice>({
     tone: "muted",
     text: "Research and paper simulation only.",
@@ -26,7 +31,10 @@ export function MirrorOverlay({ market }: Props) {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    void getSettings().then((settings) => setToken(settings.token));
+    void getSettings().then((settings) => {
+      setToken(settings.token);
+      setDashboardUrl(settings.dashboardUrl);
+    });
   }, []);
 
   const canLock = useMemo(() => Boolean(token.trim()) && !isSaving, [isSaving, token]);
@@ -44,6 +52,7 @@ export function MirrorOverlay({ market }: Props) {
     }
 
     setIsSaving(true);
+    const lockedAt = new Date().toISOString();
     const message = buildLockForecastMessage({
       token: token.trim(),
       url: market.canonicalUrl,
@@ -68,8 +77,31 @@ export function MirrorOverlay({ market }: Props) {
         setNotice({ tone: "error", text: response?.error ?? "Forecast lock failed." });
         return;
       }
-      setNotice({ tone: "success", text: "Forecast locked." });
+      const queued = Boolean(
+        response.data && typeof response.data === "object" && "queued" in response.data,
+      );
+      const status = queued ? "queued" : "locked";
+      setLifecycleLabel(
+        lifecycleStateForMarket(market, queued ? "pending" : "locked").label,
+      );
+      setLastReceipt(
+        buildForecastReceipt({
+          message,
+          lockedAt,
+          platform: market.provider,
+          status,
+        }),
+      );
+      setNotice({ tone: "success", text: queued ? "Forecast queued." : "Forecast locked." });
     });
+  }
+
+  async function handleCopyReceipt() {
+    if (!lastReceipt) {
+      return;
+    }
+    await navigator.clipboard.writeText(lastReceipt);
+    setNotice({ tone: "success", text: "Forecast receipt copied." });
   }
 
   return (
@@ -83,6 +115,7 @@ export function MirrorOverlay({ market }: Props) {
           </div>
           <span className="ae-chip">{market.provider}</span>
         </div>
+        <div className="ae-state">{lifecycleLabel}</div>
 
         <form className="ae-form" onSubmit={handleSubmit}>
           {market.manualOnly ? (
@@ -125,6 +158,15 @@ export function MirrorOverlay({ market }: Props) {
           </button>
         </form>
 
+        <div className="ae-actions">
+          <a href={dashboardUrl} target="_blank" rel="noreferrer">
+            View dashboard
+          </a>
+          <button disabled={!lastReceipt} type="button" onClick={() => void handleCopyReceipt()}>
+            Copy receipt
+          </button>
+        </div>
+
         <div className={`ae-notice ae-${notice.tone}`}>{notice.text}</div>
       </aside>
     </>
@@ -166,6 +208,14 @@ const styles = `
     text-transform: uppercase;
   }
   .ae-form { display: grid; gap: 10px; }
+  .ae-state {
+    margin-bottom: 10px;
+    border: 1px solid #243039;
+    border-radius: 6px;
+    padding: 7px 8px;
+    color: #9ea9a3;
+    font-size: 12px;
+  }
   label { display: grid; gap: 5px; color: #66716b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
   input {
     min-height: 34px;
@@ -189,6 +239,28 @@ const styles = `
     cursor: pointer;
   }
   button:disabled { cursor: not-allowed; opacity: .55; }
+  .ae-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .ae-actions a {
+    display: grid;
+    min-height: 34px;
+    place-items: center;
+    border: 1px solid #33444d;
+    border-radius: 6px;
+    color: #24c66d;
+    text-decoration: none;
+    font-weight: 900;
+  }
+  .ae-actions button {
+    min-height: 34px;
+    border-color: #33444d;
+    background: #151b20;
+    color: #f2f7f3;
+  }
   .ae-notice { margin-top: 10px; border-radius: 6px; padding: 8px; font-size: 12px; }
   .ae-muted { background: #151b20; color: #9ea9a3; }
   .ae-success { background: #0c2618; color: #24c66d; }

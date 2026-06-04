@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { getSettings, normalizeApiBase, saveSettings } from "../storage";
+import { chromeForecastQueueStore, syncQueuedForecasts, type QueuedForecast } from "../queue";
+import { getSettings, normalizeApiBase, normalizeUrl, saveSettings } from "../storage";
 
 type Notice = {
   tone: "success" | "error" | "muted";
@@ -9,7 +10,10 @@ type Notice = {
 
 export function Popup() {
   const [apiBase, setApiBase] = useState("http://localhost:8000");
-  const [token, setToken] = useState("");
+  const [dashboardUrl, setDashboardUrl] = useState("http://localhost:3000/forecast");
+  const [tokenDraft, setTokenDraft] = useState("");
+  const [hasToken, setHasToken] = useState(false);
+  const [queue, setQueue] = useState<QueuedForecast[]>([]);
   const [notice, setNotice] = useState<Notice>({
     tone: "muted",
     text: "Research and paper simulation only.",
@@ -19,13 +23,24 @@ export function Popup() {
   useEffect(() => {
     void getSettings().then((settings) => {
       setApiBase(settings.apiBase);
-      setToken(settings.token);
+      setDashboardUrl(settings.dashboardUrl);
+      setHasToken(Boolean(settings.token));
     });
+    void refreshQueue();
   }, []);
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await saveSettings({ apiBase: normalizeApiBase(apiBase), token: token.trim() });
+    const nextSettings = {
+      apiBase: normalizeApiBase(apiBase),
+      dashboardUrl: normalizeUrl(dashboardUrl),
+      ...(tokenDraft.trim() ? { token: tokenDraft.trim() } : {}),
+    };
+    await saveSettings(nextSettings);
+    if (tokenDraft.trim()) {
+      setHasToken(true);
+      setTokenDraft("");
+    }
     setNotice({ tone: "success", text: "Settings saved." });
   }
 
@@ -40,8 +55,9 @@ export function Popup() {
       if (!response.ok || !data.token) {
         throw new Error(data.detail ?? "Could not create profile.");
       }
-      setToken(data.token);
       await saveSettings({ apiBase: normalizedApiBase, token: data.token });
+      setHasToken(true);
+      setTokenDraft("");
       setNotice({ tone: "success", text: "Forecaster profile created." });
     } catch (error) {
       setNotice({
@@ -51,6 +67,37 @@ export function Popup() {
     } finally {
       setIsCreating(false);
     }
+  }
+
+  async function refreshQueue() {
+    setQueue(await chromeForecastQueueStore.loadQueue());
+  }
+
+  async function handleSyncQueue() {
+    const settings = await getSettings();
+    const result = await syncQueuedForecasts(chromeForecastQueueStore, async (queued) => {
+      try {
+        const response = await fetch(`${settings.apiBase}${queued.message.endpoint}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(queued.message.payload),
+        });
+        if (!response.ok) {
+          return { ok: false, error: `HTTP ${response.status}` };
+        }
+        return { ok: true };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Sync failed.",
+        };
+      }
+    });
+    await refreshQueue();
+    setNotice({
+      tone: result.failed ? "error" : "success",
+      text: `Synced ${result.synced}; failed ${result.failed}.`,
+    });
   }
 
   return (
@@ -67,11 +114,16 @@ export function Popup() {
           <input value={apiBase} onChange={(event) => setApiBase(event.target.value)} />
         </label>
         <label>
-          <span>Forecaster Token</span>
+          <span>Dashboard URL</span>
+          <input value={dashboardUrl} onChange={(event) => setDashboardUrl(event.target.value)} />
+        </label>
+        <label>
+          <span>{hasToken ? "Profile saved" : "Forecaster token"}</span>
           <input
             type="password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
+            placeholder={hasToken ? "Paste only to replace" : "Paste token"}
+            value={tokenDraft}
+            onChange={(event) => setTokenDraft(event.target.value)}
           />
         </label>
         <button type="submit">Save</button>
@@ -80,6 +132,22 @@ export function Popup() {
       <button disabled={isCreating} type="button" onClick={() => void handleCreateProfile()}>
         {isCreating ? "Creating" : "Create anonymous profile"}
       </button>
+
+      <section className="queue">
+        <div className="queue-head">
+          <strong>Queue</strong>
+          <span>{queue.filter((row) => row.status !== "synced").length} open</span>
+        </div>
+        <div className="queue-grid">
+          <span>Pending {queue.filter((row) => row.status === "pending").length}</span>
+          <span>Syncing {queue.filter((row) => row.status === "syncing").length}</span>
+          <span>Synced {queue.filter((row) => row.status === "synced").length}</span>
+          <span>Failed {queue.filter((row) => row.status === "failed").length}</span>
+        </div>
+        <button type="button" onClick={() => void handleSyncQueue()}>
+          Retry queue
+        </button>
+      </section>
 
       <div className={`notice ${notice.tone}`}>{notice.text}</div>
     </main>
@@ -120,6 +188,27 @@ const styles = `
   }
   button + button { margin-top: 8px; }
   button:disabled { opacity: .55; }
+  .queue {
+    margin-top: 12px;
+    border: 1px solid #243039;
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .queue-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .queue-head span { color: #9ea9a3; }
+  .queue-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
+    color: #9ea9a3;
+    font-size: 12px;
+  }
   .notice { margin-top: 10px; border-radius: 6px; padding: 8px; font-size: 12px; }
   .muted { background: #151b20; color: #9ea9a3; }
   .success { background: #0c2618; color: #24c66d; }
