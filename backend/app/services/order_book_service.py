@@ -39,6 +39,38 @@ class OrderBookService:
             self._books[market_id] = OrderBook(market_id=market_id)
         return self._books[market_id]
 
+    async def _get_hydrated_book(self, market_id: UUID) -> OrderBook:
+        if market_id in self._books:
+            return self._books[market_id]
+
+        book = OrderBook(market_id=market_id)
+        result = await self.session.execute(
+            select(Order)
+            .where(
+                Order.market_id == market_id,
+                Order.order_type == OrderType.LIMIT,
+                Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
+            )
+            .order_by(Order.created_at.asc(), Order.id.asc())
+        )
+        for order in result.scalars().all():
+            remaining = order.quantity - order.filled_quantity
+            if remaining <= 0 or order.price is None:
+                continue
+            side = Side.BUY if order.side == OrderSide.BUY else Side.SELL
+            outcome = Outcome.YES if order.outcome == OrderOutcome.YES else Outcome.NO
+            book.add_limit(
+                order.id,
+                order.account_id,
+                side,
+                outcome,
+                order.price,
+                remaining,
+            )
+
+        self._books[market_id] = book
+        return book
+
     async def _ensure_market_open(self, market_id: UUID) -> Market:
         result = await self.session.execute(select(Market).where(Market.id == market_id))
         market = result.scalar_one()
@@ -201,8 +233,9 @@ class OrderBookService:
                     price,
                 )
             await self._reserve_cash(account_id, notional)
+            await self._get_hydrated_book(market_id)
         else:
-            book = self._get_book(market_id)
+            book = await self._get_hydrated_book(market_id)
             ob_side = Side.BUY if side == OrderSide.BUY else Side.SELL
             ob_outcome = Outcome.YES if outcome == OrderOutcome.YES else Outcome.NO
             quote = book.quote_market(ob_side, ob_outcome, quantity)
@@ -283,7 +316,7 @@ class OrderBookService:
         return order
 
     async def _match_order(self, taker: Order) -> None:
-        book = self._get_book(taker.market_id)
+        book = await self._get_hydrated_book(taker.market_id)
         ob_side = Side.BUY if taker.side == OrderSide.BUY else Side.SELL
         ob_outcome = Outcome.YES if taker.outcome == OrderOutcome.YES else Outcome.NO
 
@@ -406,5 +439,5 @@ class OrderBookService:
         await self.session.flush()
 
     async def get_l2(self, market_id: UUID, depth: int = 10) -> dict:
-        book = self._get_book(market_id)
+        book = await self._get_hydrated_book(market_id)
         return book.l2_snapshot(depth)

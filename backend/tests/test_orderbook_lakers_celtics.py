@@ -7,7 +7,16 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from app.db.models import Account, LedgerEntry, LedgerEntryType, OrderOutcome, OrderSide, OrderStatus, OrderType
+from app.db.models import (
+    Account,
+    Fill,
+    LedgerEntry,
+    LedgerEntryType,
+    OrderOutcome,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+)
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
 
@@ -349,6 +358,147 @@ async def test_market_buy_requires_cash_for_all_quoted_price_levels(db_session):
   assert l2["yes"]["asks"] == [
       {"price": 0.55, "size": 50.0},
       {"price": 0.6, "size": 50.0},
+  ]
+
+
+@pytest.mark.asyncio
+async def test_get_l2_rehydrates_persisted_open_orders_after_restart(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-rehydrate-l2-market",
+      title="Rehydrate L2 Market",
+      question="Will persisted open orders survive a process restart?",
+      lock_at=LOCK_AT,
+  )
+  buyer = Account(name="Restart Buyer", cash_balance=Decimal("100"))
+  seller = Account(name="Restart Seller", cash_balance=Decimal("45"))
+  db_session.add_all([buyer, seller])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      buyer.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("20"),
+      Decimal("0.60"),
+  )
+  await obs.submit_order(
+      market.id,
+      seller.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("40"),
+      Decimal("0.64"),
+  )
+
+  OrderBookService._books.clear()
+
+  restarted = OrderBookService(db_session)
+  l2 = await restarted.get_l2(market.id)
+
+  assert l2["yes"]["bids"] == [{"price": 0.6, "size": 20.0}]
+  assert l2["yes"]["asks"] == [{"price": 0.64, "size": 40.0}]
+
+
+@pytest.mark.asyncio
+async def test_market_order_matches_persisted_liquidity_after_restart(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-rehydrate-market-order-market",
+      title="Rehydrate Market Order Market",
+      question="Will persisted asks match after a process restart?",
+      lock_at=LOCK_AT,
+  )
+  seller = Account(name="Restart Match Seller", cash_balance=Decimal("18"))
+  buyer = Account(name="Restart Match Buyer", cash_balance=Decimal("100"))
+  db_session.add_all([seller, buyer])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      seller.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("40"),
+      Decimal("0.55"),
+  )
+  OrderBookService._books.clear()
+
+  restarted = OrderBookService(db_session)
+  market_order = await restarted.submit_order(
+      market.id,
+      buyer.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.MARKET,
+      Decimal("10"),
+  )
+  fills = (await db_session.execute(select(Fill))).scalars().all()
+
+  assert market_order.status == OrderStatus.FILLED
+  assert market_order.filled_quantity == Decimal("10")
+  assert [(fill.price, fill.quantity) for fill in fills] == [
+      (Decimal("0.5500"), Decimal("10.0000"))
+  ]
+  assert (await restarted.get_l2(market.id))["yes"]["asks"] == [
+      {"price": 0.55, "size": 30.0}
+  ]
+
+
+@pytest.mark.asyncio
+async def test_crossing_limit_order_matches_persisted_liquidity_after_restart(db_session):
+  market_svc = MarketService(db_session)
+  obs = OrderBookService(db_session)
+
+  market = await market_svc.create_market(
+      slug="nba-rehydrate-crossing-limit-market",
+      title="Rehydrate Crossing Limit Market",
+      question="Will crossing limits match after a process restart?",
+      lock_at=LOCK_AT,
+  )
+  seller = Account(name="Restart Limit Seller", cash_balance=Decimal("18"))
+  buyer = Account(name="Restart Limit Buyer", cash_balance=Decimal("100"))
+  db_session.add_all([seller, buyer])
+  await db_session.flush()
+
+  await obs.submit_order(
+      market.id,
+      seller.id,
+      OrderSide.SELL,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("40"),
+      Decimal("0.55"),
+  )
+  OrderBookService._books.clear()
+
+  restarted = OrderBookService(db_session)
+  limit_order = await restarted.submit_order(
+      market.id,
+      buyer.id,
+      OrderSide.BUY,
+      OrderOutcome.YES,
+      OrderType.LIMIT,
+      Decimal("10"),
+      Decimal("0.60"),
+  )
+  fills = (await db_session.execute(select(Fill))).scalars().all()
+
+  assert limit_order.status == OrderStatus.FILLED
+  assert limit_order.filled_quantity == Decimal("10")
+  assert [(fill.price, fill.quantity) for fill in fills] == [
+      (Decimal("0.5500"), Decimal("10.0000"))
+  ]
+  assert (await restarted.get_l2(market.id))["yes"]["asks"] == [
+      {"price": 0.55, "size": 30.0}
   ]
 
 
