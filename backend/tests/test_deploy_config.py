@@ -270,7 +270,14 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "cp -r backend/. hf_stage/" in workflow
     assert "cp hf_stage/Dockerfile.hfspace hf_stage/Dockerfile" in workflow
     assert "app_port: 7860" in workflow
+    assert "id: push_space" in workflow
     assert "git push" in workflow
+    assert "space_sha=$(git rev-parse HEAD)" in workflow
+    assert 'echo "space_sha=$space_sha" >> "$GITHUB_OUTPUT"' in workflow
+    assert "steps.push_space.outputs.space_sha" in workflow
+    assert "https://huggingface.co/api/spaces/mukeshkumarkanda/alphaedge-api/runtime" in workflow
+    assert "runtime.get(\"sha\")" in workflow
+    assert "Space runtime is running the pushed revision" in workflow
     assert "Expected paper_trading_only=true from /health" in workflow
     assert "Canonical Lakers vs Celtics market was not returned" in workflow
     assert "Los Angeles mayoral election market was not returned" in workflow
@@ -343,6 +350,7 @@ def test_huggingface_neon_doc_uses_automated_deploy_not_sha_pinning():
     assert "sync_runtime_secrets=true" in doc
     assert "Routine push deploys do not rewrite HF Space secrets" in doc
     assert "Dockerfile.hfspace" in doc
+    assert "pushed Space revision" in doc
     assert "git checkout" not in doc
     assert "update the pinned" not in doc.lower()
 

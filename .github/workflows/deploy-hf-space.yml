@@ -165,6 +165,7 @@ jobs:
           HFEOF
 
       - name: Push to HF Space
+        id: push_space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -215,6 +216,60 @@ jobs:
             git commit -m "deploy: backend @ ${{ github.sha }}"
             retry_hf_git "HF Space push" git push
           fi
+
+          space_sha=$(git rev-parse HEAD)
+          echo "space_sha=$space_sha" >> "$GITHUB_OUTPUT"
+          echo "HF Space target revision: $space_sha"
+
+      - name: Wait for Space runtime revision
+        env:
+          SPACE_SHA: ${{ steps.push_space.outputs.space_sha }}
+        run: |
+          python3 << 'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          RUNTIME_URL = "https://huggingface.co/api/spaces/mukeshkumarkanda/alphaedge-api/runtime"
+          space_sha = os.environ.get("SPACE_SHA", "").strip()
+          if not space_sha:
+              raise SystemExit("Expected pushed HF Space revision from previous step")
+
+          deadline = time.monotonic() + 600
+          attempt = 1
+          while True:
+              runtime: dict[str, object]
+              try:
+                  with urllib.request.urlopen(RUNTIME_URL, timeout=30) as response:
+                      runtime = json.load(response)
+              except (urllib.error.URLError, TimeoutError) as error:
+                  runtime = {"stage": "REQUEST_FAILED", "errorMessage": str(error)}
+
+              stage = runtime.get("stage")
+              runtime_sha = runtime.get("sha")
+              if runtime_sha == space_sha and stage == "RUNNING":
+                  print(f"Space runtime is running the pushed revision {space_sha}")
+                  raise SystemExit(0)
+              if runtime_sha == space_sha and stage == "RUNTIME_ERROR":
+                  raise SystemExit(
+                      "HF Space runtime failed for pushed revision "
+                      f"{space_sha}: {runtime.get('errorMessage')}"
+                  )
+              if time.monotonic() >= deadline:
+                  raise SystemExit(
+                      "ERROR: HF Space runtime did not switch to pushed revision "
+                      f"{space_sha} in time. Last stage={stage!r}, sha={runtime_sha!r}"
+                  )
+
+              print(
+                  f"Attempt {attempt}/40: runtime stage={stage!r}, "
+                  f"sha={runtime_sha!r}; waiting for {space_sha}"
+              )
+              attempt += 1
+              time.sleep(15)
+          PY
 
       - name: Wait for Space to become healthy
         run: |
