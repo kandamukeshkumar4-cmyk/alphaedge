@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app.backtesting.replay import run_backtest
 from app.data_quality.checks import run_quality_checks
 
@@ -25,3 +27,15 @@ def test_backtest_within_golden_bounds():
     assert bounds["roi_min"] <= result["roi"] <= bounds["roi_max"]
     assert result["max_drawdown"] <= bounds["max_drawdown_max"]
     assert result["calibration_error"] <= bounds["calibration_error_max"]
+
+
+def test_backtest_reports_closing_line_comparison_metrics():
+    result = run_backtest(FIXTURES)
+
+    assert result["closing_brier_score"] == pytest.approx(
+        ((0.55 - 1) ** 2 + (0.50 - 0) ** 2 + (0.61 - 1) ** 2) / 3
+    )
+    assert "brier_delta_vs_closing" in result
+    assert "model_log_loss" in result
+    assert "closing_log_loss" in result
+    assert "model_beats_closing" in result
