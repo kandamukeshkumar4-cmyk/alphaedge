@@ -1,7 +1,8 @@
 import { API_BASE } from "./alphaedge-api";
-import { fetchPaperAccount } from "./paper-trading-api";
+import { fetchPaperAccount, getPaperAccountToken } from "./paper-trading-api";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
+const PAPER_ACCOUNT_TOKEN_HEADER = "x-paper-account-token";
 
 export type PaperSignalOutcome = "yes" | "no";
 
@@ -23,11 +24,13 @@ export type FetchPaperSignalSummaryInput = {
   fetcher?: Fetcher;
   slug: string;
   accountId?: string;
+  paperAccountToken?: string;
 };
 
 export type SubmitPaperSignalInput = {
   apiBase?: string;
   fetcher?: Fetcher;
+  paperAccountToken?: string;
   slug: string;
   outcome: PaperSignalOutcome;
 };
@@ -52,11 +55,13 @@ export async function fetchPaperSignalSummary(
     return null;
   }
 
+  const paperAccountToken = input.paperAccountToken ?? getPaperAccountToken();
   const query = input.accountId ? `?account_id=${encodeURIComponent(input.accountId)}` : "";
   try {
     return await fetchJson<PaperSignalSummary>(
       input.fetcher ?? fetch,
       `${apiBase}/api/v1/markets/${input.slug}/signals${query}`,
+      { headers: paperAccountHeaders(paperAccountToken) },
     );
   } catch {
     return null;
@@ -72,8 +77,9 @@ export async function submitPaperSignal(
   }
 
   const fetcher = input.fetcher ?? fetch;
+  const paperAccountToken = input.paperAccountToken ?? getPaperAccountToken();
   try {
-    const account = await fetchPaperAccount({ apiBase, fetcher });
+    const account = await fetchPaperAccount({ apiBase, fetcher, paperAccountToken });
     if (!account) {
       return localFallback();
     }
@@ -87,7 +93,7 @@ export async function submitPaperSignal(
 
     const response = await fetcher(`${apiBase}/api/v1/markets/${input.slug}/signals`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: paperAccountHeaders(paperAccountToken, { "content-type": "application/json" }),
       body: JSON.stringify({
         account_id: account.id,
         outcome: input.outcome,
@@ -115,8 +121,8 @@ export async function submitPaperSignal(
   }
 }
 
-async function fetchJson<T>(fetcher: Fetcher, url: string): Promise<T> {
-  const response = await fetcher(url, { cache: "no-store" });
+async function fetchJson<T>(fetcher: Fetcher, url: string, init?: RequestInit): Promise<T> {
+  const response = await fetcher(url, { ...init, cache: "no-store" });
   if (!response.ok) {
     throw new Error(await errorMessage(response));
   }
@@ -137,6 +143,16 @@ async function errorMessage(response: Response): Promise<string> {
 
 function normalizeApiBase(value: string): string {
   return value.trim().replace(/\/+$/, "");
+}
+
+function paperAccountHeaders(
+  paperAccountToken: string,
+  baseHeaders?: Record<string, string>,
+): Record<string, string> {
+  return {
+    ...baseHeaders,
+    [PAPER_ACCOUNT_TOKEN_HEADER]: paperAccountToken,
+  };
 }
 
 function localFallback(): SubmitPaperSignalResult {

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,10 +23,18 @@ from app.services.ledger_service import LedgerService
 from app.services.order_book_service import OrderBookService
 
 
+PAPER_ACCOUNT_NAMESPACE = UUID("2e1c462e-7e4c-4d2b-9e51-1f8e5f4c9220")
+
+
 class PaperAccountService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.ledger = LedgerService(session)
+
+    @staticmethod
+    def session_account_id(token: str) -> UUID:
+        normalized = str(UUID(token.strip()))
+        return uuid5(PAPER_ACCOUNT_NAMESPACE, normalized)
 
     async def get_or_seed_response(
         self,

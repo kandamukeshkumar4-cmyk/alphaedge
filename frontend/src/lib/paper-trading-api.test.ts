@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { cancelPaperOrder, fetchPaperAccount, submitPaperOrder } from "./paper-trading-api";
+import {
+  cancelPaperOrder,
+  fetchPaperAccount,
+  getPaperAccountToken,
+  submitPaperOrder,
+} from "./paper-trading-api";
 
 describe("paper trading API", () => {
   it("loads the paper account and submits a risk-gated backend order", async () => {
@@ -83,6 +88,81 @@ describe("paper trading API", () => {
         minutes_before_start: 120,
       },
     });
+  });
+
+  it("persists one browser paper account token and sends it on account and order calls", async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => storage.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
+      removeItem: vi.fn((key: string) => storage.delete(key)),
+    });
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn(() => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+    });
+
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    let accountCalls = 0;
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.endsWith("/api/v1/paper-account")) {
+        accountCalls += 1;
+        return jsonResponse({
+          id: "99999999-9999-9999-9999-999999999999",
+          name: "Paper Session Account",
+          cash_balance: "100000.0000",
+          reserved_cash: accountCalls === 1 ? "0.0000" : "5.5000",
+          available_cash: accountCalls === 1 ? "100000.0000" : "99994.5000",
+          paper_trading_only: true,
+          positions: [],
+          open_orders: [],
+          order_history: [],
+        });
+      }
+      if (url.endsWith("/api/v1/markets/nba-2025-01-15-lal-bos/orders")) {
+        return jsonResponse({
+          id: "11111111-1111-1111-1111-111111111111",
+          market_id: "22222222-2222-2222-2222-222222222222",
+          account_id: "99999999-9999-9999-9999-999999999999",
+          side: "buy",
+          outcome: "yes",
+          order_type: "limit",
+          price: "0.55",
+          quantity: "10",
+          filled_quantity: "0",
+          status: "open",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    expect(getPaperAccountToken()).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(getPaperAccountToken()).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+
+    const result = await submitPaperOrder({
+      apiBase: "https://api.example.test",
+      fetcher,
+      slug: "nba-2025-01-15-lal-bos",
+      side: "YES",
+      shares: 10,
+      price: 0.55,
+      forecast: {
+        predictedProb: 0.62,
+        confidence: 0.8,
+        edge: 0.07,
+      },
+      minutesBeforeStart: 120,
+      currentDrawdown: 0.02,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
+    expect(localStorage.setItem).toHaveBeenCalledTimes(1);
+    for (const call of calls) {
+      expect(headersObject(call.init?.headers)["x-paper-account-token"]).toBe(
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      );
+    }
   });
 
   it("fails closed when no API base is configured", async () => {
@@ -184,6 +264,34 @@ describe("paper trading API", () => {
     });
   });
 
+  it("allows callers to pass an explicit paper account token", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://api.example.test/api/v1/paper-account");
+      expect(headersObject(init?.headers)["x-paper-account-token"]).toBe(
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      );
+      return jsonResponse({
+        id: "88888888-8888-8888-8888-888888888888",
+        name: "Paper Session Account",
+        cash_balance: "100000.0000",
+        reserved_cash: "0.0000",
+        available_cash: "100000.0000",
+        paper_trading_only: true,
+        positions: [],
+        open_orders: [],
+        order_history: [],
+      });
+    });
+
+    const account = await fetchPaperAccount({
+      apiBase: "https://api.example.test",
+      fetcher,
+      paperAccountToken: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    });
+
+    expect(account?.id).toBe("88888888-8888-8888-8888-888888888888");
+  });
+
   it("cancels a backend paper order and returns the refreshed account", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     let accountCalls = 0;
@@ -264,6 +372,10 @@ describe("paper trading API", () => {
     });
   });
 });
+
+function headersObject(headers: HeadersInit | undefined): Record<string, string> {
+  return Object.fromEntries(new Headers(headers).entries());
+}
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {

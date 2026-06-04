@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,6 +146,7 @@ async def get_order_book(slug: str, depth: int = 10, db: AsyncSession = Depends(
 async def get_market_signals(
     slug: str,
     account_id: UUID | None = None,
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
     db: AsyncSession = Depends(get_db),
 ):
     svc = MarketService(db)
@@ -154,13 +155,18 @@ async def get_market_signals(
         raise HTTPException(status_code=404, detail="Market not found")
 
     signals = PaperSignalService(db)
-    return await signals.get_summary(market, settings.paper_trading_only, account_id)
+    return await signals.get_summary(
+        market,
+        settings.paper_trading_only,
+        _resolve_paper_account_context(account_id, x_paper_account_token),
+    )
 
 
 @router.post("/markets/{slug}/signals", response_model=PaperSignalSummaryResponse)
 async def submit_market_signal(
     slug: str,
     body: PaperSignalCreate,
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
     db: AsyncSession = Depends(get_db),
 ):
     svc = MarketService(db)
@@ -170,6 +176,7 @@ async def submit_market_signal(
 
     signals = PaperSignalService(db)
     try:
+        _verify_paper_account_token(body.account_id, x_paper_account_token)
         return await signals.submit_signal(
             market,
             body.account_id,
@@ -181,7 +188,17 @@ async def submit_market_signal(
 
 
 @router.get("/paper-account", response_model=PaperAccountResponse)
-async def get_paper_account(db: AsyncSession = Depends(get_db)):
+async def get_paper_account(
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    if x_paper_account_token:
+        return await PaperAccountService(db).get_or_seed_response(
+            _paper_account_id_from_token(x_paper_account_token),
+            Decimal(str(settings.system_initial_bankroll)),
+            "Paper Session Account",
+            settings.paper_trading_only,
+        )
     return await PaperAccountService(db).get_or_seed_response(
         UUID(settings.system_account_id),
         Decimal(str(settings.system_initial_bankroll)),
@@ -191,11 +208,17 @@ async def get_paper_account(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/markets/{slug}/orders", response_model=OrderResponse)
-async def place_order(slug: str, body: OrderCreate, db: AsyncSession = Depends(get_db)):
+async def place_order(
+    slug: str,
+    body: OrderCreate,
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
+    db: AsyncSession = Depends(get_db),
+):
     svc = MarketService(db)
     market = await svc.get_market_by_slug(slug)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
+    _verify_paper_account_token(body.account_id, x_paper_account_token)
     account_result = await db.execute(select(Account).where(Account.id == body.account_id))
     account = account_result.scalar_one_or_none()
     if account is None:
@@ -244,8 +267,10 @@ async def place_order(slug: str, body: OrderCreate, db: AsyncSession = Depends(g
 async def cancel_order(
     order_id: UUID,
     body: OrderCancelRequest,
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
     db: AsyncSession = Depends(get_db),
 ):
+    _verify_paper_account_token(body.account_id, x_paper_account_token)
     account_result = await db.execute(select(Account).where(Account.id == body.account_id))
     account = account_result.scalar_one_or_none()
     if account is None:
@@ -282,3 +307,33 @@ def _minutes_before_market_lock(market: Market, fallback: int) -> int:
         lock_at = lock_at.replace(tzinfo=timezone.utc)
     seconds_until_lock = (lock_at - datetime.now(timezone.utc)).total_seconds()
     return max(0, int(seconds_until_lock // 60))
+
+
+def _paper_account_id_from_token(token: str) -> UUID:
+    try:
+        return PaperAccountService.session_account_id(token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid paper account token") from e
+
+
+def _verify_paper_account_token(account_id: UUID, token: str | None) -> None:
+    if not token:
+        return
+    expected_account_id = _paper_account_id_from_token(token)
+    if account_id != expected_account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="account token does not match account_id",
+        )
+
+
+def _resolve_paper_account_context(account_id: UUID | None, token: str | None) -> UUID | None:
+    if not token:
+        return account_id
+    expected_account_id = _paper_account_id_from_token(token)
+    if account_id is not None and account_id != expected_account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="account token does not match account_id",
+        )
+    return expected_account_id

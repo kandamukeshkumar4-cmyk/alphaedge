@@ -2,6 +2,10 @@ import { API_BASE } from "./alphaedge-api";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
+const PAPER_ACCOUNT_TOKEN_KEY = "alphaedge.paperAccountToken.v1";
+const PAPER_ACCOUNT_TOKEN_HEADER = "x-paper-account-token";
+let memoryPaperAccountToken: string | null = null;
+
 export type BackendOpenOrderResponse = {
   id: string;
   market_id: string;
@@ -64,6 +68,7 @@ type BackendOrderResponse = {
 export type SubmitPaperOrderInput = {
   apiBase?: string;
   fetcher?: Fetcher;
+  paperAccountToken?: string;
   slug: string;
   side: "YES" | "NO";
   shares: number;
@@ -94,6 +99,7 @@ export type SubmitPaperOrderResult =
 export type CancelPaperOrderInput = {
   apiBase?: string;
   fetcher?: Fetcher;
+  paperAccountToken?: string;
   orderId: string;
 };
 
@@ -120,8 +126,9 @@ export async function submitPaperOrder(
   }
 
   const fetcher = input.fetcher ?? fetch;
+  const paperAccountToken = input.paperAccountToken ?? getPaperAccountToken();
   try {
-    const account = await fetchPaperAccount({ apiBase, fetcher });
+    const account = await fetchPaperAccount({ apiBase, fetcher, paperAccountToken });
     if (!account) {
       return backendUnavailable();
     }
@@ -135,7 +142,7 @@ export async function submitPaperOrder(
 
     const response = await fetcher(`${apiBase}/api/v1/markets/${input.slug}/orders`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: paperAccountHeaders(paperAccountToken, { "content-type": "application/json" }),
       body: JSON.stringify({
         account_id: account.id,
         side: "buy",
@@ -162,7 +169,8 @@ export async function submitPaperOrder(
     }
 
     const order = (await response.json()) as BackendOrderResponse;
-    const updatedAccount = (await fetchPaperAccount({ apiBase, fetcher })) ?? account;
+    const updatedAccount =
+      (await fetchPaperAccount({ apiBase, fetcher, paperAccountToken })) ?? account;
     return {
       ok: true,
       mode: "api",
@@ -184,8 +192,9 @@ export async function cancelPaperOrder(
   }
 
   const fetcher = input.fetcher ?? fetch;
+  const paperAccountToken = input.paperAccountToken ?? getPaperAccountToken();
   try {
-    const account = await fetchPaperAccount({ apiBase, fetcher });
+    const account = await fetchPaperAccount({ apiBase, fetcher, paperAccountToken });
     if (!account) {
       return cancelFallback("local");
     }
@@ -199,7 +208,7 @@ export async function cancelPaperOrder(
 
     const response = await fetcher(`${apiBase}/api/v1/orders/${input.orderId}/cancel`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: paperAccountHeaders(paperAccountToken, { "content-type": "application/json" }),
       body: JSON.stringify({
         account_id: account.id,
       }),
@@ -214,7 +223,8 @@ export async function cancelPaperOrder(
     }
 
     const order = (await response.json()) as BackendOrderResponse;
-    const updatedAccount = (await fetchPaperAccount({ apiBase, fetcher })) ?? account;
+    const updatedAccount =
+      (await fetchPaperAccount({ apiBase, fetcher, paperAccountToken })) ?? account;
     return {
       ok: true,
       mode: "api",
@@ -230,6 +240,7 @@ export async function cancelPaperOrder(
 export async function fetchPaperAccount(input?: {
   apiBase?: string;
   fetcher?: Fetcher;
+  paperAccountToken?: string;
 }): Promise<PaperAccountResponse | null> {
   const apiBase = normalizeApiBase(input?.apiBase ?? API_BASE);
   if (!apiBase) {
@@ -240,14 +251,38 @@ export async function fetchPaperAccount(input?: {
     return await fetchJson<PaperAccountResponse>(
       input?.fetcher ?? fetch,
       `${apiBase}/api/v1/paper-account`,
+      { headers: paperAccountHeaders(input?.paperAccountToken ?? getPaperAccountToken()) },
     );
   } catch {
     return null;
   }
 }
 
-async function fetchJson<T>(fetcher: Fetcher, url: string): Promise<T> {
-  const response = await fetcher(url, { cache: "no-store" });
+export function getPaperAccountToken(): string {
+  const storage = safeLocalStorage();
+  if (storage) {
+    const existing = storage.getItem(PAPER_ACCOUNT_TOKEN_KEY);
+    if (existing) {
+      memoryPaperAccountToken = existing;
+      return existing;
+    }
+    const token = randomToken();
+    memoryPaperAccountToken = token;
+    storage.setItem(PAPER_ACCOUNT_TOKEN_KEY, token);
+    return token;
+  }
+
+  if (memoryPaperAccountToken) {
+    return memoryPaperAccountToken;
+  }
+
+  const token = randomToken();
+  memoryPaperAccountToken = token;
+  return token;
+}
+
+async function fetchJson<T>(fetcher: Fetcher, url: string, init?: RequestInit): Promise<T> {
+  const response = await fetcher(url, { ...init, cache: "no-store" });
   if (!response.ok) {
     throw new Error(await errorMessage(response));
   }
@@ -272,6 +307,35 @@ function normalizeApiBase(value: string): string {
 
 function decimalString(value: number): string {
   return value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function paperAccountHeaders(
+  paperAccountToken: string,
+  baseHeaders?: Record<string, string>,
+): Record<string, string> {
+  return {
+    ...baseHeaders,
+    [PAPER_ACCOUNT_TOKEN_HEADER]: paperAccountToken,
+  };
+}
+
+function safeLocalStorage(): Storage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function randomToken(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    const nibble = char === "x" ? value : (value & 0x3) | 0x8;
+    return nibble.toString(16);
+  });
 }
 
 function backendUnavailable(): SubmitPaperOrderResult {

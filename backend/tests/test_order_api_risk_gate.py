@@ -200,6 +200,119 @@ async def test_paper_account_endpoint_seeds_and_returns_account_once(db_session)
 
 
 @pytest.mark.asyncio
+async def test_paper_account_token_creates_isolated_public_session_accounts(db_session):
+    async def override_get_db():
+        yield db_session
+
+    headers_a = {"X-Paper-Account-Token": "11111111-1111-4111-8111-111111111111"}
+    headers_b = {"X-Paper-Account-Token": "22222222-2222-4222-8222-222222222222"}
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            first_a = await client.get("/api/v1/paper-account", headers=headers_a)
+            second_a = await client.get("/api/v1/paper-account", headers=headers_a)
+            first_b = await client.get("/api/v1/paper-account", headers=headers_b)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first_a.status_code == 200
+    assert second_a.status_code == 200
+    assert first_b.status_code == 200
+    assert first_a.json() == second_a.json()
+    assert first_a.json()["id"] != first_b.json()["id"]
+    assert first_a.json()["name"] == "Paper Session Account"
+    assert first_b.json()["name"] == "Paper Session Account"
+    assert first_a.json()["cash_balance"] == "100000.0000"
+    assert first_b.json()["cash_balance"] == "100000.0000"
+
+    ledger_entries = (await db_session.execute(select(LedgerEntry))).scalars().all()
+    assert len(ledger_entries) == 2
+
+
+@pytest.mark.asyncio
+async def test_paper_order_token_rejects_cross_session_account_replay(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-session-replay-market",
+        title="Session replay market",
+        question="Will account tokens bind public paper orders?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    headers_a = {"X-Paper-Account-Token": "11111111-1111-4111-8111-111111111111"}
+    headers_b = {"X-Paper-Account-Token": "22222222-2222-4222-8222-222222222222"}
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            account_a = await client.get("/api/v1/paper-account", headers=headers_a)
+            account_b = await client.get("/api/v1/paper-account", headers=headers_b)
+            replay_response = await client.post(
+                f"/api/v1/markets/{market.slug}/orders",
+                headers=headers_b,
+                json={
+                    "account_id": account_a.json()["id"],
+                    "side": "buy",
+                    "outcome": "yes",
+                    "order_type": "limit",
+                    "quantity": "10",
+                    "price": "0.55",
+                    "risk": {
+                        "predicted_prob": 0.62,
+                        "confidence": 0.8,
+                        "edge": 0.07,
+                        "current_drawdown": 0,
+                        "minutes_before_start": 120,
+                    },
+                },
+            )
+            valid_response = await client.post(
+                f"/api/v1/markets/{market.slug}/orders",
+                headers=headers_a,
+                json={
+                    "account_id": account_a.json()["id"],
+                    "side": "buy",
+                    "outcome": "yes",
+                    "order_type": "limit",
+                    "quantity": "10",
+                    "price": "0.55",
+                    "risk": {
+                        "predicted_prob": 0.62,
+                        "confidence": 0.8,
+                        "edge": 0.07,
+                        "current_drawdown": 0,
+                        "minutes_before_start": 120,
+                    },
+                },
+            )
+            account_a_after = await client.get("/api/v1/paper-account", headers=headers_a)
+            account_b_after = await client.get("/api/v1/paper-account", headers=headers_b)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert account_a.status_code == 200
+    assert account_b.status_code == 200
+    assert replay_response.status_code == 400
+    assert "account token does not match account_id" in replay_response.json()["detail"]
+    assert valid_response.status_code == 200
+    assert valid_response.json()["account_id"] == account_a.json()["id"]
+    assert account_a_after.json()["reserved_cash"] == "5.5000"
+    assert account_a_after.json()["open_orders"][0]["id"] == valid_response.json()["id"]
+    assert account_b_after.json()["id"] == account_b.json()["id"]
+    assert account_b_after.json()["reserved_cash"] == "0.0000"
+    assert account_b_after.json()["open_orders"] == []
+
+
+@pytest.mark.asyncio
 async def test_paper_account_reports_open_orders_and_reserved_cash(db_session):
     market_service = MarketService(db_session)
     market = await market_service.create_market(

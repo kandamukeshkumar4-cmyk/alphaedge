@@ -103,3 +103,51 @@ async def test_submit_market_signal_records_one_active_signal_per_account(db_ses
     assert summary.status_code == 200
     assert summary.json()["selected_outcome"] == "no"
     assert summary.json()["total_signals"] == 1
+
+
+@pytest.mark.asyncio
+async def test_market_signal_summary_uses_paper_account_token_context(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-token-signal-market",
+        title="Token signal market",
+        question="Will signal summaries stay scoped to the browser account?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    headers_a = {"X-Paper-Account-Token": "11111111-1111-4111-8111-111111111111"}
+    headers_b = {"X-Paper-Account-Token": "22222222-2222-4222-8222-222222222222"}
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            account_a = await client.get("/api/v1/paper-account", headers=headers_a)
+            submit_a = await client.post(
+                f"/api/v1/markets/{market.slug}/signals",
+                headers=headers_a,
+                json={"account_id": account_a.json()["id"], "outcome": "yes"},
+            )
+            summary_a = await client.get(
+                f"/api/v1/markets/{market.slug}/signals",
+                headers=headers_a,
+            )
+            summary_b = await client.get(
+                f"/api/v1/markets/{market.slug}/signals",
+                headers=headers_b,
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert account_a.status_code == 200
+    assert submit_a.status_code == 200
+    assert summary_a.status_code == 200
+    assert summary_a.json()["selected_outcome"] == "yes"
+    assert summary_a.json()["total_signals"] == 1
+    assert summary_b.status_code == 200
+    assert summary_b.json()["selected_outcome"] is None
+    assert summary_b.json()["total_signals"] == 1

@@ -35,6 +35,35 @@ describe("paper signal API", () => {
     });
   });
 
+  it("loads the session selected signal with a paper account token", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://api.example.test/api/v1/markets/nba-2025-01-15-lal-bos/signals");
+      expect(headersObject(init?.headers)["x-paper-account-token"]).toBe(
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      );
+      return jsonResponse({
+        paper_trading_only: true,
+        market_id: "22222222-2222-2222-2222-222222222222",
+        market_slug: "nba-2025-01-15-lal-bos",
+        selected_outcome: "yes",
+        total_signals: 1,
+        options: [
+          { outcome: "yes", count: 1, percentage: 100 },
+          { outcome: "no", count: 0, percentage: 0 },
+        ],
+      });
+    });
+
+    const summary = await fetchPaperSignalSummary({
+      apiBase: "https://api.example.test",
+      fetcher,
+      slug: "nba-2025-01-15-lal-bos",
+      paperAccountToken: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    });
+
+    expect(summary?.selected_outcome).toBe("yes");
+  });
+
   it("submits a signal through the system paper account", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
@@ -90,7 +119,64 @@ describe("paper signal API", () => {
       outcome: "yes",
     });
   });
+
+  it("submits a signal with the browser paper account token", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.endsWith("/api/v1/paper-account")) {
+        return jsonResponse({
+          id: "99999999-9999-9999-9999-999999999999",
+          name: "Paper Session Account",
+          cash_balance: "100000.0000",
+          reserved_cash: "0.0000",
+          available_cash: "100000.0000",
+          paper_trading_only: true,
+          positions: [],
+          open_orders: [],
+          order_history: [],
+        });
+      }
+      if (url.endsWith("/api/v1/markets/nba-2025-01-15-lal-bos/signals")) {
+        return jsonResponse({
+          paper_trading_only: true,
+          market_id: "22222222-2222-2222-2222-222222222222",
+          market_slug: "nba-2025-01-15-lal-bos",
+          selected_outcome: "yes",
+          total_signals: 1,
+          options: [
+            { outcome: "yes", count: 1, percentage: 100 },
+            { outcome: "no", count: 0, percentage: 0 },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    });
+
+    const result = await submitPaperSignal({
+      apiBase: "https://api.example.test",
+      fetcher,
+      slug: "nba-2025-01-15-lal-bos",
+      outcome: "yes",
+      paperAccountToken: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    });
+
+    expect(result.ok).toBe(true);
+    for (const call of calls) {
+      expect(headersObject(call.init?.headers)["x-paper-account-token"]).toBe(
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      );
+    }
+    expect(JSON.parse(String(calls[1].init?.body))).toEqual({
+      account_id: "99999999-9999-9999-9999-999999999999",
+      outcome: "yes",
+    });
+  });
 });
+
+function headersObject(headers: HeadersInit | undefined): Record<string, string> {
+  return Object.fromEntries(new Headers(headers).entries());
+}
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
