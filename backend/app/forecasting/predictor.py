@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import joblib
 
@@ -21,6 +21,8 @@ from app.backtesting.significance import (
     assess_closing_edge,
 )
 
+ForecastOutcome = Literal["yes", "no"]
+
 
 @dataclass(frozen=True)
 class ForecastPrediction:
@@ -32,6 +34,15 @@ class ForecastPrediction:
     evaluation: ForecastEvaluation | None = None
     significance: SignificanceVerdict | None = None
     clv: ForecastClvEvaluation | None = None
+    outcome: ForecastOutcome = "yes"
+    executable_price: float = 0.5
+
+
+@dataclass(frozen=True)
+class ExecutableRecommendation:
+    outcome: ForecastOutcome
+    price: float
+    edge: float
 
 
 def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
@@ -53,6 +64,7 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
     clv: ForecastClvEvaluation | None = None
     is_edge = False
     reason = "no resolved walk-forward evaluation"
+    recommendation = _executable_recommendation(features, predicted, implied)
 
     if comparisons:
         evaluation = evaluate_forecasts_against_closing(comparisons)
@@ -71,19 +83,25 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
                 trades,
                 min_edge=_float_feature(features, "clv_min_edge", 0.0),
             )
-        is_edge = (
+        closing_line_gate_met = (
             evaluation.model_beats_closing
             and significance.significant_beats_closing
             and clv is not None
             and clv.clv_positive
         )
+        executable_gate_met = recommendation.edge > 0.0
+        is_edge = closing_line_gate_met and executable_gate_met
         reason = (
             "closing-line edge gate met"
             if is_edge
-            else "closing-line edge gate not met"
+            else (
+                "executable price edge gate not met"
+                if closing_line_gate_met
+                else "closing-line edge gate not met"
+            )
         )
 
-    edge = predicted - implied if is_edge else 0.0
+    edge = recommendation.edge if is_edge else 0.0
     confidence = _confidence(features, is_edge)
     return ForecastPrediction(
         predicted_prob=predicted,
@@ -94,6 +112,8 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
         evaluation=evaluation,
         significance=significance,
         clv=clv,
+        outcome=recommendation.outcome,
+        executable_price=recommendation.price,
     )
 
 
@@ -128,11 +148,66 @@ def _forecast_trades(features: Mapping[str, Any]) -> list[ForecastTrade]:
         trades.append(
             ForecastTrade(
                 predicted_prob=float(item["predicted_prob"]),
-                entry_implied=float(item["entry_implied"]),
-                closing_implied=float(item["closing_implied"]),
+                entry_implied=_optional_float(item.get("entry_implied")),
+                closing_implied=_optional_float(item.get("closing_implied")),
+                executable_yes_ask=_optional_float(
+                    _first_present(
+                        item,
+                        ("executable_yes_ask", "yes_ask"),
+                        None,
+                    )
+                ),
+                executable_no_ask=_optional_float(
+                    _first_present(
+                        item,
+                        ("executable_no_ask", "no_ask"),
+                        None,
+                    )
+                ),
+                closing_yes=_optional_float(item.get("closing_yes")),
             )
         )
     return trades
+
+
+def _executable_recommendation(
+    features: Mapping[str, Any],
+    predicted_yes: float,
+    implied_yes: float,
+) -> ExecutableRecommendation:
+    yes_ask = _executable_ask(
+        features,
+        explicit_names=("executable_yes_ask", "yes_ask"),
+        opposite_bid_names=("executable_no_bid", "no_bid"),
+        fallback=implied_yes,
+    )
+    no_ask = _executable_ask(
+        features,
+        explicit_names=("executable_no_ask", "no_ask"),
+        opposite_bid_names=("executable_yes_bid", "yes_bid"),
+        fallback=1.0 - implied_yes,
+    )
+    yes_edge = predicted_yes - yes_ask
+    no_edge = (1.0 - predicted_yes) - no_ask
+    if no_edge > yes_edge:
+        return ExecutableRecommendation(outcome="no", price=no_ask, edge=no_edge)
+    return ExecutableRecommendation(outcome="yes", price=yes_ask, edge=yes_edge)
+
+
+def _executable_ask(
+    features: Mapping[str, Any],
+    *,
+    explicit_names: tuple[str, ...],
+    opposite_bid_names: tuple[str, ...],
+    fallback: float,
+) -> float:
+    explicit = _first_present(features, explicit_names, None)
+    if explicit is not None:
+        return _probability(explicit)
+    opposite_bid = _first_present(features, opposite_bid_names, None)
+    if opposite_bid is not None:
+        return 1.0 - _probability(opposite_bid)
+    return _probability(fallback)
 
 
 def _artifact_probability(features: Mapping[str, Any]) -> float | None:
@@ -192,3 +267,7 @@ def _int_feature(features: Mapping[str, Any], name: str, default: int) -> int:
 def _float_feature(features: Mapping[str, Any], name: str, default: float) -> float:
     value = features.get(name)
     return default if value is None else float(value)
+
+
+def _optional_float(value: object) -> float | None:
+    return None if value is None else float(value)

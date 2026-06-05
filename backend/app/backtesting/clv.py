@@ -18,8 +18,11 @@ class ForecastComparison:
 @dataclass(frozen=True)
 class ForecastTrade:
     predicted_prob: float
-    entry_implied: float
-    closing_implied: float
+    entry_implied: float | None = None
+    closing_implied: float | None = None
+    executable_yes_ask: float | None = None
+    executable_no_ask: float | None = None
+    closing_yes: float | None = None
 
 
 @dataclass(frozen=True)
@@ -49,10 +52,8 @@ class ForecastClvEvaluation:
 def closing_line_value(entry_price: float, closing_price: float, side: TradeSide) -> float:
     entry = _probability(entry_price, "entry_price")
     closing = _probability(closing_price, "closing_price")
-    if side == "yes":
+    if side in ("yes", "no"):
         return closing - entry
-    if side == "no":
-        return entry - closing
     raise ValueError("side must be 'yes' or 'no'")
 
 
@@ -72,15 +73,40 @@ def evaluate_forecast_trade_clv(
     no_trades = 0
     for forecast in forecasts:
         predicted = _probability(forecast.predicted_prob, "predicted_prob")
-        entry = _probability(forecast.entry_implied, "entry_implied")
-        closing = _probability(forecast.closing_implied, "closing_implied")
-        model_edge = predicted - entry
-        if abs(model_edge) <= min_edge:
+        yes_ask = _side_price(
+            forecast.executable_yes_ask,
+            fallback=forecast.entry_implied,
+            field="executable_yes_ask",
+        )
+        no_ask = _side_price(
+            forecast.executable_no_ask,
+            fallback=(1.0 - forecast.entry_implied if forecast.entry_implied is not None else None),
+            field="executable_no_ask",
+        )
+        closing_yes = _side_price(
+            forecast.closing_yes,
+            fallback=forecast.closing_implied,
+            field="closing_yes",
+        )
+        if yes_ask is None and no_ask is None:
+            raise ValueError("forecast trade requires at least one executable entry price")
+        if closing_yes is None:
+            raise ValueError("forecast trade requires closing_yes or closing_implied")
+
+        yes_edge = predicted - yes_ask if yes_ask is not None else float("-inf")
+        no_edge = (1.0 - predicted) - no_ask if no_ask is not None else float("-inf")
+        if max(yes_edge, no_edge) <= min_edge:
             continue
-        side: TradeSide = "yes" if model_edge > 0 else "no"
+        side: TradeSide = "yes" if yes_edge >= no_edge else "no"
         if side == "yes":
+            entry = yes_ask
+            closing = closing_yes
             yes_trades += 1
         else:
+            if no_ask is None:
+                continue
+            entry = no_ask
+            closing = 1.0 - closing_yes
             no_trades += 1
         trade_count += 1
         total_clv += closing_line_value(entry, closing, side)
@@ -143,6 +169,19 @@ def _probability(value: float, field: str) -> float:
     if probability < 0.0 or probability > 1.0:
         raise ValueError(f"{field} must be between 0 and 1")
     return probability
+
+
+def _side_price(
+    value: float | None,
+    *,
+    fallback: float | None,
+    field: str,
+) -> float | None:
+    if value is not None:
+        return _probability(value, field)
+    if fallback is not None:
+        return _probability(fallback, field)
+    return None
 
 
 def _outcome(value: int) -> int:

@@ -89,3 +89,49 @@ def test_fractional_kelly_returns_zero_without_positive_edge():
     assert suggestion.edge == -0.05
     assert suggestion.stake_notional == Decimal("0.0000")
     assert suggestion.quantity == Decimal("0.0000")
+
+
+def test_risk_suggests_no_stake_from_yes_probability_and_executable_no_ask():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="buy",
+        outcome="no",
+        quantity=Decimal("10"),
+        price=Decimal("0.42"),
+        predicted_prob=0.30,
+        confidence=0.8,
+        edge=0.28,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.0,
+        minutes_before_start=30,
+    )
+
+    suggestion = RiskService().suggest_stake(intent)
+
+    assert suggestion.predicted_prob == pytest.approx(0.70)
+    assert suggestion.price == Decimal("0.4200")
+    assert suggestion.edge == 0.28
+    assert suggestion.stake_notional == Decimal("500.0000")
+    assert suggestion.capped is True
+
+
+def test_risk_suggests_no_outcome_stake_against_no_executable_ask():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="buy",
+        outcome="no",
+        quantity=Decimal("10"),
+        price=Decimal("0.62"),
+        predicted_prob=0.30,
+        confidence=0.8,
+        edge=0.08,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.0,
+        minutes_before_start=30,
+    )
+
+    suggestion = RiskService().suggest_stake(intent)
+
+    assert suggestion.predicted_prob == pytest.approx(0.70)
+    assert suggestion.price == Decimal("0.6200")
+    assert suggestion.edge == pytest.approx(0.08)

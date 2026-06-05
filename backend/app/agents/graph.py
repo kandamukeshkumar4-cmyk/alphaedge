@@ -80,6 +80,8 @@ def prediction_node(state: AgentState) -> AgentState:
     state.confidence = prediction.confidence
     state.features["forecast_is_edge"] = prediction.is_edge
     state.features["forecast_edge"] = round(prediction.edge, 4)
+    state.features["forecast_outcome"] = prediction.outcome
+    state.features["forecast_executable_price"] = round(prediction.executable_price, 4)
     state.features["forecast_gate_reason"] = prediction.reason
     if prediction.evaluation is not None:
         state.features["forecast_brier_delta_vs_closing"] = round(
@@ -100,12 +102,14 @@ def risk_node(state: AgentState) -> AgentState:
     from decimal import Decimal
 
     edge = float(state.features.get("forecast_edge", 0.0))
+    outcome = str(state.features.get("forecast_outcome", "yes")).lower()
+    price = state.features.get("forecast_executable_price", state.features.get("implied_yes", 0.5))
     intent = OrderIntent(
         market_slug=state.market_slug,
         side="buy",
-        outcome="yes",
+        outcome=outcome,
         quantity=Decimal("10"),
-        price=Decimal(str(state.features.get("implied_yes", 0.5))),
+        price=Decimal(str(price)),
         predicted_prob=state.predicted_prob,
         confidence=state.confidence,
         edge=edge,
@@ -117,7 +121,9 @@ def risk_node(state: AgentState) -> AgentState:
     state.order_intent = intent
     state.approved = ok
     if not state.features.get("forecast_is_edge", False):
-        state.errors.append("closing-line edge gate not met")
+        state.errors.append(
+            str(state.features.get("forecast_gate_reason", "forecast gate not met"))
+        )
     if not ok:
         state.errors.extend(failures)
     return state

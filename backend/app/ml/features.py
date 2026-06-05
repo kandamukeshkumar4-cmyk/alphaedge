@@ -49,7 +49,9 @@ def load_fixture_dataset(fixtures_dir: Path) -> pd.DataFrame:
 
 
 def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
-    odds = pd.read_csv(fixtures_dir / "odds_snapshots_sample.csv")
+    odds = _with_devigged_implied_quotes(
+        pd.read_csv(fixtures_dir / "odds_snapshots_sample.csv")
+    )
     scores = pd.read_csv(fixtures_dir / "final_scores_sample.csv")
     latest = _select_closing_snapshots(odds)
     market_features = _market_feature_summary(odds)
@@ -59,7 +61,8 @@ def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
     if not context.empty:
         df = df.merge(context, on="market_slug", how="left")
     df["label"] = df["winner_yes"].astype(int)
-    df["implied_no"] = 1.0 - df["implied_yes"]
+    df["executable_yes_ask"] = _quote_column(df, "executable_yes_ask", df["implied_yes"])
+    df["executable_no_ask"] = _quote_column(df, "executable_no_ask", 1.0 - df["implied_yes"])
     df["closing_implied"] = df["closing_implied"].fillna(df["implied_yes"])
     df["opening_implied_yes"] = df["opening_implied_yes"].fillna(df["implied_yes"])
     df["odds_movement"] = df["odds_movement"].fillna(0.0)
@@ -129,6 +132,56 @@ def _eligible_odds(odds: pd.DataFrame) -> pd.DataFrame:
         joined = ", ".join(missing_markets)
         raise ValueError(f"no pre-close odds snapshot for market(s): {joined}")
     return pd.concat([eligible, without_close], ignore_index=True)
+
+
+def power_devig_two_way(implied_yes: float, implied_no: float) -> tuple[float, float]:
+    yes = _strict_quote_probability(implied_yes, "implied_yes")
+    no = _strict_quote_probability(implied_no, "implied_no")
+    if abs((yes + no) - 1.0) <= 1e-12:
+        return yes, no
+
+    low = 0.01
+    high = 100.0
+    for _ in range(100):
+        exponent = (low + high) / 2.0
+        total = yes**exponent + no**exponent
+        if total > 1.0:
+            low = exponent
+        else:
+            high = exponent
+
+    exponent = (low + high) / 2.0
+    devig_yes = yes**exponent
+    devig_no = no**exponent
+    total = devig_yes + devig_no
+    return devig_yes / total, devig_no / total
+
+
+def _with_devigged_implied_quotes(odds: pd.DataFrame) -> pd.DataFrame:
+    normalized = odds.copy()
+    if "implied_no" not in normalized.columns:
+        normalized["implied_no"] = 1.0 - normalized["implied_yes"].astype(float)
+        return normalized
+
+    pairs = normalized.apply(_devig_quote_pair, axis=1, result_type="expand")
+    normalized["implied_yes"] = pairs[0]
+    normalized["implied_no"] = pairs[1]
+    return normalized
+
+
+def _devig_quote_pair(row) -> tuple[float, float]:
+    yes = float(row["implied_yes"])
+    no = row.get("implied_no")
+    if pd.isna(no):
+        return yes, 1.0 - yes
+    return power_devig_two_way(yes, float(no))
+
+
+def _strict_quote_probability(value: float, field: str) -> float:
+    probability = float(value)
+    if probability <= 0.0 or probability >= 1.0:
+        raise ValueError(f"{field} must be between 0 and 1")
+    return probability
 
 
 def _latest_by_market(odds: pd.DataFrame) -> pd.DataFrame:
@@ -262,6 +315,16 @@ def _fill_nba_context_defaults(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[column] = df[column].fillna(default)
     return df
+
+
+def _quote_column(
+    df: pd.DataFrame,
+    column: str,
+    fallback,
+) -> pd.Series:
+    if column not in df.columns:
+        return fallback
+    return df[column].fillna(fallback)
 
 
 def feature_hash(row: dict) -> str:

@@ -2,7 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from app.ml.features import build_feature_matrix
+from app.ml.features import build_feature_matrix, power_devig_two_way
+
+
+def test_power_devig_two_way_removes_overround_from_binary_quotes():
+    yes, no = power_devig_two_way(0.60, 0.45)
+
+    assert yes + no == pytest.approx(1.0)
+    assert yes > no
+    assert yes < 0.60
+    assert no < 0.45
 
 
 def test_feature_matrix_uses_pre_close_odds_movement_and_velocity(tmp_path):
@@ -30,9 +39,34 @@ def test_feature_matrix_uses_pre_close_odds_movement_and_velocity(tmp_path):
     assert df.loc["m1", "implied_yes"] == pytest.approx(0.50)
     assert df.loc["m1", "opening_implied_yes"] == pytest.approx(0.40)
     assert df.loc["m1", "closing_implied"] == pytest.approx(0.50)
+    assert df.loc["m1", "executable_yes_ask"] == pytest.approx(0.50)
+    assert df.loc["m1", "executable_no_ask"] == pytest.approx(0.50)
     assert df.loc["m1", "odds_movement"] == pytest.approx(0.10)
     assert df.loc["m1", "snapshot_count"] == 2
     assert df.loc["m1", "line_move_velocity"] == pytest.approx(0.10)
+
+
+def test_feature_matrix_uses_power_devig_when_two_sided_quote_exists(tmp_path):
+    _write_csv(
+        tmp_path / "odds_snapshots_sample.csv",
+        [
+            "market_slug,captured_at,implied_yes,implied_no,source,close_at",
+            "m1,2026-01-01T17:00:00Z,0.60,0.45,fixture,2026-01-01T18:00:00Z",
+        ],
+    )
+    _write_csv(
+        tmp_path / "final_scores_sample.csv",
+        [
+            "market_slug,home_score,away_score,winner_yes",
+            "m1,100,90,1",
+        ],
+    )
+
+    expected_yes, expected_no = power_devig_two_way(0.60, 0.45)
+    df = build_feature_matrix(tmp_path).set_index("market_slug")
+
+    assert df.loc["m1", "implied_yes"] == pytest.approx(expected_yes)
+    assert df.loc["m1", "implied_no"] == pytest.approx(expected_no)
 
 
 def test_feature_matrix_adds_nba_context_without_current_result_leakage(tmp_path):

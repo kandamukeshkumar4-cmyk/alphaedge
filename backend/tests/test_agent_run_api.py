@@ -167,7 +167,7 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
             "approved": False,
             "step_count": 5,
             "errors": [
-                "closing-line edge gate not met",
+                "no resolved walk-forward evaluation",
                 "edge 0.00% < 5%",
                 "confidence 0.50 < 0.7",
             ],

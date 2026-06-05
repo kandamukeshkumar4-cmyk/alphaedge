@@ -1,5 +1,7 @@
-import pytest
+from decimal import Decimal
+
 import joblib
+import pytest
 
 from app.agents.graph import run_agent_graph
 from app.forecasting.predictor import predict_market
@@ -18,6 +20,20 @@ def _trade(predicted: float, entry: float, closing: float) -> dict:
         "predicted_prob": predicted,
         "entry_implied": entry,
         "closing_implied": closing,
+    }
+
+
+def _executable_trade(
+    predicted: float,
+    yes_ask: float,
+    no_ask: float,
+    closing_yes: float,
+) -> dict:
+    return {
+        "predicted_prob": predicted,
+        "executable_yes_ask": yes_ask,
+        "executable_no_ask": no_ask,
+        "closing_yes": closing_yes,
     }
 
 
@@ -120,6 +136,39 @@ def test_prediction_requires_positive_walk_forward_clv_before_crediting_edge():
     assert prediction.clv is None
 
 
+def test_prediction_requires_positive_current_executable_edge_before_serving_edge():
+    prediction = predict_market(
+        {
+            "implied_yes": 0.55,
+            "executable_yes_ask": 0.75,
+            "executable_no_ask": 0.40,
+            "model_probability": 0.70,
+            "forecast_comparisons": [
+                _comparison(
+                    predicted=0.85 if index % 2 else 0.15,
+                    closing=0.50,
+                    outcome=index % 2,
+                )
+                for index in range(40)
+            ],
+            "forecast_trades": [
+                _trade(
+                    predicted=0.85 if index % 2 else 0.15,
+                    entry=0.50,
+                    closing=0.65 if index % 2 else 0.35,
+                )
+                for index in range(40)
+            ],
+            "edge_min_sample": 20,
+            "edge_bootstrap_samples": 100,
+        }
+    )
+
+    assert prediction.is_edge is False
+    assert prediction.edge == pytest.approx(0.0)
+    assert prediction.reason == "executable price edge gate not met"
+
+
 def test_agent_prediction_credits_significant_closing_line_edge_with_positive_clv():
     state = run_agent_graph(
         "nba-2025-01-15-lal-bos",
@@ -153,3 +202,43 @@ def test_agent_prediction_credits_significant_closing_line_edge_with_positive_cl
     assert state.order_intent is not None
     assert state.order_intent.edge == pytest.approx(0.15)
     assert state.approved is True
+
+
+def test_agent_prediction_prices_edge_against_executable_ask_not_midpoint():
+    state = run_agent_graph(
+        "nba-2025-01-15-lal-bos",
+        {
+            "implied_yes": 0.55,
+            "executable_yes_ask": 0.68,
+            "executable_no_ask": 0.40,
+            "model_probability": 0.70,
+            "forecast_comparisons": [
+                _comparison(
+                    predicted=0.85 if index % 2 else 0.15,
+                    closing=0.50,
+                    outcome=index % 2,
+                )
+                for index in range(40)
+            ],
+            "forecast_trades": [
+                _executable_trade(
+                    predicted=0.85 if index % 2 else 0.15,
+                    yes_ask=0.68,
+                    no_ask=0.68,
+                    closing_yes=0.75 if index % 2 else 0.25,
+                )
+                for index in range(40)
+            ],
+            "edge_min_sample": 20,
+            "edge_bootstrap_samples": 100,
+        },
+    )
+
+    assert state.predicted_prob == pytest.approx(0.70)
+    assert state.features["forecast_is_edge"] is True
+    assert state.features["forecast_edge"] == pytest.approx(0.02)
+    assert state.order_intent is not None
+    assert state.order_intent.price == Decimal("0.68")
+    assert state.order_intent.edge == pytest.approx(0.02)
+    assert state.approved is False
+    assert any("edge 2.00% < 5%" in error for error in state.errors)

@@ -254,6 +254,27 @@ def test_kalshi_normalizes_market_midpoint_from_price_fields():
     assert snapshot.metadata["status"] == "active"
 
 
+def test_kalshi_converts_opposite_side_bids_into_executable_asks():
+    snapshot = normalize_kalshi_market(
+        {
+            "market": {
+                "ticker": "KXNBA-LALBOS-26JAN15",
+                "title": "Lakers beat Celtics?",
+                "category": "Sports",
+                "status": "active",
+                "close_time": "2026-01-15T00:30:00Z",
+                "yes_bid": 40,
+                "no_bid": 36,
+            }
+        },
+        captured_at=CAPTURED_AT,
+    )
+
+    assert snapshot.implied_yes == pytest.approx(0.52)
+    assert snapshot.metadata["executable_yes_ask"] == pytest.approx(0.64)
+    assert snapshot.metadata["executable_no_ask"] == pytest.approx(0.60)
+
+
 def test_kalshi_connector_fetches_market_snapshot():
     requests: list[httpx.Request] = []
 

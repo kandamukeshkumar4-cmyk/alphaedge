@@ -94,18 +94,31 @@ def train_walk_forward_xgboost_model(
         raw_probs = model.predict_proba(eval_df[feature_columns].values)[:, 1]
         calibrated_probs = calibrator.predict(raw_probs)
         for row, probability in zip(split.eval_rows, calibrated_probs):
+            entry_implied = float(row["implied_yes"])
+            closing_yes = float(row["closing_implied"])
             comparisons.append(
                 ForecastComparison(
                     predicted_prob=float(probability),
-                    closing_implied=float(row["closing_implied"]),
+                    closing_implied=closing_yes,
                     outcome=int(row["winner_yes"]),
                 )
             )
             trades.append(
                 ForecastTrade(
                     predicted_prob=float(probability),
-                    entry_implied=float(row["implied_yes"]),
-                    closing_implied=float(row["closing_implied"]),
+                    entry_implied=entry_implied,
+                    closing_implied=closing_yes,
+                    executable_yes_ask=_row_float(
+                        row,
+                        "executable_yes_ask",
+                        entry_implied,
+                    ),
+                    executable_no_ask=_row_float(
+                        row,
+                        "executable_no_ask",
+                        1.0 - entry_implied,
+                    ),
+                    closing_yes=closing_yes,
                 )
             )
 
@@ -266,3 +279,10 @@ def _calibration_result(report) -> dict[str, Any]:
             for item in report.reliability_curve
         ],
     }
+
+
+def _row_float(row: dict[str, Any], column: str, default: float) -> float:
+    value = row.get(column, default)
+    if value is None or pd.isna(value):
+        return float(default)
+    return float(value)
