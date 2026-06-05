@@ -3,9 +3,10 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+from app.data.connectors.base import NormalizedMarketSnapshot
 from app.data.snapshots import OddsSnapshotRecord, persist_odds_snapshots
 from app.db.models import OddsSnapshot
-from app.pipeline.ingest import ingest_fixtures
+from app.pipeline.ingest import ingest_fixtures, ingest_normalized_snapshots
 
 
 async def test_persist_odds_snapshots_is_idempotent_by_market_source_and_time(db_session):
@@ -54,3 +55,28 @@ async def test_fixture_ingestion_skips_already_persisted_snapshots(db_session, t
     assert first_count == 2
     assert second_count == 0
     assert row_count == 2
+
+
+async def test_connector_snapshot_ingestion_persists_normalized_snapshots(db_session):
+    snapshot = NormalizedMarketSnapshot(
+        market_slug="polymarket:will-lakers-beat-celtics:yes",
+        implied_yes=0.57,
+        source="polymarket.gamma",
+        captured_at=datetime(2026, 1, 14, 18, tzinfo=timezone.utc),
+        platform_market_id="will-lakers-beat-celtics",
+        title="Will the Lakers beat the Celtics?",
+    )
+
+    first = await ingest_normalized_snapshots(db_session, [snapshot])
+    second = await ingest_normalized_snapshots(db_session, [snapshot])
+
+    stored = await db_session.scalar(
+        select(OddsSnapshot).where(OddsSnapshot.market_slug == snapshot.market_slug)
+    )
+    assert first.inserted == 1
+    assert first.skipped == 0
+    assert second.inserted == 0
+    assert second.skipped == 1
+    assert stored is not None
+    assert stored.source == "polymarket.gamma"
+    assert stored.implied_yes == Decimal("0.57")
