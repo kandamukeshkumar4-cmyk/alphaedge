@@ -41,6 +41,21 @@ def test_backtest_reports_closing_line_comparison_metrics():
     assert "model_beats_closing" in result
 
 
+def test_backtest_reports_phase3_walk_forward_gate_metrics(tmp_path):
+    result = run_backtest(FIXTURES, tmp_path / "artifacts")
+
+    phase3 = result["phase3_forecast_gate"]
+    assert phase3["gate"] in {"met", "blocked"}
+    assert phase3["is_edge"] is False
+    assert phase3["walk_forward"]["count"] > 0
+    assert isinstance(phase3["walk_forward"]["mean_clv"], float)
+    assert isinstance(phase3["walk_forward"]["model_brier"], float)
+    assert isinstance(phase3["walk_forward"]["closing_brier"], float)
+    assert "deflated_sharpe" in phase3["walk_forward"]
+    assert "cpcv" in phase3["walk_forward"]
+    assert phase3["edge_gate"]["count"] == phase3["walk_forward"]["count"]
+
+
 def test_fixture_backtest_uses_latest_snapshot_at_or_before_market_close(tmp_path):
     (tmp_path / "odds_snapshots_sample.csv").write_text(
         "\n".join(

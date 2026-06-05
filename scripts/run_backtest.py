@@ -27,6 +27,15 @@ def main() -> None:
         f"ROI: {result['roi']:.2%} · "
         f"Calibration Error: {result['calibration_error']:.4f}"
     )
+    phase3 = result["phase3_forecast_gate"]
+    walk_forward = phase3["walk_forward"]
+    print(
+        "Phase 3 forecast gate: "
+        f"{phase3['gate']} · "
+        f"CLV {walk_forward['mean_clv']:.4f} · "
+        f"Brier {walk_forward['model_brier']:.4f} vs "
+        f"closing {walk_forward['closing_brier']:.4f}"
+    )
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from app.backtesting.clv import ForecastComparison, evaluate_forecasts_against_c
 from app.backtesting.metrics import brier_score, calibration_error, max_drawdown, roi
 from app.backtesting.simulator import simulate_trade
 from app.ml.features import load_fixture_dataset
-from app.ml.trainer import train_xgboost_model
+from app.ml.trainer import train_walk_forward_xgboost_model, train_xgboost_model
 
 
 def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[str, Any]:
@@ -44,6 +44,7 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
             equity.append(equity[-1] + trade.pnl)
 
     forecast_evaluation = evaluate_forecasts_against_closing(forecast_comparisons)
+    phase3_gate = _phase3_forecast_gate(fixtures_dir, artifact_dir / "phase3_walk_forward")
     return {
         "market_count": len(df),
         "brier_score": brier_score(predictions, outcomes),
@@ -60,4 +61,23 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
         "max_drawdown": max_drawdown(equity),
         "calibration_error": calibration_error(predictions, outcomes),
         "train": train_result,
+        "phase3_forecast_gate": phase3_gate,
+    }
+
+
+def _phase3_forecast_gate(fixtures_dir: Path, artifact_dir: Path) -> dict[str, Any]:
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=2,
+        eval_window_size=1,
+        edge_bootstrap_samples=100,
+        cpcv_group_count=2,
+    )
+    return {
+        "gate": "met" if result["is_edge"] else "blocked",
+        "is_edge": result["is_edge"],
+        "walk_forward": result["walk_forward"],
+        "edge_gate": result["edge_gate"],
+        "calibration": result["walk_forward_calibration"],
     }
