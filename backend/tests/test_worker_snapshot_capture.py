@@ -74,6 +74,18 @@ class FakeSingleMarketConnector:
         )
 
 
+class FailingSingleMarketConnector:
+    def __init__(self, error: Exception):
+        self.error = error
+
+    def fetch_market_snapshot(
+        self,
+        market_id: str,
+        captured_at: datetime | None = None,
+    ) -> NormalizedMarketSnapshot:
+        raise self.error
+
+
 async def test_configured_market_snapshot_capture_persists_connector_rows(db_session):
     odds_api = FakeOddsApiConnector()
     polymarket = FakeSingleMarketConnector("polymarket.gamma")
@@ -135,6 +147,39 @@ async def test_configured_market_snapshot_capture_persists_connector_rows(db_ses
     ]
 
 
+async def test_configured_market_snapshot_capture_records_source_failures(db_session):
+    odds_api = FakeOddsApiConnector()
+    kalshi = FakeSingleMarketConnector("kalshi.rest")
+    settings = Settings(
+        ODDS_API_KEY="server-side-key",
+        ODDS_API_SPORT_KEYS="basketball_nba",
+        POLYMARKET_MARKET_SLUGS="will-lakers-beat-celtics",
+        KALSHI_MARKET_TICKERS="KXNBA-LALBOS-26JAN15",
+    )
+
+    result = await capture_configured_market_snapshots(
+        db_session,
+        settings=settings,
+        connectors=MarketDataConnectors(
+            odds_api=odds_api,
+            polymarket=FailingSingleMarketConnector(RuntimeError("upstream 503")),
+            kalshi=kalshi,
+        ),
+        captured_at=CAPTURED_AT,
+    )
+
+    row_count = await db_session.scalar(select(func.count()).select_from(OddsSnapshot))
+    assert result.fetched == 3
+    assert result.inserted == 3
+    assert result.skipped == 0
+    assert result.failed == 1
+    assert len(result.failures) == 1
+    assert result.failures[0].source == "polymarket.gamma"
+    assert result.failures[0].target == "will-lakers-beat-celtics"
+    assert result.failures[0].error == "upstream 503"
+    assert row_count == 3
+
+
 def test_settings_parse_market_snapshot_capture_targets():
     settings = Settings(
         ODDS_API_SPORT_KEYS="basketball_nba, americanfootball_nfl",
@@ -166,3 +211,60 @@ def test_worker_settings_register_live_snapshot_capture_task():
         for job in WorkerSettings.cron_jobs
     }
     assert "capture_market_snapshots_task" in cron_function_names
+
+
+async def test_capture_market_snapshots_task_reports_source_failures(monkeypatch):
+    async def fake_capture_configured_market_snapshots(*args, **kwargs):
+        from app.pipeline.ingest import (
+            MarketSnapshotCaptureFailure,
+            MarketSnapshotCaptureResult,
+        )
+
+        return MarketSnapshotCaptureResult(
+            fetched=2,
+            inserted=1,
+            skipped=1,
+            failures=(
+                MarketSnapshotCaptureFailure(
+                    source="kalshi.rest",
+                    target="KXNBA-LALBOS-26JAN15",
+                    error="upstream 500",
+                ),
+            ),
+        )
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def commit(self):
+            return None
+
+    class FakeSessionLocal:
+        def __call__(self):
+            return FakeSession()
+
+    monkeypatch.setattr(
+        "app.workers.tasks.capture_configured_market_snapshots",
+        fake_capture_configured_market_snapshots,
+    )
+    monkeypatch.setattr("app.db.session.AsyncSessionLocal", FakeSessionLocal())
+
+    result = await capture_market_snapshots_task({"settings": Settings()})
+
+    assert result == {
+        "fetched": 2,
+        "ingested": 1,
+        "skipped": 1,
+        "failed": 1,
+        "failures": [
+            {
+                "source": "kalshi.rest",
+                "target": "KXNBA-LALBOS-26JAN15",
+                "error": "upstream 500",
+            }
+        ],
+    }

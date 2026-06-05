@@ -25,6 +25,15 @@ async def capture_market_snapshots_task(ctx: dict) -> dict:
         "fetched": result.fetched,
         "ingested": result.inserted,
         "skipped": result.skipped,
+        "failed": result.failed,
+        "failures": [
+            {
+                "source": failure.source,
+                "target": failure.target,
+                "error": failure.error,
+            }
+            for failure in result.failures
+        ],
     }
 
 
