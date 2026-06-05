@@ -11,7 +11,37 @@ FEATURE_COLUMNS = [
     "odds_movement",
     "line_move_velocity",
     "snapshot_count",
+    "home_elo_pre",
+    "away_elo_pre",
+    "elo_diff",
+    "home_rest_days",
+    "away_rest_days",
+    "home_back_to_back",
+    "away_back_to_back",
+    "home_recent_win_rate",
+    "away_recent_win_rate",
+    "recent_win_rate_diff",
+    "injury_absence_count",
 ]
+
+NBA_CONTEXT_COLUMNS = [
+    "home_elo_pre",
+    "away_elo_pre",
+    "elo_diff",
+    "home_rest_days",
+    "away_rest_days",
+    "home_back_to_back",
+    "away_back_to_back",
+    "home_recent_win_rate",
+    "away_recent_win_rate",
+    "recent_win_rate_diff",
+    "injury_absence_count",
+]
+
+DEFAULT_ELO = 1500.0
+DEFAULT_REST_DAYS = 7.0
+DEFAULT_RECENT_WIN_RATE = 0.5
+ELO_K = 20.0
 
 
 def load_fixture_dataset(fixtures_dir: Path) -> pd.DataFrame:
@@ -25,6 +55,9 @@ def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
     market_features = _market_feature_summary(odds)
     df = latest.merge(market_features, on="market_slug", how="left")
     df = df.merge(scores, on="market_slug", how="inner")
+    context = _nba_context_features(fixtures_dir, scores)
+    if not context.empty:
+        df = df.merge(context, on="market_slug", how="left")
     df["label"] = df["winner_yes"].astype(int)
     df["implied_no"] = 1.0 - df["implied_yes"]
     df["closing_implied"] = df["closing_implied"].fillna(df["implied_yes"])
@@ -32,6 +65,7 @@ def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
     df["odds_movement"] = df["odds_movement"].fillna(0.0)
     df["line_move_velocity"] = df["line_move_velocity"].fillna(0.0)
     df["snapshot_count"] = df["snapshot_count"].fillna(1).astype(int)
+    df = _fill_nba_context_defaults(df)
     return df
 
 
@@ -101,6 +135,133 @@ def _latest_by_market(odds: pd.DataFrame) -> pd.DataFrame:
     if odds.empty:
         return odds.copy()
     return odds.sort_values("captured_at_ts").groupby("market_slug").last().reset_index()
+
+
+def _nba_context_features(fixtures_dir: Path, scores: pd.DataFrame) -> pd.DataFrame:
+    games_path = fixtures_dir / "nba_games_sample.csv"
+    if not games_path.exists():
+        return pd.DataFrame(columns=["market_slug", *NBA_CONTEXT_COLUMNS])
+
+    games = pd.read_csv(games_path)
+    required = {"date", "home_team", "away_team", "market_slug"}
+    if not required.issubset(games.columns):
+        return pd.DataFrame(columns=["market_slug", *NBA_CONTEXT_COLUMNS])
+
+    results = scores[["market_slug", "winner_yes"]].copy()
+    games = games.merge(results, on="market_slug", how="left")
+    games["game_date"] = pd.to_datetime(games["date"], utc=True)
+    games = games.sort_values(["game_date", "market_slug"]).reset_index(drop=True)
+    states: dict[str, dict[str, object]] = {}
+    rows: list[dict[str, object]] = []
+
+    for game_date, day_games in games.groupby("game_date", sort=False):
+        for _, game in day_games.iterrows():
+            home = str(game["home_team"])
+            away = str(game["away_team"])
+            home_state = _team_state(states, home)
+            away_state = _team_state(states, away)
+            home_elo = float(home_state["elo"])
+            away_elo = float(away_state["elo"])
+            home_recent = _recent_win_rate(home_state["recent_results"])
+            away_recent = _recent_win_rate(away_state["recent_results"])
+            home_rest = _rest_days(home_state["last_game_date"], game_date)
+            away_rest = _rest_days(away_state["last_game_date"], game_date)
+            rows.append(
+                {
+                    "market_slug": game["market_slug"],
+                    "home_elo_pre": home_elo,
+                    "away_elo_pre": away_elo,
+                    "elo_diff": home_elo - away_elo,
+                    "home_rest_days": home_rest,
+                    "away_rest_days": away_rest,
+                    "home_back_to_back": int(home_rest <= 1.0),
+                    "away_back_to_back": int(away_rest <= 1.0),
+                    "home_recent_win_rate": home_recent,
+                    "away_recent_win_rate": away_recent,
+                    "recent_win_rate_diff": home_recent - away_recent,
+                    "injury_absence_count": 0,
+                }
+            )
+        for _, game in day_games.iterrows():
+            if pd.isna(game.get("winner_yes")):
+                continue
+            home = str(game["home_team"])
+            away = str(game["away_team"])
+            _update_team_states(
+                states,
+                home,
+                away,
+                game_date,
+                int(game["winner_yes"]),
+            )
+
+    return pd.DataFrame(rows)
+
+
+def _team_state(states: dict[str, dict[str, object]], team: str) -> dict[str, object]:
+    if team not in states:
+        states[team] = {
+            "elo": DEFAULT_ELO,
+            "last_game_date": None,
+            "recent_results": [],
+        }
+    return states[team]
+
+
+def _recent_win_rate(results: object) -> float:
+    recent = list(results)[-5:]
+    if not recent:
+        return DEFAULT_RECENT_WIN_RATE
+    return float(sum(int(value) for value in recent) / len(recent))
+
+
+def _rest_days(last_game_date: object, game_date) -> float:
+    if last_game_date is None:
+        return DEFAULT_REST_DAYS
+    return float((game_date - last_game_date).days)
+
+
+def _update_team_states(
+    states: dict[str, dict[str, object]],
+    home: str,
+    away: str,
+    game_date,
+    home_win: int,
+) -> None:
+    home_state = _team_state(states, home)
+    away_state = _team_state(states, away)
+    home_elo = float(home_state["elo"])
+    away_elo = float(away_state["elo"])
+    home_expected = 1.0 / (1.0 + 10.0 ** ((away_elo - home_elo) / 400.0))
+    delta = ELO_K * (home_win - home_expected)
+    home_state["elo"] = home_elo + delta
+    away_state["elo"] = away_elo - delta
+    home_state["last_game_date"] = game_date
+    away_state["last_game_date"] = game_date
+    home_state["recent_results"] = [*list(home_state["recent_results"]), home_win]
+    away_state["recent_results"] = [*list(away_state["recent_results"]), 1 - home_win]
+
+
+def _fill_nba_context_defaults(df: pd.DataFrame) -> pd.DataFrame:
+    defaults = {
+        "home_elo_pre": DEFAULT_ELO,
+        "away_elo_pre": DEFAULT_ELO,
+        "elo_diff": 0.0,
+        "home_rest_days": DEFAULT_REST_DAYS,
+        "away_rest_days": DEFAULT_REST_DAYS,
+        "home_back_to_back": 0,
+        "away_back_to_back": 0,
+        "home_recent_win_rate": DEFAULT_RECENT_WIN_RATE,
+        "away_recent_win_rate": DEFAULT_RECENT_WIN_RATE,
+        "recent_win_rate_diff": 0.0,
+        "injury_absence_count": 0,
+    }
+    for column, default in defaults.items():
+        if column not in df.columns:
+            df[column] = default
+        else:
+            df[column] = df[column].fillna(default)
+    return df
 
 
 def feature_hash(row: dict) -> str:
