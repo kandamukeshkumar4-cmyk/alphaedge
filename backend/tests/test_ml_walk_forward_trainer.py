@@ -93,6 +93,29 @@ def test_walk_forward_trainer_reports_embargoed_cv_policy(tmp_path):
     assert result["edge_gate"]["count"] == result["walk_forward"]["count"]
 
 
+def test_walk_forward_trainer_reports_deflated_sharpe_selection_bias(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        selection_bias_trials=25,
+    )
+
+    report = result["walk_forward"]["deflated_sharpe"]
+    assert report["trials"] == 25
+    assert report["count"] == result["walk_forward"]["trade_count"]
+    assert isinstance(report["observed_sharpe"], float)
+    assert isinstance(report["benchmark_sharpe"], float)
+    assert 0.0 <= report["deflated_sharpe_probability"] <= 1.0
+    assert isinstance(report["significant_after_trials"], bool)
+
+
 def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
     fixtures_dir = tmp_path / "fixtures"
     artifact_dir = tmp_path / "artifacts"

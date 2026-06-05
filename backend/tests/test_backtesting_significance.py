@@ -1,5 +1,5 @@
 from app.backtesting.clv import ForecastComparison
-from app.backtesting.significance import assess_closing_edge
+from app.backtesting.significance import assess_closing_edge, assess_deflated_sharpe
 
 
 def _superior_model(n: int) -> list[ForecastComparison]:
@@ -45,3 +45,23 @@ def test_verdict_is_deterministic_given_seed():
     first = assess_closing_edge(_superior_model(150), min_sample=100, seed=7)
     second = assess_closing_edge(_superior_model(150), min_sample=100, seed=7)
     assert first == second
+
+
+def test_deflated_sharpe_penalizes_multiple_model_trials():
+    returns = [0.03, 0.02, 0.01, 0.00, -0.02, 0.02, 0.01, 0.00, -0.01, 0.02] * 5
+
+    single_trial = assess_deflated_sharpe(returns, trials=1, alpha=0.05)
+    many_trials = assess_deflated_sharpe(returns, trials=1000, alpha=0.05)
+
+    assert single_trial.significant_after_trials is True
+    assert many_trials.significant_after_trials is False
+    assert many_trials.benchmark_sharpe > single_trial.benchmark_sharpe
+    assert many_trials.deflated_sharpe_probability < single_trial.deflated_sharpe_probability
+
+
+def test_deflated_sharpe_handles_constant_positive_returns_without_nan():
+    verdict = assess_deflated_sharpe([0.02] * 10, trials=25)
+
+    assert verdict.observed_sharpe == float("inf")
+    assert verdict.deflated_sharpe_probability == 1.0
+    assert verdict.significant_after_trials is True

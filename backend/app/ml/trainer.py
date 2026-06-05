@@ -13,13 +13,16 @@ from app.backtesting.clv import (
     ForecastTrade,
     evaluate_forecast_trade_clv,
     evaluate_forecasts_against_closing,
+    forecast_trade_clv_values,
 )
 from app.backtesting.significance import (
     DEFAULT_ALPHA,
     DEFAULT_BOOTSTRAP_SAMPLES,
     DEFAULT_MIN_SAMPLE,
+    DeflatedSharpeVerdict,
     SignificanceVerdict,
     assess_closing_edge,
+    assess_deflated_sharpe,
 )
 from app.backtesting.walk_forward import rolling_origin_splits
 from app.ml.calibration import (
@@ -78,6 +81,7 @@ def train_walk_forward_xgboost_model(
     edge_seed: int = 12345,
     clv_min_edge: float = 0.0,
     embargo_size: int = 0,
+    selection_bias_trials: int = 1,
 ) -> dict[str, Any]:
     df = _training_dataset(fixtures_dir).sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
@@ -160,6 +164,12 @@ def train_walk_forward_xgboost_model(
     paths = _persist_artifacts(model, calibrator, artifact_dir)
     evaluation = evaluate_forecasts_against_closing(comparisons)
     clv_evaluation = evaluate_forecast_trade_clv(trades, min_edge=clv_min_edge)
+    trade_clv_values = forecast_trade_clv_values(trades, min_edge=clv_min_edge)
+    deflated_sharpe = _deflated_sharpe_result(
+        [trade.clv for trade in trade_clv_values],
+        trials=selection_bias_trials,
+        alpha=edge_alpha,
+    )
     edge_gate = assess_closing_edge(
         comparisons,
         min_sample=edge_min_sample,
@@ -201,6 +211,7 @@ def train_walk_forward_xgboost_model(
                 evaluation.mean_probability_delta_vs_closing
             ),
             **_clv_result(clv_evaluation),
+            "deflated_sharpe": deflated_sharpe,
             "model_beats_closing": evaluation.model_beats_closing,
         },
         "walk_forward_calibration": {
@@ -226,6 +237,42 @@ def _significance_result(verdict: SignificanceVerdict) -> dict[str, Any]:
         "ci_lower": verdict.ci_lower,
         "alpha": verdict.alpha,
         "significant_beats_closing": verdict.significant_beats_closing,
+    }
+
+
+def _deflated_sharpe_result(
+    returns: list[float],
+    *,
+    trials: int,
+    alpha: float,
+) -> dict[str, Any]:
+    if trials <= 0:
+        raise ValueError("selection_bias_trials must be positive")
+    if len(returns) < 2:
+        return {
+            "count": len(returns),
+            "trials": trials,
+            "observed_sharpe": 0.0,
+            "benchmark_sharpe": 0.0,
+            "deflated_sharpe_z": 0.0,
+            "deflated_sharpe_probability": 0.0,
+            "alpha": alpha,
+            "significant_after_trials": False,
+        }
+    verdict = assess_deflated_sharpe(returns, trials=trials, alpha=alpha)
+    return _deflated_sharpe_verdict(verdict)
+
+
+def _deflated_sharpe_verdict(verdict: DeflatedSharpeVerdict) -> dict[str, Any]:
+    return {
+        "count": verdict.count,
+        "trials": verdict.trials,
+        "observed_sharpe": verdict.observed_sharpe,
+        "benchmark_sharpe": verdict.benchmark_sharpe,
+        "deflated_sharpe_z": verdict.deflated_sharpe_z,
+        "deflated_sharpe_probability": verdict.deflated_sharpe_probability,
+        "alpha": verdict.alpha,
+        "significant_after_trials": verdict.significant_after_trials,
     }
 
 

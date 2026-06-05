@@ -49,6 +49,14 @@ class ForecastClvEvaluation:
     clv_positive: bool
 
 
+@dataclass(frozen=True)
+class ForecastTradeClv:
+    side: TradeSide
+    entry_price: float
+    closing_price: float
+    clv: float
+
+
 def closing_line_value(entry_price: float, closing_price: float, side: TradeSide) -> float:
     entry = _probability(entry_price, "entry_price")
     closing = _probability(closing_price, "closing_price")
@@ -62,15 +70,35 @@ def evaluate_forecast_trade_clv(
     *,
     min_edge: float = 0.0,
 ) -> ForecastClvEvaluation:
+    trade_clvs = forecast_trade_clv_values(forecasts, min_edge=min_edge)
+    total_clv = sum(trade.clv for trade in trade_clvs)
+    trade_count = len(trade_clvs)
+    yes_trades = sum(1 for trade in trade_clvs if trade.side == "yes")
+    no_trades = sum(1 for trade in trade_clvs if trade.side == "no")
+
+    mean_clv = total_clv / trade_count if trade_count else 0.0
+    return ForecastClvEvaluation(
+        forecast_count=len(forecasts),
+        trade_count=trade_count,
+        yes_trades=yes_trades,
+        no_trades=no_trades,
+        total_clv=total_clv,
+        mean_clv=mean_clv,
+        clv_positive=trade_count > 0 and mean_clv > 0.0,
+    )
+
+
+def forecast_trade_clv_values(
+    forecasts: list[ForecastTrade],
+    *,
+    min_edge: float = 0.0,
+) -> tuple[ForecastTradeClv, ...]:
     if not forecasts:
         raise ValueError("at least one forecast trade is required")
     if min_edge < 0:
         raise ValueError("min_edge must be non-negative")
 
-    total_clv = 0.0
-    trade_count = 0
-    yes_trades = 0
-    no_trades = 0
+    trade_clvs: list[ForecastTradeClv] = []
     for forecast in forecasts:
         predicted = _probability(forecast.predicted_prob, "predicted_prob")
         yes_ask = _side_price(
@@ -101,26 +129,21 @@ def evaluate_forecast_trade_clv(
         if side == "yes":
             entry = yes_ask
             closing = closing_yes
-            yes_trades += 1
         else:
             if no_ask is None:
                 continue
             entry = no_ask
             closing = 1.0 - closing_yes
-            no_trades += 1
-        trade_count += 1
-        total_clv += closing_line_value(entry, closing, side)
+        trade_clvs.append(
+            ForecastTradeClv(
+                side=side,
+                entry_price=entry,
+                closing_price=closing,
+                clv=closing_line_value(entry, closing, side),
+            )
+        )
 
-    mean_clv = total_clv / trade_count if trade_count else 0.0
-    return ForecastClvEvaluation(
-        forecast_count=len(forecasts),
-        trade_count=trade_count,
-        yes_trades=yes_trades,
-        no_trades=no_trades,
-        total_clv=total_clv,
-        mean_clv=mean_clv,
-        clv_positive=trade_count > 0 and mean_clv > 0.0,
-    )
+    return tuple(trade_clvs)
 
 
 def evaluate_forecasts_against_closing(
