@@ -63,8 +63,14 @@ async def test_connector_snapshot_ingestion_persists_normalized_snapshots(db_ses
         implied_yes=0.57,
         source="polymarket.gamma",
         captured_at=datetime(2026, 1, 14, 18, tzinfo=timezone.utc),
+        book="polymarket.gamma",
+        event_id="nba-lal-bos",
         platform_market_id="will-lakers-beat-celtics",
         title="Will the Lakers beat the Celtics?",
+        market_type="binary",
+        outcome_name="Yes",
+        close_at=datetime(2026, 1, 15, 0, 30, tzinfo=timezone.utc),
+        metadata={"status": "active", "resolution_source": "nba-final-score"},
     )
 
     first = await ingest_normalized_snapshots(db_session, [snapshot])
@@ -79,4 +85,21 @@ async def test_connector_snapshot_ingestion_persists_normalized_snapshots(db_ses
     assert second.skipped == 1
     assert stored is not None
     assert stored.source == "polymarket.gamma"
+    assert stored.book == "polymarket.gamma"
     assert stored.implied_yes == Decimal("0.57")
+    assert stored.price == Decimal("0.57")
+    assert stored.event_id == "nba-lal-bos"
+    assert stored.platform_market_id == "will-lakers-beat-celtics"
+    assert stored.title == "Will the Lakers beat the Celtics?"
+    assert stored.market_type == "binary"
+    assert stored.outcome_name == "Yes"
+    stored_close_at = (
+        stored.close_at.replace(tzinfo=timezone.utc)
+        if stored.close_at.tzinfo is None
+        else stored.close_at
+    )
+    assert stored_close_at == datetime(2026, 1, 15, 0, 30, tzinfo=timezone.utc)
+    assert stored.snapshot_metadata == {
+        "status": "active",
+        "resolution_source": "nba-final-score",
+    }

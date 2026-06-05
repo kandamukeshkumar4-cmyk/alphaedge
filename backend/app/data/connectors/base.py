@@ -16,6 +16,7 @@ class NormalizedMarketSnapshot:
     implied_yes: float
     source: str
     captured_at: datetime
+    book: str | None = None
     event_id: str | None = None
     platform_market_id: str | None = None
     title: str | None = None
@@ -31,6 +32,16 @@ class NormalizedMarketSnapshot:
             implied_yes=self.implied_yes,
             source=self.source,
             captured_at=self.captured_at,
+            book=self.book,
+            event_id=self.event_id,
+            platform_market_id=self.platform_market_id,
+            title=self.title,
+            market_type=self.market_type,
+            outcome_name=self.outcome_name,
+            line=self.line,
+            price=self.implied_yes,
+            close_at=self.close_at,
+            metadata=self.metadata,
         )
 
 

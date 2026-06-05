@@ -71,6 +71,15 @@ async def ingest_fixtures(session: AsyncSession, fixtures_dir: Path) -> int:
                 implied_yes=row["implied_yes"],
                 source=row.get("source", "fixture"),
                 captured_at=pd.to_datetime(row["captured_at"], utc=True),
+                book=_nullable_row_value(row, "book"),
+                event_id=_nullable_row_value(row, "event_id"),
+                platform_market_id=_nullable_row_value(row, "platform_market_id"),
+                title=_nullable_row_value(row, "title"),
+                market_type=_nullable_row_value(row, "market_type") or "binary",
+                outcome_name=_nullable_row_value(row, "outcome_name") or "Yes",
+                line=_nullable_row_value(row, "line"),
+                price=_nullable_row_value(row, "price") or row["implied_yes"],
+                close_at=_nullable_row_value(row, "close_at"),
             )
         )
     result = await persist_odds_snapshots(session, records)
@@ -190,3 +199,12 @@ def _safe_error_message(error: Exception) -> str:
         r"\1=***",
         message,
     )
+
+
+def _nullable_row_value(row: pd.Series, key: str) -> object | None:
+    if key not in row:
+        return None
+    value = row[key]
+    if pd.isna(value):
+        return None
+    return value

@@ -36,6 +36,7 @@ from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
 from app.services.paper_account_service import PaperAccountService
 from app.services.paper_signal_service import PaperSignalService
+from app.services.signals_service import InvalidSignalRequest, SignalsService
 
 router = APIRouter(prefix="/api/v1", tags=["public"])
 settings = get_settings()
@@ -140,6 +141,34 @@ async def get_order_book(slug: str, depth: int = 10, db: AsyncSession = Depends(
         raise HTTPException(status_code=404, detail="Market not found")
     obs = OrderBookService(db)
     return await obs.get_l2(market.id, depth)
+
+
+@router.get("/signals/arbitrage")
+async def get_arbitrage_signal(
+    platform: str,
+    market_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await SignalsService(db).arbitrage_signal(platform, market_id)
+    except InvalidSignalRequest as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/signals/dutching")
+async def get_dutching_signal(
+    platform: str,
+    market_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await SignalsService(db).dutching_signal(platform, market_id)
+    except InvalidSignalRequest as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/markets/{slug}/signals", response_model=PaperSignalSummaryResponse)

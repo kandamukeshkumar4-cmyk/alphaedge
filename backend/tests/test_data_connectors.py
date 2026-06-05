@@ -46,11 +46,13 @@ def test_odds_api_normalizes_h2h_moneyline_payload_to_snapshots():
     assert home.market_slug == "oddsapi:nba_lal_bos_2026_01_15:draftkings:h2h:los-angeles-lakers"
     assert home.implied_yes == pytest.approx(135 / 235)
     assert home.source == "the-odds-api:draftkings"
+    assert home.book == "draftkings"
     assert home.event_id == "nba_lal_bos_2026_01_15"
     assert home.market_type == "h2h"
     assert home.outcome_name == "Los Angeles Lakers"
     assert home.captured_at == CAPTURED_AT
     assert home.close_at == datetime(2026, 1, 15, 0, 30, tzinfo=timezone.utc)
+    assert home.to_odds_snapshot_record().book == "draftkings"
 
 
 def test_odds_api_connector_fetches_h2h_snapshots_with_retry_and_cache():
@@ -105,6 +107,71 @@ def test_odds_api_connector_fetches_h2h_snapshots_with_retry_and_cache():
     assert requests[1].url.params["apiKey"] == "server-side-key"
     assert requests[1].url.params["markets"] == "h2h"
     assert requests[1].url.params["oddsFormat"] == "american"
+
+
+def test_odds_api_connector_fetches_historical_h2h_closing_snapshots():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "timestamp": "2026-01-15T00:25:00Z",
+                "previous_timestamp": "2026-01-15T00:20:00Z",
+                "next_timestamp": "2026-01-15T00:30:00Z",
+                "data": [
+                    {
+                        "id": "nba_lal_bos_2026_01_15",
+                        "sport_key": "basketball_nba",
+                        "commence_time": "2026-01-15T00:30:00Z",
+                        "home_team": "Los Angeles Lakers",
+                        "away_team": "Boston Celtics",
+                        "bookmakers": [
+                            {
+                                "key": "draftkings",
+                                "markets": [
+                                    {
+                                        "key": "h2h",
+                                        "outcomes": [
+                                            {"name": "Los Angeles Lakers", "price": -150},
+                                            {"name": "Boston Celtics", "price": 130},
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    connector = TheOddsApiConnector(
+        api_key="server-side-key",
+        client=httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://api.the-odds-api.example.test",
+        ),
+    )
+
+    snapshots = connector.fetch_historical_h2h_snapshots(
+        "basketball_nba",
+        snapshot_at="2026-01-15T00:30:00Z",
+    )
+
+    assert len(snapshots) == 2
+    assert snapshots[0].captured_at == datetime(2026, 1, 15, 0, 25, tzinfo=timezone.utc)
+    assert snapshots[0].close_at == datetime(2026, 1, 15, 0, 30, tzinfo=timezone.utc)
+    assert snapshots[0].metadata["historical_snapshot_requested_at"] == (
+        "2026-01-15T00:30:00Z"
+    )
+    assert requests[0].url.path == "/v4/historical/sports/basketball_nba/odds"
+    assert requests[0].url.params["apiKey"] == "server-side-key"
+    assert requests[0].url.params["regions"] == "us"
+    assert requests[0].url.params["markets"] == "h2h"
+    assert requests[0].url.params["oddsFormat"] == "american"
+    assert requests[0].url.params["dateFormat"] == "iso"
+    assert requests[0].url.params["date"] == "2026-01-15T00:30:00Z"
 
 
 def test_polymarket_normalizes_gamma_market_yes_price():
@@ -221,8 +288,14 @@ def test_normalized_snapshot_converts_to_persistable_odds_record():
     snapshot = normalize_gamma_market(
         {
             "slug": "will-lakers-beat-celtics",
+            "eventSlug": "nba-lal-bos",
+            "question": "Will the Lakers beat the Celtics?",
+            "marketType": "binary",
+            "endDate": "2026-01-15T00:30:00Z",
             "outcomes": ["Yes", "No"],
             "outcomePrices": ["0.5700", "0.4300"],
+            "category": "Sports",
+            "active": True,
         },
         captured_at=CAPTURED_AT,
     )
@@ -231,8 +304,17 @@ def test_normalized_snapshot_converts_to_persistable_odds_record():
 
     assert record.market_slug == "polymarket:will-lakers-beat-celtics:yes"
     assert record.implied_yes == pytest.approx(0.57)
+    assert record.price == pytest.approx(0.57)
     assert record.source == "polymarket.gamma"
     assert record.captured_at == CAPTURED_AT
+    assert record.event_id == "nba-lal-bos"
+    assert record.platform_market_id == "will-lakers-beat-celtics"
+    assert record.title == "Will the Lakers beat the Celtics?"
+    assert record.market_type == "binary"
+    assert record.outcome_name == "Yes"
+    assert record.close_at == datetime(2026, 1, 15, 0, 30, tzinfo=timezone.utc)
+    assert record.metadata["category"] == "Sports"
+    assert record.metadata["status"] == "active"
 
 
 def test_onchain_connector_is_read_only_and_cannot_sign_or_submit_transactions():

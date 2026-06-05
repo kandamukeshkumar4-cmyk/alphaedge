@@ -59,6 +59,7 @@ def normalize_kalshi_market(
         implied_yes=implied,
         source=SOURCE,
         captured_at=captured,
+        book=SOURCE,
         event_id=market.get("event_ticker"),
         platform_market_id=ticker,
         title=market.get("title") or ticker,

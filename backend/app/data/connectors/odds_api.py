@@ -52,6 +52,42 @@ class TheOddsApiConnector:
                 snapshots.extend(normalize_h2h_event(event, captured_at=captured_at))
         return snapshots
 
+    def fetch_historical_h2h_snapshots(
+        self,
+        sport_key: str,
+        snapshot_at: datetime | str,
+        regions: str = "us",
+    ) -> list[NormalizedMarketSnapshot]:
+        requested_at = _iso_timestamp(snapshot_at)
+        payload = self.http.get_json(
+            f"/v4/historical/sports/{sport_key}/odds",
+            params={
+                "apiKey": self.api_key,
+                "regions": regions,
+                "markets": "h2h",
+                "oddsFormat": "american",
+                "dateFormat": "iso",
+                "date": requested_at,
+            },
+        )
+        if not isinstance(payload, dict):
+            raise ValueError("The Odds API historical odds endpoint returned a non-object payload")
+        data = payload.get("data")
+        if not isinstance(data, list):
+            raise ValueError("The Odds API historical odds payload does not include a data list")
+
+        captured_at = parse_timestamp(payload.get("timestamp"), fallback=parse_timestamp(snapshot_at))
+        snapshots: list[NormalizedMarketSnapshot] = []
+        for event in data:
+            if not isinstance(event, dict):
+                continue
+            for snapshot in normalize_h2h_event(event, captured_at=captured_at):
+                snapshot.metadata["historical_snapshot_requested_at"] = requested_at
+                snapshot.metadata["historical_previous_timestamp"] = payload.get("previous_timestamp")
+                snapshot.metadata["historical_next_timestamp"] = payload.get("next_timestamp")
+                snapshots.append(snapshot)
+        return snapshots
+
 
 def normalize_h2h_event(
     event: dict[str, Any],
@@ -86,6 +122,7 @@ def normalize_h2h_event(
                         implied_yes=implied,
                         source=f"{SOURCE_PREFIX}:{book_key}",
                         captured_at=market_captured_at,
+                        book=book_key,
                         event_id=event_id,
                         platform_market_id=event_id,
                         title=_event_title(event),
@@ -109,3 +146,8 @@ def _event_title(event: dict[str, Any]) -> str | None:
     if home and away:
         return f"{away} at {home}"
     return None
+
+
+def _iso_timestamp(value: datetime | str) -> str:
+    parsed = parse_timestamp(value)
+    return parsed.isoformat().replace("+00:00", "Z")

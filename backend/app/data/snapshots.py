@@ -18,6 +18,16 @@ class OddsSnapshotRecord:
     implied_yes: Decimal | float | str
     source: str
     captured_at: datetime | str | Any
+    book: str | None = None
+    event_id: str | None = None
+    platform_market_id: str | None = None
+    title: str | None = None
+    market_type: str = "binary"
+    outcome_name: str = "Yes"
+    line: Decimal | float | str | None = None
+    price: Decimal | float | str | None = None
+    close_at: datetime | str | Any | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +59,16 @@ async def persist_odds_snapshots(
                 implied_yes=Decimal(str(record.implied_yes)),
                 source=record.source,
                 captured_at=captured_at,
+                book=record.book,
+                event_id=record.event_id,
+                platform_market_id=record.platform_market_id,
+                title=record.title,
+                market_type=record.market_type,
+                outcome_name=record.outcome_name,
+                line=_optional_decimal(record.line),
+                price=_optional_decimal(record.price, fallback=record.implied_yes),
+                close_at=_optional_captured_at(record.close_at),
+                snapshot_metadata=record.metadata or {},
             )
         )
         inserted += 1
@@ -84,3 +104,19 @@ def _captured_at(value: datetime | str | Any) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _optional_captured_at(value: datetime | str | Any | None) -> datetime | None:
+    if value is None:
+        return None
+    return _captured_at(value)
+
+
+def _optional_decimal(
+    value: Decimal | float | str | None,
+    fallback: Decimal | float | str | None = None,
+) -> Decimal | None:
+    decimalish = fallback if value is None else value
+    if decimalish is None:
+        return None
+    return Decimal(str(decimalish))

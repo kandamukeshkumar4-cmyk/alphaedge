@@ -72,6 +72,7 @@ def normalize_gamma_market(
         implied_yes=implied,
         source=SOURCE,
         captured_at=captured,
+        book=SOURCE,
         event_id=str(market.get("eventSlug") or market.get("event_slug") or "")
         or None,
         platform_market_id=str(market.get("conditionId") or market.get("id") or slug),
