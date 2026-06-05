@@ -1,7 +1,7 @@
 """Risk rules — all must pass before paper trade execution."""
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 
 from app.core.config import get_settings
@@ -23,11 +23,27 @@ class OrderIntent:
     agent_enabled: bool = True
 
 
+@dataclass(frozen=True)
+class KellyStakeSuggestion:
+    predicted_prob: float
+    price: Decimal
+    bankroll: Decimal
+    edge: float
+    kelly_fraction: float
+    fractional_kelly_fraction: float
+    cap_fraction: float
+    stake_notional: Decimal
+    quantity: Decimal
+    capped: bool
+    paper_trading_only: bool = True
+
+
 class RiskService:
     MIN_EDGE = 0.05
     MIN_CONFIDENCE = 0.70
     MAX_DRAWDOWN = 0.15
     MAX_BET_PCT = 0.05
+    FRACTIONAL_KELLY = 0.25
 
     def validate(self, intent: OrderIntent) -> tuple[bool, List[str]]:
         settings = get_settings()
@@ -50,3 +66,67 @@ class RiskService:
             failures.append("too close to game start")
 
         return len(failures) == 0, failures
+
+    def suggest_stake(self, intent: OrderIntent) -> KellyStakeSuggestion:
+        return suggest_fractional_kelly_stake(
+            predicted_prob=intent.predicted_prob,
+            price=intent.price or Decimal("0.5"),
+            bankroll=intent.bankroll,
+            max_bet_pct=self.MAX_BET_PCT,
+            fractional_kelly=self.FRACTIONAL_KELLY,
+        )
+
+
+def suggest_fractional_kelly_stake(
+    predicted_prob: float,
+    price: Decimal,
+    bankroll: Decimal,
+    max_bet_pct: float = RiskService.MAX_BET_PCT,
+    fractional_kelly: float = RiskService.FRACTIONAL_KELLY,
+) -> KellyStakeSuggestion:
+    probability = _probability(predicted_prob)
+    normalized_price = _price(price)
+    normalized_bankroll = _money(bankroll)
+    cap_fraction = max(0.0, float(max_bet_pct))
+    edge = probability - float(normalized_price)
+    kelly_fraction = _binary_yes_kelly_fraction(probability, float(normalized_price))
+    fractional_kelly_fraction = max(0.0, kelly_fraction * max(0.0, float(fractional_kelly)))
+    stake_fraction = min(fractional_kelly_fraction, cap_fraction)
+    stake_notional = _money(normalized_bankroll * Decimal(str(stake_fraction)))
+    quantity = _money(stake_notional / normalized_price) if normalized_price > 0 else Decimal("0.0000")
+    return KellyStakeSuggestion(
+        predicted_prob=probability,
+        price=normalized_price,
+        bankroll=normalized_bankroll,
+        edge=round(edge, 10),
+        kelly_fraction=kelly_fraction,
+        fractional_kelly_fraction=fractional_kelly_fraction,
+        cap_fraction=cap_fraction,
+        stake_notional=stake_notional,
+        quantity=quantity,
+        capped=fractional_kelly_fraction > cap_fraction,
+    )
+
+
+def _binary_yes_kelly_fraction(probability: float, price: float) -> float:
+    if probability <= price or price <= 0.0 or price >= 1.0:
+        return 0.0
+    return (probability - price) / (1.0 - price)
+
+
+def _probability(value: float) -> float:
+    probability = float(value)
+    if probability < 0.0 or probability > 1.0:
+        raise ValueError("predicted_prob must be between 0 and 1")
+    return probability
+
+
+def _price(value: Decimal) -> Decimal:
+    price = _money(value)
+    if price <= 0 or price >= 1:
+        raise ValueError("price must be between 0 and 1")
+    return price
+
+
+def _money(value: Decimal) -> Decimal:
+    return Decimal(value).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
