@@ -306,6 +306,49 @@ def test_kalshi_connector_fetches_market_snapshot():
     assert requests[0].url.path == "/trade-api/v2/markets/KXNBA-LALBOS-26JAN15"
 
 
+def test_kalshi_connector_falls_back_to_orderbook_when_market_has_no_price():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/orderbook"):
+            return httpx.Response(
+                200,
+                json={
+                    "orderbook": {
+                        "yes": [[54, 120]],
+                        "no": [[38, 80]],
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "market": {
+                    "ticker": "KXNBA-LALBOS-26JAN15",
+                    "title": "Lakers beat Celtics?",
+                    "status": "active",
+                }
+            },
+        )
+
+    connector = KalshiConnector(
+        client=httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://kalshi.example.test/trade-api/v2",
+        )
+    )
+
+    snapshot = connector.fetch_market_snapshot("KXNBA-LALBOS-26JAN15", CAPTURED_AT)
+
+    assert snapshot.implied_yes == pytest.approx(0.58)
+    assert snapshot.metadata["executable_yes_ask"] == pytest.approx(0.62)
+    assert [request.url.path for request in requests] == [
+        "/trade-api/v2/markets/KXNBA-LALBOS-26JAN15",
+        "/trade-api/v2/markets/KXNBA-LALBOS-26JAN15/orderbook",
+    ]
+
+
 def test_normalized_snapshot_converts_to_persistable_odds_record():
     snapshot = normalize_gamma_market(
         {
