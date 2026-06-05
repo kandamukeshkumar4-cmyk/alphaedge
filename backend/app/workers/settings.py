@@ -9,6 +9,7 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_tries = 3
     functions = [
+        "app.workers.tasks.capture_market_snapshots_task",
         "app.workers.tasks.ingest_odds_task",
         "app.workers.tasks.run_eval_on_resolve_task",
         "app.workers.tasks.run_backtest_task",

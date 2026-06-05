@@ -3,9 +3,29 @@ from pathlib import Path
 from arq import cron
 
 from app.backtesting.replay import run_backtest
+from app.core.config import get_settings
 from app.data_quality.checks import run_quality_checks
 from app.eval.service import EvalService
-from app.pipeline.ingest import ingest_fixtures
+from app.pipeline.ingest import capture_configured_market_snapshots, ingest_fixtures
+
+
+async def capture_market_snapshots_task(ctx: dict) -> dict:
+    from app.db.session import AsyncSessionLocal
+
+    settings = ctx.get("settings") or get_settings()
+    connectors = ctx.get("market_data_connectors")
+    async with AsyncSessionLocal() as session:
+        result = await capture_configured_market_snapshots(
+            session,
+            settings=settings,
+            connectors=connectors,
+        )
+        await session.commit()
+    return {
+        "fetched": result.fetched,
+        "ingested": result.inserted,
+        "skipped": result.skipped,
+    }
 
 
 async def ingest_odds_task(ctx: dict) -> dict:
@@ -56,5 +76,13 @@ class WorkerSettings:
 
     redis_settings = _WS.redis_settings
     max_tries = 3
-    functions = [ingest_odds_task, run_eval_on_resolve_task, run_backtest_task]
-    cron_jobs = [cron(ingest_odds_task, hour={12}, minute=0)]
+    functions = [
+        capture_market_snapshots_task,
+        ingest_odds_task,
+        run_eval_on_resolve_task,
+        run_backtest_task,
+    ]
+    cron_jobs = [
+        cron(capture_market_snapshots_task, minute={0}),
+        cron(ingest_odds_task, hour={12}, minute=0),
+    ]

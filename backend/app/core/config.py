@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
     odds_api_key: str = Field(default="", alias="ODDS_API_KEY")
+    odds_api_sport_keys: str = Field(default="basketball_nba", alias="ODDS_API_SPORT_KEYS")
+    polymarket_market_slugs: str = Field(default="", alias="POLYMARKET_MARKET_SLUGS")
+    kalshi_market_tickers: str = Field(default="", alias="KALSHI_MARKET_TICKERS")
 
     @field_validator("paper_trading_only")
     @classmethod
@@ -55,6 +58,18 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
+    def odds_api_sport_key_list(self) -> List[str]:
+        return self._csv_list(self.odds_api_sport_keys)
+
+    @property
+    def polymarket_market_slug_list(self) -> List[str]:
+        return self._csv_list(self.polymarket_market_slugs)
+
+    @property
+    def kalshi_market_ticker_list(self) -> List[str]:
+        return self._csv_list(self.kalshi_market_tickers)
+
+    @property
     def openapi_description(self) -> str:
         return (
             "**AlphaEdge** — paper-trading prediction market platform for NBA, "
@@ -63,6 +78,10 @@ class Settings(BaseSettings):
             "LLM agents (Week 4+) can explain and adjust confidence but **cannot bypass RiskAgent**. "
             "Orders flow only through RiskService → validated OrderIntent → OrderBookService."
         )
+
+    @staticmethod
+    def _csv_list(value: str) -> List[str]:
+        return [item.strip() for item in value.split(",") if item.strip()]
 
 
 @lru_cache
