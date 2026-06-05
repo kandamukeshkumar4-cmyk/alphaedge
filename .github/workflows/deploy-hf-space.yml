@@ -181,10 +181,13 @@ jobs:
             local deadline=$((SECONDS + 600))
             local attempt=1
             while true; do
-              if "$@"; then
+              if timeout 120s "$@"; then
                 return 0
               fi
               local status=$?
+              if [ "$status" -eq 124 ]; then
+                echo "ERROR: ${label} attempt timed out after 120s."
+              fi
               if [ "$SECONDS" -ge "$deadline" ]; then
                 echo "ERROR: ${label} failed after retrying for up to 10 minutes."
                 return "$status"

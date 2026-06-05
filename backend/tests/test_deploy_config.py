@@ -299,6 +299,8 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "app_port: 7860" in workflow
     assert "id: push_space" in workflow
     assert "git push" in workflow
+    assert 'timeout 120s "$@"' in workflow
+    assert "attempt timed out after 120s" in workflow
     assert "space_sha=$(git rev-parse HEAD)" in workflow
     assert 'echo "space_sha=$space_sha" >> "$GITHUB_OUTPUT"' in workflow
     assert "steps.push_space.outputs.space_sha" in workflow
