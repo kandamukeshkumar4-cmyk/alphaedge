@@ -102,6 +102,20 @@ def test_trainer_persists_calibrator_and_reports_calibration_metrics(tmp_path):
     assert result["reliability_curve"]
 
 
+def test_trainer_reports_only_real_fixture_rows_without_synthetic_padding(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_training_fixture(fixtures_dir, rows=1)
+
+    result = train_xgboost_model(fixtures_dir, artifact_dir)
+
+    assert Path(result["artifact_path"]).exists()
+    assert Path(result["calibrator_path"]).exists()
+    assert result["train_rows"] == 1
+    assert result["test_rows"] == 0
+
+
 def _write_training_fixture(fixtures_dir: Path, rows: int) -> None:
     odds_lines = ["market_slug,captured_at,implied_yes,source,close_at"]
     score_lines = ["market_slug,home_score,away_score,winner_yes"]

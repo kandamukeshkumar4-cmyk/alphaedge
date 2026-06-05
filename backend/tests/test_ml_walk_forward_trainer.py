@@ -162,6 +162,23 @@ def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
     assert result["walk_forward"]["model_brier"] >= 0.0
 
 
+def test_walk_forward_trainer_rejects_insufficient_real_rows_without_synthetic_padding(
+    tmp_path,
+):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=1)
+
+    with pytest.raises(ValueError, match="walk-forward evaluation produced no evaluation rows"):
+        train_walk_forward_xgboost_model(
+            fixtures_dir,
+            artifact_dir,
+            train_window_size=2,
+            eval_window_size=1,
+        )
+
+
 def _write_walk_forward_fixture(
     fixtures_dir: Path,
     rows: int,

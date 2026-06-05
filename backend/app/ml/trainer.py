@@ -337,25 +337,7 @@ def _clv_result(evaluation: ForecastClvEvaluation) -> dict[str, Any]:
 
 
 def _training_dataset(fixtures_dir: Path) -> pd.DataFrame:
-    df = build_feature_matrix(fixtures_dir)
-    if len(df) >= 2:
-        return df
-    extra = pd.DataFrame(
-        {
-            "market_slug": [f"synthetic-{i}" for i in range(5)],
-            "captured_at": [f"2026-02-{i + 1:02d}T12:00:00Z" for i in range(5)],
-            "implied_yes": [0.45, 0.52, 0.48, 0.55, 0.50],
-            "implied_no": [0.55, 0.48, 0.52, 0.45, 0.50],
-            "opening_implied_yes": [0.42, 0.54, 0.46, 0.57, 0.50],
-            "closing_implied": [0.45, 0.52, 0.48, 0.55, 0.50],
-            "odds_movement": [0.03, -0.02, 0.02, -0.02, 0.0],
-            "line_move_velocity": [0.03, -0.02, 0.02, -0.02, 0.0],
-            "snapshot_count": [2, 2, 2, 2, 1],
-            "winner_yes": [1, 0, 1, 0, 1],
-            "label": [1, 0, 1, 0, 1],
-        }
-    )
-    return pd.concat([df, extra], ignore_index=True)
+    return build_feature_matrix(fixtures_dir)
 
 
 def _feature_columns(df: pd.DataFrame) -> list[str]:
