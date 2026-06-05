@@ -175,6 +175,20 @@ def test_assert_no_post_game_leakage_rejects_features_known_after_decision():
         )
 
 
+def test_project_fixtures_include_real_pregame_team_stats():
+    fixtures_dir = Path(__file__).resolve().parents[2] / "fixtures"
+
+    df = build_feature_matrix(fixtures_dir).set_index("market_slug")
+    current = "nba-2025-01-15-lal-bos"
+
+    assert df.loc[current, "home_pace_pre"] != pytest.approx(100.0)
+    assert df.loc[current, "away_pace_pre"] != pytest.approx(100.0)
+    assert df.loc[current, "home_offensive_rating_pre"] != pytest.approx(110.0)
+    assert df.loc[current, "away_offensive_rating_pre"] != pytest.approx(110.0)
+    assert df.loc[current, "home_defensive_rating_pre"] != pytest.approx(110.0)
+    assert df.loc[current, "away_defensive_rating_pre"] != pytest.approx(110.0)
+
+
 def _write_csv(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines))
 
