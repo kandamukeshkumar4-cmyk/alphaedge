@@ -22,7 +22,11 @@ from app.backtesting.significance import (
     assess_closing_edge,
 )
 from app.backtesting.walk_forward import rolling_origin_splits
-from app.ml.calibration import calibration_report, fit_platt_calibrator
+from app.ml.calibration import (
+    CalibrationReport,
+    calibration_report,
+    fit_best_calibrator,
+)
 from app.ml.features import FEATURE_COLUMNS, build_feature_matrix
 
 
@@ -78,11 +82,18 @@ def train_walk_forward_xgboost_model(
     feature_columns = _feature_columns(df)
     comparisons: list[ForecastComparison] = []
     trades: list[ForecastTrade] = []
+    raw_walk_forward_probs: list[float] = []
+    calibrated_walk_forward_probs: list[float] = []
+    walk_forward_labels: list[int] = []
+    rolling_calibration: list[dict[str, Any]] = []
+    method_counts: dict[str, int] = {}
 
-    for split in rolling_origin_splits(
-        df.to_dict("records"),
-        train_window_size=train_window_size,
-        eval_window_size=eval_window_size,
+    for fold_index, split in enumerate(
+        rolling_origin_splits(
+            df.to_dict("records"),
+            train_window_size=train_window_size,
+            eval_window_size=eval_window_size,
+        )
     ):
         train_df = pd.DataFrame(split.train_rows)
         eval_df = pd.DataFrame(split.eval_rows)
@@ -93,6 +104,20 @@ def train_walk_forward_xgboost_model(
         )
         raw_probs = model.predict_proba(eval_df[feature_columns].values)[:, 1]
         calibrated_probs = calibrator.predict(raw_probs)
+        labels = [int(row["winner_yes"]) for row in split.eval_rows]
+        raw_walk_forward_probs.extend(float(probability) for probability in raw_probs)
+        calibrated_walk_forward_probs.extend(
+            float(probability) for probability in calibrated_probs
+        )
+        walk_forward_labels.extend(labels)
+        fold_report = calibration_report(
+            raw_probs,
+            calibrated_probs,
+            labels,
+            method=calibrator.method,
+        )
+        rolling_calibration.append(_fold_calibration_result(fold_index, fold_report))
+        method_counts[calibrator.method] = method_counts.get(calibrator.method, 0) + 1
         for row, probability in zip(split.eval_rows, calibrated_probs):
             entry_implied = float(row["implied_yes"])
             closing_yes = float(row["closing_implied"])
@@ -140,6 +165,12 @@ def train_walk_forward_xgboost_model(
         bootstrap_samples=edge_bootstrap_samples,
         seed=edge_seed,
     )
+    walk_forward_calibration = calibration_report(
+        raw_walk_forward_probs,
+        calibrated_walk_forward_probs,
+        walk_forward_labels,
+        method=_combined_calibration_method(method_counts),
+    )
 
     return {
         **paths,
@@ -165,6 +196,17 @@ def train_walk_forward_xgboost_model(
             ),
             **_clv_result(clv_evaluation),
             "model_beats_closing": evaluation.model_beats_closing,
+        },
+        "walk_forward_calibration": {
+            "method": walk_forward_calibration.method,
+            "method_counts": method_counts,
+            "raw_expected_calibration_error": (
+                walk_forward_calibration.raw_expected_calibration_error
+            ),
+            "calibrated_expected_calibration_error": (
+                walk_forward_calibration.calibrated_expected_calibration_error
+            ),
+            "rolling_expected_calibration_error": rolling_calibration,
         },
     }
 
@@ -241,16 +283,24 @@ def _fit_calibrated_model(
         model.fit(X_train, y_train)
     train_probs = model.predict_proba(X_train)[:, 1]
     probs = model.predict_proba(X_eval)[:, 1]
-    calibrator = fit_platt_calibrator(train_probs, y_train)
+    calibrator_train_probs, calibrator_train_labels, validation_probs, validation_labels = (
+        _calibration_validation_split(train_probs, y_train)
+    )
+    calibrator = fit_best_calibrator(
+        calibrator_train_probs,
+        calibrator_train_labels,
+        validation_probs,
+        validation_labels,
+    )
     calibrated_probs = calibrator.predict(probs)
-    report = calibration_report(probs, calibrated_probs, y_eval)
+    report = calibration_report(probs, calibrated_probs, y_eval, method=calibrator.method)
     return model, calibrator, report, calibrated_probs, y_eval
 
 
 def _persist_artifacts(model, calibrator, artifact_dir: Path) -> dict[str, str]:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     path = artifact_dir / "xgboost_model.joblib"
-    calibrator_path = artifact_dir / "platt_calibrator.joblib"
+    calibrator_path = artifact_dir / "calibrator.joblib"
     joblib.dump(model, path)
     joblib.dump(calibrator, calibrator_path)
     return {
@@ -263,8 +313,13 @@ def _calibration_result(report) -> dict[str, Any]:
     return {
         "raw_brier_score": report.raw_brier_score,
         "calibrated_brier_score": report.calibrated_brier_score,
+        "raw_expected_calibration_error": report.raw_expected_calibration_error,
+        "calibrated_expected_calibration_error": (
+            report.calibrated_expected_calibration_error
+        ),
         "raw_calibration_error": report.raw_calibration_error,
         "calibrated_calibration_error": report.calibrated_calibration_error,
+        "calibration_method": report.method,
         "calibration_improved": report.improved,
         "reliability_curve": [
             {
@@ -286,3 +341,42 @@ def _row_float(row: dict[str, Any], column: str, default: float) -> float:
     if value is None or pd.isna(value):
         return float(default)
     return float(value)
+
+
+def _calibration_validation_split(
+    probabilities,
+    labels,
+) -> tuple[list[float], list[int], list[float], list[int]]:
+    normalized = [float(probability) for probability in probabilities]
+    outcomes = [int(label) for label in labels]
+    if len(normalized) < 6:
+        return normalized, outcomes, normalized, outcomes
+
+    split_index = max(2, int(len(normalized) * 0.7))
+    split_index = min(split_index, len(normalized) - 2)
+    train_probabilities = normalized[:split_index]
+    train_labels = outcomes[:split_index]
+    validation_probabilities = normalized[split_index:]
+    validation_labels = outcomes[split_index:]
+    if len(set(train_labels)) < 2 or len(set(validation_labels)) < 2:
+        return normalized, outcomes, normalized, outcomes
+    return train_probabilities, train_labels, validation_probabilities, validation_labels
+
+
+def _fold_calibration_result(fold_index: int, report: CalibrationReport) -> dict[str, Any]:
+    return {
+        "fold_index": fold_index,
+        "calibration_method": report.method,
+        "raw_expected_calibration_error": report.raw_expected_calibration_error,
+        "calibrated_expected_calibration_error": (
+            report.calibrated_expected_calibration_error
+        ),
+    }
+
+
+def _combined_calibration_method(method_counts: dict[str, int]) -> str:
+    if not method_counts:
+        return "identity"
+    if len(method_counts) == 1:
+        return next(iter(method_counts))
+    return "mixed"

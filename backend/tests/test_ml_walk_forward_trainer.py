@@ -35,6 +35,14 @@ def test_walk_forward_trainer_reports_out_of_sample_closing_line_metrics(tmp_pat
     assert isinstance(result["walk_forward"]["mean_clv"], float)
     assert isinstance(result["walk_forward"]["clv_positive"], bool)
     assert isinstance(result["walk_forward"]["model_beats_closing"], bool)
+    assert result["calibration_method"] in {"identity", "isotonic", "platt"}
+    assert result["walk_forward_calibration"]["raw_expected_calibration_error"] >= 0.0
+    assert result["walk_forward_calibration"]["calibrated_expected_calibration_error"] >= 0.0
+    assert result["walk_forward_calibration"]["rolling_expected_calibration_error"]
+    first_fold = result["walk_forward_calibration"]["rolling_expected_calibration_error"][0]
+    assert first_fold["calibration_method"] in {"identity", "isotonic", "platt"}
+    assert first_fold["raw_expected_calibration_error"] >= 0.0
+    assert first_fold["calibrated_expected_calibration_error"] >= 0.0
     assert "odds_movement" in result["feature_columns"]
     assert "line_move_velocity" in result["feature_columns"]
     assert "snapshot_count" in result["feature_columns"]

@@ -5,6 +5,7 @@ import pytest
 from app.backtesting.metrics import calibration_error
 from app.ml.calibration import (
     calibration_report,
+    fit_best_calibrator,
     fit_platt_calibrator,
     reliability_curve,
 )
@@ -43,6 +44,43 @@ def test_platt_calibration_improves_reliability_for_underconfident_model():
     assert report.improved is True
 
 
+def test_best_calibrator_can_select_isotonic_from_validation_fold():
+    train_probabilities = [0.35] * 30 + [0.65] * 30
+    train_outcomes = [0] * 30 + [1] * 30
+    validation_probabilities = [0.35] * 10 + [0.65] * 10
+    validation_outcomes = [0] * 10 + [1] * 10
+
+    calibrator = fit_best_calibrator(
+        train_probabilities,
+        train_outcomes,
+        validation_probabilities,
+        validation_outcomes,
+    )
+
+    assert calibrator.method == "isotonic"
+    report = calibration_report(
+        validation_probabilities,
+        calibrator.predict(validation_probabilities),
+        validation_outcomes,
+        bins=2,
+    )
+    assert report.calibrated_expected_calibration_error == pytest.approx(0.0)
+
+
+def test_best_calibrator_keeps_identity_when_validation_is_already_calibrated():
+    train_probabilities = [0.25] * 4 + [0.75] * 4
+    train_outcomes = [0, 0, 0, 1, 1, 1, 1, 0]
+
+    calibrator = fit_best_calibrator(
+        train_probabilities,
+        train_outcomes,
+        train_probabilities,
+        train_outcomes,
+    )
+
+    assert calibrator.method == "identity"
+
+
 def test_trainer_persists_calibrator_and_reports_calibration_metrics(tmp_path):
     fixtures_dir = tmp_path / "fixtures"
     artifact_dir = tmp_path / "artifacts"
@@ -55,8 +93,11 @@ def test_trainer_persists_calibrator_and_reports_calibration_metrics(tmp_path):
     assert Path(result["calibrator_path"]).exists()
     assert result["raw_brier_score"] >= 0.0
     assert result["calibrated_brier_score"] >= 0.0
+    assert result["raw_expected_calibration_error"] >= 0.0
+    assert result["calibrated_expected_calibration_error"] >= 0.0
     assert result["raw_calibration_error"] >= 0.0
     assert result["calibrated_calibration_error"] >= 0.0
+    assert result["calibration_method"] in {"identity", "isotonic", "platt"}
     assert isinstance(result["calibration_improved"], bool)
     assert result["reliability_curve"]
 
