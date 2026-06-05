@@ -5,6 +5,7 @@ import pytest
 from app.backtesting.walk_forward import (
     LookaheadError,
     assert_no_lookahead,
+    evaluate_walk_forward_against_closing,
     rolling_origin_splits,
 )
 
@@ -45,3 +46,23 @@ def test_assert_no_lookahead_rejects_future_training_rows():
                 {"market_slug": "eval", "captured_at": dt(2)},
             ],
         )
+
+
+def test_walk_forward_evaluation_scores_only_out_of_sample_eval_rows():
+    rows = [
+        {"market_slug": "train-1", "captured_at": dt(1), "predicted_prob": 0.99, "closing_implied": 0.99, "outcome": 0},
+        {"market_slug": "train-2", "captured_at": dt(2), "predicted_prob": 0.99, "closing_implied": 0.99, "outcome": 0},
+        {"market_slug": "eval-1", "captured_at": dt(3), "predicted_prob": 0.70, "closing_implied": 0.60, "outcome": 1},
+        {"market_slug": "eval-2", "captured_at": dt(4), "predicted_prob": 0.20, "closing_implied": 0.40, "outcome": 0},
+    ]
+
+    result = evaluate_walk_forward_against_closing(
+        rows,
+        train_window_size=2,
+        eval_window_size=1,
+    )
+
+    assert result.count == 2
+    assert result.model_brier == pytest.approx(0.065)
+    assert result.closing_brier == pytest.approx(0.16)
+    assert result.model_beats_closing is True

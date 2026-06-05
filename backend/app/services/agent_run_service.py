@@ -30,7 +30,7 @@ class AgentRunService:
         market: Market,
         features: dict[str, Any] | None = None,
     ) -> tuple[AgentRun, AgentState, list[AgentRunStep]]:
-        started_at = datetime.now(timezone.utc)
+        started_at = await self._next_run_timestamp()
         state, trace = run_agent_graph_with_trace(market.slug, features)
         status = "approved" if state.approved else "blocked"
         run = AgentRun(
@@ -98,6 +98,19 @@ class AgentRunService:
             .order_by(AgentRunStep.created_at)
         )
         return list(result.scalars().all())
+
+    async def _next_run_timestamp(self) -> datetime:
+        candidate = datetime.now(timezone.utc)
+        latest = await self.session.scalar(
+            select(AgentRun.created_at).order_by(AgentRun.created_at.desc()).limit(1)
+        )
+        if latest is None:
+            return candidate
+        if latest.tzinfo is None:
+            latest = latest.replace(tzinfo=timezone.utc)
+        if candidate <= latest:
+            return latest + timedelta(microseconds=1)
+        return candidate
 
     @staticmethod
     def _build_steps(

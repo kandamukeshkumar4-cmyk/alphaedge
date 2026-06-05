@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Iterable, Mapping
 
+from app.backtesting.clv import (
+    ForecastComparison,
+    ForecastEvaluation,
+    evaluate_forecasts_against_closing,
+)
+
 
 BacktestRow = Mapping[str, Any]
 
@@ -39,6 +45,33 @@ def rolling_origin_splits(
             continue
         assert_no_lookahead(train_rows, eval_rows, time_column)
         yield WalkForwardSplit(train_rows=train_rows, eval_rows=eval_rows)
+
+
+def evaluate_walk_forward_against_closing(
+    rows: Iterable[BacktestRow],
+    train_window_size: int,
+    eval_window_size: int,
+    time_column: str = "captured_at",
+    predicted_prob_column: str = "predicted_prob",
+    closing_implied_column: str = "closing_implied",
+    outcome_column: str = "outcome",
+) -> ForecastEvaluation:
+    comparisons: list[ForecastComparison] = []
+    for split in rolling_origin_splits(
+        rows,
+        train_window_size=train_window_size,
+        eval_window_size=eval_window_size,
+        time_column=time_column,
+    ):
+        for row in split.eval_rows:
+            comparisons.append(
+                ForecastComparison(
+                    predicted_prob=float(row[predicted_prob_column]),
+                    closing_implied=float(row[closing_implied_column]),
+                    outcome=int(row[outcome_column]),
+                )
+            )
+    return evaluate_forecasts_against_closing(comparisons)
 
 
 def assert_no_lookahead(

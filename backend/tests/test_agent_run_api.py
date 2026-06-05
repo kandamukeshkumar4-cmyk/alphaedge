@@ -166,7 +166,11 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
             "graph_version": "v1",
             "approved": False,
             "step_count": 5,
-            "errors": ["edge 3.00% < 5%"],
+            "errors": [
+                "closing-line edge gate not met",
+                "edge 0.00% < 5%",
+                "confidence 0.50 < 0.7",
+            ],
             "created_at": second_run.json()["created_at"],
         }
     ]

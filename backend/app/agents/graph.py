@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from app.forecasting.predictor import predict_market
 from app.risk.rules import OrderIntent, RiskService
 
 try:
@@ -67,21 +68,34 @@ def agent_state_snapshot(state: AgentState) -> dict[str, Any]:
 
 
 def data_node(state: AgentState) -> AgentState:
-    state.features = {"implied_yes": state.features.get("implied_yes", 0.5)}
+    features = dict(state.features)
+    features["implied_yes"] = features.get("implied_yes", 0.5)
+    state.features = features
     return state
 
 
 def prediction_node(state: AgentState) -> AgentState:
-    implied = float(state.features.get("implied_yes", 0.5))
-    state.predicted_prob = min(0.99, implied + 0.03)
-    state.confidence = 0.75
+    prediction = predict_market(state.features)
+    state.predicted_prob = prediction.predicted_prob
+    state.confidence = prediction.confidence
+    state.features["forecast_is_edge"] = prediction.is_edge
+    state.features["forecast_edge"] = round(prediction.edge, 4)
+    state.features["forecast_gate_reason"] = prediction.reason
+    if prediction.evaluation is not None:
+        state.features["forecast_brier_delta_vs_closing"] = round(
+            prediction.evaluation.brier_delta_vs_closing, 6
+        )
+    if prediction.significance is not None:
+        state.features["forecast_significance_ci_lower"] = round(
+            prediction.significance.ci_lower, 6
+        )
     return state
 
 
 def risk_node(state: AgentState) -> AgentState:
     from decimal import Decimal
 
-    edge = state.predicted_prob - float(state.features.get("implied_yes", 0.5))
+    edge = float(state.features.get("forecast_edge", 0.0))
     intent = OrderIntent(
         market_slug=state.market_slug,
         side="buy",
@@ -98,6 +112,8 @@ def risk_node(state: AgentState) -> AgentState:
     ok, failures = RiskService().validate(intent)
     state.order_intent = intent
     state.approved = ok
+    if not state.features.get("forecast_is_edge", False):
+        state.errors.append("closing-line edge gate not met")
     if not ok:
         state.errors.extend(failures)
     return state
@@ -107,6 +123,7 @@ def reasoning_node(state: AgentState) -> AgentState:
     state.reasoning = (
         f"Model predicts {state.predicted_prob:.2%} vs market "
         f"{state.features.get('implied_yes', 0.5):.2%}. "
+        f"{state.features.get('forecast_gate_reason', 'forecast gate unavailable')}. "
         f"Risk {'approved' if state.approved else 'rejected'}."
     )
     return state

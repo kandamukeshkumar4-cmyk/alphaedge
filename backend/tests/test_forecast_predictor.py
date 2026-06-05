@@ -1,0 +1,82 @@
+import pytest
+
+from app.agents.graph import run_agent_graph
+from app.forecasting.predictor import predict_market
+
+
+def _comparison(predicted: float, closing: float, outcome: int) -> dict:
+    return {
+        "predicted_prob": predicted,
+        "closing_implied": closing,
+        "outcome": outcome,
+    }
+
+
+def test_synthetic_non_edge_model_is_hidden():
+    prediction = predict_market(
+        {
+            "implied_yes": 0.55,
+            "model_probability": 0.55,
+            "forecast_comparisons": [
+                _comparison(predicted=0.50, closing=0.50, outcome=index % 2)
+                for index in range(20)
+            ],
+            "edge_min_sample": 10,
+            "edge_bootstrap_samples": 100,
+        }
+    )
+
+    assert prediction.predicted_prob == pytest.approx(0.55)
+    assert prediction.edge == pytest.approx(0.0)
+    assert prediction.is_edge is False
+    assert prediction.significance is not None
+    assert prediction.significance.significant_beats_closing is False
+
+
+def test_agent_prediction_requires_significant_closing_line_edge():
+    state = run_agent_graph(
+        "nba-2025-01-15-lal-bos",
+        {
+            "implied_yes": 0.55,
+            "model_probability": 0.65,
+            "forecast_comparisons": [
+                _comparison(predicted=0.50, closing=0.50, outcome=index % 2)
+                for index in range(20)
+            ],
+            "edge_min_sample": 10,
+            "edge_bootstrap_samples": 100,
+        },
+    )
+
+    assert state.predicted_prob == pytest.approx(0.65)
+    assert state.features["forecast_is_edge"] is False
+    assert state.order_intent is not None
+    assert state.order_intent.edge == pytest.approx(0.0)
+    assert state.approved is False
+    assert "closing-line edge gate not met" in state.errors
+
+
+def test_agent_prediction_credits_significant_closing_line_edge():
+    state = run_agent_graph(
+        "nba-2025-01-15-lal-bos",
+        {
+            "implied_yes": 0.55,
+            "model_probability": 0.70,
+            "forecast_comparisons": [
+                _comparison(
+                    predicted=0.85 if index % 2 else 0.15,
+                    closing=0.50,
+                    outcome=index % 2,
+                )
+                for index in range(40)
+            ],
+            "edge_min_sample": 20,
+            "edge_bootstrap_samples": 100,
+        },
+    )
+
+    assert state.predicted_prob == pytest.approx(0.70)
+    assert state.features["forecast_is_edge"] is True
+    assert state.order_intent is not None
+    assert state.order_intent.edge == pytest.approx(0.15)
+    assert state.approved is True

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ExternalMarket, ExternalMarketStatus
+from app.db.models import ExternalMarket, ExternalMarketStatus, ForecastLog
 from app.events.bus import DomainEventBus
 from app.forecasting.market_source import MarketSnapshot, get_adapter, parse_market_url
 
@@ -118,7 +118,7 @@ class ExternalMarketService:
             raise ValueError("External market already resolved")
         market.status = ExternalMarketStatus.RESOLVED
         market.winning_outcome = winning_outcome
-        market.resolved_at = resolved_at or datetime.now(timezone.utc)
+        market.resolved_at = resolved_at or await self._default_resolved_at(market.id)
         await self.session.flush()
         await self.events.emit(
             "external_market_resolved",
@@ -139,6 +139,22 @@ class ExternalMarketService:
             )
         )
         return result.scalar_one_or_none()
+
+    async def _default_resolved_at(self, external_market_id: UUID) -> datetime:
+        candidate = datetime.now(timezone.utc)
+        latest_lock = await self.session.scalar(
+            select(ForecastLog.locked_at)
+            .where(ForecastLog.external_market_id == external_market_id)
+            .order_by(ForecastLog.locked_at.desc())
+            .limit(1)
+        )
+        if latest_lock is None:
+            return candidate
+        if latest_lock.tzinfo is None:
+            latest_lock = latest_lock.replace(tzinfo=timezone.utc)
+        if candidate <= latest_lock:
+            return latest_lock + timedelta(microseconds=1)
+        return candidate
 
 
 def _metadata_datetime(value: object) -> datetime | None:
