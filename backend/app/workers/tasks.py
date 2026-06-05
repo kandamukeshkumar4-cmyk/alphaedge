@@ -9,10 +9,17 @@ from app.data_quality.checks import run_quality_checks
 from app.db.models import JobRun
 from app.eval.service import EvalService
 from app.pipeline.ingest import MarketSnapshotCaptureResult
-from app.pipeline.ingest import capture_configured_market_snapshots, ingest_fixtures
+from app.pipeline.ingest import (
+    capture_configured_historical_closing_snapshots,
+    capture_configured_market_snapshots,
+    ingest_fixtures,
+)
 
 
 CAPTURE_MARKET_SNAPSHOTS_JOB_NAME = "capture_market_snapshots_task"
+CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME = (
+    "capture_historical_closing_snapshots_task"
+)
 
 
 async def capture_market_snapshots_task(ctx: dict) -> dict:
@@ -31,6 +38,32 @@ async def capture_market_snapshots_task(ctx: dict) -> dict:
         session.add(
             JobRun(
                 job_name=CAPTURE_MARKET_SNAPSHOTS_JOB_NAME,
+                status="degraded" if result.failed else "success",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                summary=summary,
+            )
+        )
+        await session.commit()
+    return summary
+
+
+async def capture_historical_closing_snapshots_task(ctx: dict) -> dict:
+    from app.db.session import AsyncSessionLocal
+
+    settings = ctx.get("settings") or get_settings()
+    connectors = ctx.get("market_data_connectors")
+    started_at = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        result = await capture_configured_historical_closing_snapshots(
+            session,
+            settings=settings,
+            connectors=connectors,
+        )
+        summary = _market_snapshot_capture_summary(result)
+        session.add(
+            JobRun(
+                job_name=CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME,
                 status="degraded" if result.failed else "success",
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -111,6 +144,7 @@ class WorkerSettings:
     max_tries = 3
     functions = [
         capture_market_snapshots_task,
+        capture_historical_closing_snapshots_task,
         ingest_odds_task,
         run_eval_on_resolve_task,
         run_backtest_task,

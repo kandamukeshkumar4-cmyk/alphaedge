@@ -25,6 +25,13 @@ class OddsApiSnapshotConnector(Protocol):
         captured_at: datetime | str | None = None,
     ) -> list[NormalizedMarketSnapshot]: ...
 
+    def fetch_historical_h2h_snapshots(
+        self,
+        sport_key: str,
+        snapshot_at: datetime | str,
+        regions: str = "us",
+    ) -> list[NormalizedMarketSnapshot]: ...
+
 
 class SingleMarketSnapshotConnector(Protocol):
     def fetch_market_snapshot(
@@ -151,6 +158,46 @@ async def capture_configured_market_snapshots(
         skipped=result.skipped,
         failures=tuple(failures),
         captured_at=captured,
+    )
+
+
+async def capture_configured_historical_closing_snapshots(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    connectors: MarketDataConnectors | None = None,
+) -> MarketSnapshotCaptureResult:
+    connector_set = connectors or build_market_data_connectors(settings)
+    snapshots: list[NormalizedMarketSnapshot] = []
+    failures: list[MarketSnapshotCaptureFailure] = []
+
+    if connector_set.odds_api is None or not settings.odds_api_key:
+        return MarketSnapshotCaptureResult(fetched=0, inserted=0, skipped=0)
+
+    for sport_key in settings.odds_api_sport_key_list:
+        for snapshot_at in settings.odds_api_historical_snapshot_at_list:
+            try:
+                snapshots.extend(
+                    connector_set.odds_api.fetch_historical_h2h_snapshots(
+                        sport_key,
+                        snapshot_at=snapshot_at,
+                    )
+                )
+            except Exception as error:
+                failures.append(
+                    _capture_failure(
+                        "the-odds-api:historical",
+                        f"{sport_key}@{snapshot_at}",
+                        error,
+                    )
+                )
+
+    result = await ingest_normalized_snapshots(session, snapshots)
+    return MarketSnapshotCaptureResult(
+        fetched=len(snapshots),
+        inserted=result.inserted,
+        skipped=result.skipped,
+        failures=tuple(failures),
     )
 
 

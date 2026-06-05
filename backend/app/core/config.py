@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
     odds_api_key: str = Field(default="", alias="ODDS_API_KEY")
     odds_api_sport_keys: str = Field(default="basketball_nba", alias="ODDS_API_SPORT_KEYS")
+    odds_api_historical_snapshot_ats: str = Field(
+        default="",
+        alias="ODDS_API_HISTORICAL_SNAPSHOT_ATS",
+    )
     polymarket_market_slugs: str = Field(default="", alias="POLYMARKET_MARKET_SLUGS")
     kalshi_market_tickers: str = Field(default="", alias="KALSHI_MARKET_TICKERS")
     polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")
@@ -63,6 +67,10 @@ class Settings(BaseSettings):
     @property
     def odds_api_sport_key_list(self) -> List[str]:
         return self._csv_list(self.odds_api_sport_keys)
+
+    @property
+    def odds_api_historical_snapshot_at_list(self) -> List[str]:
+        return self._csv_list(self.odds_api_historical_snapshot_ats)
 
     @property
     def polymarket_market_slug_list(self) -> List[str]:

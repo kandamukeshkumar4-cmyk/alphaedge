@@ -10,6 +10,7 @@ class WorkerSettings:
     max_tries = 3
     functions = [
         "app.workers.tasks.capture_market_snapshots_task",
+        "app.workers.tasks.capture_historical_closing_snapshots_task",
         "app.workers.tasks.ingest_odds_task",
         "app.workers.tasks.run_eval_on_resolve_task",
         "app.workers.tasks.run_backtest_task",
