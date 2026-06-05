@@ -16,6 +16,13 @@ class ForecastComparison:
 
 
 @dataclass(frozen=True)
+class ForecastTrade:
+    predicted_prob: float
+    entry_implied: float
+    closing_implied: float
+
+
+@dataclass(frozen=True)
 class ForecastEvaluation:
     count: int
     model_brier: float
@@ -28,6 +35,17 @@ class ForecastEvaluation:
     model_beats_closing: bool
 
 
+@dataclass(frozen=True)
+class ForecastClvEvaluation:
+    forecast_count: int
+    trade_count: int
+    yes_trades: int
+    no_trades: int
+    total_clv: float
+    mean_clv: float
+    clv_positive: bool
+
+
 def closing_line_value(entry_price: float, closing_price: float, side: TradeSide) -> float:
     entry = _probability(entry_price, "entry_price")
     closing = _probability(closing_price, "closing_price")
@@ -36,6 +54,47 @@ def closing_line_value(entry_price: float, closing_price: float, side: TradeSide
     if side == "no":
         return entry - closing
     raise ValueError("side must be 'yes' or 'no'")
+
+
+def evaluate_forecast_trade_clv(
+    forecasts: list[ForecastTrade],
+    *,
+    min_edge: float = 0.0,
+) -> ForecastClvEvaluation:
+    if not forecasts:
+        raise ValueError("at least one forecast trade is required")
+    if min_edge < 0:
+        raise ValueError("min_edge must be non-negative")
+
+    total_clv = 0.0
+    trade_count = 0
+    yes_trades = 0
+    no_trades = 0
+    for forecast in forecasts:
+        predicted = _probability(forecast.predicted_prob, "predicted_prob")
+        entry = _probability(forecast.entry_implied, "entry_implied")
+        closing = _probability(forecast.closing_implied, "closing_implied")
+        model_edge = predicted - entry
+        if abs(model_edge) <= min_edge:
+            continue
+        side: TradeSide = "yes" if model_edge > 0 else "no"
+        if side == "yes":
+            yes_trades += 1
+        else:
+            no_trades += 1
+        trade_count += 1
+        total_clv += closing_line_value(entry, closing, side)
+
+    mean_clv = total_clv / trade_count if trade_count else 0.0
+    return ForecastClvEvaluation(
+        forecast_count=len(forecasts),
+        trade_count=trade_count,
+        yes_trades=yes_trades,
+        no_trades=no_trades,
+        total_clv=total_clv,
+        mean_clv=mean_clv,
+        clv_positive=trade_count > 0 and mean_clv > 0.0,
+    )
 
 
 def evaluate_forecasts_against_closing(

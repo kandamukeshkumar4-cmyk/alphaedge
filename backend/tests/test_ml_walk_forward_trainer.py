@@ -31,6 +31,9 @@ def test_walk_forward_trainer_reports_out_of_sample_closing_line_metrics(tmp_pat
     assert result["walk_forward"]["count"] == 6
     assert result["walk_forward"]["model_brier"] >= 0.0
     assert result["walk_forward"]["closing_brier"] >= 0.0
+    assert result["walk_forward"]["trade_count"] <= result["walk_forward"]["count"]
+    assert isinstance(result["walk_forward"]["mean_clv"], float)
+    assert isinstance(result["walk_forward"]["clv_positive"], bool)
     assert isinstance(result["walk_forward"]["model_beats_closing"], bool)
     assert "odds_movement" in result["feature_columns"]
     assert "line_move_velocity" in result["feature_columns"]

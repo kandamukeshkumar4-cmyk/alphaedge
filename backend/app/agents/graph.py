@@ -89,6 +89,10 @@ def prediction_node(state: AgentState) -> AgentState:
         state.features["forecast_significance_ci_lower"] = round(
             prediction.significance.ci_lower, 6
         )
+    if prediction.clv is not None:
+        state.features["forecast_clv_positive"] = prediction.clv.clv_positive
+        state.features["forecast_mean_clv"] = round(prediction.clv.mean_clv, 6)
+        state.features["forecast_trade_count"] = prediction.clv.trade_count
     return state
 
 

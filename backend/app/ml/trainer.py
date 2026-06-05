@@ -7,7 +7,13 @@ import pandas as pd
 from sklearn.metrics import brier_score_loss
 from xgboost import XGBClassifier
 
-from app.backtesting.clv import ForecastComparison, evaluate_forecasts_against_closing
+from app.backtesting.clv import (
+    ForecastComparison,
+    ForecastClvEvaluation,
+    ForecastTrade,
+    evaluate_forecast_trade_clv,
+    evaluate_forecasts_against_closing,
+)
 from app.backtesting.significance import (
     DEFAULT_ALPHA,
     DEFAULT_BOOTSTRAP_SAMPLES,
@@ -66,10 +72,12 @@ def train_walk_forward_xgboost_model(
     edge_alpha: float = DEFAULT_ALPHA,
     edge_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
     edge_seed: int = 12345,
+    clv_min_edge: float = 0.0,
 ) -> dict[str, Any]:
     df = _training_dataset(fixtures_dir).sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
     comparisons: list[ForecastComparison] = []
+    trades: list[ForecastTrade] = []
 
     for split in rolling_origin_splits(
         df.to_dict("records"),
@@ -93,6 +101,13 @@ def train_walk_forward_xgboost_model(
                     outcome=int(row["winner_yes"]),
                 )
             )
+            trades.append(
+                ForecastTrade(
+                    predicted_prob=float(probability),
+                    entry_implied=float(row["implied_yes"]),
+                    closing_implied=float(row["closing_implied"]),
+                )
+            )
 
     if not comparisons:
         raise ValueError("walk-forward evaluation produced no evaluation rows")
@@ -104,6 +119,7 @@ def train_walk_forward_xgboost_model(
     )
     paths = _persist_artifacts(model, calibrator, artifact_dir)
     evaluation = evaluate_forecasts_against_closing(comparisons)
+    clv_evaluation = evaluate_forecast_trade_clv(trades, min_edge=clv_min_edge)
     edge_gate = assess_closing_edge(
         comparisons,
         min_sample=edge_min_sample,
@@ -118,7 +134,9 @@ def train_walk_forward_xgboost_model(
         "feature_columns": feature_columns,
         "train_rows": len(df),
         "is_edge": bool(
-            evaluation.model_beats_closing and edge_gate.significant_beats_closing
+            clv_evaluation.clv_positive
+            and evaluation.model_beats_closing
+            and edge_gate.significant_beats_closing
         ),
         "edge_gate": _significance_result(edge_gate),
         "walk_forward": {
@@ -132,6 +150,7 @@ def train_walk_forward_xgboost_model(
             "mean_probability_delta_vs_closing": (
                 evaluation.mean_probability_delta_vs_closing
             ),
+            **_clv_result(clv_evaluation),
             "model_beats_closing": evaluation.model_beats_closing,
         },
     }
@@ -146,6 +165,18 @@ def _significance_result(verdict: SignificanceVerdict) -> dict[str, Any]:
         "ci_lower": verdict.ci_lower,
         "alpha": verdict.alpha,
         "significant_beats_closing": verdict.significant_beats_closing,
+    }
+
+
+def _clv_result(evaluation: ForecastClvEvaluation) -> dict[str, Any]:
+    return {
+        "forecast_count": evaluation.forecast_count,
+        "trade_count": evaluation.trade_count,
+        "yes_trades": evaluation.yes_trades,
+        "no_trades": evaluation.no_trades,
+        "total_clv": evaluation.total_clv,
+        "mean_clv": evaluation.mean_clv,
+        "clv_positive": evaluation.clv_positive,
     }
 
 

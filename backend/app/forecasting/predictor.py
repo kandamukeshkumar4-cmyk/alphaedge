@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from app.backtesting.clv import (
+    ForecastClvEvaluation,
     ForecastComparison,
     ForecastEvaluation,
+    ForecastTrade,
+    evaluate_forecast_trade_clv,
     evaluate_forecasts_against_closing,
 )
 from app.backtesting.significance import (
@@ -26,6 +29,7 @@ class ForecastPrediction:
     reason: str
     evaluation: ForecastEvaluation | None = None
     significance: SignificanceVerdict | None = None
+    clv: ForecastClvEvaluation | None = None
 
 
 def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
@@ -41,6 +45,7 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
     comparisons = _forecast_comparisons(features)
     evaluation: ForecastEvaluation | None = None
     significance: SignificanceVerdict | None = None
+    clv: ForecastClvEvaluation | None = None
     is_edge = False
     reason = "no resolved walk-forward evaluation"
 
@@ -55,7 +60,18 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
             ),
             seed=_int_feature(features, "edge_seed", 12345),
         )
-        is_edge = evaluation.model_beats_closing and significance.significant_beats_closing
+        trades = _forecast_trades(features)
+        if trades:
+            clv = evaluate_forecast_trade_clv(
+                trades,
+                min_edge=_float_feature(features, "clv_min_edge", 0.0),
+            )
+        is_edge = (
+            evaluation.model_beats_closing
+            and significance.significant_beats_closing
+            and clv is not None
+            and clv.clv_positive
+        )
         reason = (
             "closing-line edge gate met"
             if is_edge
@@ -72,6 +88,7 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
         reason=reason,
         evaluation=evaluation,
         significance=significance,
+        clv=clv,
     )
 
 
@@ -92,6 +109,25 @@ def _forecast_comparisons(features: Mapping[str, Any]) -> list[ForecastCompariso
             )
         )
     return comparisons
+
+
+def _forecast_trades(features: Mapping[str, Any]) -> list[ForecastTrade]:
+    raw = features.get("forecast_trades") or features.get("closing_line_trades") or []
+    trades: list[ForecastTrade] = []
+    for item in raw:
+        if isinstance(item, ForecastTrade):
+            trades.append(item)
+            continue
+        if not isinstance(item, Mapping):
+            raise ValueError("forecast trade entries must be mappings")
+        trades.append(
+            ForecastTrade(
+                predicted_prob=float(item["predicted_prob"]),
+                entry_implied=float(item["entry_implied"]),
+                closing_implied=float(item["closing_implied"]),
+            )
+        )
+    return trades
 
 
 def _confidence(features: Mapping[str, Any], is_edge: bool) -> float:
