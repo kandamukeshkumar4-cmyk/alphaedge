@@ -74,10 +74,39 @@ def _phase3_forecast_gate(fixtures_dir: Path, artifact_dir: Path) -> dict[str, A
         edge_bootstrap_samples=100,
         cpcv_group_count=2,
     )
+    blocked_reasons = _phase3_blocked_reasons(result)
     return {
-        "gate": "met" if result["is_edge"] else "blocked",
+        "gate": "met" if result["is_edge"] and not blocked_reasons else "blocked",
         "is_edge": result["is_edge"],
+        "blocked_reasons": blocked_reasons,
+        "sample_shortfall": _phase3_sample_shortfall(result),
         "walk_forward": result["walk_forward"],
         "edge_gate": result["edge_gate"],
         "calibration": result["walk_forward_calibration"],
     }
+
+
+def _phase3_sample_shortfall(result: dict[str, Any]) -> int:
+    edge_gate = result["edge_gate"]
+    return max(0, int(edge_gate["min_sample"]) - int(edge_gate["count"]))
+
+
+def _phase3_blocked_reasons(result: dict[str, Any]) -> list[str]:
+    walk_forward = result["walk_forward"]
+    edge_gate = result["edge_gate"]
+    reasons: list[str] = []
+
+    if not edge_gate["sample_met"]:
+        reasons.append("insufficient_resolved_sample")
+    if walk_forward["model_brier"] >= walk_forward["closing_brier"]:
+        reasons.append("model_brier_not_better_than_closing")
+    if walk_forward["model_log_loss"] >= walk_forward["closing_log_loss"]:
+        reasons.append("model_log_loss_not_better_than_closing")
+    if not walk_forward["clv_positive"]:
+        reasons.append("clv_not_positive")
+    if not edge_gate["significant_beats_closing"]:
+        reasons.append("closing_edge_not_significant")
+    if not result["is_edge"] and not reasons:
+        reasons.append("edge_gate_not_met")
+
+    return reasons

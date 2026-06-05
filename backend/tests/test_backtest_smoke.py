@@ -54,6 +54,14 @@ def test_backtest_reports_phase3_walk_forward_gate_metrics(tmp_path):
     assert "deflated_sharpe" in phase3["walk_forward"]
     assert "cpcv" in phase3["walk_forward"]
     assert phase3["edge_gate"]["count"] == phase3["walk_forward"]["count"]
+    assert phase3["sample_shortfall"] == 99
+    assert phase3["blocked_reasons"] == [
+        "insufficient_resolved_sample",
+        "model_brier_not_better_than_closing",
+        "model_log_loss_not_better_than_closing",
+        "clv_not_positive",
+        "closing_edge_not_significant",
+    ]
 
 
 def test_fixture_backtest_uses_latest_snapshot_at_or_before_market_close(tmp_path):
