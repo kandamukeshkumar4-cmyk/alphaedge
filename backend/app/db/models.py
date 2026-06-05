@@ -387,12 +387,14 @@ class FailedJob(Base):
 
 class JobRun(Base):
     __tablename__ = "job_runs"
+    __table_args__ = (Index("ix_job_runs_job_started", "job_name", "started_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     job_name: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 # AlphaEdge Mirror — forecast track-record ledger

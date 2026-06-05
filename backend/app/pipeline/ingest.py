@@ -47,6 +47,7 @@ class MarketSnapshotCaptureResult:
     inserted: int
     skipped: int
     failures: tuple["MarketSnapshotCaptureFailure", ...] = ()
+    captured_at: datetime | None = None
 
     @property
     def failed(self) -> int:
@@ -140,6 +141,7 @@ async def capture_configured_market_snapshots(
         inserted=result.inserted,
         skipped=result.skipped,
         failures=tuple(failures),
+        captured_at=captured,
     )
 
 

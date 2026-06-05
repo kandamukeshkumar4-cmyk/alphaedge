@@ -1,12 +1,17 @@
 from datetime import datetime, timezone
 
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.data.connectors.base import NormalizedMarketSnapshot
-from app.db.models import OddsSnapshot
+from app.db.models import JobRun, OddsSnapshot
+from app.db.session import get_db
+from app.main import app
 from app.pipeline.ingest import (
     MarketDataConnectors,
+    MarketSnapshotCaptureFailure,
+    MarketSnapshotCaptureResult,
     capture_configured_market_snapshots,
 )
 from app.workers import settings as worker_settings_module
@@ -240,6 +245,9 @@ async def test_capture_market_snapshots_task_reports_source_failures(monkeypatch
         async def __aexit__(self, exc_type, exc, tb):
             return None
 
+        def add(self, obj):
+            return None
+
         async def commit(self):
             return None
 
@@ -267,4 +275,140 @@ async def test_capture_market_snapshots_task_reports_source_failures(monkeypatch
                 "error": "upstream 500",
             }
         ],
+    }
+
+
+async def test_capture_market_snapshots_task_persists_degraded_job_run(
+    db_session,
+    monkeypatch,
+):
+    async def fake_capture_configured_market_snapshots(*args, **kwargs):
+        return MarketSnapshotCaptureResult(
+            fetched=2,
+            inserted=1,
+            skipped=1,
+            failures=(
+                MarketSnapshotCaptureFailure(
+                    source="polymarket.gamma",
+                    target="will-lakers-beat-celtics",
+                    error="upstream 503",
+                ),
+            ),
+            captured_at=CAPTURED_AT,
+        )
+
+    class TestSessionContext:
+        async def __aenter__(self):
+            return db_session
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr(
+        "app.workers.tasks.capture_configured_market_snapshots",
+        fake_capture_configured_market_snapshots,
+    )
+    monkeypatch.setattr("app.db.session.AsyncSessionLocal", lambda: TestSessionContext())
+
+    result = await capture_market_snapshots_task({"settings": Settings()})
+
+    assert result["failed"] == 1
+    assert result["failures"][0]["source"] == "polymarket.gamma"
+    run = await db_session.scalar(select(JobRun).where(JobRun.job_name == "capture_market_snapshots_task"))
+    assert run is not None
+    assert run.status == "degraded"
+    assert run.finished_at is not None
+    assert run.summary == {
+        "fetched": 2,
+        "ingested": 1,
+        "skipped": 1,
+        "failed": 1,
+        "failures": [
+            {
+                "source": "polymarket.gamma",
+                "target": "will-lakers-beat-celtics",
+                "error": "upstream 503",
+            }
+        ],
+        "captured_at": "2026-01-14T18:00:00+00:00",
+    }
+
+
+async def test_admin_market_snapshot_capture_runs_returns_latest_health(db_session):
+    older = JobRun(
+        job_name="capture_market_snapshots_task",
+        status="success",
+        started_at=datetime(2026, 1, 14, 17, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 14, 17, 1, tzinfo=timezone.utc),
+        summary={
+            "fetched": 4,
+            "ingested": 4,
+            "skipped": 0,
+            "failed": 0,
+            "failures": [],
+            "captured_at": "2026-01-14T17:00:00+00:00",
+        },
+    )
+    latest = JobRun(
+        job_name="capture_market_snapshots_task",
+        status="degraded",
+        started_at=datetime(2026, 1, 14, 18, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 14, 18, 1, tzinfo=timezone.utc),
+        summary={
+            "fetched": 3,
+            "ingested": 2,
+            "skipped": 1,
+            "failed": 1,
+            "failures": [
+                {
+                    "source": "kalshi.rest",
+                    "target": "KXNBA-LALBOS-26JAN15",
+                    "error": "upstream 500",
+                }
+            ],
+            "captured_at": "2026-01-14T18:00:00+00:00",
+        },
+    )
+    db_session.add_all([older, latest])
+    await db_session.flush()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.get(
+                "/admin/market-snapshot-captures",
+                params={"limit": 1},
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "runs": [
+            {
+                "run_id": str(latest.id),
+                "status": "degraded",
+                "started_at": "2026-01-14T18:00:00Z",
+                "finished_at": "2026-01-14T18:01:00Z",
+                "fetched": 3,
+                "ingested": 2,
+                "skipped": 1,
+                "failed": 1,
+                "failures": [
+                    {
+                        "source": "kalshi.rest",
+                        "target": "KXNBA-LALBOS-26JAN15",
+                        "error": "upstream 500",
+                    }
+                ],
+                "captured_at": "2026-01-14T18:00:00Z",
+            }
+        ]
     }

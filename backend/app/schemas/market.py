@@ -178,6 +178,29 @@ class AgentRunListResponse(BaseModel):
     runs: list[AgentRunSummaryResponse]
 
 
+class MarketSnapshotCaptureFailureResponse(BaseModel):
+    source: str
+    target: str
+    error: str
+
+
+class MarketSnapshotCaptureRunResponse(BaseModel):
+    run_id: UUID
+    status: str
+    started_at: datetime
+    finished_at: Optional[datetime]
+    fetched: int
+    ingested: int
+    skipped: int
+    failed: int
+    failures: list[MarketSnapshotCaptureFailureResponse]
+    captured_at: Optional[datetime] = None
+
+
+class MarketSnapshotCaptureRunListResponse(BaseModel):
+    runs: list[MarketSnapshotCaptureRunResponse]
+
+
 class OrderResponse(BaseModel):
     id: UUID
     market_id: UUID
