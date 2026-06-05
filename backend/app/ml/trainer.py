@@ -8,6 +8,13 @@ from sklearn.metrics import brier_score_loss
 from xgboost import XGBClassifier
 
 from app.backtesting.clv import ForecastComparison, evaluate_forecasts_against_closing
+from app.backtesting.significance import (
+    DEFAULT_ALPHA,
+    DEFAULT_BOOTSTRAP_SAMPLES,
+    DEFAULT_MIN_SAMPLE,
+    SignificanceVerdict,
+    assess_closing_edge,
+)
 from app.backtesting.walk_forward import rolling_origin_splits
 from app.ml.calibration import calibration_report, fit_platt_calibrator
 from app.ml.features import FEATURE_COLUMNS, build_feature_matrix
@@ -54,6 +61,11 @@ def train_walk_forward_xgboost_model(
     artifact_dir: Path,
     train_window_size: int,
     eval_window_size: int,
+    *,
+    edge_min_sample: int = DEFAULT_MIN_SAMPLE,
+    edge_alpha: float = DEFAULT_ALPHA,
+    edge_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
+    edge_seed: int = 12345,
 ) -> dict[str, Any]:
     df = _training_dataset(fixtures_dir).sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
@@ -92,12 +104,23 @@ def train_walk_forward_xgboost_model(
     )
     paths = _persist_artifacts(model, calibrator, artifact_dir)
     evaluation = evaluate_forecasts_against_closing(comparisons)
+    edge_gate = assess_closing_edge(
+        comparisons,
+        min_sample=edge_min_sample,
+        alpha=edge_alpha,
+        bootstrap_samples=edge_bootstrap_samples,
+        seed=edge_seed,
+    )
 
     return {
         **paths,
         **_calibration_result(report),
         "feature_columns": feature_columns,
         "train_rows": len(df),
+        "is_edge": bool(
+            evaluation.model_beats_closing and edge_gate.significant_beats_closing
+        ),
+        "edge_gate": _significance_result(edge_gate),
         "walk_forward": {
             "count": evaluation.count,
             "model_brier": evaluation.model_brier,
@@ -111,6 +134,18 @@ def train_walk_forward_xgboost_model(
             ),
             "model_beats_closing": evaluation.model_beats_closing,
         },
+    }
+
+
+def _significance_result(verdict: SignificanceVerdict) -> dict[str, Any]:
+    return {
+        "count": verdict.count,
+        "min_sample": verdict.min_sample,
+        "sample_met": verdict.sample_met,
+        "mean_brier_delta": verdict.mean_brier_delta,
+        "ci_lower": verdict.ci_lower,
+        "alpha": verdict.alpha,
+        "significant_beats_closing": verdict.significant_beats_closing,
     }
 
 

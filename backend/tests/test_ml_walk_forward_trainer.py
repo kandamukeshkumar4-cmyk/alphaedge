@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.ml.trainer import train_walk_forward_xgboost_model
 
 
@@ -33,6 +35,31 @@ def test_walk_forward_trainer_reports_out_of_sample_closing_line_metrics(tmp_pat
     assert "odds_movement" in result["feature_columns"]
     assert "line_move_velocity" in result["feature_columns"]
     assert "snapshot_count" in result["feature_columns"]
+
+
+def test_walk_forward_trainer_hides_edge_when_significance_gate_fails(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        edge_min_sample=100,
+        edge_bootstrap_samples=100,
+    )
+
+    assert result["is_edge"] is False
+    assert result["edge_gate"]["count"] == result["walk_forward"]["count"]
+    assert result["edge_gate"]["min_sample"] == 100
+    assert result["edge_gate"]["sample_met"] is False
+    assert result["edge_gate"]["significant_beats_closing"] is False
+    assert result["edge_gate"]["mean_brier_delta"] == pytest.approx(
+        result["walk_forward"]["brier_delta_vs_closing"]
+    )
 
 
 def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
