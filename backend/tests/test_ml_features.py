@@ -1,8 +1,13 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-from app.ml.features import build_feature_matrix, power_devig_two_way
+from app.ml.features import (
+    assert_no_post_game_leakage,
+    build_feature_matrix,
+    power_devig_two_way,
+)
 
 
 def test_power_devig_two_way_removes_overround_from_binary_quotes():
@@ -110,6 +115,64 @@ def test_feature_matrix_adds_nba_context_without_current_result_leakage(tmp_path
     assert first.loc[current, "away_recent_win_rate"] == pytest.approx(1.0)
     assert first.loc[current, "recent_win_rate_diff"] == pytest.approx(-1.0)
     assert first.loc[current, "injury_absence_count"] == 0
+
+
+def test_feature_matrix_adds_pregame_team_stat_differentials_without_future_stats(tmp_path):
+    _write_nba_context_fixture(tmp_path, current_winner=1)
+    _write_csv(
+        tmp_path / "nba_team_stats_sample.csv",
+        [
+            "team,known_at,pace,offensive_rating,defensive_rating",
+            "LAL,2025-01-12T12:00:00Z,101.5,116.2,111.0",
+            "BOS,2025-01-12T12:00:00Z,98.1,119.4,108.5",
+            "LAL,2025-01-16T12:00:00Z,120.0,140.0,80.0",
+            "BOS,2025-01-16T12:00:00Z,80.0,90.0,130.0",
+        ],
+    )
+
+    df = build_feature_matrix(tmp_path).set_index("market_slug")
+    current = "nba-2025-01-15-lal-bos"
+
+    assert df.loc[current, "home_pace_pre"] == pytest.approx(101.5)
+    assert df.loc[current, "away_pace_pre"] == pytest.approx(98.1)
+    assert df.loc[current, "pace_diff"] == pytest.approx(3.4)
+    assert df.loc[current, "home_offensive_rating_pre"] == pytest.approx(116.2)
+    assert df.loc[current, "away_offensive_rating_pre"] == pytest.approx(119.4)
+    assert df.loc[current, "offensive_rating_diff"] == pytest.approx(-3.2)
+    assert df.loc[current, "home_defensive_rating_pre"] == pytest.approx(111.0)
+    assert df.loc[current, "away_defensive_rating_pre"] == pytest.approx(108.5)
+    assert df.loc[current, "defensive_rating_diff"] == pytest.approx(2.5)
+
+
+def test_feature_matrix_rejects_team_stats_that_have_no_pregame_known_at(tmp_path):
+    _write_nba_context_fixture(tmp_path, current_winner=1)
+    _write_csv(
+        tmp_path / "nba_team_stats_sample.csv",
+        [
+            "team,known_at,pace,offensive_rating,defensive_rating",
+            "LAL,2025-01-16T12:00:00Z,120.0,140.0,80.0",
+            "BOS,2025-01-16T12:00:00Z,80.0,90.0,130.0",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="no pregame team stats"):
+        build_feature_matrix(tmp_path)
+
+
+def test_assert_no_post_game_leakage_rejects_features_known_after_decision():
+    with pytest.raises(ValueError, match="post-game feature leakage"):
+        assert_no_post_game_leakage(
+            pd.DataFrame(
+                [
+                    {
+                        "market_slug": "nba-2025-01-15-lal-bos",
+                        "feature_name": "pace",
+                        "known_at": "2025-01-16T12:00:00Z",
+                        "decision_ts": "2025-01-15T00:00:00Z",
+                    }
+                ]
+            )
+        )
 
 
 def _write_csv(path: Path, lines: list[str]) -> None:

@@ -21,6 +21,15 @@ FEATURE_COLUMNS = [
     "home_recent_win_rate",
     "away_recent_win_rate",
     "recent_win_rate_diff",
+    "home_pace_pre",
+    "away_pace_pre",
+    "pace_diff",
+    "home_offensive_rating_pre",
+    "away_offensive_rating_pre",
+    "offensive_rating_diff",
+    "home_defensive_rating_pre",
+    "away_defensive_rating_pre",
+    "defensive_rating_diff",
     "injury_absence_count",
 ]
 
@@ -35,12 +44,24 @@ NBA_CONTEXT_COLUMNS = [
     "home_recent_win_rate",
     "away_recent_win_rate",
     "recent_win_rate_diff",
+    "home_pace_pre",
+    "away_pace_pre",
+    "pace_diff",
+    "home_offensive_rating_pre",
+    "away_offensive_rating_pre",
+    "offensive_rating_diff",
+    "home_defensive_rating_pre",
+    "away_defensive_rating_pre",
+    "defensive_rating_diff",
     "injury_absence_count",
 ]
 
 DEFAULT_ELO = 1500.0
 DEFAULT_REST_DAYS = 7.0
 DEFAULT_RECENT_WIN_RATE = 0.5
+DEFAULT_PACE = 100.0
+DEFAULT_OFFENSIVE_RATING = 110.0
+DEFAULT_DEFENSIVE_RATING = 110.0
 ELO_K = 20.0
 
 
@@ -60,6 +81,9 @@ def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
     context = _nba_context_features(fixtures_dir, scores)
     if not context.empty:
         df = df.merge(context, on="market_slug", how="left")
+    team_stats = _nba_team_stat_features(fixtures_dir)
+    if not team_stats.empty:
+        df = df.merge(team_stats, on="market_slug", how="left")
     df["label"] = df["winner_yes"].astype(int)
     df["executable_yes_ask"] = _quote_column(df, "executable_yes_ask", df["implied_yes"])
     df["executable_no_ask"] = _quote_column(df, "executable_no_ask", 1.0 - df["implied_yes"])
@@ -69,6 +93,7 @@ def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
     df["line_move_velocity"] = df["line_move_velocity"].fillna(0.0)
     df["snapshot_count"] = df["snapshot_count"].fillna(1).astype(int)
     df = _fill_nba_context_defaults(df)
+    df = _fill_nba_team_stat_defaults(df)
     return df
 
 
@@ -251,6 +276,120 @@ def _nba_context_features(fixtures_dir: Path, scores: pd.DataFrame) -> pd.DataFr
     return pd.DataFrame(rows)
 
 
+def _nba_team_stat_features(fixtures_dir: Path) -> pd.DataFrame:
+    games_path = fixtures_dir / "nba_games_sample.csv"
+    stats_path = fixtures_dir / "nba_team_stats_sample.csv"
+    if not games_path.exists() or not stats_path.exists():
+        return pd.DataFrame(columns=["market_slug", *_team_stat_columns()])
+
+    games = pd.read_csv(games_path)
+    stats = pd.read_csv(stats_path)
+    required_games = {"date", "home_team", "away_team", "market_slug"}
+    required_stats = {
+        "team",
+        "known_at",
+        "pace",
+        "offensive_rating",
+        "defensive_rating",
+    }
+    if not required_games.issubset(games.columns) or not required_stats.issubset(stats.columns):
+        return pd.DataFrame(columns=["market_slug", *_team_stat_columns()])
+
+    games["game_date"] = pd.to_datetime(games["date"], utc=True)
+    stats = stats.copy()
+    stats["known_at_ts"] = pd.to_datetime(stats["known_at"], utc=True)
+    rows: list[dict[str, object]] = []
+    leakage_checks: list[dict[str, object]] = []
+    matched_games = 0
+    for _, game in games.sort_values(["game_date", "market_slug"]).iterrows():
+        game_date = game["game_date"]
+        home_stats = _latest_team_stats_before(stats, str(game["home_team"]), game_date)
+        away_stats = _latest_team_stats_before(stats, str(game["away_team"]), game_date)
+        if home_stats is None or away_stats is None:
+            rows.append({"market_slug": game["market_slug"]})
+            continue
+        matched_games += 1
+        leakage_checks.extend(
+            [
+                {
+                    "market_slug": game["market_slug"],
+                    "feature_name": "home_team_stats",
+                    "known_at": home_stats["known_at_ts"],
+                    "decision_ts": game_date,
+                },
+                {
+                    "market_slug": game["market_slug"],
+                    "feature_name": "away_team_stats",
+                    "known_at": away_stats["known_at_ts"],
+                    "decision_ts": game_date,
+                },
+            ]
+        )
+        home_pace = float(home_stats["pace"])
+        away_pace = float(away_stats["pace"])
+        home_offense = float(home_stats["offensive_rating"])
+        away_offense = float(away_stats["offensive_rating"])
+        home_defense = float(home_stats["defensive_rating"])
+        away_defense = float(away_stats["defensive_rating"])
+        rows.append(
+            {
+                "market_slug": game["market_slug"],
+                "home_pace_pre": home_pace,
+                "away_pace_pre": away_pace,
+                "pace_diff": home_pace - away_pace,
+                "home_offensive_rating_pre": home_offense,
+                "away_offensive_rating_pre": away_offense,
+                "offensive_rating_diff": home_offense - away_offense,
+                "home_defensive_rating_pre": home_defense,
+                "away_defensive_rating_pre": away_defense,
+                "defensive_rating_diff": home_defense - away_defense,
+            }
+        )
+    if matched_games == 0 and not stats.empty:
+        raise ValueError("no pregame team stats available before any NBA game")
+    assert_no_post_game_leakage(pd.DataFrame(leakage_checks))
+    return pd.DataFrame(rows)
+
+
+def assert_no_post_game_leakage(
+    feature_timestamps: pd.DataFrame,
+    *,
+    known_at_column: str = "known_at",
+    decision_ts_column: str = "decision_ts",
+) -> None:
+    if feature_timestamps.empty:
+        return
+    required = {known_at_column, decision_ts_column}
+    if not required.issubset(feature_timestamps.columns):
+        missing = ", ".join(sorted(required - set(feature_timestamps.columns)))
+        raise ValueError(f"leakage audit missing column(s): {missing}")
+
+    audited = feature_timestamps.copy()
+    audited[known_at_column] = pd.to_datetime(audited[known_at_column], utc=True)
+    audited[decision_ts_column] = pd.to_datetime(audited[decision_ts_column], utc=True)
+    leaked = audited[audited[known_at_column] > audited[decision_ts_column]]
+    if leaked.empty:
+        return
+    first = leaked.iloc[0]
+    market_slug = first.get("market_slug", "unknown-market")
+    feature_name = first.get("feature_name", "unknown-feature")
+    raise ValueError(
+        f"post-game feature leakage: {feature_name} for {market_slug} "
+        f"known_at {first[known_at_column]} after decision_ts {first[decision_ts_column]}"
+    )
+
+
+def _latest_team_stats_before(
+    stats: pd.DataFrame,
+    team: str,
+    game_date,
+) -> pd.Series | None:
+    eligible = stats[(stats["team"].astype(str) == team) & (stats["known_at_ts"] <= game_date)]
+    if eligible.empty:
+        return None
+    return eligible.sort_values("known_at_ts").iloc[-1]
+
+
 def _team_state(states: dict[str, dict[str, object]], team: str) -> dict[str, object]:
     if team not in states:
         states[team] = {
@@ -315,6 +454,40 @@ def _fill_nba_context_defaults(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[column] = df[column].fillna(default)
     return df
+
+
+def _fill_nba_team_stat_defaults(df: pd.DataFrame) -> pd.DataFrame:
+    defaults = {
+        "home_pace_pre": DEFAULT_PACE,
+        "away_pace_pre": DEFAULT_PACE,
+        "pace_diff": 0.0,
+        "home_offensive_rating_pre": DEFAULT_OFFENSIVE_RATING,
+        "away_offensive_rating_pre": DEFAULT_OFFENSIVE_RATING,
+        "offensive_rating_diff": 0.0,
+        "home_defensive_rating_pre": DEFAULT_DEFENSIVE_RATING,
+        "away_defensive_rating_pre": DEFAULT_DEFENSIVE_RATING,
+        "defensive_rating_diff": 0.0,
+    }
+    for column, default in defaults.items():
+        if column not in df.columns:
+            df[column] = default
+        else:
+            df[column] = df[column].fillna(default)
+    return df
+
+
+def _team_stat_columns() -> list[str]:
+    return [
+        "home_pace_pre",
+        "away_pace_pre",
+        "pace_diff",
+        "home_offensive_rating_pre",
+        "away_offensive_rating_pre",
+        "offensive_rating_diff",
+        "home_defensive_rating_pre",
+        "away_defensive_rating_pre",
+        "defensive_rating_diff",
+    ]
 
 
 def _quote_column(
