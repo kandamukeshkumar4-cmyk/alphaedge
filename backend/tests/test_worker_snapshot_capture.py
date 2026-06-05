@@ -488,6 +488,131 @@ async def test_capture_market_snapshots_task_persists_degraded_job_run(
     }
 
 
+async def test_admin_historical_closing_snapshot_capture_runs_manual_backfill(
+    db_session,
+    monkeypatch,
+):
+    async def fake_capture_configured_historical_closing_snapshots(*args, **kwargs):
+        return MarketSnapshotCaptureResult(
+            fetched=2,
+            inserted=2,
+            skipped=0,
+            failures=(
+                MarketSnapshotCaptureFailure(
+                    source="the-odds-api:historical",
+                    target="basketball_nba@2026-01-15T00:25:00Z",
+                    error="upstream 500",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.admin.routes.capture_configured_historical_closing_snapshots",
+        fake_capture_configured_historical_closing_snapshots,
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                "/admin/historical-closing-snapshot-captures",
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["fetched"] == 2
+    assert body["ingested"] == 2
+    assert body["skipped"] == 0
+    assert body["failed"] == 1
+    assert body["failures"] == [
+        {
+            "source": "the-odds-api:historical",
+            "target": "basketball_nba@2026-01-15T00:25:00Z",
+            "error": "upstream 500",
+        }
+    ]
+    run = await db_session.scalar(
+        select(JobRun).where(
+            JobRun.job_name == "capture_historical_closing_snapshots_task"
+        )
+    )
+    assert run is not None
+    assert run.status == "degraded"
+    assert run.summary["fetched"] == 2
+
+
+async def test_admin_historical_closing_snapshot_capture_runs_returns_latest_health(
+    db_session,
+):
+    live = JobRun(
+        job_name="capture_market_snapshots_task",
+        status="success",
+        started_at=datetime(2026, 1, 14, 17, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 14, 17, 1, tzinfo=timezone.utc),
+        summary={"fetched": 9, "ingested": 9, "skipped": 0, "failed": 0, "failures": []},
+    )
+    historical = JobRun(
+        job_name="capture_historical_closing_snapshots_task",
+        status="success",
+        started_at=datetime(2026, 1, 14, 18, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 14, 18, 1, tzinfo=timezone.utc),
+        summary={
+            "fetched": 4,
+            "ingested": 2,
+            "skipped": 2,
+            "failed": 0,
+            "failures": [],
+        },
+    )
+    db_session.add_all([live, historical])
+    await db_session.flush()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.get(
+                "/admin/historical-closing-snapshot-captures",
+                params={"limit": 1},
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "runs": [
+            {
+                "run_id": str(historical.id),
+                "status": "success",
+                "started_at": "2026-01-14T18:00:00Z",
+                "finished_at": "2026-01-14T18:01:00Z",
+                "fetched": 4,
+                "ingested": 2,
+                "skipped": 2,
+                "failed": 0,
+                "failures": [],
+                "captured_at": None,
+            }
+        ]
+    }
+
+
 async def test_admin_market_snapshot_capture_runs_returns_latest_health(db_session):
     older = JobRun(
         job_name="capture_market_snapshots_task",

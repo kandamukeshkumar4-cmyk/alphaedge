@@ -10,6 +10,10 @@ from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
 from app.db.models import JobRun
 from app.db.session import get_db
+from app.pipeline.ingest import (
+    MarketSnapshotCaptureResult,
+    capture_configured_historical_closing_snapshots,
+)
 from app.schemas.market import (
     MarketCreate,
     MarketResolve,
@@ -24,6 +28,9 @@ from app.services.paper_account_service import PaperAccountService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 CAPTURE_MARKET_SNAPSHOTS_JOB_NAME = "capture_market_snapshots_task"
+CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME = (
+    "capture_historical_closing_snapshots_task"
+)
 
 
 @router.post("/markets", response_model=MarketResponse)
@@ -60,10 +67,64 @@ async def list_market_snapshot_captures(
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ):
+    return await _list_capture_runs(
+        db,
+        job_name=CAPTURE_MARKET_SNAPSHOTS_JOB_NAME,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/historical-closing-snapshot-captures",
+    response_model=MarketSnapshotCaptureRunResponse,
+)
+async def capture_historical_closing_snapshots(
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    started_at = datetime.now(UTC)
+    result = await capture_configured_historical_closing_snapshots(
+        db,
+        settings=get_settings(),
+    )
+    run = JobRun(
+        job_name=CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME,
+        status="degraded" if result.failed else "success",
+        started_at=started_at,
+        finished_at=datetime.now(UTC),
+        summary=_capture_result_summary(result),
+    )
+    db.add(run)
+    await db.commit()
+    return _capture_run_response(run)
+
+
+@router.get(
+    "/historical-closing-snapshot-captures",
+    response_model=MarketSnapshotCaptureRunListResponse,
+)
+async def list_historical_closing_snapshot_captures(
+    limit: int = 10,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _list_capture_runs(
+        db,
+        job_name=CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME,
+        limit=limit,
+    )
+
+
+async def _list_capture_runs(
+    db: AsyncSession,
+    *,
+    job_name: str,
+    limit: int,
+) -> MarketSnapshotCaptureRunListResponse:
     bounded_limit = min(max(limit, 1), 50)
     result = await db.execute(
         select(JobRun)
-        .where(JobRun.job_name == CAPTURE_MARKET_SNAPSHOTS_JOB_NAME)
+        .where(JobRun.job_name == job_name)
         .order_by(JobRun.started_at.desc())
         .limit(bounded_limit)
     )
@@ -107,6 +168,26 @@ def _capture_run_response(run: JobRun) -> MarketSnapshotCaptureRunResponse:
         ],
         captured_at=_parse_summary_datetime(summary.get("captured_at")),
     )
+
+
+def _capture_result_summary(result: MarketSnapshotCaptureResult) -> dict:
+    summary = {
+        "fetched": result.fetched,
+        "ingested": result.inserted,
+        "skipped": result.skipped,
+        "failed": result.failed,
+        "failures": [
+            {
+                "source": failure.source,
+                "target": failure.target,
+                "error": failure.error,
+            }
+            for failure in result.failures
+        ],
+    }
+    if result.captured_at is not None:
+        summary["captured_at"] = result.captured_at.isoformat()
+    return summary
 
 
 def _ensure_utc(value: datetime | None) -> datetime | None:
