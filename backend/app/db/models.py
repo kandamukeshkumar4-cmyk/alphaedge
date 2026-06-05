@@ -367,6 +367,53 @@ class SignalEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class TrackedWallet(Base):
+    __tablename__ = "tracked_wallets"
+    __table_args__ = (Index("ix_tracked_wallets_qualified_roi", "qualified", "roi"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    wallet_address: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    label: Mapped[str] = mapped_column(String(128), default="")
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    unrealized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    roi: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
+    hit_rate: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
+    total_trades: Mapped[int] = mapped_column(Integer, default=0)
+    qualified: Mapped[bool] = mapped_column(Boolean, default=False)
+    wallet_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    positions: Mapped[list["WalletPosition"]] = relationship(back_populates="tracked_wallet")
+
+
+class WalletPosition(Base):
+    __tablename__ = "wallet_positions"
+    __table_args__ = (
+        Index("ix_wallet_positions_market", "platform", "market_id"),
+        Index("ix_wallet_positions_wallet_market", "tracked_wallet_id", "platform", "market_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tracked_wallet_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tracked_wallets.id"))
+    platform: Mapped[str] = mapped_column(String(64), nullable=False)
+    market_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str] = mapped_column(String(32), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    average_price: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
+    current_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    unrealized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    total_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    position_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    tracked_wallet: Mapped["TrackedWallet"] = relationship(back_populates="positions")
+
+
 # Week 4
 class AgentRun(Base):
     __tablename__ = "agent_runs"

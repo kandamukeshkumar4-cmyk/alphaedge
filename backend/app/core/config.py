@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     odds_api_sport_keys: str = Field(default="basketball_nba", alias="ODDS_API_SPORT_KEYS")
     polymarket_market_slugs: str = Field(default="", alias="POLYMARKET_MARKET_SLUGS")
     kalshi_market_tickers: str = Field(default="", alias="KALSHI_MARKET_TICKERS")
+    polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")
+    polymarket_subgraph_url: str = Field(default="", alias="POLYMARKET_SUBGRAPH_URL")
+    tracked_wallet_addresses: str = Field(default="", alias="TRACKED_WALLET_ADDRESSES")
 
     @field_validator("paper_trading_only")
     @classmethod
@@ -68,6 +71,10 @@ class Settings(BaseSettings):
     @property
     def kalshi_market_ticker_list(self) -> List[str]:
         return self._csv_list(self.kalshi_market_tickers)
+
+    @property
+    def tracked_wallet_address_list(self) -> List[str]:
+        return self._csv_list(self.tracked_wallet_addresses)
 
     @property
     def openapi_description(self) -> str:

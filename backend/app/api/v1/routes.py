@@ -37,6 +37,7 @@ from app.services.order_book_service import OrderBookService
 from app.services.paper_account_service import PaperAccountService
 from app.services.paper_signal_service import PaperSignalService
 from app.services.signals_service import InvalidSignalRequest, SignalsService
+from app.services.wallet_service import WalletService
 
 router = APIRouter(prefix="/api/v1", tags=["public"])
 settings = get_settings()
@@ -169,6 +170,18 @@ async def get_dutching_signal(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/signals/smart-money")
+async def get_smart_money_signal(
+    platform: str,
+    market_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await WalletService(db).smart_money_signal(platform, market_id)
+    except InvalidSignalRequest as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/markets/{slug}/signals", response_model=PaperSignalSummaryResponse)

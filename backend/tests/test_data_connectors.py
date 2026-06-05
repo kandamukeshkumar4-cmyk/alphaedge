@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -318,14 +319,71 @@ def test_normalized_snapshot_converts_to_persistable_odds_record():
 
 
 def test_onchain_connector_is_read_only_and_cannot_sign_or_submit_transactions():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "orderFilleds": [
+                        {
+                            "id": "fill-1",
+                            "transactionHash": "0xaaa",
+                            "timestamp": "2026-01-14T17:00:00Z",
+                            "wallet": "0x1111111111111111111111111111111111111111",
+                            "market": "poly-lal-bos",
+                            "outcome": "YES",
+                            "side": "BUY",
+                            "price": "0.40",
+                            "quantity": "100",
+                        },
+                        {
+                            "id": "fill-2",
+                            "transactionHash": "0xbbb",
+                            "timestamp": "2026-01-14T18:00:00Z",
+                            "wallet": "0x1111111111111111111111111111111111111111",
+                            "market": "poly-lal-bos",
+                            "outcome": "YES",
+                            "side": "SELL",
+                            "price": "0.55",
+                            "quantity": "60",
+                        },
+                    ]
+                }
+            },
+        )
+
     connector = OnchainReadOnlyConnector(
         polygon_rpc_url="https://polygon-rpc.example.test",
         polymarket_subgraph_url="https://subgraph.example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
     public_names = {name for name in dir(connector) if not name.startswith("_")}
     assert "sign_transaction" not in public_names
     assert "send_transaction" not in public_names
     assert "private_key" not in public_names
-    with pytest.raises(NotImplementedError, match="read-only on-chain position ingestion"):
-        connector.fetch_wallet_positions("0x1111111111111111111111111111111111111111")
+
+    positions = connector.fetch_wallet_positions(
+        "0x1111111111111111111111111111111111111111",
+        market_prices={("poly-lal-bos", "YES"): Decimal("0.62")},
+    )
+
+    assert requests[0].method == "POST"
+    assert requests[0].url == "https://subgraph.example.test"
+    assert len(positions) == 1
+    position = positions[0]
+    assert position.wallet_address == "0x1111111111111111111111111111111111111111"
+    assert position.market_id == "poly-lal-bos"
+    assert position.outcome == "YES"
+    assert position.side == "YES"
+    assert position.quantity == Decimal("40")
+    assert position.average_price == Decimal("0.4000")
+    assert position.current_price == Decimal("0.6200")
+    assert position.realized_pnl == Decimal("9.0000")
+    assert position.unrealized_pnl == Decimal("8.8000")
+    assert position.total_pnl == Decimal("17.8000")
+    assert position.roi == Decimal("0.4450")
+    assert position.hit_rate == Decimal("1.0000")

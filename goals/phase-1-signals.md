@@ -1,7 +1,7 @@
 ---
 id: phase-1-signals
 phase: 1
-status: ACTIVE
+status: DONE
 depends_on: [phase-0]
 workflow: backend-feature
 full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 1)
@@ -28,6 +28,6 @@ full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 1)
 No execution/order/wallet code. No "guaranteed profit" copy except where math is locked AND resolution-confirmed — and even then label fee/slippage/liquidity risk.
 
 ## PR line
-`Phase 1 signals | gate=met | verify=pytest <n> passed, ruff clean | safety=paper-only,no-exec,no-keys: ok | review=<skill/manual> | AutoLab=n/a`
+`Phase 1 signals | gate=met | verify=pytest 155 passed, ruff clean | safety=paper-only,no-exec,no-keys: ok | review=manual | AutoLab=n/a | commit=5c2110b`
 
 > Full paste-ready block: `docs/project/QUANT_ROADMAP.md` → §3 Phase 1.

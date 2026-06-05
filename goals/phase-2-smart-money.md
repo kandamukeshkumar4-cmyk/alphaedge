@@ -1,7 +1,7 @@
 ---
 id: phase-2-smart-money
 phase: 2
-status: QUEUED
+status: DONE
 depends_on: [phase-0]
 workflow: backend-feature
 full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 2)
@@ -27,6 +27,6 @@ full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 2)
 Read-only. No copy-trading execution. On-chain reads only; no account credentials.
 
 ## PR line
-`Phase 2 smart-money | gate=met | verify=pytest <n> passed, ruff clean | safety=read-only,no-keys: ok | review=<skill/manual> | AutoLab=n/a`
+`Phase 2 smart-money | gate=met | verify=pytest 159 passed, ruff clean | safety=read-only,no-keys: ok | review=manual | AutoLab=n/a`
 
 > Full paste-ready block: `docs/project/QUANT_ROADMAP.md` → §3 Phase 2.

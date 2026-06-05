@@ -1,7 +1,7 @@
 ---
 id: phase-3-forecast-engine
 phase: 3
-status: QUEUED
+status: ACTIVE
 depends_on: [phase-0]
 workflow: backend-feature + clv-model-gate
 full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 3)
