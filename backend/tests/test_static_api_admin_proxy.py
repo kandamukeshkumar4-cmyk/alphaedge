@@ -94,6 +94,85 @@ def test_static_api_admin_agent_runs_proxy_requires_viewer_token_and_forwards_se
     assert result.returncode == 0, result.stderr
 
 
+def test_static_api_admin_capture_health_proxy_forwards_query_without_exposing_key():
+    script = textwrap.dedent(
+        """
+        (async () => {
+          const assert = require("node:assert/strict");
+          const { proxyAdminMarketSnapshotCaptures } = require("./api/src/admin-proxy");
+
+          const calls = [];
+          const response = await proxyAdminMarketSnapshotCaptures(
+            {
+              query: new URLSearchParams("limit=3"),
+              headers: new Map([["x-alphaedge-admin-viewer-token", "viewer-secret"]]),
+            },
+            {
+              env: {
+                ADMIN_VIEWER_TOKEN: "viewer-secret",
+                ADMIN_API_KEY: "backend-secret",
+                ALPHAEDGE_BACKEND_API_URL: "https://api.example.test/",
+              },
+              fetchImpl: async (url, init) => {
+                calls.push({ url, init });
+                return {
+                  status: 200,
+                  async json() {
+                    return {
+                      runs: [
+                        {
+                          run_id: "capture-run-1",
+                          status: "degraded",
+                          fetched: 3,
+                          ingested: 2,
+                          skipped: 1,
+                          failed: 1,
+                          failures: [
+                            {
+                              source: "kalshi.rest",
+                              target: "KXNBA-LALBOS-26JAN15",
+                              error: "upstream 500",
+                            },
+                          ],
+                          started_at: "2026-01-14T18:00:00Z",
+                          finished_at: "2026-01-14T18:01:00Z",
+                          captured_at: "2026-01-14T18:00:00Z",
+                        },
+                      ],
+                    };
+                  },
+                };
+              },
+            },
+          );
+
+          assert.equal(response.status, 200);
+          assert.equal(response.jsonBody.runs[0].status, "degraded");
+          assert.equal(calls.length, 1);
+          assert.equal(
+            calls[0].url,
+            "https://api.example.test/admin/market-snapshot-captures?limit=3",
+          );
+          assert.equal(calls[0].init.headers["X-Admin-API-Key"], "backend-secret");
+          assert.ok(!JSON.stringify(response).includes("backend-secret"));
+        })().catch((error) => {
+          console.error(error);
+          process.exit(1);
+        });
+        """
+    )
+
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_static_api_admin_agent_run_detail_proxy_forwards_run_id_without_exposing_key():
     script = textwrap.dedent(
         """

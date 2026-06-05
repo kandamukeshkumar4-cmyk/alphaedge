@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  fetchAdminMarketSnapshotCaptures,
   fetchAdminAgentRunDetail,
   fetchAdminAgentRuns,
   runAdminAgentProof,
@@ -46,6 +47,56 @@ describe("admin proof API", () => {
           run_id: "run-1",
           market_slug: "nba-2025-01-15-lal-bos",
           errors: ["edge 3.00% < 5%"],
+        },
+      ],
+    });
+  });
+
+  it("loads connector capture health through the same-origin viewer-token proxy", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("/api/proof/market-snapshot-captures?limit=2");
+      expect(init?.headers).toEqual({
+        "x-alphaedge-admin-viewer-token": "viewer-secret",
+      });
+      expect(JSON.stringify(init)).not.toContain("backend-secret");
+      return jsonResponse({
+        runs: [
+          {
+            run_id: "capture-run-1",
+            status: "degraded",
+            started_at: "2026-01-14T18:00:00Z",
+            finished_at: "2026-01-14T18:01:00Z",
+            fetched: 3,
+            ingested: 2,
+            skipped: 1,
+            failed: 1,
+            failures: [
+              {
+                source: "kalshi.rest",
+                target: "KXNBA-LALBOS-26JAN15",
+                error: "upstream 500",
+              },
+            ],
+            captured_at: "2026-01-14T18:00:00Z",
+          },
+        ],
+      });
+    });
+
+    const result = await fetchAdminMarketSnapshotCaptures({
+      fetcher,
+      viewerToken: "viewer-secret",
+      limit: 2,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      runs: [
+        {
+          run_id: "capture-run-1",
+          status: "degraded",
+          failed: 1,
+          failures: [{ source: "kalshi.rest" }],
         },
       ],
     });

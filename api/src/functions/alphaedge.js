@@ -3,6 +3,7 @@ const {
   proxyAdminAgentRun,
   proxyAdminAgentRunDetail,
   proxyAdminAgentRuns,
+  proxyAdminMarketSnapshotCaptures,
 } = require("../admin-proxy");
 
 const DISCLAIMER =
@@ -91,4 +92,11 @@ app.http("adminAgentRunDetail", {
   authLevel: "anonymous",
   route: "proof/agents/runs/{runId}",
   handler: proxyAdminAgentRunDetail,
+});
+
+app.http("adminMarketSnapshotCaptures", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  route: "proof/market-snapshot-captures",
+  handler: proxyAdminMarketSnapshotCaptures,
 });

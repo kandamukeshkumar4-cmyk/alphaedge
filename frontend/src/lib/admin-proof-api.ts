@@ -36,7 +36,32 @@ export type AdminAgentRunDetail = {
   disclaimer: string;
 };
 
+export type AdminMarketSnapshotCaptureFailure = {
+  source: string;
+  target: string;
+  error: string;
+};
+
+export type AdminMarketSnapshotCaptureRun = {
+  run_id: string;
+  status: string;
+  started_at: string;
+  finished_at: string | null;
+  fetched: number;
+  ingested: number;
+  skipped: number;
+  failed: number;
+  failures: AdminMarketSnapshotCaptureFailure[];
+  captured_at: string | null;
+};
+
 type FetchAdminAgentRunsInput = {
+  fetcher?: Fetcher;
+  viewerToken: string;
+  limit?: number;
+};
+
+type FetchAdminMarketSnapshotCapturesInput = {
   fetcher?: Fetcher;
   viewerToken: string;
   limit?: number;
@@ -59,6 +84,16 @@ export type FetchAdminAgentRunsResult =
       ok: true;
       disclaimer: string;
       runs: AdminAgentRunSummary[];
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export type FetchAdminMarketSnapshotCapturesResult =
+  | {
+      ok: true;
+      runs: AdminMarketSnapshotCaptureRun[];
     }
   | {
       ok: false;
@@ -97,6 +132,29 @@ export async function fetchAdminAgentRuns(
   return {
     ok: true,
     disclaimer: response.body.disclaimer,
+    runs: response.body.runs,
+  };
+}
+
+export async function fetchAdminMarketSnapshotCaptures(
+  input: FetchAdminMarketSnapshotCapturesInput,
+): Promise<FetchAdminMarketSnapshotCapturesResult> {
+  const viewerToken = input.viewerToken.trim();
+  if (!viewerToken) {
+    return missingToken();
+  }
+
+  const limit = Math.min(Math.max(input.limit ?? 10, 1), 50);
+  const response = await fetchProofJson<{ runs: AdminMarketSnapshotCaptureRun[] }>(
+    input.fetcher ?? fetch,
+    `/api/proof/market-snapshot-captures?limit=${limit}`,
+    viewerToken,
+  );
+  if (!response.ok) {
+    return response;
+  }
+  return {
+    ok: true,
     runs: response.body.runs,
   };
 }

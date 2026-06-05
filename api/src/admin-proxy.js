@@ -4,6 +4,10 @@ async function proxyAdminAgentRuns(request, options = {}) {
   return proxyAdminProof(request, "/admin/agents/runs", options);
 }
 
+async function proxyAdminMarketSnapshotCaptures(request, options = {}) {
+  return proxyAdminProof(request, "/admin/market-snapshot-captures", options);
+}
+
 async function proxyAdminAgentRun(request, options = {}) {
   const slug = request.params?.slug;
   if (!slug) {
@@ -103,4 +107,5 @@ module.exports = {
   proxyAdminAgentRun,
   proxyAdminAgentRunDetail,
   proxyAdminAgentRuns,
+  proxyAdminMarketSnapshotCaptures,
 };

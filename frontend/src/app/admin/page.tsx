@@ -3,25 +3,30 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import {
+  fetchAdminMarketSnapshotCaptures,
   fetchAdminAgentRunDetail,
   fetchAdminAgentRuns,
   runAdminAgentProof,
   type AdminAgentRunDetail,
   type AdminAgentRunSummary,
+  type AdminMarketSnapshotCaptureRun,
 } from "@/lib/admin-proof-api";
 
 const RUN_LIMIT = 10;
+const CAPTURE_LIMIT = 5;
 const DEFAULT_MARKET_SLUG = "nba-2025-01-15-lal-bos";
 
 export default function AdminPage() {
   const [viewerToken, setViewerToken] = useState("");
   const [marketSlug, setMarketSlug] = useState(DEFAULT_MARKET_SLUG);
   const [runs, setRuns] = useState<AdminAgentRunSummary[]>([]);
+  const [captureRuns, setCaptureRuns] = useState<AdminMarketSnapshotCaptureRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<AdminAgentRunDetail | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [disclaimer, setDisclaimer] = useState("");
   const [message, setMessage] = useState("");
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
+  const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isRunningProof, setIsRunningProof] = useState(false);
 
@@ -29,6 +34,7 @@ export default function AdminPage() {
     () => runs.filter((run) => run.approved).length,
     [runs],
   );
+  const latestCapture = captureRuns[0] ?? null;
 
   async function handleLoadRuns(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +59,31 @@ export default function AdminPage() {
     setRuns(result.runs);
     setDisclaimer(result.disclaimer);
     setMessage(result.runs.length ? "" : "No proof runs found.");
+    await loadCaptureRuns();
+  }
+
+  async function loadCaptureRuns() {
+    setIsLoadingCaptures(true);
+    setMessage("");
+
+    const result = await fetchAdminMarketSnapshotCaptures({
+      viewerToken,
+      limit: CAPTURE_LIMIT,
+    });
+
+    setIsLoadingCaptures(false);
+    if (!result.ok) {
+      setCaptureRuns([]);
+      setMessage(result.message);
+      return;
+    }
+
+    setCaptureRuns(result.runs);
+    setMessage(result.runs.length ? "" : "No connector captures found.");
+  }
+
+  async function handleLoadCaptures() {
+    await loadCaptureRuns();
   }
 
   async function handleSelectRun(runId: string) {
@@ -163,10 +194,96 @@ export default function AdminPage() {
         </button>
       </form>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         <Metric label="Runs" value={runs.length.toString()} />
         <Metric label="Approved" value={approvedCount.toString()} />
         <Metric label="Blocked" value={(runs.length - approvedCount).toString()} />
+        <Metric label="Capture Failures" value={(latestCapture?.failed ?? 0).toString()} />
+      </section>
+
+      <section className="rounded border border-border bg-surface">
+        <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-text">Connector Capture Health</h2>
+            <p className="mt-1 text-xs text-muted-2">
+              Latest scheduled odds, Polymarket, and Kalshi snapshot capture runs.
+            </p>
+          </div>
+          <button
+            className="min-h-10 rounded border border-border-light px-3 text-xs font-semibold text-text transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:text-muted-2"
+            disabled={isLoadingCaptures}
+            onClick={() => void handleLoadCaptures()}
+            type="button"
+          >
+            {isLoadingCaptures ? "Refreshing" : "Refresh Captures"}
+          </button>
+        </div>
+
+        {latestCapture ? (
+          <div className="space-y-4 p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <CaptureStat label="Status" value={latestCapture.status} />
+              <CaptureStat
+                label="Inserted"
+                value={`${latestCapture.ingested}/${latestCapture.fetched}`}
+              />
+              <CaptureStat label="Skipped" value={latestCapture.skipped.toString()} />
+              <CaptureStat label="Captured" value={formatOptionalDate(latestCapture.captured_at)} />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="border-b border-border bg-surface-2 text-xs uppercase text-muted-2">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Started</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-3 py-2 font-semibold">Fetched</th>
+                    <th className="px-3 py-2 font-semibold">Inserted</th>
+                    <th className="px-3 py-2 font-semibold">Failed</th>
+                    <th className="px-3 py-2 font-semibold">Failure Detail</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {captureRuns.map((run) => (
+                    <tr key={run.run_id} className="align-top">
+                      <td className="px-3 py-3 text-muted">{formatDate(run.started_at)}</td>
+                      <td className="px-3 py-3">
+                        <CaptureStatusBadge status={run.status} failed={run.failed} />
+                      </td>
+                      <td className="px-3 py-3 tabular text-muted">{run.fetched}</td>
+                      <td className="px-3 py-3 tabular text-muted">{run.ingested}</td>
+                      <td className="px-3 py-3 tabular text-muted">{run.failed}</td>
+                      <td className="px-3 py-3 text-muted">
+                        {run.failures.length ? (
+                          <ul className="space-y-1">
+                            {run.failures.map((failure) => (
+                              <li
+                                key={`${run.run_id}-${failure.source}-${failure.target}`}
+                                className="break-words"
+                              >
+                                <span className="font-mono text-xs text-danger">
+                                  {failure.source}
+                                </span>{" "}
+                                <span className="font-mono text-xs text-muted-2">
+                                  {failure.target}
+                                </span>
+                                <span className="block text-xs">{failure.error}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "No failures"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-muted">No connector captures loaded.</div>
+        )}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
@@ -311,12 +428,34 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CaptureStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded bg-surface-2 p-3">
+      <div className="text-xs font-semibold uppercase text-muted-2">{label}</div>
+      <div className="mt-2 break-words text-sm font-semibold text-text">{value}</div>
+    </div>
+  );
+}
+
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded bg-surface-2 p-3">
       <div className="text-xs font-semibold uppercase text-muted-2">{label}</div>
       <div className="mt-2 tabular text-lg font-semibold text-text">{value}</div>
     </div>
+  );
+}
+
+function CaptureStatusBadge({ status, failed }: { status: string; failed: number }) {
+  const classes =
+    failed > 0 || status !== "success"
+      ? "border-danger/45 bg-danger-dim text-danger"
+      : "border-primary/45 bg-primary-dim text-primary";
+
+  return (
+    <span className={`inline-flex rounded border px-2 py-1 text-xs font-semibold ${classes}`}>
+      {status}
+    </span>
   );
 }
 
@@ -360,6 +499,13 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function formatOptionalDate(value: string | null) {
+  if (!value) {
+    return "Not recorded";
+  }
+  return formatDate(value);
 }
 
 function formatPercent(value: number) {
