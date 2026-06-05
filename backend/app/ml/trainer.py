@@ -77,6 +77,7 @@ def train_walk_forward_xgboost_model(
     edge_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
     edge_seed: int = 12345,
     clv_min_edge: float = 0.0,
+    embargo_size: int = 0,
 ) -> dict[str, Any]:
     df = _training_dataset(fixtures_dir).sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
@@ -93,6 +94,7 @@ def train_walk_forward_xgboost_model(
             df.to_dict("records"),
             train_window_size=train_window_size,
             eval_window_size=eval_window_size,
+            embargo_size=embargo_size,
         )
     ):
         train_df = pd.DataFrame(split.train_rows)
@@ -184,6 +186,10 @@ def train_walk_forward_xgboost_model(
         ),
         "edge_gate": _significance_result(edge_gate),
         "walk_forward": {
+            "cv_policy": (
+                "rolling_origin_embargo" if embargo_size else "rolling_origin"
+            ),
+            "embargo_size": embargo_size,
             "count": evaluation.count,
             "model_brier": evaluation.model_brier,
             "closing_brier": evaluation.closing_brier,

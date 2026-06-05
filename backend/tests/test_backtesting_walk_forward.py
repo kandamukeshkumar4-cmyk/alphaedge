@@ -36,6 +36,50 @@ def test_rolling_origin_splits_use_only_rows_before_evaluation_window():
         )
 
 
+def test_rolling_origin_splits_can_embargo_rows_between_train_and_eval():
+    rows = [
+        {"market_slug": "m1", "captured_at": dt(1)},
+        {"market_slug": "m2", "captured_at": dt(2)},
+        {"market_slug": "m3", "captured_at": dt(3)},
+        {"market_slug": "m4", "captured_at": dt(4)},
+        {"market_slug": "m5", "captured_at": dt(5)},
+        {"market_slug": "m6", "captured_at": dt(6)},
+    ]
+
+    splits = list(
+        rolling_origin_splits(
+            rows,
+            train_window_size=3,
+            eval_window_size=1,
+            embargo_size=1,
+        )
+    )
+
+    assert [[row["market_slug"] for row in split.train_rows] for split in splits] == [
+        ["m1", "m2", "m3"],
+        ["m2", "m3", "m4"],
+    ]
+    assert [[row["market_slug"] for row in split.eval_rows] for split in splits] == [
+        ["m5"],
+        ["m6"],
+    ]
+    assert "m4" not in {
+        row["market_slug"] for row in [*splits[0].train_rows, *splits[0].eval_rows]
+    }
+
+
+def test_rolling_origin_splits_reject_negative_embargo_size():
+    with pytest.raises(ValueError, match="embargo_size must be non-negative"):
+        list(
+            rolling_origin_splits(
+                [{"market_slug": "m1", "captured_at": dt(1)}],
+                train_window_size=1,
+                eval_window_size=1,
+                embargo_size=-1,
+            )
+        )
+
+
 def test_assert_no_lookahead_rejects_future_training_rows():
     with pytest.raises(LookaheadError, match="training row at or after evaluation window"):
         assert_no_lookahead(

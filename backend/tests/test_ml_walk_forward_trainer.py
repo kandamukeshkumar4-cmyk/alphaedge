@@ -73,6 +73,26 @@ def test_walk_forward_trainer_hides_edge_when_significance_gate_fails(tmp_path):
     )
 
 
+def test_walk_forward_trainer_reports_embargoed_cv_policy(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        embargo_size=1,
+    )
+
+    assert result["walk_forward"]["cv_policy"] == "rolling_origin_embargo"
+    assert result["walk_forward"]["embargo_size"] == 1
+    assert result["walk_forward"]["count"] == 5
+    assert result["edge_gate"]["count"] == result["walk_forward"]["count"]
+
+
 def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
     fixtures_dir = tmp_path / "fixtures"
     artifact_dir = tmp_path / "artifacts"

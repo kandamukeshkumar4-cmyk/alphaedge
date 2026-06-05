@@ -29,17 +29,23 @@ def rolling_origin_splits(
     train_window_size: int,
     eval_window_size: int,
     time_column: str = "captured_at",
+    embargo_size: int = 0,
 ) -> Iterable[WalkForwardSplit]:
     if train_window_size <= 0:
         raise ValueError("train_window_size must be positive")
     if eval_window_size <= 0:
         raise ValueError("eval_window_size must be positive")
+    if embargo_size < 0:
+        raise ValueError("embargo_size must be non-negative")
 
     ordered = sorted(rows, key=lambda row: _timestamp(row, time_column))
-    for eval_start in range(train_window_size, len(ordered), eval_window_size):
-        train_start = max(0, eval_start - train_window_size)
+    for train_end in range(train_window_size, len(ordered), eval_window_size):
+        eval_start = train_end + embargo_size
+        if eval_start >= len(ordered):
+            continue
+        train_start = max(0, train_end - train_window_size)
         eval_end = min(len(ordered), eval_start + eval_window_size)
-        train_rows = tuple(ordered[train_start:eval_start])
+        train_rows = tuple(ordered[train_start:train_end])
         eval_rows = tuple(ordered[eval_start:eval_end])
         if not eval_rows:
             continue
@@ -55,6 +61,7 @@ def evaluate_walk_forward_against_closing(
     predicted_prob_column: str = "predicted_prob",
     closing_implied_column: str = "closing_implied",
     outcome_column: str = "outcome",
+    embargo_size: int = 0,
 ) -> ForecastEvaluation:
     comparisons: list[ForecastComparison] = []
     for split in rolling_origin_splits(
@@ -62,6 +69,7 @@ def evaluate_walk_forward_against_closing(
         train_window_size=train_window_size,
         eval_window_size=eval_window_size,
         time_column=time_column,
+        embargo_size=embargo_size,
     ):
         for row in split.eval_rows:
             comparisons.append(
