@@ -5,6 +5,7 @@ import pytest
 from app.backtesting.walk_forward import (
     LookaheadError,
     assert_no_lookahead,
+    combinatorial_purged_splits,
     evaluate_walk_forward_against_closing,
     rolling_origin_splits,
 )
@@ -78,6 +79,57 @@ def test_rolling_origin_splits_reject_negative_embargo_size():
                 embargo_size=-1,
             )
         )
+
+
+def test_combinatorial_purged_splits_hold_out_group_combinations_with_embargo():
+    rows = [
+        {"market_slug": f"m{index}", "captured_at": dt(index)}
+        for index in range(1, 9)
+    ]
+
+    splits = list(
+        combinatorial_purged_splits(
+            rows,
+            group_count=4,
+            eval_group_count=2,
+            embargo_size=1,
+        )
+    )
+
+    assert len(splits) == 6
+    first = splits[0]
+    assert [row["market_slug"] for row in first.eval_rows] == [
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+    ]
+    assert [row["market_slug"] for row in first.train_rows] == ["m6", "m7", "m8"]
+
+    last = splits[-1]
+    assert [row["market_slug"] for row in last.eval_rows] == [
+        "m5",
+        "m6",
+        "m7",
+        "m8",
+    ]
+    assert [row["market_slug"] for row in last.train_rows] == ["m1", "m2", "m3"]
+
+    for split in splits:
+        train_slugs = {row["market_slug"] for row in split.train_rows}
+        eval_slugs = {row["market_slug"] for row in split.eval_rows}
+        assert train_slugs.isdisjoint(eval_slugs)
+
+
+def test_combinatorial_purged_splits_validate_group_arguments():
+    rows = [{"market_slug": f"m{index}", "captured_at": dt(index)} for index in range(1, 5)]
+
+    with pytest.raises(ValueError, match="group_count must be at least 2"):
+        list(combinatorial_purged_splits(rows, group_count=1))
+    with pytest.raises(ValueError, match="eval_group_count must be positive"):
+        list(combinatorial_purged_splits(rows, group_count=2, eval_group_count=0))
+    with pytest.raises(ValueError, match="eval_group_count must be less than group_count"):
+        list(combinatorial_purged_splits(rows, group_count=2, eval_group_count=2))
 
 
 def test_assert_no_lookahead_rejects_future_training_rows():

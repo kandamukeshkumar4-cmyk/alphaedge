@@ -24,7 +24,7 @@ from app.backtesting.significance import (
     assess_closing_edge,
     assess_deflated_sharpe,
 )
-from app.backtesting.walk_forward import rolling_origin_splits
+from app.backtesting.walk_forward import combinatorial_purged_splits, rolling_origin_splits
 from app.ml.calibration import (
     CalibrationReport,
     calibration_report,
@@ -82,6 +82,8 @@ def train_walk_forward_xgboost_model(
     clv_min_edge: float = 0.0,
     embargo_size: int = 0,
     selection_bias_trials: int = 1,
+    cpcv_group_count: int | None = None,
+    cpcv_eval_group_count: int = 1,
 ) -> dict[str, Any]:
     df = _training_dataset(fixtures_dir).sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
@@ -212,6 +214,12 @@ def train_walk_forward_xgboost_model(
             ),
             **_clv_result(clv_evaluation),
             "deflated_sharpe": deflated_sharpe,
+            "cpcv": _cpcv_report(
+                df.to_dict("records"),
+                group_count=cpcv_group_count,
+                eval_group_count=cpcv_eval_group_count,
+                embargo_size=embargo_size,
+            ),
             "model_beats_closing": evaluation.model_beats_closing,
         },
         "walk_forward_calibration": {
@@ -273,6 +281,46 @@ def _deflated_sharpe_verdict(verdict: DeflatedSharpeVerdict) -> dict[str, Any]:
         "deflated_sharpe_probability": verdict.deflated_sharpe_probability,
         "alpha": verdict.alpha,
         "significant_after_trials": verdict.significant_after_trials,
+    }
+
+
+def _cpcv_report(
+    rows: list[dict[str, Any]],
+    *,
+    group_count: int | None,
+    eval_group_count: int,
+    embargo_size: int,
+) -> dict[str, Any]:
+    if group_count is None:
+        return {
+            "enabled": False,
+            "group_count": None,
+            "eval_group_count": eval_group_count,
+            "embargo_size": embargo_size,
+            "fold_count": 0,
+            "min_train_rows": 0,
+            "max_train_rows": 0,
+            "evaluated_rows": 0,
+        }
+
+    splits = list(
+        combinatorial_purged_splits(
+            rows,
+            group_count=group_count,
+            eval_group_count=eval_group_count,
+            embargo_size=embargo_size,
+        )
+    )
+    train_counts = [len(split.train_rows) for split in splits]
+    return {
+        "enabled": True,
+        "group_count": group_count,
+        "eval_group_count": eval_group_count,
+        "embargo_size": embargo_size,
+        "fold_count": len(splits),
+        "min_train_rows": min(train_counts) if train_counts else 0,
+        "max_train_rows": max(train_counts) if train_counts else 0,
+        "evaluated_rows": sum(len(split.eval_rows) for split in splits),
     }
 
 

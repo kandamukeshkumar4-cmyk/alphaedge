@@ -116,6 +116,35 @@ def test_walk_forward_trainer_reports_deflated_sharpe_selection_bias(tmp_path):
     assert isinstance(report["significant_after_trials"], bool)
 
 
+def test_walk_forward_trainer_reports_cpcv_hardening_policy(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        embargo_size=1,
+        cpcv_group_count=4,
+        cpcv_eval_group_count=2,
+    )
+
+    cpcv = result["walk_forward"]["cpcv"]
+    assert cpcv == {
+        "enabled": True,
+        "group_count": 4,
+        "eval_group_count": 2,
+        "embargo_size": 1,
+        "fold_count": 6,
+        "min_train_rows": 3,
+        "max_train_rows": 5,
+        "evaluated_rows": 36,
+    }
+
+
 def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
     fixtures_dir = tmp_path / "fixtures"
     artifact_dir = tmp_path / "artifacts"
