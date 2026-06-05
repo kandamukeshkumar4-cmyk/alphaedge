@@ -15,6 +15,7 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
     train_result = train_xgboost_model(fixtures_dir, artifact_dir)
     model = joblib.load(train_result["artifact_path"])
     calibrator = joblib.load(train_result["calibrator_path"])
+    feature_columns = list(train_result.get("feature_columns", ["implied_yes"]))
     df = load_fixture_dataset(fixtures_dir)
 
     predictions: list[float] = []
@@ -25,7 +26,7 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
 
     for _, row in df.iterrows():
         implied = float(row["implied_yes"])
-        raw_prob = float(model.predict_proba([[implied]])[0][1])
+        raw_prob = float(model.predict_proba([row[feature_columns].to_list()])[0][1])
         prob = calibrator.predict([raw_prob])[0]
         outcome = int(row["winner_yes"])
         predictions.append(prob)
