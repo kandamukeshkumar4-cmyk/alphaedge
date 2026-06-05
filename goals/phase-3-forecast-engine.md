@@ -21,6 +21,7 @@ full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 3)
 
 ## Acceptance gate (the big one)
 - Out-of-sample walk-forward **CLV positive** AND **Brier < closing-line Brier**.
+- Edge is credited only when **statistically significant**: gate `is_edge` via `backend/app/backtesting/significance.py` `assess_closing_edge` (minimum resolved sample + paired-bootstrap lower bound > 0), never a raw small-sample comparison.
 - A synthetic model that does NOT beat the closing line resolves to `is_edge=false` (asserted in tests).
 - Feature no-leakage test passes; calibration improves reliability; Kelly caps respected.
 - PR reports CLV + Brier-vs-closing-line + the AutoLab line.

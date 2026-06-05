@@ -12,7 +12,7 @@ For **any predictive model** (Phase 3 forecast engine and anything after it). Th
 2. **No lookahead.** Build features (`backend/app/ml/features.py`) only from data available *before* event start. The leakage negative-control test must FAIL if any post-event field leaks in.
 3. **Walk-forward only.** Evaluate with `backend/app/backtesting/walk_forward.py` (training window strictly before the evaluation window). No random k-fold on time series.
 4. **Calibrate.** Apply isotonic/Platt calibration; emit a reliability curve and check it improves over raw probabilities.
-5. **Apply the gate.** Set `is_edge` per the rule above. A synthetic model that does *not* beat the closing line MUST resolve to `is_edge=false` (assert this in tests).
+5. **Apply the gate.** Set `is_edge` per the rule above via `backend/app/backtesting/significance.py` `assess_closing_edge`, so edge requires a minimum resolved sample AND a paired-bootstrap lower bound above zero — not a raw small-sample comparison. A synthetic model that does *not* beat the closing line MUST resolve to `is_edge=false` (assert this in tests).
 6. **Improve via the AutoLab loop** (`AGENTS.md`): measure → edit → re-measure → fold in; explicit budget; track best-so-far; stop after `K=3` no-progress iterations; never hand off worse than baseline; never weaken a guardrail to win the metric.
 7. **Report.** PR line must include out-of-sample **CLV** and **Brier vs closing line**, plus the AutoLab line.
 
