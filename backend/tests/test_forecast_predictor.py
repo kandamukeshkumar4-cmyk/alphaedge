@@ -1,4 +1,5 @@
 import pytest
+import joblib
 
 from app.agents.graph import run_agent_graph
 from app.forecasting.predictor import predict_market
@@ -20,6 +21,17 @@ def _trade(predicted: float, entry: float, closing: float) -> dict:
     }
 
 
+class FeatureEchoModel:
+    def predict_proba(self, rows):
+        yes = float(rows[0][0]) + float(rows[0][1])
+        return [[1.0 - yes, yes]]
+
+
+class OffsetCalibrator:
+    def predict(self, probabilities):
+        return [float(probabilities[0]) + 0.05]
+
+
 def test_synthetic_non_edge_model_is_hidden():
     prediction = predict_market(
         {
@@ -39,6 +51,27 @@ def test_synthetic_non_edge_model_is_hidden():
     assert prediction.is_edge is False
     assert prediction.significance is not None
     assert prediction.significance.significant_beats_closing is False
+
+
+def test_prediction_serves_calibrated_probability_from_persisted_model(tmp_path):
+    model_path = tmp_path / "model.joblib"
+    calibrator_path = tmp_path / "calibrator.joblib"
+    joblib.dump(FeatureEchoModel(), model_path)
+    joblib.dump(OffsetCalibrator(), calibrator_path)
+
+    prediction = predict_market(
+        {
+            "implied_yes": 0.55,
+            "elo_diff": 0.10,
+            "model_artifact_path": str(model_path),
+            "calibrator_path": str(calibrator_path),
+            "feature_columns": ["implied_yes", "elo_diff"],
+        }
+    )
+
+    assert prediction.predicted_prob == pytest.approx(0.70)
+    assert prediction.is_edge is False
+    assert prediction.edge == pytest.approx(0.0)
 
 
 def test_agent_prediction_requires_significant_closing_line_edge():

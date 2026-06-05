@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
+
+import joblib
 
 from app.backtesting.clv import (
     ForecastClvEvaluation,
@@ -35,8 +37,11 @@ class ForecastPrediction:
 def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
     """Return a calibrated paper forecast, hidden unless it beats closing-line proof."""
     implied = _probability(_first_present(features, ("implied_yes", "market_implied"), 0.5))
+    artifact_probability = _artifact_probability(features)
     predicted = _probability(
-        _first_present(
+        artifact_probability
+        if artifact_probability is not None
+        else _first_present(
             features,
             ("model_probability", "calibrated_probability", "predicted_prob"),
             implied,
@@ -128,6 +133,34 @@ def _forecast_trades(features: Mapping[str, Any]) -> list[ForecastTrade]:
             )
         )
     return trades
+
+
+def _artifact_probability(features: Mapping[str, Any]) -> float | None:
+    model_path = features.get("model_artifact_path") or features.get("artifact_path")
+    calibrator_path = (
+        features.get("model_calibrator_path") or features.get("calibrator_path")
+    )
+    raw_columns = features.get("feature_columns")
+    if model_path is None and calibrator_path is None and raw_columns is None:
+        return None
+    if model_path is None or calibrator_path is None or raw_columns is None:
+        raise ValueError(
+            "model_artifact_path, calibrator_path, and feature_columns are required together"
+        )
+    if isinstance(raw_columns, str) or not isinstance(raw_columns, Sequence):
+        raise ValueError("feature_columns must be a sequence of feature names")
+
+    row = []
+    for column in raw_columns:
+        if column not in features:
+            raise ValueError(f"missing model feature: {column}")
+        row.append(float(features[column]))
+
+    model = joblib.load(model_path)
+    calibrator = joblib.load(calibrator_path)
+    raw_probability = float(model.predict_proba([row])[0][1])
+    calibrated = float(calibrator.predict([raw_probability])[0])
+    return calibrated
 
 
 def _confidence(features: Mapping[str, Any], is_edge: bool) -> float:
