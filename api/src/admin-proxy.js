@@ -8,6 +8,18 @@ async function proxyAdminMarketSnapshotCaptures(request, options = {}) {
   return proxyAdminProof(request, "/admin/market-snapshot-captures", options);
 }
 
+async function proxyAdminHistoricalClosingSnapshotCaptures(request, options = {}) {
+  return proxyAdminProof(request, "/admin/historical-closing-snapshot-captures", options);
+}
+
+async function proxyAdminHistoricalClosingSnapshotCaptureRun(request, options = {}) {
+  return proxyAdminProof(
+    request,
+    "/admin/historical-closing-snapshot-captures",
+    { ...options, method: "POST" },
+  );
+}
+
 async function proxyAdminAgentRun(request, options = {}) {
   const slug = request.params?.slug;
   if (!slug) {
@@ -107,5 +119,7 @@ module.exports = {
   proxyAdminAgentRun,
   proxyAdminAgentRunDetail,
   proxyAdminAgentRuns,
+  proxyAdminHistoricalClosingSnapshotCaptureRun,
+  proxyAdminHistoricalClosingSnapshotCaptures,
   proxyAdminMarketSnapshotCaptures,
 };

@@ -3,9 +3,11 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import {
+  fetchAdminHistoricalClosingSnapshotCaptures,
   fetchAdminMarketSnapshotCaptures,
   fetchAdminAgentRunDetail,
   fetchAdminAgentRuns,
+  runAdminHistoricalClosingSnapshotCapture,
   runAdminAgentProof,
   type AdminAgentRunDetail,
   type AdminAgentRunSummary,
@@ -21,20 +23,26 @@ export default function AdminPage() {
   const [marketSlug, setMarketSlug] = useState(DEFAULT_MARKET_SLUG);
   const [runs, setRuns] = useState<AdminAgentRunSummary[]>([]);
   const [captureRuns, setCaptureRuns] = useState<AdminMarketSnapshotCaptureRun[]>([]);
+  const [historicalCaptureRuns, setHistoricalCaptureRuns] = useState<
+    AdminMarketSnapshotCaptureRun[]
+  >([]);
   const [selectedRun, setSelectedRun] = useState<AdminAgentRunDetail | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [disclaimer, setDisclaimer] = useState("");
   const [message, setMessage] = useState("");
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
+  const [isLoadingHistoricalCaptures, setIsLoadingHistoricalCaptures] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isRunningProof, setIsRunningProof] = useState(false);
+  const [isRunningHistoricalCapture, setIsRunningHistoricalCapture] = useState(false);
 
   const approvedCount = useMemo(
     () => runs.filter((run) => run.approved).length,
     [runs],
   );
   const latestCapture = captureRuns[0] ?? null;
+  const latestHistoricalCapture = historicalCaptureRuns[0] ?? null;
 
   async function handleLoadRuns(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,6 +68,7 @@ export default function AdminPage() {
     setDisclaimer(result.disclaimer);
     setMessage(result.runs.length ? "" : "No proof runs found.");
     await loadCaptureRuns();
+    await loadHistoricalCaptureRuns();
   }
 
   async function loadCaptureRuns() {
@@ -84,6 +93,48 @@ export default function AdminPage() {
 
   async function handleLoadCaptures() {
     await loadCaptureRuns();
+  }
+
+  async function loadHistoricalCaptureRuns() {
+    setIsLoadingHistoricalCaptures(true);
+    setMessage("");
+
+    const result = await fetchAdminHistoricalClosingSnapshotCaptures({
+      viewerToken,
+      limit: CAPTURE_LIMIT,
+    });
+
+    setIsLoadingHistoricalCaptures(false);
+    if (!result.ok) {
+      setHistoricalCaptureRuns([]);
+      setMessage(result.message);
+      return;
+    }
+
+    setHistoricalCaptureRuns(result.runs);
+    setMessage(result.runs.length ? "" : "No historical closing backfills found.");
+  }
+
+  async function handleLoadHistoricalCaptures() {
+    await loadHistoricalCaptureRuns();
+  }
+
+  async function handleRunHistoricalCapture() {
+    setIsRunningHistoricalCapture(true);
+    setMessage("");
+
+    const result = await runAdminHistoricalClosingSnapshotCapture({
+      viewerToken,
+    });
+
+    setIsRunningHistoricalCapture(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+
+    setHistoricalCaptureRuns((currentRuns) => upsertCaptureRun(currentRuns, result.run));
+    setMessage("Historical closing backfill recorded.");
   }
 
   async function handleSelectRun(runId: string) {
@@ -283,6 +334,109 @@ export default function AdminPage() {
           </div>
         ) : (
           <div className="p-4 text-sm text-muted">No connector captures loaded.</div>
+        )}
+      </section>
+
+      <section className="rounded border border-border bg-surface">
+        <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-text">Historical Closing Backfill</h2>
+            <p className="mt-1 text-xs text-muted-2">
+              Manual closing-line snapshot pulls used to grow Phase 3 CLV evidence.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="min-h-10 rounded border border-primary/45 px-3 text-xs font-semibold text-primary transition hover:border-primary hover:text-accent disabled:cursor-not-allowed disabled:border-border disabled:text-muted-2"
+              disabled={isRunningHistoricalCapture}
+              onClick={() => void handleRunHistoricalCapture()}
+              type="button"
+            >
+              {isRunningHistoricalCapture ? "Running" : "Run Backfill"}
+            </button>
+            <button
+              className="min-h-10 rounded border border-border-light px-3 text-xs font-semibold text-text transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:text-muted-2"
+              disabled={isLoadingHistoricalCaptures}
+              onClick={() => void handleLoadHistoricalCaptures()}
+              type="button"
+            >
+              {isLoadingHistoricalCaptures ? "Refreshing" : "Refresh Backfills"}
+            </button>
+          </div>
+        </div>
+
+        {latestHistoricalCapture ? (
+          <div className="space-y-4 p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <CaptureStat label="Status" value={latestHistoricalCapture.status} />
+              <CaptureStat
+                label="Inserted"
+                value={`${latestHistoricalCapture.ingested}/${latestHistoricalCapture.fetched}`}
+              />
+              <CaptureStat
+                label="Skipped"
+                value={latestHistoricalCapture.skipped.toString()}
+              />
+              <CaptureStat
+                label="Failed"
+                value={latestHistoricalCapture.failed.toString()}
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="border-b border-border bg-surface-2 text-xs uppercase text-muted-2">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Started</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-3 py-2 font-semibold">Fetched</th>
+                    <th className="px-3 py-2 font-semibold">Inserted</th>
+                    <th className="px-3 py-2 font-semibold">Skipped</th>
+                    <th className="px-3 py-2 font-semibold">Failure Detail</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {historicalCaptureRuns.map((run) => (
+                    <tr key={run.run_id} className="align-top">
+                      <td className="px-3 py-3 text-muted">{formatDate(run.started_at)}</td>
+                      <td className="px-3 py-3">
+                        <CaptureStatusBadge status={run.status} failed={run.failed} />
+                      </td>
+                      <td className="px-3 py-3 tabular text-muted">{run.fetched}</td>
+                      <td className="px-3 py-3 tabular text-muted">{run.ingested}</td>
+                      <td className="px-3 py-3 tabular text-muted">{run.skipped}</td>
+                      <td className="px-3 py-3 text-muted">
+                        {run.failures.length ? (
+                          <ul className="space-y-1">
+                            {run.failures.map((failure) => (
+                              <li
+                                key={`${run.run_id}-${failure.source}-${failure.target}`}
+                                className="break-words"
+                              >
+                                <span className="font-mono text-xs text-danger">
+                                  {failure.source}
+                                </span>{" "}
+                                <span className="font-mono text-xs text-muted-2">
+                                  {failure.target}
+                                </span>
+                                <span className="block text-xs">{failure.error}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "No failures"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-muted">
+            No historical closing backfills loaded.
+          </div>
         )}
       </section>
 
@@ -488,6 +642,16 @@ function upsertRunSummary(
     created_at: run.created_at,
   };
   return [summary, ...runs.filter((item) => item.run_id !== run.run_id)].slice(0, RUN_LIMIT);
+}
+
+function upsertCaptureRun(
+  runs: AdminMarketSnapshotCaptureRun[],
+  run: AdminMarketSnapshotCaptureRun,
+): AdminMarketSnapshotCaptureRun[] {
+  return [run, ...runs.filter((item) => item.run_id !== run.run_id)].slice(
+    0,
+    CAPTURE_LIMIT,
+  );
 }
 
 function formatDate(value: string) {
