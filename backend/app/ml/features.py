@@ -70,20 +70,39 @@ def load_fixture_dataset(fixtures_dir: Path) -> pd.DataFrame:
 
 
 def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
-    odds = _with_devigged_implied_quotes(
-        pd.read_csv(fixtures_dir / "odds_snapshots_sample.csv")
-    )
+    odds = pd.read_csv(fixtures_dir / "odds_snapshots_sample.csv")
     scores = pd.read_csv(fixtures_dir / "final_scores_sample.csv")
+    games = _read_optional_csv(fixtures_dir / "nba_games_sample.csv")
+    team_stats = _read_optional_csv(fixtures_dir / "nba_team_stats_sample.csv")
+    return build_feature_matrix_from_frames(
+        odds,
+        scores,
+        games=games,
+        team_stats=team_stats,
+    )
+
+
+def build_feature_matrix_from_frames(
+    odds: pd.DataFrame,
+    scores: pd.DataFrame,
+    *,
+    games: pd.DataFrame | None = None,
+    team_stats: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    if odds.empty or scores.empty:
+        return pd.DataFrame(columns=["market_slug", *FEATURE_COLUMNS, "label"])
+
+    odds = _with_devigged_implied_quotes(odds)
     latest = _select_closing_snapshots(odds)
     market_features = _market_feature_summary(odds)
     df = latest.merge(market_features, on="market_slug", how="left")
     df = df.merge(scores, on="market_slug", how="inner")
-    context = _nba_context_features(fixtures_dir, scores)
+    context = _nba_context_features_from_frames(games, scores)
     if not context.empty:
         df = df.merge(context, on="market_slug", how="left")
-    team_stats = _nba_team_stat_features(fixtures_dir)
-    if not team_stats.empty:
-        df = df.merge(team_stats, on="market_slug", how="left")
+    team_stat_features = _nba_team_stat_features_from_frames(games, team_stats)
+    if not team_stat_features.empty:
+        df = df.merge(team_stat_features, on="market_slug", how="left")
     df["label"] = df["winner_yes"].astype(int)
     df["executable_yes_ask"] = _quote_column(df, "executable_yes_ask", df["implied_yes"])
     df["executable_no_ask"] = _quote_column(df, "executable_no_ask", 1.0 - df["implied_yes"])
@@ -95,6 +114,12 @@ def build_feature_matrix(fixtures_dir: Path) -> pd.DataFrame:
     df = _fill_nba_context_defaults(df)
     df = _fill_nba_team_stat_defaults(df)
     return df
+
+
+def _read_optional_csv(path: Path) -> pd.DataFrame | None:
+    if not path.exists():
+        return None
+    return pd.read_csv(path)
 
 
 def _select_closing_snapshots(odds: pd.DataFrame) -> pd.DataFrame:
@@ -220,7 +245,16 @@ def _nba_context_features(fixtures_dir: Path, scores: pd.DataFrame) -> pd.DataFr
     if not games_path.exists():
         return pd.DataFrame(columns=["market_slug", *NBA_CONTEXT_COLUMNS])
 
-    games = pd.read_csv(games_path)
+    return _nba_context_features_from_frames(pd.read_csv(games_path), scores)
+
+
+def _nba_context_features_from_frames(
+    games: pd.DataFrame | None,
+    scores: pd.DataFrame,
+) -> pd.DataFrame:
+    if games is None:
+        return pd.DataFrame(columns=["market_slug", *NBA_CONTEXT_COLUMNS])
+
     required = {"date", "home_team", "away_team", "market_slug"}
     if not required.issubset(games.columns):
         return pd.DataFrame(columns=["market_slug", *NBA_CONTEXT_COLUMNS])
@@ -282,8 +316,19 @@ def _nba_team_stat_features(fixtures_dir: Path) -> pd.DataFrame:
     if not games_path.exists() or not stats_path.exists():
         return pd.DataFrame(columns=["market_slug", *_team_stat_columns()])
 
-    games = pd.read_csv(games_path)
-    stats = pd.read_csv(stats_path)
+    return _nba_team_stat_features_from_frames(
+        pd.read_csv(games_path),
+        pd.read_csv(stats_path),
+    )
+
+
+def _nba_team_stat_features_from_frames(
+    games: pd.DataFrame | None,
+    stats: pd.DataFrame | None,
+) -> pd.DataFrame:
+    if games is None or stats is None:
+        return pd.DataFrame(columns=["market_slug", *_team_stat_columns()])
+
     required_games = {"date", "home_team", "away_team", "market_slug"}
     required_stats = {
         "team",
