@@ -1,15 +1,19 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.backtesting.replay import run_phase3_snapshot_matrix_backtest
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
 from app.db.models import JobRun
 from app.db.session import get_db
+from app.ml.snapshot_dataset import load_resolved_snapshot_feature_matrix
 from app.pipeline.ingest import (
     MarketSnapshotCaptureResult,
     capture_configured_historical_closing_snapshots,
@@ -22,6 +26,8 @@ from app.schemas.market import (
     MarketSnapshotCaptureRunListResponse,
     MarketSnapshotCaptureRunResponse,
     PaperAccountResponse,
+    Phase3SnapshotStoreBacktestRunListResponse,
+    Phase3SnapshotStoreBacktestRunResponse,
 )
 from app.services.market_service import MarketService
 from app.services.paper_account_service import PaperAccountService
@@ -30,6 +36,12 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 CAPTURE_MARKET_SNAPSHOTS_JOB_NAME = "capture_market_snapshots_task"
 CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME = (
     "capture_historical_closing_snapshots_task"
+)
+PHASE3_SNAPSHOT_STORE_BACKTEST_JOB_NAME = "phase3_snapshot_store_backtest_task"
+PHASE3_ADMIN_ARTIFACT_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "ml_artifacts"
+    / "admin_phase3_snapshot_store"
 )
 
 
@@ -115,6 +127,52 @@ async def list_historical_closing_snapshot_captures(
     )
 
 
+@router.post(
+    "/phase3-snapshot-store-backtests",
+    response_model=Phase3SnapshotStoreBacktestRunResponse,
+)
+async def run_phase3_snapshot_store_backtest(
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    started_at = datetime.now(UTC)
+    matrix = await load_resolved_snapshot_feature_matrix(db)
+    result = run_phase3_snapshot_matrix_backtest(matrix, PHASE3_ADMIN_ARTIFACT_DIR)
+    phase3_gate = result["phase3_forecast_gate"]
+    status = "success" if phase3_gate["gate"] == "met" else "blocked"
+    run = JobRun(
+        job_name=PHASE3_SNAPSHOT_STORE_BACKTEST_JOB_NAME,
+        status=status,
+        started_at=started_at,
+        finished_at=datetime.now(UTC),
+        summary=_phase3_backtest_summary(result),
+    )
+    db.add(run)
+    await db.commit()
+    return _phase3_backtest_run_response(run)
+
+
+@router.get(
+    "/phase3-snapshot-store-backtests",
+    response_model=Phase3SnapshotStoreBacktestRunListResponse,
+)
+async def list_phase3_snapshot_store_backtests(
+    limit: int = 10,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    bounded_limit = min(max(limit, 1), 50)
+    result = await db.execute(
+        select(JobRun)
+        .where(JobRun.job_name == PHASE3_SNAPSHOT_STORE_BACKTEST_JOB_NAME)
+        .order_by(JobRun.started_at.desc())
+        .limit(bounded_limit)
+    )
+    return Phase3SnapshotStoreBacktestRunListResponse(
+        runs=[_phase3_backtest_run_response(run) for run in result.scalars().all()]
+    )
+
+
 async def _list_capture_runs(
     db: AsyncSession,
     *,
@@ -188,6 +246,70 @@ def _capture_result_summary(result: MarketSnapshotCaptureResult) -> dict:
     if result.captured_at is not None:
         summary["captured_at"] = result.captured_at.isoformat()
     return summary
+
+
+def _phase3_backtest_summary(result: dict[str, Any]) -> dict[str, Any]:
+    phase3_gate = result["phase3_forecast_gate"]
+    walk_forward = phase3_gate["walk_forward"]
+    return {
+        "market_count": int(result["market_count"]),
+        "phase3_gate": str(phase3_gate["gate"]),
+        "is_edge": bool(phase3_gate["is_edge"]),
+        "blocked_reasons": [str(reason) for reason in phase3_gate["blocked_reasons"]],
+        "sample_shortfall": int(phase3_gate["sample_shortfall"]),
+        "walk_forward_count": int(walk_forward["count"]),
+        "model_brier": float(walk_forward["model_brier"]),
+        "closing_brier": float(walk_forward["closing_brier"]),
+        "mean_clv": float(walk_forward["mean_clv"]),
+        "clv_positive": bool(walk_forward["clv_positive"]),
+        "walk_forward": _json_safe(walk_forward),
+        "edge_gate": _json_safe(phase3_gate["edge_gate"]),
+        "calibration": _json_safe(phase3_gate["calibration"]),
+    }
+
+
+def _phase3_backtest_run_response(
+    run: JobRun,
+) -> Phase3SnapshotStoreBacktestRunResponse:
+    summary = run.summary or {}
+    walk_forward = _dict_summary(summary.get("walk_forward"))
+    return Phase3SnapshotStoreBacktestRunResponse(
+        run_id=run.id,
+        status=run.status,
+        started_at=_ensure_utc(run.started_at),
+        finished_at=_ensure_utc(run.finished_at),
+        market_count=int(summary.get("market_count", 0)),
+        phase3_gate=str(summary.get("phase3_gate", "")),
+        is_edge=bool(summary.get("is_edge", False)),
+        blocked_reasons=[
+            str(reason) for reason in summary.get("blocked_reasons", [])
+        ],
+        sample_shortfall=int(summary.get("sample_shortfall", 0)),
+        walk_forward_count=int(summary.get("walk_forward_count", 0)),
+        model_brier=float(summary.get("model_brier", 0.0)),
+        closing_brier=float(summary.get("closing_brier", 0.0)),
+        mean_clv=float(summary.get("mean_clv", 0.0)),
+        clv_positive=bool(summary.get("clv_positive", False)),
+        walk_forward=walk_forward,
+        edge_gate=_dict_summary(summary.get("edge_gate")),
+        calibration=_dict_summary(summary.get("calibration")),
+    )
+
+
+def _dict_summary(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "item"):
+        return value.item()
+    return value
 
 
 def _ensure_utc(value: datetime | None) -> datetime | None:

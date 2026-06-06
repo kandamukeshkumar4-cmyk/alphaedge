@@ -524,6 +524,57 @@ async def test_run_backtest_task_can_use_resolved_snapshot_store(
     ).exists()
 
 
+async def test_admin_phase3_snapshot_store_backtest_runs_and_lists_latest_proof(
+    db_session,
+):
+    await _seed_resolved_snapshot_markets(db_session)
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            run_response = await client.post(
+                "/admin/phase3-snapshot-store-backtests",
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+            list_response = await client.get(
+                "/admin/phase3-snapshot-store-backtests",
+                params={"limit": 1},
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert run_response.status_code == 200
+    body = run_response.json()
+    assert body["status"] == "blocked"
+    assert body["market_count"] == 10
+    assert body["phase3_gate"] == "blocked"
+    assert body["walk_forward_count"] == 6
+    assert body["sample_shortfall"] == 94
+    assert body["blocked_reasons"]
+    assert body["model_brier"] >= 0.0
+    assert body["closing_brier"] >= 0.0
+    assert body["mean_clv"] == body["walk_forward"]["mean_clv"]
+    assert "phase3_forecast_gate" not in body
+
+    run = await db_session.scalar(
+        select(JobRun).where(JobRun.job_name == "phase3_snapshot_store_backtest_task")
+    )
+    assert run is not None
+    assert run.status == "blocked"
+    assert run.summary["market_count"] == 10
+    assert run.summary["phase3_gate"] == "blocked"
+
+    assert list_response.status_code == 200
+    assert list_response.json()["runs"] == [body]
+
+
 async def test_admin_historical_closing_snapshot_capture_runs_manual_backfill(
     db_session,
     monkeypatch,
