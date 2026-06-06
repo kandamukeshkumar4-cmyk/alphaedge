@@ -2,10 +2,49 @@
 """Run backtest against fixtures and print proof metrics."""
 
 import json
+import os
+import shutil
+import subprocess
 import sys
+from argparse import ArgumentParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "backend"
+UV_REEXEC_ENV = "ALPHAEDGE_BACKTEST_UV_REEXEC"
+
+
+def _ensure_backend_environment() -> None:
+    try:
+        import joblib  # noqa: F401
+    except ModuleNotFoundError as error:
+        if error.name != "joblib":
+            raise
+        if os.environ.get(UV_REEXEC_ENV) == "1":
+            raise SystemExit(
+                "Backend dependency joblib is unavailable after uv re-exec."
+            ) from error
+        uv = shutil.which("uv")
+        if uv is None:
+            raise SystemExit(
+                "Backend dependencies are unavailable. Run with "
+                "`uv run --project backend python scripts/run_backtest.py`."
+            ) from error
+        env = os.environ.copy()
+        env[UV_REEXEC_ENV] = "1"
+        command = [
+            uv,
+            "run",
+            "--project",
+            str(BACKEND),
+            "python",
+            str(Path(__file__).resolve()),
+            *sys.argv[1:],
+        ]
+        raise SystemExit(subprocess.call(command, cwd=ROOT, env=env)) from error
+
+
+_ensure_backend_environment()
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app import PAPER_TRADING_DISCLAIMER
@@ -14,10 +53,28 @@ from app.backtesting.replay import run_backtest
 FIXTURES = ROOT / "fixtures"
 
 
-def main() -> None:
+def _parse_args(argv: list[str] | None = None):
+    parser = ArgumentParser(description="Run AlphaEdge fixture backtest proof metrics.")
+    parser.add_argument(
+        "--fixtures",
+        type=Path,
+        default=FIXTURES,
+        help="Directory containing odds, games, and final-score fixture CSVs.",
+    )
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=ROOT / "backend" / "ml_artifacts",
+        help="Directory for persisted model and calibrator artifacts.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
     print(PAPER_TRADING_DISCLAIMER)
     print()
-    result = run_backtest(FIXTURES, ROOT / "backend" / "ml_artifacts")
+    result = run_backtest(args.fixtures, args.artifact_dir)
     print(json.dumps(result, indent=2))
     print()
     print(
