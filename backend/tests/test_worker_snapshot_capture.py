@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.data.connectors.base import NormalizedMarketSnapshot
-from app.db.models import JobRun, OddsSnapshot
+from app.db.models import JobRun, Market, MarketStatus, OddsSnapshot, OrderOutcome
 from app.db.session import get_db
 from app.main import app
 from app.pipeline.ingest import (
@@ -20,6 +21,7 @@ from app.workers.tasks import (
     WorkerSettings,
     capture_historical_closing_snapshots_task,
     capture_market_snapshots_task,
+    run_backtest_task,
 )
 
 
@@ -488,6 +490,40 @@ async def test_capture_market_snapshots_task_persists_degraded_job_run(
     }
 
 
+async def test_run_backtest_task_can_use_resolved_snapshot_store(
+    db_session,
+    monkeypatch,
+    tmp_path,
+):
+    await _seed_resolved_snapshot_markets(db_session)
+
+    class TestSessionContext:
+        async def __aenter__(self):
+            return db_session
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr("app.db.session.AsyncSessionLocal", lambda: TestSessionContext())
+
+    result = await run_backtest_task(
+        {
+            "source": "snapshot_store",
+            "artifact_dir": tmp_path / "phase3-artifacts",
+        }
+    )
+
+    assert result["market_count"] == 10
+    assert result["phase3_forecast_gate"]["walk_forward"]["count"] == 6
+    assert result["phase3_forecast_gate"]["gate"] == "blocked"
+    assert (
+        tmp_path
+        / "phase3-artifacts"
+        / "phase3_snapshot_walk_forward"
+        / "xgboost_model.joblib"
+    ).exists()
+
+
 async def test_admin_historical_closing_snapshot_capture_runs_manual_backfill(
     db_session,
     monkeypatch,
@@ -611,6 +647,60 @@ async def test_admin_historical_closing_snapshot_capture_runs_returns_latest_hea
             }
         ]
     }
+
+
+async def _seed_resolved_snapshot_markets(db_session) -> None:
+    for index in range(10):
+        market_slug = f"nba-2026-01-{index + 1:02d}-lal-bos"
+        winner_yes = index % 2 == 0
+        lock_at = datetime(2026, 1, index + 1, 18, tzinfo=timezone.utc)
+        db_session.add(
+            Market(
+                slug=market_slug,
+                title=f"Lakers vs Celtics {index + 1}",
+                question="Will the Lakers win?",
+                status=MarketStatus.RESOLVED,
+                lock_at=lock_at,
+                winning_outcome=OrderOutcome.YES if winner_yes else OrderOutcome.NO,
+            )
+        )
+        open_probability = Decimal("0.4000") if winner_yes else Decimal("0.6000")
+        close_probability = Decimal("0.7000") if winner_yes else Decimal("0.3000")
+        db_session.add_all(
+            [
+                OddsSnapshot(
+                    market_slug=market_slug,
+                    implied_yes=open_probability,
+                    source="fixture",
+                    captured_at=datetime(
+                        2026,
+                        1,
+                        index + 1,
+                        12,
+                        tzinfo=timezone.utc,
+                    ),
+                    close_at=lock_at,
+                ),
+                OddsSnapshot(
+                    market_slug=market_slug,
+                    implied_yes=close_probability,
+                    source="fixture",
+                    captured_at=datetime(
+                        2026,
+                        1,
+                        index + 1,
+                        17,
+                        tzinfo=timezone.utc,
+                    ),
+                    close_at=lock_at,
+                    snapshot_metadata={
+                        "executable_yes_ask": 0.72 if winner_yes else 0.32,
+                        "executable_no_ask": 0.32 if winner_yes else 0.72,
+                    },
+                ),
+            ]
+        )
+    await db_session.flush()
 
 
 async def test_admin_market_snapshot_capture_runs_returns_latest_health(db_session):

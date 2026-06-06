@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from arq import cron
 
-from app.backtesting.replay import run_backtest
+from app.backtesting.replay import run_backtest, run_phase3_snapshot_matrix_backtest
 from app.core.config import get_settings
 from app.data_quality.checks import run_quality_checks
 from app.db.models import JobRun
@@ -123,7 +123,25 @@ async def run_eval_on_resolve_task(ctx: dict, market_id: str) -> dict:
 
 async def run_backtest_task(ctx: dict) -> dict:
     fixtures = Path(__file__).resolve().parents[3] / "fixtures"
-    return run_backtest(fixtures)
+    artifact_dir = _artifact_dir_from_ctx(ctx)
+    source = ctx.get("source", "fixtures")
+    if source == "snapshot_store":
+        from app.db.session import AsyncSessionLocal
+        from app.ml.snapshot_dataset import load_resolved_snapshot_feature_matrix
+
+        async with AsyncSessionLocal() as session:
+            matrix = await load_resolved_snapshot_feature_matrix(session)
+        return run_phase3_snapshot_matrix_backtest(matrix, artifact_dir)
+    if source != "fixtures":
+        raise ValueError("run_backtest_task source must be fixtures or snapshot_store")
+    return run_backtest(fixtures, artifact_dir)
+
+
+def _artifact_dir_from_ctx(ctx: dict) -> Path | None:
+    raw = ctx.get("artifact_dir")
+    if raw is None:
+        return None
+    return Path(raw)
 
 
 async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str) -> None:
