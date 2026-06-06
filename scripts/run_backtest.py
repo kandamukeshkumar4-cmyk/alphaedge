@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import asyncio
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -76,7 +77,8 @@ def _parse_args(argv: list[str] | None = None):
         default=None,
         help="Optional path to write the full machine-readable backtest result JSON.",
     )
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument(
         "--snapshot-matrix",
         type=Path,
         default=None,
@@ -85,6 +87,11 @@ def _parse_args(argv: list[str] | None = None):
             "from app.ml.snapshot_dataset."
         ),
     )
+    input_group.add_argument(
+        "--snapshot-store",
+        action="store_true",
+        help="Load resolved snapshot features from the configured DATABASE_URL.",
+    )
     return parser.parse_args(argv)
 
 
@@ -92,8 +99,13 @@ def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     print(PAPER_TRADING_DISCLAIMER)
     print()
+    summary_subject = "historical NBA markets"
     if args.snapshot_matrix is not None:
         result = _run_snapshot_matrix_backtest(args.snapshot_matrix, args.artifact_dir)
+        summary_subject = "snapshot matrix rows"
+    elif args.snapshot_store:
+        result = asyncio.run(_run_snapshot_store_backtest(args.artifact_dir))
+        summary_subject = "snapshot store rows"
     else:
         result = run_backtest(args.fixtures, args.artifact_dir)
     rendered = json.dumps(result, indent=2)
@@ -111,7 +123,7 @@ def main(argv: list[str] | None = None) -> None:
             f"Calibration Error: {result['calibration_error']:.4f}"
         )
     else:
-        print(f"Backtested snapshot matrix rows: {result['market_count']}")
+        print(f"Backtested {summary_subject}: {result['market_count']}")
     phase3 = result["phase3_forecast_gate"]
     walk_forward = phase3["walk_forward"]
     print(
@@ -131,6 +143,15 @@ def _run_snapshot_matrix_backtest(matrix_path: Path, artifact_dir: Path) -> dict
 
     rows = json.loads(matrix_path.read_text(encoding="utf-8"))
     return run_phase3_snapshot_matrix_backtest(pd.DataFrame(rows), artifact_dir)
+
+
+async def _run_snapshot_store_backtest(artifact_dir: Path) -> dict:
+    from app.db.session import AsyncSessionLocal
+    from app.ml.snapshot_dataset import load_resolved_snapshot_feature_matrix
+
+    async with AsyncSessionLocal() as session:
+        matrix = await load_resolved_snapshot_feature_matrix(session)
+    return run_phase3_snapshot_matrix_backtest(matrix, artifact_dir)
 
 
 if __name__ == "__main__":
