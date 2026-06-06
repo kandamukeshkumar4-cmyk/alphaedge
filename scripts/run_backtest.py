@@ -47,8 +47,11 @@ def _ensure_backend_environment() -> None:
 _ensure_backend_environment()
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app import PAPER_TRADING_DISCLAIMER
-from app.backtesting.replay import run_backtest
+from app import PAPER_TRADING_DISCLAIMER  # noqa: E402
+from app.backtesting.replay import (  # noqa: E402
+    run_backtest,
+    run_phase3_snapshot_matrix_backtest,
+)
 
 FIXTURES = ROOT / "fixtures"
 
@@ -73,6 +76,15 @@ def _parse_args(argv: list[str] | None = None):
         default=None,
         help="Optional path to write the full machine-readable backtest result JSON.",
     )
+    parser.add_argument(
+        "--snapshot-matrix",
+        type=Path,
+        default=None,
+        help=(
+            "Optional JSON file containing a resolved snapshot feature matrix exported "
+            "from app.ml.snapshot_dataset."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -80,20 +92,26 @@ def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     print(PAPER_TRADING_DISCLAIMER)
     print()
-    result = run_backtest(args.fixtures, args.artifact_dir)
+    if args.snapshot_matrix is not None:
+        result = _run_snapshot_matrix_backtest(args.snapshot_matrix, args.artifact_dir)
+    else:
+        result = run_backtest(args.fixtures, args.artifact_dir)
     rendered = json.dumps(result, indent=2)
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(rendered + "\n", encoding="utf-8")
     print(rendered)
     print()
-    print(
-        f"Backtested {result['market_count']} historical NBA markets\n"
-        f"Brier Score: {result['brier_score']:.4f} · "
-        f"Max Drawdown: {result['max_drawdown']:.2%} · "
-        f"ROI: {result['roi']:.2%} · "
-        f"Calibration Error: {result['calibration_error']:.4f}"
-    )
+    if "brier_score" in result:
+        print(
+            f"Backtested {result['market_count']} historical NBA markets\n"
+            f"Brier Score: {result['brier_score']:.4f} · "
+            f"Max Drawdown: {result['max_drawdown']:.2%} · "
+            f"ROI: {result['roi']:.2%} · "
+            f"Calibration Error: {result['calibration_error']:.4f}"
+        )
+    else:
+        print(f"Backtested snapshot matrix rows: {result['market_count']}")
     phase3 = result["phase3_forecast_gate"]
     walk_forward = phase3["walk_forward"]
     print(
@@ -106,6 +124,13 @@ def main(argv: list[str] | None = None) -> None:
     if phase3["gate"] != "met":
         print(f"Phase 3 blockers: {', '.join(phase3['blocked_reasons'])}")
         print(f"Phase 3 sample shortfall: {phase3['sample_shortfall']}")
+
+
+def _run_snapshot_matrix_backtest(matrix_path: Path, artifact_dir: Path) -> dict:
+    import pandas as pd
+
+    rows = json.loads(matrix_path.read_text(encoding="utf-8"))
+    return run_phase3_snapshot_matrix_backtest(pd.DataFrame(rows), artifact_dir)
 
 
 if __name__ == "__main__":
