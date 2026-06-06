@@ -93,6 +93,169 @@ async def test_resolved_snapshot_feature_matrix_uses_latest_pre_lock_snapshot(db
 
 
 @pytest.mark.asyncio
+async def test_resolved_snapshot_feature_matrix_uses_pregame_nba_metadata(
+    db_session,
+):
+    previous_lock_at = datetime(2026, 1, 1, 18, tzinfo=timezone.utc)
+    current_lock_at = datetime(2026, 1, 5, 18, tzinfo=timezone.utc)
+    db_session.add_all(
+        [
+            Market(
+                slug="nba-2026-01-01-lal-bos",
+                title="Lakers vs Celtics previous",
+                question="Will the Lakers win?",
+                status=MarketStatus.RESOLVED,
+                lock_at=previous_lock_at,
+                winning_outcome=OrderOutcome.YES,
+            ),
+            Market(
+                slug="nba-2026-01-05-lal-bos",
+                title="Lakers vs Celtics current",
+                question="Will the Lakers win?",
+                status=MarketStatus.RESOLVED,
+                lock_at=current_lock_at,
+                winning_outcome=OrderOutcome.NO,
+            ),
+        ]
+    )
+    await db_session.flush()
+    db_session.add_all(
+        [
+            OddsSnapshot(
+                market_slug="nba-2026-01-01-lal-bos",
+                implied_yes=Decimal("0.6000"),
+                source="fixture",
+                captured_at=datetime(2026, 1, 1, 17, tzinfo=timezone.utc),
+                close_at=previous_lock_at,
+                snapshot_metadata={
+                    "nba_game": {
+                        "date": "2026-01-01T18:00:00Z",
+                        "home_team": "LAL",
+                        "away_team": "BOS",
+                    },
+                    "nba_team_stats": [
+                        {
+                            "team": "LAL",
+                            "known_at": "2025-12-31T18:00:00Z",
+                            "pace": 99.0,
+                            "offensive_rating": 112.0,
+                            "defensive_rating": 108.0,
+                        },
+                        {
+                            "team": "BOS",
+                            "known_at": "2025-12-31T18:00:00Z",
+                            "pace": 101.0,
+                            "offensive_rating": 111.0,
+                            "defensive_rating": 109.0,
+                        },
+                    ],
+                },
+            ),
+            OddsSnapshot(
+                market_slug="nba-2026-01-05-lal-bos",
+                implied_yes=Decimal("0.5200"),
+                source="fixture",
+                captured_at=datetime(2026, 1, 5, 17, tzinfo=timezone.utc),
+                close_at=current_lock_at,
+                snapshot_metadata={
+                    "nba_game": {
+                        "date": "2026-01-05T18:00:00Z",
+                        "home_team": "LAL",
+                        "away_team": "BOS",
+                    },
+                    "nba_team_stats": [
+                        {
+                            "team": "LAL",
+                            "known_at": "2026-01-04T18:00:00Z",
+                            "pace": 100.5,
+                            "offensive_rating": 114.0,
+                            "defensive_rating": 107.0,
+                        },
+                        {
+                            "team": "BOS",
+                            "known_at": "2026-01-04T18:00:00Z",
+                            "pace": 98.0,
+                            "offensive_rating": 111.5,
+                            "defensive_rating": 106.0,
+                        },
+                    ],
+                },
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    matrix = await load_resolved_snapshot_feature_matrix(db_session)
+    current = matrix.set_index("market_slug").loc["nba-2026-01-05-lal-bos"]
+
+    assert current["home_elo_pre"] == pytest.approx(1510.0)
+    assert current["away_elo_pre"] == pytest.approx(1490.0)
+    assert current["elo_diff"] == pytest.approx(20.0)
+    assert current["home_rest_days"] == pytest.approx(4.0)
+    assert current["away_rest_days"] == pytest.approx(4.0)
+    assert current["home_recent_win_rate"] == pytest.approx(1.0)
+    assert current["away_recent_win_rate"] == pytest.approx(0.0)
+    assert current["home_pace_pre"] == pytest.approx(100.5)
+    assert current["away_pace_pre"] == pytest.approx(98.0)
+    assert current["offensive_rating_diff"] == pytest.approx(2.5)
+    assert current["defensive_rating_diff"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_resolved_snapshot_feature_matrix_rejects_future_known_team_stats(
+    db_session,
+):
+    lock_at = datetime(2026, 1, 5, 18, tzinfo=timezone.utc)
+    db_session.add(
+        Market(
+            slug="nba-2026-01-05-lal-bos",
+            title="Lakers vs Celtics",
+            question="Will the Lakers win?",
+            status=MarketStatus.RESOLVED,
+            lock_at=lock_at,
+            winning_outcome=OrderOutcome.YES,
+        )
+    )
+    await db_session.flush()
+    db_session.add(
+        OddsSnapshot(
+            market_slug="nba-2026-01-05-lal-bos",
+            implied_yes=Decimal("0.5200"),
+            source="fixture",
+            captured_at=datetime(2026, 1, 5, 17, tzinfo=timezone.utc),
+            close_at=lock_at,
+            snapshot_metadata={
+                "nba_game": {
+                    "date": "2026-01-05T18:00:00Z",
+                    "home_team": "LAL",
+                    "away_team": "BOS",
+                },
+                "nba_team_stats": [
+                    {
+                        "team": "LAL",
+                        "known_at": "2026-01-06T18:00:00Z",
+                        "pace": 100.5,
+                        "offensive_rating": 114.0,
+                        "defensive_rating": 107.0,
+                    },
+                    {
+                        "team": "BOS",
+                        "known_at": "2026-01-06T18:00:00Z",
+                        "pace": 98.0,
+                        "offensive_rating": 111.5,
+                        "defensive_rating": 106.0,
+                    },
+                ],
+            },
+        )
+    )
+    await db_session.flush()
+
+    with pytest.raises(ValueError, match="no pregame team stats"):
+        await load_resolved_snapshot_feature_matrix(db_session)
+
+
+@pytest.mark.asyncio
 async def test_walk_forward_trainer_accepts_resolved_snapshot_feature_matrix(
     db_session,
     tmp_path,
