@@ -85,7 +85,40 @@ def train_walk_forward_xgboost_model(
     cpcv_group_count: int | None = None,
     cpcv_eval_group_count: int = 1,
 ) -> dict[str, Any]:
-    df = _training_dataset(fixtures_dir).sort_values("captured_at").reset_index(drop=True)
+    return train_walk_forward_xgboost_from_feature_matrix(
+        _training_dataset(fixtures_dir),
+        artifact_dir,
+        train_window_size,
+        eval_window_size,
+        edge_min_sample=edge_min_sample,
+        edge_alpha=edge_alpha,
+        edge_bootstrap_samples=edge_bootstrap_samples,
+        edge_seed=edge_seed,
+        clv_min_edge=clv_min_edge,
+        embargo_size=embargo_size,
+        selection_bias_trials=selection_bias_trials,
+        cpcv_group_count=cpcv_group_count,
+        cpcv_eval_group_count=cpcv_eval_group_count,
+    )
+
+
+def train_walk_forward_xgboost_from_feature_matrix(
+    df: pd.DataFrame,
+    artifact_dir: Path,
+    train_window_size: int,
+    eval_window_size: int,
+    *,
+    edge_min_sample: int = DEFAULT_MIN_SAMPLE,
+    edge_alpha: float = DEFAULT_ALPHA,
+    edge_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
+    edge_seed: int = 12345,
+    clv_min_edge: float = 0.0,
+    embargo_size: int = 0,
+    selection_bias_trials: int = 1,
+    cpcv_group_count: int | None = None,
+    cpcv_eval_group_count: int = 1,
+) -> dict[str, Any]:
+    df = df.sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
     comparisons: list[ForecastComparison] = []
     trades: list[ForecastTrade] = []
