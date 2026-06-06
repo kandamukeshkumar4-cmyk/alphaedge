@@ -67,6 +67,12 @@ def _parse_args(argv: list[str] | None = None):
         default=ROOT / "backend" / "ml_artifacts",
         help="Directory for persisted model and calibrator artifacts.",
     )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        default=None,
+        help="Optional path to write the full machine-readable backtest result JSON.",
+    )
     return parser.parse_args(argv)
 
 
@@ -75,7 +81,11 @@ def main(argv: list[str] | None = None) -> None:
     print(PAPER_TRADING_DISCLAIMER)
     print()
     result = run_backtest(args.fixtures, args.artifact_dir)
-    print(json.dumps(result, indent=2))
+    rendered = json.dumps(result, indent=2)
+    if args.json_output is not None:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(rendered + "\n", encoding="utf-8")
+    print(rendered)
     print()
     print(
         f"Backtested {result['market_count']} historical NBA markets\n"
@@ -93,6 +103,9 @@ def main(argv: list[str] | None = None) -> None:
         f"Brier {walk_forward['model_brier']:.4f} vs "
         f"closing {walk_forward['closing_brier']:.4f}"
     )
+    if phase3["gate"] != "met":
+        print(f"Phase 3 blockers: {', '.join(phase3['blocked_reasons'])}")
+        print(f"Phase 3 sample shortfall: {phase3['sample_shortfall']}")
 
 
 if __name__ == "__main__":
