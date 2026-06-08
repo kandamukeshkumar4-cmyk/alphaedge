@@ -74,6 +74,24 @@ def data_node(state: AgentState) -> AgentState:
     return state
 
 
+def news_node(state: AgentState) -> AgentState:
+    """Enrich features with cached last30days news signals (no-op if unavailable)."""
+    from app.signals.news_signal import get_cached_signal
+
+    signal = get_cached_signal(state.market_slug)
+    if signal is None:
+        return state
+    features = dict(state.features)
+    features["news_sentiment"] = signal.sentiment_score
+    features["news_volume"] = signal.volume_score
+    features["news_headline"] = signal.headline
+    features["news_sources_count"] = signal.sources_count
+    if signal.polymarket_consensus is not None:
+        features["news_polymarket_consensus"] = signal.polymarket_consensus
+    state.features = features
+    return state
+
+
 def prediction_node(state: AgentState) -> AgentState:
     prediction = predict_market(state.features)
     state.predicted_prob = prediction.predicted_prob
@@ -130,11 +148,21 @@ def risk_node(state: AgentState) -> AgentState:
 
 
 def reasoning_node(state: AgentState) -> AgentState:
+    news_note = ""
+    sentiment = state.features.get("news_sentiment")
+    if sentiment is not None:
+        direction = (
+            "bullish" if sentiment > 0.1
+            else "bearish" if sentiment < -0.1
+            else "neutral"
+        )
+        headline = state.features.get("news_headline", "")
+        news_note = f" News: {direction} ({sentiment:+.2f}). {headline}"
     state.reasoning = (
         f"Model predicts {state.predicted_prob:.2%} vs market "
         f"{state.features.get('implied_yes', 0.5):.2%}. "
         f"{state.features.get('forecast_gate_reason', 'forecast gate unavailable')}. "
-        f"Risk {'approved' if state.approved else 'rejected'}."
+        f"Risk {'approved' if state.approved else 'rejected'}.{news_note}"
     )
     return state
 
@@ -147,6 +175,7 @@ def execute_node(state: AgentState) -> AgentState:
 
 GRAPH_NODES: list[tuple[str, Callable[[AgentState], AgentState]]] = [
     ("data", data_node),
+    ("news", news_node),
     ("prediction", prediction_node),
     ("risk", risk_node),
     ("reasoning", reasoning_node),
@@ -165,7 +194,8 @@ def _build_langgraph():
     for name, node_fn in GRAPH_NODES:
         graph.add_node(name, node_fn)
     graph.add_edge(START, "data")
-    graph.add_edge("data", "prediction")
+    graph.add_edge("data", "news")
+    graph.add_edge("news", "prediction")
     graph.add_edge("prediction", "risk")
     graph.add_edge("risk", "reasoning")
     graph.add_edge("reasoning", "execute")
@@ -189,6 +219,21 @@ def _coerce_agent_state(result: AgentState | dict[str, Any]) -> AgentState:
 
 
 _COMPILED_GRAPH = _build_langgraph() if LANGGRAPH_AVAILABLE else None
+
+
+async def prefetch_news_for_market(
+    market_slug: str,
+    *,
+    timeout: float = 25.0,
+) -> None:
+    """Pre-warm the news signal cache for *market_slug*.
+
+    Called by the worker task so the synchronous news_node reads from cache
+    instead of blocking on a network call during prediction.
+    """
+    from app.signals.news_signal import fetch_news_signal
+
+    await fetch_news_signal(market_slug, timeout=timeout)
 
 
 def run_agent_graph(market_slug: str, features: dict | None = None) -> AgentState:

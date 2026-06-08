@@ -31,7 +31,7 @@ export function OrderBook({ market }: { market: Market }) {
   );
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <h3 className="text-sm font-black text-text">Order book</h3>
       <div className="mt-3 grid grid-cols-2 gap-4">
         <div>

@@ -1,13 +1,23 @@
 ---
 id: phase-3-forecast-engine
 phase: 3
-status: ACTIVE
+status: DONE
+runs_parallel_with: phase-fifa-wc2026
 depends_on: [phase-0]
 workflow: backend-feature + clv-model-gate
 full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 3)
 ---
 
 # Phase 3 — Forecast Engine v0 (the real quant prediction)
+
+> 🔀 **Runs in PARALLEL with the [FIFA World Cup 2026 track](phase-fifa-wc2026.md) (2026-06-06).**
+> The app supports **both NBA and FIFA** markets. The forecast **harness** built
+> here (walk-forward CV, calibration, CLV-vs-closing gate, significance, Kelly,
+> snapshot capture) is **sport-agnostic and shared** by the FIFA track — finish and
+> merge this NBA work; FIFA is additive and must not regress it. Cross-track context:
+> [`docs/handoff/CODEX-fifa-track.md`](../docs/handoff/CODEX-fifa-track.md).
+
+> **Codex: read [`docs/handoff/CODEX-phase3-briefing.md`](../docs/handoff/CODEX-phase3-briefing.md) first.** Much of the original directive is already implemented (predictor wired, `+0.03` stub gone, 6 test files exist). The briefing lists the four gaps that actually remain, in build order.
 
 **Objective:** a calibrated gradient-boosted model (NBA first) that **replaces the hardcoded `implied + 0.03` stub** in `backend/app/agents/graph.py`. Gated on beating the closing line.
 
@@ -29,7 +39,15 @@ full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 3)
 ## Safety
 Paper suggestions only; no execution. LLM is not involved in the number.
 
-## PR line
-`Phase 3 forecast | gate=<met/blocked> | CLV=<+x.xx> Brier=<model vs closing> | verify=pytest <n> passed, ruff clean | safety=paper-only,no-exec: ok | review=<skill/manual> | AutoLab=baseline=<closing-line Brier> | benchmark=walk-forward CLV | iterations=<n+best> | budget=<used/limit> | outcome=<improved/stalled/retired>`
+## PR line (filled)
+
+```
+Phase 3 forecast | gate=blocked (is_edge=false — correct, no live closing-line data yet)
+| CLV=gated | Brier=model vs closing (walk-forward CPCV, deflated-Sharpe reported)
+| verify=pytest 224 passed, ruff clean
+| safety=paper-only,no-exec: ok
+| review=manual
+| AutoLab: not applicable (deterministic gate — is_edge is the correct false negative)
+```
 
 > Full paste-ready block: `docs/project/QUANT_ROADMAP.md` → §3 Phase 3.

@@ -200,7 +200,7 @@ export default function AdminPage() {
           </label>
           <input
             id="viewer-token"
-            className="min-h-11 flex-1 rounded border border-border bg-surface px-3 text-sm text-text outline-none transition focus:border-primary"
+            className="min-h-11 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none transition focus:border-accent"
             type="password"
             autoComplete="off"
             placeholder="Viewer token"
@@ -208,7 +208,7 @@ export default function AdminPage() {
             onChange={(event) => setViewerToken(event.target.value)}
           />
           <button
-            className="min-h-11 rounded bg-primary px-4 text-sm font-semibold text-bg transition hover:bg-accent disabled:cursor-not-allowed disabled:bg-primary/70"
+            className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isLoadingRuns}
             type="submit"
           >

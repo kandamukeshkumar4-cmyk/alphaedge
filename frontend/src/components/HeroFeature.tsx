@@ -31,17 +31,17 @@ export function HeroFeature({ markets }: { markets: Market[] }) {
   const shown = market.outcomes.slice(0, 4);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
+    <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-card">
       <div className="grid lg:grid-cols-[410px_minmax(0,1fr)]">
         <div className="border-b border-border p-4 sm:p-5 lg:border-b-0 lg:border-r">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-accent">
                 Featured market
               </div>
               <Link
                 href={`/markets/${market.slug}`}
-                className="mt-2 block text-3xl font-black leading-tight tracking-tight text-text transition hover:text-primary"
+                className="mt-2 block text-3xl font-black leading-tight tracking-tight text-text transition hover:text-accent"
               >
                 {market.title}
               </Link>
@@ -120,7 +120,7 @@ export function HeroFeature({ markets }: { markets: Market[] }) {
 
           <Link
             href={`/markets/${market.slug}`}
-            className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-black text-bg shadow-glow transition hover:bg-accent"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-white shadow-glow transition hover:brightness-110"
           >
             Trade this market
           </Link>
@@ -157,7 +157,7 @@ export function HeroFeature({ markets }: { markets: Market[] }) {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="hidden rounded-md border border-primary/40 bg-primary-dim px-2.5 py-1 text-xs font-black uppercase tracking-[0.1em] text-primary sm:inline-flex">
+              <span className="hidden rounded-full border border-accent/40 bg-accent-dim px-2.5 py-1 text-xs font-black uppercase tracking-[0.1em] text-accent sm:inline-flex">
                 Simulated funds only
               </span>
               <button

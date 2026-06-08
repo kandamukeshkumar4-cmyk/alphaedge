@@ -46,8 +46,21 @@ class ExecutableRecommendation:
 
 
 def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
-    """Return a calibrated paper forecast, hidden unless it beats closing-line proof."""
+    """Return a calibrated paper forecast, hidden unless it beats closing-line proof.
+
+    FIFA markets (slug starts with 'wc2026-') are routed to FifaPredictor; all
+    others use the NBA/general artifact-based path.
+    """
     implied = _probability(_first_present(features, ("implied_yes", "market_implied"), 0.5))
+
+    # ── FIFA routing ─────────────────────────────────────────────────────────
+    slug = str(features.get("market_slug", ""))
+    if slug.startswith("wc2026-"):
+        from app.data.fifa.predictor import predict_fifa_market
+        fifa_pred = predict_fifa_market(slug, dict(features))
+        if fifa_pred is not None:
+            return fifa_pred
+        # Fall through to generic path on any failure
     artifact_probability = _artifact_probability(features)
     predicted = _probability(
         artifact_probability

@@ -5,21 +5,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Kalshi-inspired market shell: green/red on deep charcoal.
-        bg: "#090C0F",
-        surface: "#0F1417",
-        "surface-2": "#151B20",
-        "surface-3": "#1D252B",
-        border: "#243039",
-        "border-light": "#33444D",
-        text: "#F2F7F3",
-        muted: "#9EA9A3",
-        "muted-2": "#66716B",
+        // vidIQ-inspired shell: cool near-black navy + bright blue brand accent
+        // (#2E7DF6) and coral secondary. Green/red reserved for YES/NO + up/down.
+        bg: "#0A0C12",
+        surface: "#12141C",
+        "surface-2": "#181B26",
+        "surface-3": "#222636",
+        border: "#232838",
+        "border-light": "#353B4F",
+        text: "#EEF1F7",
+        muted: "#9AA3B5",
+        "muted-2": "#646C7E",
         primary: "#24C66D",
         "primary-dim": "#0C2618",
         danger: "#FF4D4F",
         "danger-dim": "#2B1012",
-        accent: "#58E28C",
+        accent: "#2E7DF6",
+        "accent-dim": "#0E1F3D",
+        secondary: "#FF4D8D",
+        "secondary-dim": "#2A1020",
         up: "#24C66D",
         down: "#FF4D4F",
         gold: "#F6A524",
@@ -30,9 +34,9 @@ const config: Config = {
       },
       boxShadow: {
         card: "0 2px 8px rgba(0,0,0,0.35)",
-        lift: "0 8px 28px rgba(0,0,0,0.5)",
-        glow: "0 0 0 1px rgba(36,198,109,0.36), 0 12px 32px rgba(36,198,109,0.1)",
-        "glow-blue": "0 0 24px rgba(36,198,109,0.22)",
+        lift: "0 8px 28px rgba(0,0,0,0.55)",
+        glow: "0 0 0 1px rgba(46,125,246,0.4), 0 12px 32px rgba(46,125,246,0.18)",
+        "glow-blue": "0 0 24px rgba(46,125,246,0.28)",
       },
       keyframes: {
         "fade-up": {

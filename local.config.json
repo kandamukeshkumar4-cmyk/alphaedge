@@ -1,0 +1,120 @@
+{
+  "project": "AlphaEdge",
+  "updatedAt": "2026-06-03",
+  "paperTradingOnly": true,
+  "canonicalMarket": "nba-2025-01-15-lal-bos",
+  "cultUiIntegration": {
+    "source": {
+      "repo": "https://github.com/nolly-studio/cult-ui",
+      "clonedPath": "C:\\Users\\Windows 11\\.codex\\tmp\\cult-ui-20260603",
+      "commit": "a3308ba",
+      "license": "MIT"
+    },
+    "strategy": "Adapt relevant MIT component patterns into the existing Next.js, Tailwind, and Framer Motion stack without adding a new UI registry dependency tree.",
+    "includedPatterns": [
+      {
+        "name": "choice-poll",
+        "surface": "DecisionSignalPanel market signal vote",
+        "reason": "Lets paper traders register a local market read before ordering."
+      },
+      {
+        "name": "vote-tally",
+        "surface": "DecisionSignalPanel seeded trader consensus",
+        "reason": "Shows crowd positioning beside book and model evidence."
+      },
+      {
+        "name": "timer",
+        "surface": "DecisionSignalPanel close chip",
+        "reason": "Keeps time-to-close visible in the trading workflow."
+      },
+      {
+        "name": "direction-aware-tabs",
+        "surface": "DecisionSignalPanel Signal and Guardrails tabs",
+        "reason": "Keeps decision evidence and paper-trading guardrails compact."
+      }
+    ],
+    "excludedPatterns": [
+      "cash funding",
+      "payment rails",
+      "external order execution",
+      "raw LLM order submission",
+      "premium/pro blocks",
+      "full-stack agent templates"
+    ]
+  },
+  "runtimeGuardrails": {
+    "paperTradingOnlyRequired": true,
+    "allowedOrderPath": "RiskService -> validated OrderIntent -> OrderBookService",
+    "llmRawOrdersAllowed": false,
+    "frontendApiUrlPolicy": "Do not repoint NEXT_PUBLIC_API_URL until the target backend health check passes."
+  },
+  "verificationCommands": {
+    "frontend": [
+      "npm run test",
+      "npm run lint",
+      "npm run typecheck",
+      "npm run build"
+    ],
+    "backend": [
+      "uv run --extra dev pytest -q",
+      "uv run --extra dev ruff check app tests"
+    ]
+  },
+  "autoLabPersistence": {
+    "paper": "AutoLab — long-horizon agents (persistence under wall-clock budget)",
+    "skill": ".agents/skills/autolab-persistence-loop/SKILL.md",
+    "source": {
+      "id": "autolab-2606.05080",
+      "title": "AutoLab: Can Frontier Models Solve Long-Horizon Auto Research and Engineering Tasks?",
+      "arxiv": "https://arxiv.org/abs/2606.05080",
+      "website": "https://autolab.moe/",
+      "github": "https://github.com/autolabhq/autolab",
+      "leaderboard": "https://autolab.moe/#leaderboard",
+      "submitted": "2026-06-03",
+      "bookmarkedAsOf": "2026-06-05",
+      "publicLeaderboardObservedAsOf": "2026-06-05",
+      "publicLeaderboardUpdated": "2026-05-10",
+      "paperEvaluatedModels": 17,
+      "paperTasks": 36,
+      "publicSiteModelSignals": {
+        "metaDescription": "7+ frontier models benchmarked across 23 tasks",
+        "faq": "11+ frontier AI models"
+      },
+      "publicSiteTasks": 23,
+      "strongestObservedModel": "Claude Opus 4.6",
+      "secondaryLeaderboardSignals": [
+        "Gemini-3.1-Pro",
+        "Kimi K2.6",
+        "MiMo V2.5 Pro",
+        "GLM-5",
+        "DeepSeek V4 Pro",
+        "GPT-5.4",
+        "Grok 4-20",
+        "Hunyuan 3 Preview",
+        "MiniMax M2.7",
+        "Qwen 3.6 Plus"
+      ],
+      "leaderboardNote": "The paper abstract reports 17 evaluated models across 36 tasks. Public-site copy is inconsistent: metadata says 7+ models across 23 tasks, while FAQ text says 11+ models. Treat Claude Opus 4.6 as the clearest strong signal and verify the live leaderboard before making model-selection claims."
+    },
+    "appliesTo": "Codex, Cursor, and any agent; every ticket that improves a working artifact (backtest accuracy, Brier/calibration, deploy smoke resilience, risk-unit coverage, API latency, UX)",
+    "scope": "AGENTS.md -> AutoLab Persistence Loop is the governing rule for this repo",
+    "summary": "Long-horizon task success is predicted by persistence on the benchmark-edit-feedback loop, not first-attempt quality. The paper reports 17 evaluated models across 36 tasks; public-site copy is inconsistent between 7+ and 11+ model signals across 23 tasks. Claude Opus 4.6 is the strongest observed model for sustained long-horizon optimization, while most others either quit early or burn the budget with little measured progress.",
+    "loop": [
+      "start from a green baseline gate; never trade correctness for a metric",
+      "define the benchmark first using verificationCommands or a metric API (Brier, calibration, latency, deploy smoke pass-rate); record the baseline measurement",
+      "iterate measure -> edit -> re-measure -> fold the result into the next edit",
+      "set an explicit budget (iterations or wall-clock) and persist to it; do not hand off after one attempt",
+      "track best-so-far; after K consecutive no-progress iterations (default 3) stop and reorganize or retire the direction",
+      "keep the best measured artifact; never hand off worse than baseline"
+    ],
+    "benchmarks": "verificationCommands above, plus Brier/calibration and deploy smoke-test pass-rate for the relevant gate",
+    "stagnationK": 3,
+    "guardrails": [
+      "never game the benchmark",
+      "never weaken PAPER_TRADING_ONLY, the RiskService -> OrderIntent -> OrderBookService order path, or any deploy gate to hit a metric",
+      "a benchmark win that regresses a gate or guardrail is a dead end, not progress"
+    ],
+    "handoffLine": "AutoLab: baseline=<verified gate/measure> | benchmark=<metric/command> | iterations=<n + best result> | budget=<used/limit> | outcome=<improved / stalled-reorganized / retired>",
+    "notApplicable": "for a one-shot fix with no measurable axis, record 'AutoLab: not applicable (no iterative measure)'"
+  }
+}

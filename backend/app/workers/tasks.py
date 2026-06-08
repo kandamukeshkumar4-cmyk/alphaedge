@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from arq import cron
 
+from app.agents.graph import prefetch_news_for_market
 from app.backtesting.replay import run_backtest, run_phase3_snapshot_matrix_backtest
 from app.core.config import get_settings
 from app.data_quality.checks import run_quality_checks
@@ -109,6 +110,34 @@ async def ingest_odds_task(ctx: dict) -> dict:
     return {"ingested": count, "quality_passed": report.passed, "issues": report.issues}
 
 
+FETCH_NEWS_SIGNALS_JOB_NAME = "fetch_news_signals_task"
+
+
+async def fetch_news_signals_task(ctx: dict) -> dict:
+    """Pre-warm the news signal cache for all tracked market slugs.
+
+    Runs hourly. Skips gracefully if NEWS_SIGNALS_ENABLED=false or no slugs.
+    """
+    settings = ctx.get("settings") or get_settings()
+    if not settings.news_signals_enabled:
+        return {"skipped": True, "reason": "NEWS_SIGNALS_ENABLED=false"}
+
+    slugs = settings.polymarket_market_slug_list
+    if not slugs:
+        return {"fetched": 0, "slugs": []}
+
+    timeout = settings.news_signals_timeout
+    results: dict[str, str] = {}
+    for slug in slugs:
+        try:
+            await prefetch_news_for_market(slug, timeout=timeout)
+            results[slug] = "ok"
+        except Exception as exc:
+            results[slug] = f"error: {exc}"
+
+    return {"fetched": sum(1 for v in results.values() if v == "ok"), "slugs": results}
+
+
 async def run_eval_on_resolve_task(ctx: dict, market_id: str) -> dict:
     from uuid import UUID
 
@@ -166,8 +195,10 @@ class WorkerSettings:
         ingest_odds_task,
         run_eval_on_resolve_task,
         run_backtest_task,
+        fetch_news_signals_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
         cron(ingest_odds_task, hour={12}, minute=0),
+        cron(fetch_news_signals_task, minute={30}),  # every hour at :30
     ]

@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     )
     system_initial_bankroll: float = Field(default=100_000.0, alias="SYSTEM_INITIAL_BANKROLL")
 
+    # News signals (last30days skill)
+    news_signals_enabled: bool = Field(default=True, alias="NEWS_SIGNALS_ENABLED")
+    news_signals_timeout: float = Field(default=25.0, alias="NEWS_SIGNALS_TIMEOUT")
+    # Optional API keys forwarded to last30days.py (all have free-tier fallbacks)
+    scrapecreators_api_key: str = Field(default="", alias="SCRAPECREATORS_API_KEY")
+    brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
+    exa_api_key: str = Field(default="", alias="EXA_API_KEY")
+
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_reasoning_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_REASONING_MODEL")
     gemini_judge_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_JUDGE_MODEL")

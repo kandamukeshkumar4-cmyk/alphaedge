@@ -59,7 +59,7 @@ export function LiveTicker() {
   }, []);
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
+    <section className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-[12px] font-black uppercase tracking-[0.12em] text-text">
           Live trades
@@ -67,7 +67,7 @@ export function LiveTicker() {
         <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.1em] text-muted">
           <span
             className={cn(
-              "h-2 w-2 rounded-full bg-primary",
+              "h-2 w-2 rounded-full bg-accent",
               mounted && "animate-pulse-soft",
             )}
           />

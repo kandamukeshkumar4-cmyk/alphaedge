@@ -209,7 +209,7 @@ export default function PortfolioPage() {
       </div>
 
       {/* Equity curve */}
-      <div className="mt-5 rounded-xl border border-border bg-surface p-4">
+      <div className="mt-5 rounded-2xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-black text-text">Equity curve</h2>
           <span className="font-mono text-xs text-muted">since open</span>
@@ -226,14 +226,14 @@ export default function PortfolioPage() {
       </div>
 
       {empty ? (
-        <div className="mt-5 rounded-xl border border-dashed border-border bg-surface p-10 text-center">
+        <div className="mt-5 rounded-2xl border border-dashed border-border bg-surface p-10 text-center">
           <p className="text-text">No positions yet.</p>
           <p className="mt-1 text-sm text-muted">
             Place your first paper trade to see it here.
           </p>
           <Link
             href="/"
-            className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-bold text-bg transition hover:bg-accent"
+            className="mt-4 inline-block rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
           >
             Browse markets
           </Link>
@@ -264,7 +264,7 @@ function MetricCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-2">
         {label}
       </div>
@@ -283,7 +283,7 @@ function OpenOrdersTable({
   onCancel: (orderId: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <h2 className="text-sm font-black text-text">Open backend orders</h2>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
@@ -351,7 +351,7 @@ function OpenOrdersTable({
 
 function OrderHistoryTable({ orders }: { orders: PaperAccountView["orderHistory"] }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <h2 className="text-sm font-black text-text">Backend order history</h2>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
@@ -414,7 +414,7 @@ function OrderHistoryTable({ orders }: { orders: PaperAccountView["orderHistory"
 
 function PositionsTable({ state }: { state: PortfolioState }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <h2 className="text-sm font-black text-text">Open positions</h2>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
@@ -490,7 +490,7 @@ function formatOrderTimestamp(value: string): string {
 
 function HistoryTable({ state }: { state: PortfolioState }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <h2 className="text-sm font-black text-text">Trade history</h2>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
