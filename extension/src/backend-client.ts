@@ -54,6 +54,66 @@ export type ForecastDashboardSummary = {
   }>;
 };
 
+export const SIGNAL_PANEL_DISCLAIMER =
+  "Research only — not financial advice. Verify resolution terms. Paper trading only.";
+
+export type ArbitrageSignalResponse = {
+  paper_trading_only: boolean;
+  disclaimer: string;
+  signal?: {
+    is_arbitrage?: boolean;
+    net_spread?: number;
+    return_pct?: number;
+    yes_leg?: { market?: { platform?: string; market_id?: string }; outcome?: string; price?: number };
+    no_leg?: { market?: { platform?: string; market_id?: string }; outcome?: string; price?: number };
+    resolution_status?: string;
+    confidence?: number;
+  };
+};
+
+export type DutchingSignalResponse = {
+  paper_trading_only: boolean;
+  disclaimer: string;
+  signal?: {
+    risk_free?: boolean;
+    combined_implied?: number;
+    total_cost?: number;
+    return_pct?: number;
+    outcomes?: Array<{ name?: string; price?: number; stake_share?: number }>;
+  };
+};
+
+export type SmartMoneySignalResponse = {
+  paper_trading_only: boolean;
+  disclaimer: string;
+  platform?: string;
+  market_id?: string;
+  tracked_holder_count?: number;
+  positions?: Array<{
+    holder_address?: string;
+    side?: string;
+    outcome?: string;
+    total_pnl?: number;
+    roi?: number;
+  }>;
+};
+
+export type ForecastSignalResponse = {
+  paper_trading_only: boolean;
+  disclaimer: string;
+  platform?: string;
+  market_id?: string;
+  signal?: {
+    model_prob?: number;
+    confidence?: number;
+    edge?: number;
+    is_edge?: boolean;
+    clv?: number | null;
+    reason?: string;
+    trade_count?: number;
+  };
+};
+
 export type ExternalMarketResolveResponse = {
   id: string;
   platform: "polymarket" | "kalshi" | "manual";
@@ -193,6 +253,95 @@ export async function fetchForecastDashboard(input: {
     throw new Error(detailFrom(data) ?? `HTTP ${response.status}`);
   }
   return data as ForecastDashboardSummary;
+}
+
+export async function fetchArbitrageSignal(input: {
+  apiBase: string;
+  platform: string;
+  marketId: string;
+  fetcher?: Fetcher;
+}): Promise<ArbitrageSignalResponse | null> {
+  return fetchSignalEndpoint(input, "arbitrage");
+}
+
+export async function fetchDutchingSignal(input: {
+  apiBase: string;
+  platform: string;
+  marketId: string;
+  fetcher?: Fetcher;
+}): Promise<DutchingSignalResponse | null> {
+  return fetchSignalEndpoint(input, "dutching");
+}
+
+export async function fetchSmartMoneySignal(input: {
+  apiBase: string;
+  platform: string;
+  marketId: string;
+  fetcher?: Fetcher;
+}): Promise<SmartMoneySignalResponse | null> {
+  const raw = await fetchSignalEndpoint<{
+    paper_trading_only: boolean;
+    disclaimer: string;
+    platform?: string;
+    market_id?: string;
+    tracked_wallet_count?: number;
+    positions?: Array<{
+      wallet_address?: string;
+      side?: string;
+      outcome?: string;
+      total_pnl?: number;
+      roi?: number;
+    }>;
+  }>(input, "smart-money");
+  if (!raw) {
+    return null;
+  }
+  return {
+    paper_trading_only: raw.paper_trading_only,
+    disclaimer: raw.disclaimer,
+    platform: raw.platform,
+    market_id: raw.market_id,
+    tracked_holder_count: raw.tracked_wallet_count,
+    positions: (raw.positions ?? []).map((position) => ({
+      holder_address: position.wallet_address,
+      side: position.side,
+      outcome: position.outcome,
+      total_pnl: position.total_pnl,
+      roi: position.roi,
+    })),
+  };
+}
+
+export async function fetchForecastSignal(input: {
+  apiBase: string;
+  platform: string;
+  marketId: string;
+  fetcher?: Fetcher;
+}): Promise<ForecastSignalResponse | null> {
+  return fetchSignalEndpoint(input, "forecast");
+}
+
+async function fetchSignalEndpoint<T>(
+  input: { apiBase: string; platform: string; marketId: string; fetcher?: Fetcher },
+  kind: "arbitrage" | "dutching" | "smart-money" | "forecast",
+): Promise<T | null> {
+  const fetcher = input.fetcher ?? fetch;
+  const params = new URLSearchParams({
+    platform: input.platform,
+    market_id: input.marketId,
+  });
+  const response = await fetcher(
+    `${input.apiBase}/api/v1/signals/${kind}?${params.toString()}`,
+    { cache: "no-store" },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  const data = await safeJson(response);
+  if (!response.ok) {
+    throw new Error(detailFrom(data) ?? `HTTP ${response.status}`);
+  }
+  return data as T;
 }
 
 export async function recordMirrorTelemetryEvent(input: {

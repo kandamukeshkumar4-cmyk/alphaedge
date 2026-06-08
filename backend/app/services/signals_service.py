@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import OddsSnapshot, SignalEvent
+from app.forecasting.predictor import predict_market
 from app.signals.arbitrage import BinaryMarketQuote, find_binary_arbitrage
 from app.signals.dutching import DutchingOutcome, evaluate_dutching
 from app.signals.matching import ResolutionMatch, ResolutionTerms, match_resolution_terms
@@ -91,6 +92,48 @@ class SignalsService:
         }
         if result.risk_free:
             await self._persist_signal("dutching", platform, market_id, True, payload)
+        return payload
+
+    async def forecast_signal(self, platform: str, market_id: str) -> dict[str, Any]:
+        platform = _normalize_platform(platform)
+        target = await self._latest_snapshot(platform, market_id)
+        if target is None:
+            raise ValueError("Market snapshot not found")
+
+        implied = float(_snapshot_price(target))
+        features = {
+            "market_slug": target.market_slug or market_id,
+            "implied_yes": implied,
+            "market_implied": implied,
+        }
+        metadata = target.snapshot_metadata or {}
+        if metadata.get("forecast_comparisons"):
+            features["forecast_comparisons"] = metadata["forecast_comparisons"]
+        if metadata.get("forecast_trades"):
+            features["forecast_trades"] = metadata["forecast_trades"]
+
+        prediction = predict_market(features)
+        clv_mean = prediction.clv.mean_clv if prediction.clv is not None else None
+        payload = {
+            "paper_trading_only": True,
+            "disclaimer": SIGNAL_DISCLAIMER,
+            "platform": platform,
+            "market_id": market_id,
+            "signal": {
+                "model_prob": prediction.predicted_prob,
+                "confidence": prediction.confidence,
+                "edge": prediction.edge,
+                "is_edge": prediction.is_edge,
+                "reason": prediction.reason,
+                "clv": clv_mean,
+                "clv_positive": prediction.clv.clv_positive if prediction.clv else False,
+                "trade_count": prediction.clv.trade_count if prediction.clv else 0,
+                "outcome": prediction.outcome,
+                "executable_price": prediction.executable_price,
+            },
+        }
+        if prediction.is_edge:
+            await self._persist_signal("forecast", platform, market_id, True, payload)
         return payload
 
     async def _latest_snapshot(self, platform: str, market_id: str) -> OddsSnapshot | None:

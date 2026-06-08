@@ -173,6 +173,129 @@ def test_static_api_admin_capture_health_proxy_forwards_query_without_exposing_k
     assert result.returncode == 0, result.stderr
 
 
+def test_static_api_admin_historical_capture_proxy_forwards_query_without_exposing_key():
+    script = textwrap.dedent(
+        """
+        (async () => {
+          const assert = require("node:assert/strict");
+          const {
+            proxyAdminHistoricalClosingSnapshotCaptures,
+          } = require("./api/src/admin-proxy");
+
+          const calls = [];
+          const response = await proxyAdminHistoricalClosingSnapshotCaptures(
+            {
+              query: new URLSearchParams("limit=3"),
+              headers: new Map([["x-alphaedge-admin-viewer-token", "viewer-secret"]]),
+            },
+            {
+              env: {
+                ADMIN_VIEWER_TOKEN: "viewer-secret",
+                ADMIN_API_KEY: "backend-secret",
+                ALPHAEDGE_BACKEND_API_URL: "https://api.example.test/",
+              },
+              fetchImpl: async (url, init) => {
+                calls.push({ url, init });
+                return {
+                  status: 200,
+                  async json() {
+                    return { runs: [{ run_id: "historical-run-1", status: "success" }] };
+                  },
+                };
+              },
+            },
+          );
+
+          assert.equal(response.status, 200);
+          assert.equal(response.jsonBody.runs[0].run_id, "historical-run-1");
+          assert.equal(calls.length, 1);
+          assert.equal(
+            calls[0].url,
+            "https://api.example.test/admin/historical-closing-snapshot-captures?limit=3",
+          );
+          assert.equal(calls[0].init.headers["X-Admin-API-Key"], "backend-secret");
+          assert.ok(!JSON.stringify(response).includes("backend-secret"));
+        })().catch((error) => {
+          console.error(error);
+          process.exit(1);
+        });
+        """
+    )
+
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_static_api_admin_historical_capture_proxy_posts_without_exposing_key():
+    script = textwrap.dedent(
+        """
+        (async () => {
+          const assert = require("node:assert/strict");
+          const {
+            proxyAdminHistoricalClosingSnapshotCaptureRun,
+          } = require("./api/src/admin-proxy");
+
+          const calls = [];
+          const response = await proxyAdminHistoricalClosingSnapshotCaptureRun(
+            {
+              headers: new Map([["x-alphaedge-admin-viewer-token", "viewer-secret"]]),
+            },
+            {
+              env: {
+                ADMIN_VIEWER_TOKEN: "viewer-secret",
+                ADMIN_API_KEY: "backend-secret",
+                ALPHAEDGE_BACKEND_API_URL: "https://api.example.test",
+              },
+              fetchImpl: async (url, init) => {
+                calls.push({ url, init });
+                return {
+                  status: 200,
+                  async json() {
+                    return { run_id: "historical-run-1", status: "success" };
+                  },
+                };
+              },
+            },
+          );
+
+          assert.equal(response.status, 200);
+          assert.deepEqual(response.jsonBody, {
+            run_id: "historical-run-1",
+            status: "success",
+          });
+          assert.equal(calls.length, 1);
+          assert.equal(
+            calls[0].url,
+            "https://api.example.test/admin/historical-closing-snapshot-captures",
+          );
+          assert.equal(calls[0].init.method, "POST");
+          assert.equal(calls[0].init.headers["X-Admin-API-Key"], "backend-secret");
+          assert.ok(!JSON.stringify(response).includes("backend-secret"));
+        })().catch((error) => {
+          console.error(error);
+          process.exit(1);
+        });
+        """
+    )
+
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_static_api_admin_agent_run_detail_proxy_forwards_run_id_without_exposing_key():
     script = textwrap.dedent(
         """

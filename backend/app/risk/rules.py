@@ -68,8 +68,11 @@ class RiskService:
         return len(failures) == 0, failures
 
     def suggest_stake(self, intent: OrderIntent) -> KellyStakeSuggestion:
+        predicted_prob = intent.predicted_prob
+        if intent.outcome.lower() == "no":
+            predicted_prob = 1.0 - predicted_prob
         return suggest_fractional_kelly_stake(
-            predicted_prob=intent.predicted_prob,
+            predicted_prob=predicted_prob,
             price=intent.price or Decimal("0.5"),
             bankroll=intent.bankroll,
             max_bet_pct=self.MAX_BET_PCT,

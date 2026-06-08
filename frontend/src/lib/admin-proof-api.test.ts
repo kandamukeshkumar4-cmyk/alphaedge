@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  fetchAdminHistoricalClosingSnapshotCaptures,
   fetchAdminMarketSnapshotCaptures,
   fetchAdminAgentRunDetail,
   fetchAdminAgentRuns,
+  runAdminHistoricalClosingSnapshotCapture,
   runAdminAgentProof,
 } from "./admin-proof-api";
 
@@ -99,6 +101,85 @@ describe("admin proof API", () => {
           failures: [{ source: "kalshi.rest" }],
         },
       ],
+    });
+  });
+
+  it("loads historical closing capture health through the same-origin viewer-token proxy", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("/api/proof/historical-closing-snapshot-captures?limit=2");
+      expect(init?.headers).toEqual({
+        "x-alphaedge-admin-viewer-token": "viewer-secret",
+      });
+      expect(JSON.stringify(init)).not.toContain("backend-secret");
+      return jsonResponse({
+        runs: [
+          {
+            run_id: "historical-run-1",
+            status: "success",
+            started_at: "2026-01-14T18:00:00Z",
+            finished_at: "2026-01-14T18:01:00Z",
+            fetched: 4,
+            ingested: 4,
+            skipped: 0,
+            failed: 0,
+            failures: [],
+            captured_at: null,
+          },
+        ],
+      });
+    });
+
+    const result = await fetchAdminHistoricalClosingSnapshotCaptures({
+      fetcher,
+      viewerToken: "viewer-secret",
+      limit: 2,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      runs: [
+        {
+          run_id: "historical-run-1",
+          status: "success",
+          fetched: 4,
+        },
+      ],
+    });
+  });
+
+  it("runs historical closing capture through the same-origin proof proxy", async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("/api/proof/historical-closing-snapshot-captures");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toEqual({
+        "x-alphaedge-admin-viewer-token": "viewer-secret",
+      });
+      expect(JSON.stringify(init)).not.toContain("backend-secret");
+      return jsonResponse({
+        run_id: "historical-run-1",
+        status: "success",
+        started_at: "2026-01-14T18:00:00Z",
+        finished_at: "2026-01-14T18:01:00Z",
+        fetched: 4,
+        ingested: 4,
+        skipped: 0,
+        failed: 0,
+        failures: [],
+        captured_at: null,
+      });
+    });
+
+    const result = await runAdminHistoricalClosingSnapshotCapture({
+      fetcher,
+      viewerToken: "viewer-secret",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      run: {
+        run_id: "historical-run-1",
+        status: "success",
+      },
     });
   });
 

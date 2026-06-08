@@ -8,6 +8,7 @@ import {
   HistogramSeries,
   ColorType,
   CrosshairMode,
+  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type UTCTimestamp,
@@ -29,11 +30,13 @@ type Mode = "area" | "candle";
 export function PriceChart({
   slug,
   endPrice,
+  modelProb,
   height = 360,
   compact = false,
 }: {
   slug: string;
   endPrice: number;
+  modelProb?: number;
   height?: number;
   compact?: boolean;
 }) {
@@ -42,6 +45,7 @@ export function PriceChart({
   const areaRef = useRef<ISeriesApi<"Area"> | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const modelLineRef = useRef<ReturnType<ISeriesApi<"Area">["createPriceLine"]> | null>(null);
   const dataRef = useRef<Candle[]>([]);
 
   const [range, setRange] = useState<RangeKey>("1D");
@@ -64,20 +68,20 @@ export function PriceChart({
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9EA9A3",
+        textColor: "#9AA3B5",
         fontFamily: "var(--font-mono), monospace",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(36,48,57,0.6)" },
-        horzLines: { color: "rgba(36,48,57,0.6)" },
+        vertLines: { color: "rgba(35,40,56,0.6)" },
+        horzLines: { color: "rgba(35,40,56,0.6)" },
       },
-      rightPriceScale: { borderColor: "#243039" },
-      timeScale: { borderColor: "#243039", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "#232838" },
+      timeScale: { borderColor: "#232838", timeVisible: true, secondsVisible: false },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#24C66D", width: 1, style: 2, labelBackgroundColor: "#24C66D" },
-        horzLine: { color: "#24C66D", width: 1, style: 2, labelBackgroundColor: "#24C66D" },
+        vertLine: { color: "#2E7DF6", width: 1, style: 2, labelBackgroundColor: "#2E7DF6" },
+        horzLine: { color: "#2E7DF6", width: 1, style: 2, labelBackgroundColor: "#2E7DF6" },
       },
       handleScale: { mouseWheel: true, pinch: true },
       handleScroll: true,
@@ -86,9 +90,9 @@ export function PriceChart({
     chartRef.current = chart;
 
     const area = chart.addSeries(AreaSeries, {
-      lineColor: "#24C66D",
-      topColor: "rgba(36,198,109,0.30)",
-      bottomColor: "rgba(36,198,109,0.0)",
+      lineColor: "#2E7DF6",
+      topColor: "rgba(46,125,246,0.28)",
+      bottomColor: "rgba(46,125,246,0.0)",
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -111,7 +115,7 @@ export function PriceChart({
       const vol = chart.addSeries(HistogramSeries, {
         priceFormat: { type: "volume" },
         priceScaleId: "vol",
-        color: "rgba(36,198,109,0.28)",
+        color: "rgba(46,125,246,0.28)",
       });
       vol.priceScale().applyOptions({
         scaleMargins: { top: 0.82, bottom: 0 },
@@ -170,6 +174,26 @@ export function PriceChart({
     areaRef.current?.applyOptions({ visible: mode === "area" });
     candleRef.current?.applyOptions({ visible: mode === "candle" });
   }, [mode]);
+
+  // AI model read drawn as a dashed reference line (the "vs market" comparison).
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!area) return;
+    if (modelLineRef.current) {
+      area.removePriceLine(modelLineRef.current);
+      modelLineRef.current = null;
+    }
+    if (typeof modelProb === "number") {
+      modelLineRef.current = area.createPriceLine({
+        price: modelProb,
+        color: "#FF4D8D",
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: "AI",
+      });
+    }
+  }, [modelProb, range]);
 
   // Live ticks: nudge the last candle, occasionally append a new one.
   useEffect(() => {
@@ -236,34 +260,43 @@ export function PriceChart({
               {changePct.toFixed(1)}%)
             </span>
           </div>
-          <div className="mt-0.5 text-xs text-muted">
-            {hovered !== null ? "hovered" : "YES price · live"}
+          <div className="mt-1 flex items-center gap-3 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-accent" />
+              {hovered !== null ? "hovered" : "Market · live"}
+            </span>
+            {typeof modelProb === "number" && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-sm bg-secondary" />
+                AI {cents(modelProb)}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-border bg-surface p-0.5">
+          <div className="flex rounded-xl border border-border bg-surface p-0.5">
             {(["area", "candle"] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-semibold capitalize transition",
-                  mode === m ? "bg-surface-3 text-text" : "text-muted hover:text-text",
+                  "rounded-lg px-2.5 py-1 text-xs font-semibold capitalize transition",
+                  mode === m ? "bg-accent text-white" : "text-muted hover:text-text",
                 )}
               >
                 {m}
               </button>
             ))}
           </div>
-          <div className="flex rounded-lg border border-border bg-surface p-0.5">
+          <div className="flex rounded-xl border border-border bg-surface p-0.5">
             {RANGES.map((r) => (
               <button
                 key={r.key}
                 onClick={() => setRange(r.key)}
                 className={cn(
-                  "rounded-md px-2 py-1 text-xs font-semibold transition",
-                  range === r.key ? "bg-surface-3 text-text" : "text-muted hover:text-text",
+                  "rounded-lg px-2 py-1 text-xs font-semibold transition",
+                  range === r.key ? "bg-accent text-white" : "text-muted hover:text-text",
                 )}
               >
                 {r.key}

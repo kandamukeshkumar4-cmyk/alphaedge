@@ -3,6 +3,8 @@ const {
   proxyAdminAgentRun,
   proxyAdminAgentRunDetail,
   proxyAdminAgentRuns,
+  proxyAdminHistoricalClosingSnapshotCaptureRun,
+  proxyAdminHistoricalClosingSnapshotCaptures,
   proxyAdminMarketSnapshotCaptures,
 } = require("../admin-proxy");
 
@@ -99,4 +101,16 @@ app.http("adminMarketSnapshotCaptures", {
   authLevel: "anonymous",
   route: "proof/market-snapshot-captures",
   handler: proxyAdminMarketSnapshotCaptures,
+});
+
+app.http("adminHistoricalClosingSnapshotCaptures", {
+  methods: ["GET", "POST"],
+  authLevel: "anonymous",
+  route: "proof/historical-closing-snapshot-captures",
+  handler: async (request, context) => {
+    if (request.method === "POST") {
+      return proxyAdminHistoricalClosingSnapshotCaptureRun(request, context);
+    }
+    return proxyAdminHistoricalClosingSnapshotCaptures(request, context);
+  },
 });

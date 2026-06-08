@@ -230,6 +230,61 @@ def test_polymarket_connector_fetches_gamma_market_snapshot():
     assert requests[0].url.path == "/markets/slug/will-lakers-beat-celtics"
 
 
+def test_polymarket_connector_falls_back_to_clob_book_when_gamma_has_no_price():
+    requests: list[tuple[str, httpx.Request]] = []
+
+    def gamma_handler(request: httpx.Request) -> httpx.Response:
+        requests.append(("gamma", request))
+        return httpx.Response(
+            200,
+            json={
+                "slug": "will-lakers-beat-celtics",
+                "question": "Will the Lakers beat the Celtics?",
+                "outcomes": ["Yes", "No"],
+                "clobTokenIds": '["yes-token-123", "no-token-456"]',
+                "active": True,
+                "closed": False,
+            },
+        )
+
+    def clob_handler(request: httpx.Request) -> httpx.Response:
+        requests.append(("clob", request))
+        return httpx.Response(
+            200,
+            json={
+                "asset_id": "yes-token-123",
+                "timestamp": "2026-01-14T18:00:00Z",
+                "hash": "book-hash",
+                "bids": [{"price": "0.54", "size": "100"}],
+                "asks": [{"price": "0.60", "size": "80"}],
+            },
+        )
+
+    connector = PolymarketGammaConnector(
+        client=httpx.Client(
+            transport=httpx.MockTransport(gamma_handler),
+            base_url="https://gamma-api.example.test",
+        ),
+        clob_client=httpx.Client(
+            transport=httpx.MockTransport(clob_handler),
+            base_url="https://clob.example.test",
+        ),
+    )
+
+    snapshot = connector.fetch_market_snapshot("will-lakers-beat-celtics", CAPTURED_AT)
+
+    assert snapshot.market_slug == "polymarket:will-lakers-beat-celtics:yes"
+    assert snapshot.implied_yes == pytest.approx(0.57)
+    assert snapshot.metadata["clob_token_id"] == "yes-token-123"
+    assert snapshot.metadata["executable_yes_ask"] == pytest.approx(0.60)
+    assert snapshot.metadata["yes_bid"] == pytest.approx(0.54)
+    assert [(source, request.url.path) for source, request in requests] == [
+        ("gamma", "/markets/slug/will-lakers-beat-celtics"),
+        ("clob", "/book"),
+    ]
+    assert requests[1][1].url.params["token_id"] == "yes-token-123"
+
+
 def test_kalshi_normalizes_market_midpoint_from_price_fields():
     snapshot = normalize_kalshi_market(
         {
@@ -252,6 +307,27 @@ def test_kalshi_normalizes_market_midpoint_from_price_fields():
     assert snapshot.title == "Lakers beat Celtics?"
     assert snapshot.market_type == "binary"
     assert snapshot.metadata["status"] == "active"
+
+
+def test_kalshi_converts_opposite_side_bids_into_executable_asks():
+    snapshot = normalize_kalshi_market(
+        {
+            "market": {
+                "ticker": "KXNBA-LALBOS-26JAN15",
+                "title": "Lakers beat Celtics?",
+                "category": "Sports",
+                "status": "active",
+                "close_time": "2026-01-15T00:30:00Z",
+                "yes_bid": 40,
+                "no_bid": 36,
+            }
+        },
+        captured_at=CAPTURED_AT,
+    )
+
+    assert snapshot.implied_yes == pytest.approx(0.52)
+    assert snapshot.metadata["executable_yes_ask"] == pytest.approx(0.64)
+    assert snapshot.metadata["executable_no_ask"] == pytest.approx(0.60)
 
 
 def test_kalshi_connector_fetches_market_snapshot():
@@ -283,6 +359,49 @@ def test_kalshi_connector_fetches_market_snapshot():
     assert snapshot.market_slug == "kalshi:kxnba-lalbos-26jan15:yes"
     assert snapshot.implied_yes == pytest.approx(0.57)
     assert requests[0].url.path == "/trade-api/v2/markets/KXNBA-LALBOS-26JAN15"
+
+
+def test_kalshi_connector_falls_back_to_orderbook_when_market_has_no_price():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/orderbook"):
+            return httpx.Response(
+                200,
+                json={
+                    "orderbook": {
+                        "yes": [[54, 120]],
+                        "no": [[38, 80]],
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "market": {
+                    "ticker": "KXNBA-LALBOS-26JAN15",
+                    "title": "Lakers beat Celtics?",
+                    "status": "active",
+                }
+            },
+        )
+
+    connector = KalshiConnector(
+        client=httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://kalshi.example.test/trade-api/v2",
+        )
+    )
+
+    snapshot = connector.fetch_market_snapshot("KXNBA-LALBOS-26JAN15", CAPTURED_AT)
+
+    assert snapshot.implied_yes == pytest.approx(0.58)
+    assert snapshot.metadata["executable_yes_ask"] == pytest.approx(0.62)
+    assert [request.url.path for request in requests] == [
+        "/trade-api/v2/markets/KXNBA-LALBOS-26JAN15",
+        "/trade-api/v2/markets/KXNBA-LALBOS-26JAN15/orderbook",
+    ]
 
 
 def test_normalized_snapshot_converts_to_persistable_odds_record():

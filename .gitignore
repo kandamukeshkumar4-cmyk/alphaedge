@@ -29,6 +29,8 @@ Thumbs.db
 
 # ML artifacts (keep structure, ignore large binaries in dev)
 backend/ml_artifacts/*.json
+backend/ml_artifacts/**/*.joblib
+backend/ml_artifacts/*.joblib
 !backend/ml_artifacts/.gitkeep
 backend/backend/
 

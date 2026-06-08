@@ -35,6 +35,14 @@ def test_walk_forward_trainer_reports_out_of_sample_closing_line_metrics(tmp_pat
     assert isinstance(result["walk_forward"]["mean_clv"], float)
     assert isinstance(result["walk_forward"]["clv_positive"], bool)
     assert isinstance(result["walk_forward"]["model_beats_closing"], bool)
+    assert result["calibration_method"] in {"identity", "isotonic", "platt"}
+    assert result["walk_forward_calibration"]["raw_expected_calibration_error"] >= 0.0
+    assert result["walk_forward_calibration"]["calibrated_expected_calibration_error"] >= 0.0
+    assert result["walk_forward_calibration"]["rolling_expected_calibration_error"]
+    first_fold = result["walk_forward_calibration"]["rolling_expected_calibration_error"][0]
+    assert first_fold["calibration_method"] in {"identity", "isotonic", "platt"}
+    assert first_fold["raw_expected_calibration_error"] >= 0.0
+    assert first_fold["calibrated_expected_calibration_error"] >= 0.0
     assert "odds_movement" in result["feature_columns"]
     assert "line_move_velocity" in result["feature_columns"]
     assert "snapshot_count" in result["feature_columns"]
@@ -65,6 +73,78 @@ def test_walk_forward_trainer_hides_edge_when_significance_gate_fails(tmp_path):
     )
 
 
+def test_walk_forward_trainer_reports_embargoed_cv_policy(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        embargo_size=1,
+    )
+
+    assert result["walk_forward"]["cv_policy"] == "rolling_origin_embargo"
+    assert result["walk_forward"]["embargo_size"] == 1
+    assert result["walk_forward"]["count"] == 5
+    assert result["edge_gate"]["count"] == result["walk_forward"]["count"]
+
+
+def test_walk_forward_trainer_reports_deflated_sharpe_selection_bias(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        selection_bias_trials=25,
+    )
+
+    report = result["walk_forward"]["deflated_sharpe"]
+    assert report["trials"] == 25
+    assert report["count"] == result["walk_forward"]["trade_count"]
+    assert isinstance(report["observed_sharpe"], float)
+    assert isinstance(report["benchmark_sharpe"], float)
+    assert 0.0 <= report["deflated_sharpe_probability"] <= 1.0
+    assert isinstance(report["significant_after_trials"], bool)
+
+
+def test_walk_forward_trainer_reports_cpcv_hardening_policy(tmp_path):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=12)
+
+    result = train_walk_forward_xgboost_model(
+        fixtures_dir,
+        artifact_dir,
+        train_window_size=6,
+        eval_window_size=2,
+        embargo_size=1,
+        cpcv_group_count=4,
+        cpcv_eval_group_count=2,
+    )
+
+    cpcv = result["walk_forward"]["cpcv"]
+    assert cpcv == {
+        "enabled": True,
+        "group_count": 4,
+        "eval_group_count": 2,
+        "embargo_size": 1,
+        "fold_count": 6,
+        "min_train_rows": 3,
+        "max_train_rows": 5,
+        "evaluated_rows": 36,
+    }
+
+
 def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
     fixtures_dir = tmp_path / "fixtures"
     artifact_dir = tmp_path / "artifacts"
@@ -80,6 +160,23 @@ def test_walk_forward_trainer_handles_single_class_training_window(tmp_path):
 
     assert result["walk_forward"]["count"] == 6
     assert result["walk_forward"]["model_brier"] >= 0.0
+
+
+def test_walk_forward_trainer_rejects_insufficient_real_rows_without_synthetic_padding(
+    tmp_path,
+):
+    fixtures_dir = tmp_path / "fixtures"
+    artifact_dir = tmp_path / "artifacts"
+    fixtures_dir.mkdir()
+    _write_walk_forward_fixture(fixtures_dir, rows=1)
+
+    with pytest.raises(ValueError, match="walk-forward evaluation produced no evaluation rows"):
+        train_walk_forward_xgboost_model(
+            fixtures_dir,
+            artifact_dir,
+            train_window_size=2,
+            eval_window_size=1,
+        )
 
 
 def _write_walk_forward_fixture(

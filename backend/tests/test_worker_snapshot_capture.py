@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.data.connectors.base import NormalizedMarketSnapshot
-from app.db.models import JobRun, OddsSnapshot
+from app.db.models import JobRun, Market, MarketStatus, OddsSnapshot, OrderOutcome
 from app.db.session import get_db
 from app.main import app
 from app.pipeline.ingest import (
@@ -13,9 +14,15 @@ from app.pipeline.ingest import (
     MarketSnapshotCaptureFailure,
     MarketSnapshotCaptureResult,
     capture_configured_market_snapshots,
+    capture_configured_historical_closing_snapshots,
 )
 from app.workers import settings as worker_settings_module
-from app.workers.tasks import WorkerSettings, capture_market_snapshots_task
+from app.workers.tasks import (
+    WorkerSettings,
+    capture_historical_closing_snapshots_task,
+    capture_market_snapshots_task,
+    run_backtest_task,
+)
 
 
 CAPTURED_AT = datetime(2026, 1, 14, 18, tzinfo=timezone.utc)
@@ -52,6 +59,51 @@ class FakeOddsApiConnector:
                 event_id="nba_lal_bos_2026_01_15",
                 market_type="h2h",
                 outcome_name="Boston Celtics",
+            ),
+        ]
+
+
+class FakeHistoricalOddsApiConnector:
+    def __init__(self):
+        self.calls: list[tuple[str, str]] = []
+
+    def fetch_historical_h2h_snapshots(
+        self,
+        sport_key: str,
+        snapshot_at: str,
+        regions: str = "us",
+    ) -> list[NormalizedMarketSnapshot]:
+        self.calls.append((sport_key, snapshot_at))
+        return [
+            NormalizedMarketSnapshot(
+                market_slug=(
+                    f"oddsapi:{sport_key}:{snapshot_at}:draftkings:h2h:"
+                    "los-angeles-lakers"
+                ),
+                implied_yes=0.59,
+                source="the-odds-api:draftkings",
+                captured_at=snapshot_at,
+                book="draftkings",
+                event_id="nba_lal_bos_2026_01_15",
+                market_type="h2h",
+                outcome_name="Los Angeles Lakers",
+                close_at="2026-01-15T00:30:00Z",
+                metadata={"historical_snapshot_requested_at": snapshot_at},
+            ),
+            NormalizedMarketSnapshot(
+                market_slug=(
+                    f"oddsapi:{sport_key}:{snapshot_at}:draftkings:h2h:"
+                    "boston-celtics"
+                ),
+                implied_yes=0.41,
+                source="the-odds-api:draftkings",
+                captured_at=snapshot_at,
+                book="draftkings",
+                event_id="nba_lal_bos_2026_01_15",
+                market_type="h2h",
+                outcome_name="Boston Celtics",
+                close_at="2026-01-15T00:30:00Z",
+                metadata={"historical_snapshot_requested_at": snapshot_at},
             ),
         ]
 
@@ -185,11 +237,51 @@ async def test_configured_market_snapshot_capture_records_source_failures(db_ses
     assert row_count == 3
 
 
+async def test_configured_historical_closing_snapshot_capture_persists_rows(db_session):
+    odds_api = FakeHistoricalOddsApiConnector()
+    settings = Settings(
+        ODDS_API_KEY="server-side-key",
+        ODDS_API_SPORT_KEYS="basketball_nba",
+        ODDS_API_HISTORICAL_SNAPSHOT_ATS=(
+            "2026-01-15T00:25:00Z,2026-01-16T00:25:00Z"
+        ),
+    )
+
+    first = await capture_configured_historical_closing_snapshots(
+        db_session,
+        settings=settings,
+        connectors=MarketDataConnectors(odds_api=odds_api),
+    )
+    second = await capture_configured_historical_closing_snapshots(
+        db_session,
+        settings=settings,
+        connectors=MarketDataConnectors(odds_api=odds_api),
+    )
+
+    row_count = await db_session.scalar(select(func.count()).select_from(OddsSnapshot))
+    assert first.fetched == 4
+    assert first.inserted == 4
+    assert first.skipped == 0
+    assert second.fetched == 4
+    assert second.inserted == 0
+    assert second.skipped == 4
+    assert row_count == 4
+    assert odds_api.calls == [
+        ("basketball_nba", "2026-01-15T00:25:00Z"),
+        ("basketball_nba", "2026-01-16T00:25:00Z"),
+        ("basketball_nba", "2026-01-15T00:25:00Z"),
+        ("basketball_nba", "2026-01-16T00:25:00Z"),
+    ]
+
+
 def test_settings_parse_market_snapshot_capture_targets():
     settings = Settings(
         ODDS_API_SPORT_KEYS="basketball_nba, americanfootball_nfl",
         POLYMARKET_MARKET_SLUGS="will-lakers-beat-celtics, election-market",
         KALSHI_MARKET_TICKERS="KXNBA-LALBOS-26JAN15, KXELECTION-2026",
+        ODDS_API_HISTORICAL_SNAPSHOT_ATS=(
+            "2026-01-15T00:25:00Z, 2026-01-16T00:25:00Z"
+        ),
     )
 
     assert settings.odds_api_sport_key_list == [
@@ -204,11 +296,19 @@ def test_settings_parse_market_snapshot_capture_targets():
         "KXNBA-LALBOS-26JAN15",
         "KXELECTION-2026",
     ]
+    assert settings.odds_api_historical_snapshot_at_list == [
+        "2026-01-15T00:25:00Z",
+        "2026-01-16T00:25:00Z",
+    ]
 
 
 def test_worker_settings_register_live_snapshot_capture_task():
     assert capture_market_snapshots_task in WorkerSettings.functions
+    assert capture_historical_closing_snapshots_task in WorkerSettings.functions
     assert "app.workers.tasks.capture_market_snapshots_task" in (
+        worker_settings_module.WorkerSettings.functions
+    )
+    assert "app.workers.tasks.capture_historical_closing_snapshots_task" in (
         worker_settings_module.WorkerSettings.functions
     )
     cron_function_names = {
@@ -216,6 +316,62 @@ def test_worker_settings_register_live_snapshot_capture_task():
         for job in WorkerSettings.cron_jobs
     }
     assert "capture_market_snapshots_task" in cron_function_names
+    assert "capture_historical_closing_snapshots_task" not in cron_function_names
+
+
+async def test_capture_historical_closing_snapshots_task_returns_summary(monkeypatch):
+    async def fake_capture_configured_historical_closing_snapshots(*args, **kwargs):
+        return MarketSnapshotCaptureResult(
+            fetched=2,
+            inserted=2,
+            skipped=0,
+            failures=(
+                MarketSnapshotCaptureFailure(
+                    source="the-odds-api:historical",
+                    target="basketball_nba@2026-01-15T00:25:00Z",
+                    error="upstream 500",
+                ),
+            ),
+        )
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def add(self, obj):
+            return None
+
+        async def commit(self):
+            return None
+
+    class FakeSessionLocal:
+        def __call__(self):
+            return FakeSession()
+
+    monkeypatch.setattr(
+        "app.workers.tasks.capture_configured_historical_closing_snapshots",
+        fake_capture_configured_historical_closing_snapshots,
+    )
+    monkeypatch.setattr("app.db.session.AsyncSessionLocal", FakeSessionLocal())
+
+    result = await capture_historical_closing_snapshots_task({"settings": Settings()})
+
+    assert result == {
+        "fetched": 2,
+        "ingested": 2,
+        "skipped": 0,
+        "failed": 1,
+        "failures": [
+            {
+                "source": "the-odds-api:historical",
+                "target": "basketball_nba@2026-01-15T00:25:00Z",
+                "error": "upstream 500",
+            }
+        ],
+    }
 
 
 async def test_capture_market_snapshots_task_reports_source_failures(monkeypatch):
@@ -332,6 +488,270 @@ async def test_capture_market_snapshots_task_persists_degraded_job_run(
         ],
         "captured_at": "2026-01-14T18:00:00+00:00",
     }
+
+
+async def test_run_backtest_task_can_use_resolved_snapshot_store(
+    db_session,
+    monkeypatch,
+    tmp_path,
+):
+    await _seed_resolved_snapshot_markets(db_session)
+
+    class TestSessionContext:
+        async def __aenter__(self):
+            return db_session
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr("app.db.session.AsyncSessionLocal", lambda: TestSessionContext())
+
+    result = await run_backtest_task(
+        {
+            "source": "snapshot_store",
+            "artifact_dir": tmp_path / "phase3-artifacts",
+        }
+    )
+
+    assert result["market_count"] == 10
+    assert result["phase3_forecast_gate"]["walk_forward"]["count"] == 6
+    assert result["phase3_forecast_gate"]["gate"] == "blocked"
+    assert (
+        tmp_path
+        / "phase3-artifacts"
+        / "phase3_snapshot_walk_forward"
+        / "xgboost_model.joblib"
+    ).exists()
+
+
+async def test_admin_phase3_snapshot_store_backtest_runs_and_lists_latest_proof(
+    db_session,
+):
+    await _seed_resolved_snapshot_markets(db_session)
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            run_response = await client.post(
+                "/admin/phase3-snapshot-store-backtests",
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+            list_response = await client.get(
+                "/admin/phase3-snapshot-store-backtests",
+                params={"limit": 1},
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert run_response.status_code == 200
+    body = run_response.json()
+    assert body["status"] == "blocked"
+    assert body["market_count"] == 10
+    assert body["phase3_gate"] == "blocked"
+    assert body["walk_forward_count"] == 6
+    assert body["sample_shortfall"] == 94
+    assert body["blocked_reasons"]
+    assert body["model_brier"] >= 0.0
+    assert body["closing_brier"] >= 0.0
+    assert body["mean_clv"] == body["walk_forward"]["mean_clv"]
+    assert "phase3_forecast_gate" not in body
+
+    run = await db_session.scalar(
+        select(JobRun).where(JobRun.job_name == "phase3_snapshot_store_backtest_task")
+    )
+    assert run is not None
+    assert run.status == "blocked"
+    assert run.summary["market_count"] == 10
+    assert run.summary["phase3_gate"] == "blocked"
+
+    assert list_response.status_code == 200
+    assert list_response.json()["runs"] == [body]
+
+
+async def test_admin_historical_closing_snapshot_capture_runs_manual_backfill(
+    db_session,
+    monkeypatch,
+):
+    async def fake_capture_configured_historical_closing_snapshots(*args, **kwargs):
+        return MarketSnapshotCaptureResult(
+            fetched=2,
+            inserted=2,
+            skipped=0,
+            failures=(
+                MarketSnapshotCaptureFailure(
+                    source="the-odds-api:historical",
+                    target="basketball_nba@2026-01-15T00:25:00Z",
+                    error="upstream 500",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        "app.admin.routes.capture_configured_historical_closing_snapshots",
+        fake_capture_configured_historical_closing_snapshots,
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                "/admin/historical-closing-snapshot-captures",
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["fetched"] == 2
+    assert body["ingested"] == 2
+    assert body["skipped"] == 0
+    assert body["failed"] == 1
+    assert body["failures"] == [
+        {
+            "source": "the-odds-api:historical",
+            "target": "basketball_nba@2026-01-15T00:25:00Z",
+            "error": "upstream 500",
+        }
+    ]
+    run = await db_session.scalar(
+        select(JobRun).where(
+            JobRun.job_name == "capture_historical_closing_snapshots_task"
+        )
+    )
+    assert run is not None
+    assert run.status == "degraded"
+    assert run.summary["fetched"] == 2
+
+
+async def test_admin_historical_closing_snapshot_capture_runs_returns_latest_health(
+    db_session,
+):
+    live = JobRun(
+        job_name="capture_market_snapshots_task",
+        status="success",
+        started_at=datetime(2026, 1, 14, 17, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 14, 17, 1, tzinfo=timezone.utc),
+        summary={"fetched": 9, "ingested": 9, "skipped": 0, "failed": 0, "failures": []},
+    )
+    historical = JobRun(
+        job_name="capture_historical_closing_snapshots_task",
+        status="success",
+        started_at=datetime(2026, 1, 14, 18, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 14, 18, 1, tzinfo=timezone.utc),
+        summary={
+            "fetched": 4,
+            "ingested": 2,
+            "skipped": 2,
+            "failed": 0,
+            "failures": [],
+        },
+    )
+    db_session.add_all([live, historical])
+    await db_session.flush()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.get(
+                "/admin/historical-closing-snapshot-captures",
+                params={"limit": 1},
+                headers={"X-Admin-API-Key": "dev-admin-key"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "runs": [
+            {
+                "run_id": str(historical.id),
+                "status": "success",
+                "started_at": "2026-01-14T18:00:00Z",
+                "finished_at": "2026-01-14T18:01:00Z",
+                "fetched": 4,
+                "ingested": 2,
+                "skipped": 2,
+                "failed": 0,
+                "failures": [],
+                "captured_at": None,
+            }
+        ]
+    }
+
+
+async def _seed_resolved_snapshot_markets(db_session) -> None:
+    for index in range(10):
+        market_slug = f"nba-2026-01-{index + 1:02d}-lal-bos"
+        winner_yes = index % 2 == 0
+        lock_at = datetime(2026, 1, index + 1, 18, tzinfo=timezone.utc)
+        db_session.add(
+            Market(
+                slug=market_slug,
+                title=f"Lakers vs Celtics {index + 1}",
+                question="Will the Lakers win?",
+                status=MarketStatus.RESOLVED,
+                lock_at=lock_at,
+                winning_outcome=OrderOutcome.YES if winner_yes else OrderOutcome.NO,
+            )
+        )
+        open_probability = Decimal("0.4000") if winner_yes else Decimal("0.6000")
+        close_probability = Decimal("0.7000") if winner_yes else Decimal("0.3000")
+        db_session.add_all(
+            [
+                OddsSnapshot(
+                    market_slug=market_slug,
+                    implied_yes=open_probability,
+                    source="fixture",
+                    captured_at=datetime(
+                        2026,
+                        1,
+                        index + 1,
+                        12,
+                        tzinfo=timezone.utc,
+                    ),
+                    close_at=lock_at,
+                ),
+                OddsSnapshot(
+                    market_slug=market_slug,
+                    implied_yes=close_probability,
+                    source="fixture",
+                    captured_at=datetime(
+                        2026,
+                        1,
+                        index + 1,
+                        17,
+                        tzinfo=timezone.utc,
+                    ),
+                    close_at=lock_at,
+                    snapshot_metadata={
+                        "executable_yes_ask": 0.72 if winner_yes else 0.32,
+                        "executable_no_ask": 0.32 if winner_yes else 0.72,
+                    },
+                ),
+            ]
+        )
+    await db_session.flush()
 
 
 async def test_admin_market_snapshot_capture_runs_returns_latest_health(db_session):

@@ -201,6 +201,30 @@ class MarketSnapshotCaptureRunListResponse(BaseModel):
     runs: list[MarketSnapshotCaptureRunResponse]
 
 
+class Phase3SnapshotStoreBacktestRunResponse(BaseModel):
+    run_id: UUID
+    status: str
+    started_at: datetime
+    finished_at: Optional[datetime]
+    market_count: int
+    phase3_gate: str
+    is_edge: bool
+    blocked_reasons: list[str]
+    sample_shortfall: int
+    walk_forward_count: int
+    model_brier: float
+    closing_brier: float
+    mean_clv: float
+    clv_positive: bool
+    walk_forward: dict[str, Any]
+    edge_gate: dict[str, Any]
+    calibration: dict[str, Any]
+
+
+class Phase3SnapshotStoreBacktestRunListResponse(BaseModel):
+    runs: list[Phase3SnapshotStoreBacktestRunResponse]
+
+
 class OrderResponse(BaseModel):
     id: UUID
     market_id: UUID

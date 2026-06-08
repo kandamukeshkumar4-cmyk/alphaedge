@@ -86,13 +86,13 @@ export function TradePanel({ market }: { market: Market }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       {/* Buy / Sell tabs */}
-      <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-bg p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1">
         <button
           onClick={() => setSide("YES")}
           className={cn(
-            "rounded-md py-2 text-sm font-bold transition",
+            "rounded-lg py-2 text-sm font-bold transition",
             side === "YES" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
@@ -101,7 +101,7 @@ export function TradePanel({ market }: { market: Market }) {
         <button
           onClick={() => setSide("NO")}
           className={cn(
-            "rounded-md py-2 text-sm font-bold transition",
+            "rounded-lg py-2 text-sm font-bold transition",
             side === "NO" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
@@ -201,10 +201,8 @@ export function TradePanel({ market }: { market: Market }) {
         onClick={submit}
         disabled={submitting || insufficient}
         className={cn(
-          "mt-4 w-full rounded-lg py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
-          side === "YES"
-            ? "bg-primary text-bg hover:bg-accent"
-            : "bg-danger text-bg hover:bg-[#ff5d67]",
+          "mt-4 w-full rounded-xl py-2.5 text-sm font-bold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+          side === "YES" ? "bg-primary text-bg" : "bg-danger text-bg",
         )}
       >
         {submitting

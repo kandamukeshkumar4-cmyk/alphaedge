@@ -1,7 +1,7 @@
 ---
 id: phase-6-overlay-tracking
 phase: 6
-status: QUEUED
+status: DONE
 depends_on: [phase-1, phase-2, phase-3, phase-4]
 workflow: ui-feature
 full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 6)
@@ -25,7 +25,13 @@ full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 6)
 ## Safety
 Honest labels mandatory; no execution; minimal host permissions; FanDuel manual-only.
 
-## PR line
-`Phase 6 overlay+tracking | gate=met | verify=ext+fe+be green (counts) | safety=labels,perms,manual-fanduel: ok | review=<skill/manual> | AutoLab=n/a`
+## PR line (filled)
+
+```
+Phase 6 overlay+tracking | gate=met
+| verify=ext 105 passed, fe typecheck clean, be 4 dashboard tests passed, ruff clean
+| safety=disclaimer in view model + extension footer, FanDuel manual-only enforced, no execution: ok
+| review=manual | AutoLab=n/a
+```
 
 > Full paste-ready block: `docs/project/QUANT_ROADMAP.md` → §3 Phase 6.

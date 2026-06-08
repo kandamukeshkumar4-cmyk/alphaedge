@@ -208,7 +208,10 @@ class MarketService:
     async def seed_catalog_markets(self) -> list[Market]:
         catalog_lock_at = datetime.now(timezone.utc) + timedelta(days=30)
 
+        wc_lock = datetime(2026, 6, 11, 21, 0, 0, tzinfo=timezone.utc)  # ~kickoff M1
+
         specs = [
+            # ── NBA ─────────────────────────────────────────────────────────────
             {
                 "slug": "nba-2025-01-15-lal-bos",
                 "title": "Lakers vs Celtics",
@@ -222,6 +225,7 @@ class MarketService:
                 "description": "Head-to-head paper market on the Lakers vs Celtics matchup.",
                 "resolution": "Resolves YES if the Lakers win the game, otherwise NO.",
             },
+            # ── Politics ─────────────────────────────────────────────────────────
             {
                 "slug": "elect-la-mayor-2026",
                 "title": "Los Angeles mayoral election",
@@ -234,6 +238,87 @@ class MarketService:
                 "market_count": 1,
                 "description": "Paper market on the certified Los Angeles mayoral result.",
                 "resolution": "Resolves to the certified winner of the election.",
+            },
+            # ── FIFA World Cup 2026 ──────────────────────────────────────────────
+            # Group A Match 1 — 3 binary outcome markets (FIFA canonical test match)
+            {
+                "slug": "wc2026-m1-mex-homewin",
+                "title": "WC2026 M1: Will Mexico win vs South Africa?",
+                "question": "Will Mexico win their Group A opener vs South Africa?",
+                "lock_at": wc_lock,
+                "category": "Sports",
+                "icon": "⚽",
+                "volume": 0,
+                "traders": 0,
+                "market_count": 3,
+                "description": "FIFA World Cup 2026 Group A, Match 1: Mexico vs South Africa (regulation).",
+                "resolution": "Resolves YES if Mexico win in regulation. Paper-trading simulation only.",
+            },
+            {
+                "slug": "wc2026-m1-draw",
+                "title": "WC2026 M1: Will Mexico vs South Africa draw?",
+                "question": "Will Mexico vs South Africa end in a draw?",
+                "lock_at": wc_lock,
+                "category": "Sports",
+                "icon": "⚽",
+                "volume": 0,
+                "traders": 0,
+                "market_count": 3,
+                "description": "FIFA World Cup 2026 Group A, Match 1: Mexico vs South Africa (regulation).",
+                "resolution": "Resolves YES if the match ends in a draw. Paper-trading simulation only.",
+            },
+            {
+                "slug": "wc2026-m1-rsa-awaywin",
+                "title": "WC2026 M1: Will South Africa win vs Mexico?",
+                "question": "Will South Africa win their Group A opener vs Mexico?",
+                "lock_at": wc_lock,
+                "category": "Sports",
+                "icon": "⚽",
+                "volume": 0,
+                "traders": 0,
+                "market_count": 3,
+                "description": "FIFA World Cup 2026 Group A, Match 1: Mexico vs South Africa (regulation).",
+                "resolution": "Resolves YES if South Africa win in regulation. Paper-trading simulation only.",
+            },
+            # Tournament winner markets (top contenders)
+            {
+                "slug": "wc2026-winner-brazil",
+                "title": "WC2026: Will Brazil win the World Cup?",
+                "question": "Will Brazil win the FIFA World Cup 2026?",
+                "lock_at": wc_lock,
+                "category": "Sports",
+                "icon": "⚽",
+                "volume": 0,
+                "traders": 0,
+                "market_count": 1,
+                "description": "Brazil tournament-winner market for FIFA World Cup 2026.",
+                "resolution": "Resolves YES if Brazil lift the trophy. Paper-trading simulation only.",
+            },
+            {
+                "slug": "wc2026-winner-france",
+                "title": "WC2026: Will France win the World Cup?",
+                "question": "Will France win the FIFA World Cup 2026?",
+                "lock_at": wc_lock,
+                "category": "Sports",
+                "icon": "⚽",
+                "volume": 0,
+                "traders": 0,
+                "market_count": 1,
+                "description": "France tournament-winner market for FIFA World Cup 2026.",
+                "resolution": "Resolves YES if France lift the trophy. Paper-trading simulation only.",
+            },
+            {
+                "slug": "wc2026-winner-argentina",
+                "title": "WC2026: Will Argentina win the World Cup?",
+                "question": "Will Argentina win the FIFA World Cup 2026?",
+                "lock_at": wc_lock,
+                "category": "Sports",
+                "icon": "⚽",
+                "volume": 0,
+                "traders": 0,
+                "market_count": 1,
+                "description": "Argentina tournament-winner market for FIFA World Cup 2026.",
+                "resolution": "Resolves YES if Argentina lift the trophy. Paper-trading simulation only.",
             },
         ]
         markets = []

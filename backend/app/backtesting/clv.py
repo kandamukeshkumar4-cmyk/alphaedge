@@ -18,8 +18,11 @@ class ForecastComparison:
 @dataclass(frozen=True)
 class ForecastTrade:
     predicted_prob: float
-    entry_implied: float
-    closing_implied: float
+    entry_implied: float | None = None
+    closing_implied: float | None = None
+    executable_yes_ask: float | None = None
+    executable_no_ask: float | None = None
+    closing_yes: float | None = None
 
 
 @dataclass(frozen=True)
@@ -46,13 +49,19 @@ class ForecastClvEvaluation:
     clv_positive: bool
 
 
+@dataclass(frozen=True)
+class ForecastTradeClv:
+    side: TradeSide
+    entry_price: float
+    closing_price: float
+    clv: float
+
+
 def closing_line_value(entry_price: float, closing_price: float, side: TradeSide) -> float:
     entry = _probability(entry_price, "entry_price")
     closing = _probability(closing_price, "closing_price")
-    if side == "yes":
+    if side in ("yes", "no"):
         return closing - entry
-    if side == "no":
-        return entry - closing
     raise ValueError("side must be 'yes' or 'no'")
 
 
@@ -61,29 +70,11 @@ def evaluate_forecast_trade_clv(
     *,
     min_edge: float = 0.0,
 ) -> ForecastClvEvaluation:
-    if not forecasts:
-        raise ValueError("at least one forecast trade is required")
-    if min_edge < 0:
-        raise ValueError("min_edge must be non-negative")
-
-    total_clv = 0.0
-    trade_count = 0
-    yes_trades = 0
-    no_trades = 0
-    for forecast in forecasts:
-        predicted = _probability(forecast.predicted_prob, "predicted_prob")
-        entry = _probability(forecast.entry_implied, "entry_implied")
-        closing = _probability(forecast.closing_implied, "closing_implied")
-        model_edge = predicted - entry
-        if abs(model_edge) <= min_edge:
-            continue
-        side: TradeSide = "yes" if model_edge > 0 else "no"
-        if side == "yes":
-            yes_trades += 1
-        else:
-            no_trades += 1
-        trade_count += 1
-        total_clv += closing_line_value(entry, closing, side)
+    trade_clvs = forecast_trade_clv_values(forecasts, min_edge=min_edge)
+    total_clv = sum(trade.clv for trade in trade_clvs)
+    trade_count = len(trade_clvs)
+    yes_trades = sum(1 for trade in trade_clvs if trade.side == "yes")
+    no_trades = sum(1 for trade in trade_clvs if trade.side == "no")
 
     mean_clv = total_clv / trade_count if trade_count else 0.0
     return ForecastClvEvaluation(
@@ -95,6 +86,64 @@ def evaluate_forecast_trade_clv(
         mean_clv=mean_clv,
         clv_positive=trade_count > 0 and mean_clv > 0.0,
     )
+
+
+def forecast_trade_clv_values(
+    forecasts: list[ForecastTrade],
+    *,
+    min_edge: float = 0.0,
+) -> tuple[ForecastTradeClv, ...]:
+    if not forecasts:
+        raise ValueError("at least one forecast trade is required")
+    if min_edge < 0:
+        raise ValueError("min_edge must be non-negative")
+
+    trade_clvs: list[ForecastTradeClv] = []
+    for forecast in forecasts:
+        predicted = _probability(forecast.predicted_prob, "predicted_prob")
+        yes_ask = _side_price(
+            forecast.executable_yes_ask,
+            fallback=forecast.entry_implied,
+            field="executable_yes_ask",
+        )
+        no_ask = _side_price(
+            forecast.executable_no_ask,
+            fallback=(1.0 - forecast.entry_implied if forecast.entry_implied is not None else None),
+            field="executable_no_ask",
+        )
+        closing_yes = _side_price(
+            forecast.closing_yes,
+            fallback=forecast.closing_implied,
+            field="closing_yes",
+        )
+        if yes_ask is None and no_ask is None:
+            raise ValueError("forecast trade requires at least one executable entry price")
+        if closing_yes is None:
+            raise ValueError("forecast trade requires closing_yes or closing_implied")
+
+        yes_edge = predicted - yes_ask if yes_ask is not None else float("-inf")
+        no_edge = (1.0 - predicted) - no_ask if no_ask is not None else float("-inf")
+        if max(yes_edge, no_edge) <= min_edge:
+            continue
+        side: TradeSide = "yes" if yes_edge >= no_edge else "no"
+        if side == "yes":
+            entry = yes_ask
+            closing = closing_yes
+        else:
+            if no_ask is None:
+                continue
+            entry = no_ask
+            closing = 1.0 - closing_yes
+        trade_clvs.append(
+            ForecastTradeClv(
+                side=side,
+                entry_price=entry,
+                closing_price=closing,
+                clv=closing_line_value(entry, closing, side),
+            )
+        )
+
+    return tuple(trade_clvs)
 
 
 def evaluate_forecasts_against_closing(
@@ -143,6 +192,19 @@ def _probability(value: float, field: str) -> float:
     if probability < 0.0 or probability > 1.0:
         raise ValueError(f"{field} must be between 0 and 1")
     return probability
+
+
+def _side_price(
+    value: float | None,
+    *,
+    fallback: float | None,
+    field: str,
+) -> float | None:
+    if value is not None:
+        return _probability(value, field)
+    if fallback is not None:
+        return _probability(fallback, field)
+    return None
 
 
 def _outcome(value: int) -> int:

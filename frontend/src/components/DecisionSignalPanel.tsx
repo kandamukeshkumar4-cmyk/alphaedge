@@ -96,7 +96,7 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-4">
+    <section className="rounded-2xl border border-border bg-surface p-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-black text-text">Decision stack</h3>
@@ -142,13 +142,13 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 "relative rounded-md px-3 py-1.5 text-xs font-bold transition",
-                activeTab === tab.id ? "text-text" : "text-muted hover:text-text",
+                activeTab === tab.id ? "text-white" : "text-muted hover:text-text",
               )}
             >
               {activeTab === tab.id && (
                 <motion.span
                   layoutId={`decision-tab-${market.slug}`}
-                  className="absolute inset-0 rounded-md bg-surface-3"
+                  className="absolute inset-0 rounded-md bg-accent"
                   transition={{ type: "spring", bounce: 0.16, duration: 0.35 }}
                 />
               )}
@@ -181,9 +181,9 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
                   disabled={submitted}
                   onClick={() => setSelected(option.id)}
                   className={cn(
-                    "relative min-h-[58px] overflow-hidden rounded-lg border px-3 py-2 text-left transition",
+                    "relative min-h-[58px] overflow-hidden rounded-xl border px-3 py-2 text-left transition",
                     active
-                      ? "border-primary/60 bg-primary-dim text-text"
+                      ? "border-accent/55 bg-accent-dim text-text"
                       : "border-border bg-bg/40 text-muted hover:text-text",
                     submitted && "cursor-default",
                   )}
@@ -191,7 +191,7 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
                   {submitted && (
                     <span
                       aria-hidden="true"
-                      className="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-500"
+                      className="absolute inset-y-0 left-0 bg-accent/10 transition-all duration-500"
                       style={{ width: `${percentage}%` }}
                     />
                   )}
@@ -218,10 +218,10 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
               onClick={submitSignal}
               disabled={submitted}
               className={cn(
-                "mt-1 rounded-lg py-2 text-sm font-black transition",
+                "mt-1 rounded-xl py-2 text-sm font-black transition",
                 submitted
-                  ? "border border-primary/35 bg-primary-dim text-primary"
-                  : "bg-primary text-white hover:bg-accent",
+                  ? "border border-accent/35 bg-accent-dim text-accent"
+                  : "bg-accent text-white hover:brightness-110",
               )}
             >
               {submitted ? "Signal recorded" : "Submit paper signal"}
@@ -260,7 +260,7 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
                 </span>
               </div>
             ))}
-            <div className="rounded-lg border border-primary/20 bg-primary-dim px-3 py-2 font-mono text-[11px] leading-relaxed text-primary">
+            <div className="rounded-xl border border-accent/30 bg-accent-dim px-3 py-2 font-mono text-[11px] leading-relaxed text-accent">
               {model.executionGuardrail}
             </div>
           </motion.div>

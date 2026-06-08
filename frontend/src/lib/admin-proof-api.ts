@@ -67,6 +67,14 @@ type FetchAdminMarketSnapshotCapturesInput = {
   limit?: number;
 };
 
+type FetchAdminHistoricalClosingSnapshotCapturesInput =
+  FetchAdminMarketSnapshotCapturesInput;
+
+type RunAdminHistoricalClosingSnapshotCaptureInput = {
+  fetcher?: Fetcher;
+  viewerToken: string;
+};
+
 type FetchAdminAgentRunDetailInput = {
   fetcher?: Fetcher;
   viewerToken: string;
@@ -94,6 +102,16 @@ export type FetchAdminMarketSnapshotCapturesResult =
   | {
       ok: true;
       runs: AdminMarketSnapshotCaptureRun[];
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export type RunAdminHistoricalClosingSnapshotCaptureResult =
+  | {
+      ok: true;
+      run: AdminMarketSnapshotCaptureRun;
     }
   | {
       ok: false;
@@ -156,6 +174,52 @@ export async function fetchAdminMarketSnapshotCaptures(
   return {
     ok: true,
     runs: response.body.runs,
+  };
+}
+
+export async function fetchAdminHistoricalClosingSnapshotCaptures(
+  input: FetchAdminHistoricalClosingSnapshotCapturesInput,
+): Promise<FetchAdminMarketSnapshotCapturesResult> {
+  const viewerToken = input.viewerToken.trim();
+  if (!viewerToken) {
+    return missingToken();
+  }
+
+  const limit = Math.min(Math.max(input.limit ?? 10, 1), 50);
+  const response = await fetchProofJson<{ runs: AdminMarketSnapshotCaptureRun[] }>(
+    input.fetcher ?? fetch,
+    `/api/proof/historical-closing-snapshot-captures?limit=${limit}`,
+    viewerToken,
+  );
+  if (!response.ok) {
+    return response;
+  }
+  return {
+    ok: true,
+    runs: response.body.runs,
+  };
+}
+
+export async function runAdminHistoricalClosingSnapshotCapture(
+  input: RunAdminHistoricalClosingSnapshotCaptureInput,
+): Promise<RunAdminHistoricalClosingSnapshotCaptureResult> {
+  const viewerToken = input.viewerToken.trim();
+  if (!viewerToken) {
+    return missingToken();
+  }
+
+  const response = await fetchProofJson<AdminMarketSnapshotCaptureRun>(
+    input.fetcher ?? fetch,
+    "/api/proof/historical-closing-snapshot-captures",
+    viewerToken,
+    "POST",
+  );
+  if (!response.ok) {
+    return response;
+  }
+  return {
+    ok: true,
+    run: response.body,
   };
 }
 

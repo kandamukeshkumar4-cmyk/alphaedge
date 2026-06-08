@@ -31,10 +31,21 @@ class KalshiConnector:
         ticker: str,
         captured_at: datetime | str | None = None,
     ) -> NormalizedMarketSnapshot:
-        payload = self.http.get_json(f"/markets/{quote(ticker.upper(), safe='')}")
+        quoted_ticker = quote(ticker.upper(), safe="")
+        payload = self.http.get_json(f"/markets/{quoted_ticker}")
         if not isinstance(payload, dict):
             raise ValueError("Kalshi returned a non-object market payload")
-        return normalize_kalshi_market(payload, captured_at=captured_at)
+        try:
+            return normalize_kalshi_market(payload, captured_at=captured_at)
+        except ValueError as error:
+            if "usable YES price" not in str(error):
+                raise
+
+        orderbook_payload = self.http.get_json(f"/markets/{quoted_ticker}/orderbook")
+        if not isinstance(orderbook_payload, dict):
+            raise ValueError("Kalshi returned a non-object orderbook payload")
+        enriched_payload = _payload_with_orderbook_quotes(payload, orderbook_payload)
+        return normalize_kalshi_market(enriched_payload, captured_at=captured_at)
 
 
 def normalize_kalshi_market(
@@ -49,11 +60,27 @@ def normalize_kalshi_market(
     if not ticker:
         raise ValueError("Kalshi market payload does not include a ticker")
 
-    implied = _market_implied_yes(market)
+    quotes = _market_binary_quotes(market)
+    implied = _market_implied_yes(market, quotes)
     if implied is None:
         raise ValueError("Kalshi market payload does not include a usable YES price")
 
     captured = parse_timestamp(captured_at or market.get("last_update_time"))
+    metadata = {
+        "category": market.get("category"),
+        "status": market.get("status"),
+        "result": market.get("result"),
+    }
+    metadata.update(
+        {
+            key: value
+            for key, value in {
+                "executable_yes_ask": quotes["executable_yes_ask"],
+                "executable_no_ask": quotes["executable_no_ask"],
+            }.items()
+            if value is not None
+        }
+    )
     return NormalizedMarketSnapshot(
         market_slug=f"kalshi:{slugify(ticker)}:yes",
         implied_yes=implied,
@@ -69,24 +96,111 @@ def normalize_kalshi_market(
             market.get("close_time") or market.get("expiration_time"),
             fallback=captured,
         ),
-        metadata={
-            "category": market.get("category"),
-            "status": market.get("status"),
-            "result": market.get("result"),
-        },
+        metadata=metadata,
     )
 
 
-def _market_implied_yes(market: dict[str, Any]) -> float | None:
+def _market_implied_yes(
+    market: dict[str, Any],
+    quotes: dict[str, float | None],
+) -> float | None:
     last = probability_from_decimalish(market.get("last_price_dollars"))
     if last is not None:
         return last
-    bid = probability_from_decimalish(market.get("yes_bid_dollars"))
-    ask = probability_from_decimalish(market.get("yes_ask_dollars"))
-    if bid is not None and ask is not None:
-        return round((bid + ask) / 2.0, 4)
-    yes_bid = probability_from_decimalish(market.get("yes_bid"))
-    yes_ask = probability_from_decimalish(market.get("yes_ask"))
+    yes_bid = quotes["yes_bid"]
+    yes_ask = quotes["executable_yes_ask"]
     if yes_bid is not None and yes_ask is not None:
         return round((yes_bid + yes_ask) / 2.0, 4)
-    return last or bid or ask or yes_bid or yes_ask
+    return yes_bid or yes_ask
+
+
+def _market_binary_quotes(market: dict[str, Any]) -> dict[str, float | None]:
+    yes_bid = _first_probability(market, "yes_bid_dollars", "yes_bid")
+    yes_ask = _first_probability(market, "yes_ask_dollars", "yes_ask")
+    no_bid = _first_probability(market, "no_bid_dollars", "no_bid")
+    no_ask = _first_probability(market, "no_ask_dollars", "no_ask")
+    executable_yes_ask = yes_ask if yes_ask is not None else _opposite_ask(no_bid)
+    executable_no_ask = no_ask if no_ask is not None else _opposite_ask(yes_bid)
+    if yes_bid is None and no_ask is not None:
+        yes_bid = _opposite_ask(no_ask)
+    return {
+        "yes_bid": yes_bid,
+        "yes_ask": yes_ask,
+        "no_bid": no_bid,
+        "no_ask": no_ask,
+        "executable_yes_ask": executable_yes_ask,
+        "executable_no_ask": executable_no_ask,
+    }
+
+
+def _first_probability(market: dict[str, Any], *names: str) -> float | None:
+    for name in names:
+        probability = probability_from_decimalish(market.get(name))
+        if probability is not None:
+            return probability
+    return None
+
+
+def _opposite_ask(bid: float | None) -> float | None:
+    if bid is None:
+        return None
+    return round(1.0 - bid, 4)
+
+
+def _payload_with_orderbook_quotes(
+    payload: dict[str, Any],
+    orderbook_payload: dict[str, Any],
+) -> dict[str, Any]:
+    market_payload = payload.get("market")
+    has_nested_market = isinstance(market_payload, dict)
+    market = market_payload if has_nested_market else payload
+    if not isinstance(market, dict):
+        return payload
+
+    orderbook = orderbook_payload.get("orderbook_fp") or orderbook_payload.get("orderbook")
+    if not isinstance(orderbook, dict):
+        return payload
+
+    enriched_market = dict(market)
+    _fill_orderbook_bid(
+        enriched_market,
+        "yes_bid_dollars",
+        "yes_bid",
+        orderbook.get("yes_dollars") or orderbook.get("yes"),
+    )
+    _fill_orderbook_bid(
+        enriched_market,
+        "no_bid_dollars",
+        "no_bid",
+        orderbook.get("no_dollars") or orderbook.get("no"),
+    )
+
+    if has_nested_market:
+        return {**payload, "market": enriched_market}
+    return enriched_market
+
+
+def _fill_orderbook_bid(
+    market: dict[str, Any],
+    dollar_name: str,
+    cents_name: str,
+    levels: object,
+) -> None:
+    if _first_probability(market, dollar_name, cents_name) is not None:
+        return
+    price = _best_orderbook_price(levels)
+    if price is not None:
+        market[cents_name] = price
+
+
+def _best_orderbook_price(levels: object) -> float | None:
+    if not isinstance(levels, list) or not levels:
+        return None
+    best = levels[0]
+    if isinstance(best, (list, tuple)) and best:
+        return probability_from_decimalish(best[0])
+    if isinstance(best, dict):
+        return probability_from_decimalish(
+            best.get("price_dollars") or best.get("price") or best.get("bid")
+        )
+    return probability_from_decimalish(best)

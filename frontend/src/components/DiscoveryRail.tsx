@@ -10,14 +10,14 @@ export function DiscoveryRail({
   rows: RankRow[];
 }) {
   return (
-    <section className="rounded-lg border border-border bg-surface">
+    <section className="rounded-2xl border border-border bg-surface">
       <div className="flex items-center justify-between">
         <h2 className="px-4 pt-4 text-[12px] font-black uppercase tracking-[0.12em] text-text">
           {title}
         </h2>
         <Link
           href="/markets"
-          className="mr-4 mt-4 text-xs font-black text-muted transition hover:text-primary"
+          className="mr-4 mt-4 text-xs font-black text-muted transition hover:text-accent"
         >
           See all
         </Link>
@@ -32,7 +32,7 @@ export function DiscoveryRail({
               <span className="font-mono text-xs font-black text-muted-2">{i + 1}</span>
               <span className="truncate font-semibold text-text">{row.title}</span>
               <span className="flex items-center justify-end gap-1.5">
-                <span className="font-mono text-sm font-black text-primary tabular">{row.value}</span>
+                <span className="font-mono text-sm font-black text-accent tabular">{row.value}</span>
                 <Delta value={row.delta} />
               </span>
             </Link>

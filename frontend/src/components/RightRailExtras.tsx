@@ -9,7 +9,7 @@ export function PromoCard() {
   const [closed, setClosed] = useState(false);
   if (closed) return null;
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
       <div className="relative p-4">
         <button
           onClick={() => setClosed(true)}
@@ -18,7 +18,7 @@ export function PromoCard() {
         >
           ✕
         </button>
-        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">
+        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-accent">
           Paper trading
         </div>
         <h3 className="mt-3 text-xl font-black tracking-tight text-text">
@@ -28,13 +28,13 @@ export function PromoCard() {
           Practice trading with real market data. No real money at stake.
         </p>
 
-        <div className="mt-5 rounded-md border border-border bg-bg/65 p-3">
+        <div className="mt-5 rounded-xl border border-border bg-bg/65 p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-muted">Paper balance</span>
-            <span className="font-mono text-lg font-black text-primary">$100,000</span>
+            <span className="font-mono text-lg font-black text-accent">$100,000</span>
           </div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-3">
-            <div className="h-full w-[78%] rounded-full bg-primary" />
+            <div className="h-full w-[78%] rounded-full bg-accent" />
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="h-8 rounded border border-border bg-surface-2" />
@@ -45,7 +45,7 @@ export function PromoCard() {
 
         <Link
           href="/auth/signup"
-          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary text-sm font-black text-bg shadow-glow transition hover:bg-accent"
+          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-accent text-sm font-black text-white shadow-glow transition hover:brightness-110"
         >
           Get started
         </Link>
@@ -114,14 +114,14 @@ export function CustomizeView() {
           ✕
         </button>
       </div>
-      <div className="mt-3 flex rounded-lg border border-border bg-bg p-0.5">
+      <div className="mt-3 flex rounded-xl border border-border bg-bg p-0.5">
         {VIEWS.map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={cn(
-              "flex-1 rounded-md py-1.5 text-xs font-semibold transition",
-              view === v ? "bg-surface-3 text-text" : "text-muted hover:text-text",
+              "flex-1 rounded-lg py-1.5 text-xs font-semibold transition",
+              view === v ? "bg-accent text-white" : "text-muted hover:text-text",
             )}
           >
             {v}

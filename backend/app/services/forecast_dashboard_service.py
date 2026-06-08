@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import SignalEvent
 
 from app.db.models import (
     ExternalMarket,
@@ -30,6 +35,78 @@ from app.schemas.forecast import (
 )
 
 TIME_BUCKETS = ("7d+", "1-7d", "6-24h", "1-6h", "<1h", "unknown")
+
+CLV_PROVISIONAL_SAMPLE = 30
+PAPER_PNL_NOTE = "paper-only"
+SIGNAL_DISCLAIMER = (
+    "Research only — not financial advice. Verify resolution terms. Paper trading only."
+)
+
+
+@dataclass(frozen=True)
+class CLVRecord:
+    market_slug: str
+    model_prob: float
+    closing_prob: float | None
+    clv: float | None
+    resolved_at: datetime | None
+    is_edge: bool
+
+
+@dataclass(frozen=True)
+class SignalFeedItem:
+    id: str
+    signal_type: str
+    platform: str
+    market_id: str
+    market_name: str
+    implied_edge: float | None
+    sample_size: int
+    is_edge: bool
+    created_at: datetime
+    resolved: bool
+
+
+class CLVTrackingService:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_clv_track_record(self, limit: int = 100) -> list[CLVRecord]:
+        result = await self.session.execute(
+            select(SignalEvent).order_by(SignalEvent.created_at.desc())
+        )
+        records: list[CLVRecord] = []
+        for event in result.scalars().all():
+            tracking = _tracking_payload(event)
+            if not tracking.get("resolved"):
+                continue
+            record = _clv_record_from_event(event, tracking)
+            if record is not None:
+                records.append(record)
+        records.sort(key=lambda row: row.resolved_at or datetime.min, reverse=True)
+        return records[:limit]
+
+    async def get_paper_pnl_summary(self) -> dict[str, Any]:
+        records = await self.get_clv_track_record(limit=10_000)
+        pnls = [_paper_pnl_for_record(record) for record in records]
+        wins = sum(1 for pnl in pnls if pnl > 0)
+        n_bets = len(pnls)
+        total_pnl = round(sum(pnls), 4)
+        win_rate = round(wins / n_bets, 4) if n_bets else 0.0
+        return {
+            "total_pnl": total_pnl,
+            "n_bets": n_bets,
+            "win_rate": win_rate,
+            "note": PAPER_PNL_NOTE,
+            "disclaimer": SIGNAL_DISCLAIMER,
+            "paper_trading_only": True,
+        }
+
+    async def get_signal_feed(self, limit: int = 50) -> list[SignalFeedItem]:
+        result = await self.session.execute(
+            select(SignalEvent).order_by(SignalEvent.created_at.desc()).limit(limit)
+        )
+        return [_signal_feed_item(event) for event in result.scalars().all()]
 
 
 class _Row:
@@ -294,3 +371,126 @@ def _lifecycle_item(row: _Row, status: str) -> ForecastLifecycleItem:
         synthetic_pnl=float(score.synthetic_pnl) if score is not None else None,
         resolved_at=row.market.resolved_at,
     )
+
+
+def _tracking_payload(event: SignalEvent) -> dict[str, Any]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    tracking = payload.get("tracking")
+    if isinstance(tracking, dict):
+        merged = {**payload, **tracking}
+        merged["resolved"] = tracking.get("resolved", payload.get("resolved", False))
+        return merged
+    return payload
+
+
+def _clv_record_from_event(event: SignalEvent, tracking: dict[str, Any]) -> CLVRecord | None:
+    model_prob = _optional_float(
+        tracking.get("model_prob", tracking.get("model_probability", tracking.get("predicted_prob")))
+    )
+    if model_prob is None:
+        return None
+    closing_prob = _optional_float(
+        tracking.get("closing_prob", tracking.get("closing_probability", tracking.get("closing_implied")))
+    )
+    clv = _optional_float(tracking.get("clv"))
+    if clv is None and closing_prob is not None:
+        clv = round(model_prob - closing_prob, 6)
+    resolved_at = _parse_datetime(
+        tracking.get("resolved_at") or tracking.get("resolvedAt")
+    )
+    market_slug = str(
+        tracking.get("market_slug")
+        or tracking.get("market_name")
+        or f"{event.platform}/{event.market_id}"
+    )
+    return CLVRecord(
+        market_slug=market_slug,
+        model_prob=model_prob,
+        closing_prob=closing_prob,
+        clv=clv,
+        resolved_at=resolved_at,
+        is_edge=bool(tracking.get("is_edge", False)),
+    )
+
+
+def _signal_feed_item(event: SignalEvent) -> SignalFeedItem:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    signal = payload.get("signal") if isinstance(payload.get("signal"), dict) else payload
+    tracking = _tracking_payload(event)
+    sample_size = int(tracking.get("sample_size", tracking.get("trade_count", 0)) or 0)
+    implied_edge = _signal_implied_edge(event.signal_type, signal, tracking)
+    is_edge = bool(tracking.get("is_edge", _signal_is_edge(event.signal_type, signal)))
+    market_name = str(
+        tracking.get("market_slug")
+        or tracking.get("market_name")
+        or signal.get("title")
+        or event.market_id
+    )
+    return SignalFeedItem(
+        id=str(event.id),
+        signal_type=event.signal_type,
+        platform=event.platform,
+        market_id=event.market_id,
+        market_name=market_name,
+        implied_edge=implied_edge,
+        sample_size=sample_size,
+        is_edge=is_edge,
+        created_at=event.created_at,
+        resolved=bool(tracking.get("resolved", False)),
+    )
+
+
+def _signal_implied_edge(
+    signal_type: str,
+    signal: dict[str, Any],
+    tracking: dict[str, Any],
+) -> float | None:
+    if tracking.get("edge") is not None:
+        return _optional_float(tracking.get("edge"))
+    if signal_type == "arbitrage":
+        return _optional_float(signal.get("net_spread"))
+    if signal_type == "dutching":
+        return_pct = _optional_float(signal.get("return_pct"))
+        if return_pct is not None:
+            return round(return_pct / 100.0, 6)
+        return _optional_float(signal.get("profit"))
+    if signal_type == "forecast":
+        return _optional_float(tracking.get("clv") or signal.get("edge"))
+    return None
+
+
+def _signal_is_edge(signal_type: str, signal: dict[str, Any]) -> bool:
+    if signal_type == "arbitrage":
+        return bool(signal.get("is_arbitrage") and signal.get("headline_eligible"))
+    if signal_type == "dutching":
+        return bool(signal.get("risk_free"))
+    if signal_type == "forecast":
+        return bool(signal.get("is_edge"))
+    return bool(signal.get("headline_eligible"))
+
+
+def _paper_pnl_for_record(record: CLVRecord) -> float:
+    if record.clv is None:
+        return 0.0
+    stake = 100.0
+    return round(record.clv * stake, 4)
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None

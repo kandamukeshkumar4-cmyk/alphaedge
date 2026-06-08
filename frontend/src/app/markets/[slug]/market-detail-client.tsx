@@ -91,8 +91,13 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Left: chart, outcomes, book, AI, tabs */}
         <div className="min-w-0 space-y-5">
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <PriceChart slug={market.slug} endPrice={market.outcomes[0].price} height={360} />
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <PriceChart
+              slug={market.slug}
+              endPrice={market.outcomes[0].price}
+              modelProb={market.forecast.prob}
+              height={360}
+            />
           </div>
 
           {/* Outcome strip */}

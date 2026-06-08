@@ -16,7 +16,7 @@ export function MarketTabs({ market }: { market: Market }) {
   const [tab, setTab] = useState<Tab>("Activity");
 
   return (
-    <div className="rounded-xl border border-border bg-surface">
+    <div className="rounded-2xl border border-border bg-surface">
       <div className="flex gap-1 border-b border-border px-2">
         {TABS.map((t) => (
           <button
@@ -29,7 +29,7 @@ export function MarketTabs({ market }: { market: Market }) {
           >
             {t}
             {tab === t && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />
             )}
           </button>
         ))}

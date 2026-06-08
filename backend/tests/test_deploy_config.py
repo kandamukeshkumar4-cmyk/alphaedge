@@ -135,10 +135,15 @@ def test_azure_static_web_apps_admin_proxy_is_viewer_token_gated():
     assert 'route: "proof/agents/runs/{runId}"' in api_function
     assert 'route: "proof/agents/run/{slug}"' in api_function
     assert 'route: "proof/market-snapshot-captures"' in api_function
+    assert 'route: "proof/historical-closing-snapshot-captures"' in api_function
+    assert api_function.count('route: "proof/historical-closing-snapshot-captures"') == 1
+    assert 'methods: ["GET", "POST"]' in api_function
     assert "proxyAdminAgentRuns" in api_function
     assert "proxyAdminAgentRunDetail" in api_function
     assert "proxyAdminAgentRun" in api_function
     assert "proxyAdminMarketSnapshotCaptures" in api_function
+    assert "proxyAdminHistoricalClosingSnapshotCaptures" in api_function
+    assert "proxyAdminHistoricalClosingSnapshotCaptureRun" in api_function
     assert "ADMIN_VIEWER_TOKEN" in proxy
     assert "ADMIN_API_KEY" in proxy
     assert "ALPHAEDGE_BACKEND_API_URL" in proxy
@@ -156,10 +161,15 @@ def test_admin_dashboard_uses_proof_proxy_for_run_actions():
 
     assert "runAdminAgentProof" in admin_page
     assert "fetchAdminMarketSnapshotCaptures" in admin_page
+    assert "fetchAdminHistoricalClosingSnapshotCaptures" in admin_page
+    assert "runAdminHistoricalClosingSnapshotCapture" in admin_page
     assert "Connector Capture Health" in admin_page
+    assert "Historical Closing Backfill" in admin_page
     assert "marketSlug" in admin_page
     assert "`/api/proof/agents/run/${encodeURIComponent(marketSlug)}`" in client
     assert "`/api/proof/market-snapshot-captures?limit=${limit}`" in client
+    assert "`/api/proof/historical-closing-snapshot-captures?limit=${limit}`" in client
+    assert '"/api/proof/historical-closing-snapshot-captures"' in client
     assert "ADMIN_API_KEY" not in admin_page
     assert "X-Admin-API-Key" not in client
 

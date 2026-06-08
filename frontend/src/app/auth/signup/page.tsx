@@ -81,7 +81,7 @@ export default function SignupPage() {
               type="checkbox"
               checked={agree}
               onChange={(e) => setAgree(e.target.checked)}
-              className="mt-0.5 accent-[#24C66D]"
+              className="mt-0.5 accent-[#2E7DF6]"
             />
             I agree to the Terms and understand this is a paper-trading simulation.
           </label>
@@ -89,7 +89,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-bg transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Create account
           </button>
@@ -106,16 +106,17 @@ export default function SignupPage() {
       <style jsx>{`
         .input {
           width: 100%;
-          border-radius: 0.5rem;
-          border: 1px solid #243039;
-          background: #090c0f;
+          border-radius: 0.625rem;
+          border: 1px solid #232838;
+          background: #0a0c12;
           padding: 0.5rem 0.75rem;
           font-size: 0.875rem;
-          color: #f2f7f3;
+          color: #eef1f7;
         }
         .input:focus {
           outline: none;
-          border-color: #58e28c;
+          border-color: #2e7df6;
+          box-shadow: 0 0 0 3px rgba(46, 125, 246, 0.18);
         }
       `}</style>
     </main>

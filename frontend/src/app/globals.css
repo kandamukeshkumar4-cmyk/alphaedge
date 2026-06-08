@@ -2,30 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * vidIQ-inspired palette: cool near-black navy canvas, one bright blue brand
+ * accent (#2E7DF6) + a coral secondary (#FF4D8D). Green/red are reserved strictly
+ * for YES/NO + up/down trade semantics. These !important utilities override
+ * Tailwind's generated classes, so retuning the hex here reskins the whole app.
+ */
 @layer utilities {
   .bg-bg {
-    background-color: #090c0f !important;
+    background-color: #0a0c12 !important;
   }
   .bg-bg\/95 {
-    background-color: rgb(9 12 15 / 0.95) !important;
+    background-color: rgb(10 12 18 / 0.95) !important;
   }
   .bg-bg\/65 {
-    background-color: rgb(9 12 15 / 0.65) !important;
+    background-color: rgb(10 12 18 / 0.65) !important;
   }
   .bg-bg\/55 {
-    background-color: rgb(9 12 15 / 0.55) !important;
+    background-color: rgb(10 12 18 / 0.55) !important;
   }
   .bg-surface {
-    background-color: #0f1417 !important;
+    background-color: #12141c !important;
   }
   .bg-surface\/40 {
-    background-color: rgb(15 20 23 / 0.4) !important;
+    background-color: rgb(18 20 28 / 0.4) !important;
   }
   .bg-surface-2 {
-    background-color: #151b20 !important;
+    background-color: #181b26 !important;
   }
   .bg-surface-3 {
-    background-color: #1d252b !important;
+    background-color: #222636 !important;
   }
   .bg-primary {
     background-color: #24c66d !important;
@@ -49,19 +55,34 @@
     background-color: #2b1012 !important;
   }
   .bg-accent {
-    background-color: #58e28c !important;
+    background-color: #2e7df6 !important;
+  }
+  .bg-accent\/10 {
+    background-color: rgb(46 125 246 / 0.1) !important;
+  }
+  .bg-accent\/15 {
+    background-color: rgb(46 125 246 / 0.15) !important;
+  }
+  .bg-accent-dim {
+    background-color: #0e1f3d !important;
+  }
+  .bg-secondary {
+    background-color: #ff4d8d !important;
+  }
+  .bg-secondary-dim {
+    background-color: #2a1020 !important;
   }
   .text-bg {
-    color: #090c0f !important;
+    color: #0a0c12 !important;
   }
   .text-text {
-    color: #f2f7f3 !important;
+    color: #eef1f7 !important;
   }
   .text-muted {
-    color: #9ea9a3 !important;
+    color: #9aa3b5 !important;
   }
   .text-muted-2 {
-    color: #66716b !important;
+    color: #646c7e !important;
   }
   .text-primary {
     color: #24c66d !important;
@@ -70,19 +91,22 @@
     color: #ff4d4f !important;
   }
   .text-accent {
-    color: #58e28c !important;
+    color: #2e7df6 !important;
+  }
+  .text-secondary {
+    color: #ff4d8d !important;
   }
   .border-border {
-    border-color: #243039 !important;
+    border-color: #232838 !important;
   }
   .border-border\/60 {
-    border-color: rgb(36 48 57 / 0.6) !important;
+    border-color: rgb(35 40 56 / 0.6) !important;
   }
   .border-border\/70 {
-    border-color: rgb(36 48 57 / 0.7) !important;
+    border-color: rgb(35 40 56 / 0.7) !important;
   }
   .border-border-light {
-    border-color: #33444d !important;
+    border-color: #353b4f !important;
   }
   .border-primary {
     border-color: #24c66d !important;
@@ -117,40 +141,61 @@
   .border-danger\/40 {
     border-color: rgb(255 77 79 / 0.4) !important;
   }
+  .border-accent {
+    border-color: #2e7df6 !important;
+  }
+  .border-accent\/55 {
+    border-color: rgb(46 125 246 / 0.55) !important;
+  }
+  .border-accent\/45 {
+    border-color: rgb(46 125 246 / 0.45) !important;
+  }
+  .border-accent\/30 {
+    border-color: rgb(46 125 246 / 0.3) !important;
+  }
   .shadow-card {
     box-shadow: 0 2px 8px rgb(0 0 0 / 0.35) !important;
   }
   .shadow-lift {
-    box-shadow: 0 8px 28px rgb(0 0 0 / 0.5) !important;
+    box-shadow: 0 8px 28px rgb(0 0 0 / 0.55) !important;
   }
   .shadow-glow {
     box-shadow:
-      0 0 0 1px rgb(36 198 109 / 0.36),
-      0 12px 32px rgb(36 198 109 / 0.1) !important;
+      0 0 0 1px rgb(46 125 246 / 0.4),
+      0 12px 32px rgb(46 125 246 / 0.18) !important;
   }
   .hover\:bg-primary:hover {
     background-color: #24c66d !important;
   }
   .hover\:bg-accent:hover {
-    background-color: #58e28c !important;
+    background-color: #2e7df6 !important;
+  }
+  .hover\:bg-accent-dim:hover {
+    background-color: #0e1f3d !important;
   }
   .hover\:bg-surface:hover {
-    background-color: #0f1417 !important;
+    background-color: #12141c !important;
   }
   .hover\:bg-surface-2:hover {
-    background-color: #151b20 !important;
+    background-color: #181b26 !important;
   }
   .hover\:text-primary:hover {
     color: #24c66d !important;
   }
+  .hover\:text-accent:hover {
+    color: #2e7df6 !important;
+  }
   .hover\:text-text:hover {
-    color: #f2f7f3 !important;
+    color: #eef1f7 !important;
   }
   .hover\:border-primary:hover {
     border-color: #24c66d !important;
   }
+  .hover\:border-accent:hover {
+    border-color: #2e7df6 !important;
+  }
   .hover\:border-border-light:hover {
-    border-color: #33444d !important;
+    border-color: #353b4f !important;
   }
 }
 
@@ -166,25 +211,26 @@ body {
   @apply bg-bg text-text antialiased;
   font-feature-settings: "tnum" 1, "ss01" 1;
   background:
-    linear-gradient(180deg, rgba(13, 20, 23, 0.72) 0%, rgba(9, 12, 15, 0) 220px),
-    #090c0f;
+    radial-gradient(1200px 480px at 50% -120px, rgba(46, 125, 246, 0.12) 0%, rgba(46, 125, 246, 0) 70%),
+    linear-gradient(180deg, rgba(18, 22, 34, 0.7) 0%, rgba(10, 12, 18, 0) 240px),
+    #0a0c12;
 }
 
 /* Thin dark scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #27353d transparent;
+  scrollbar-color: #2a3142 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #27353d;
+  background: #2a3142;
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #33444d;
+  background: #353b4f;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
@@ -203,10 +249,10 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    #0f1417 0%,
-    #1a2328 20%,
-    #0f1417 40%,
-    #0f1417 100%
+    #12141c 0%,
+    #1d2230 20%,
+    #12141c 40%,
+    #12141c 100%
   );
   background-size: 936px 100%;
   @apply animate-shimmer rounded;

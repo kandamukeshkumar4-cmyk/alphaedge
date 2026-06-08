@@ -36,7 +36,7 @@ export function MarketCard({ market }: { market: Market }) {
   return (
     <Link
       href={`/markets/${market.slug}`}
-      className="group flex min-h-[180px] flex-col rounded-lg border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-border-light hover:bg-surface-2 hover:shadow-lift"
+      className="group flex min-h-[180px] flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 hover:shadow-glow"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -77,10 +77,10 @@ export function MarketCard({ market }: { market: Market }) {
         </div>
 
         <div className="grid gap-2">
-          <span className="rounded-md border border-primary/55 bg-primary-dim px-3 py-2 text-center font-mono text-xs font-black text-primary transition group-hover:bg-primary group-hover:text-bg">
+          <span className="rounded-xl border border-primary/55 bg-primary-dim px-3 py-2 text-center font-mono text-xs font-black text-primary transition group-hover:bg-primary group-hover:text-bg">
             YES {pct(primary.price)}
           </span>
-          <span className="rounded-md border border-danger/55 bg-danger-dim px-3 py-2 text-center font-mono text-xs font-black text-danger">
+          <span className="rounded-xl border border-danger/55 bg-danger-dim px-3 py-2 text-center font-mono text-xs font-black text-danger">
             NO {pct(1 - primary.price)}
           </span>
         </div>

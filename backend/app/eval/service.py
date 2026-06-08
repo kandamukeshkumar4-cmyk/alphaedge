@@ -4,7 +4,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Evaluation, EvalAggregate, Market, OrderOutcome, PredictionLog
+from app.db.models import (
+    Evaluation,
+    EvalAggregate,
+    Market,
+    OddsSnapshot,
+    OrderOutcome,
+    PredictionLog,
+)
 from app.events.bus import DomainEventBus
 
 
@@ -31,14 +38,16 @@ class EvalService:
         predicted_prob = float(pred_log.predicted_prob) if pred_log else 0.5
 
         brier = (predicted_prob - actual) ** 2
-        closing = predicted_prob  # stub: use last prediction as closing proxy
+        closing = await self._closing_implied(market, pred_log)
 
         ev = Evaluation(
             market_id=market_id,
             brier_score=Decimal(str(round(brier, 6))),
             predicted_prob=Decimal(str(round(predicted_prob, 4))),
             actual_outcome=actual,
-            closing_implied=Decimal(str(round(closing, 4))),
+            closing_implied=(
+                Decimal(str(round(closing, 4))) if closing is not None else None
+            ),
             pnl=Decimal("0"),
         )
         self.session.add(ev)
@@ -49,6 +58,27 @@ class EvalService:
             {"market_id": str(market_id), "brier_score": brier},
         )
         return ev
+
+    async def _closing_implied(
+        self,
+        market: Market,
+        pred_log: PredictionLog | None,
+    ) -> float | None:
+        snapshot_result = await self.session.execute(
+            select(OddsSnapshot)
+            .where(OddsSnapshot.market_slug == market.slug)
+            .order_by(OddsSnapshot.captured_at.desc())
+        )
+        for snapshot in snapshot_result.scalars().all():
+            if _is_pre_close_snapshot(snapshot, market):
+                return _snapshot_probability(snapshot)
+
+        if pred_log is None or pred_log.odds_snapshot_id is None:
+            return None
+        linked_snapshot = await self.session.get(OddsSnapshot, pred_log.odds_snapshot_id)
+        if linked_snapshot is None or not _is_pre_close_snapshot(linked_snapshot, market):
+            return None
+        return _snapshot_probability(linked_snapshot)
 
     async def compute_aggregates(self, window_days: int = 7) -> EvalAggregate:
         result = await self.session.execute(select(Evaluation))
@@ -107,3 +137,13 @@ def _weighted_calibration_error(evaluations: list[Evaluation], n_bins: int = 10)
         mean_outcome = sum(outcome for _, outcome in items) / len(items)
         weighted_error += (len(items) / total) * abs(mean_pred - mean_outcome)
     return Decimal(str(round(weighted_error, 6)))
+
+
+def _is_pre_close_snapshot(snapshot: OddsSnapshot, market: Market) -> bool:
+    close_at = snapshot.close_at or market.lock_at or market.resolved_at
+    return close_at is None or snapshot.captured_at <= close_at
+
+
+def _snapshot_probability(snapshot: OddsSnapshot) -> float:
+    probability = snapshot.price if snapshot.price is not None else snapshot.implied_yes
+    return float(probability)
