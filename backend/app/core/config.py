@@ -47,6 +47,17 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_reasoning_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_REASONING_MODEL")
     gemini_judge_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_JUDGE_MODEL")
+
+    # LLM provider (OpenAI-compatible: OpenAI, NVIDIA NIM, Gemini)
+    llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
+    llm_base_url: str = Field(default="https://api.openai.com/v1", alias="LLM_BASE_URL")
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
+    llm_model: str = Field(default="gpt-4o-mini", alias="LLM_MODEL")
+    nim_base_url: str = Field(
+        default="https://integrate.api.nvidia.com/v1",
+        alias="NIM_BASE_URL",
+    )
+    nim_api_key: str = Field(default="", alias="NIM_API_KEY")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
     odds_api_key: str = Field(default="", alias="ODDS_API_KEY")

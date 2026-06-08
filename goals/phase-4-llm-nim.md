@@ -1,7 +1,7 @@
 ---
 id: phase-4-llm-nim
 phase: 4
-status: QUEUED
+status: DONE
 depends_on: [phase-3]
 workflow: backend-feature
 full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 4)
@@ -26,7 +26,12 @@ full_spec: docs/project/QUANT_ROADMAP.md  (§3 Phase 4)
 ## Safety
 LLM populates features/text only; deterministic checks remain the decision gate.
 
-## PR line
-`Phase 4 llm-nim | gate=met | verify=pytest <n> passed, ruff clean | safety=llm-non-decision asserted: ok | review=<skill/manual> | AutoLab=n/a`
+## PR line (filled)
+
+```
+Phase 4 llm-nim | gate=met | verify=pytest 267 collected, 265 passed, ruff clean
+| safety=llm-non-decision asserted: ok (AST guard covers Assign+AugAssign+AnnAssign)
+| review=manual | AutoLab=n/a
+```
 
 > Full paste-ready block: `docs/project/QUANT_ROADMAP.md` → §3 Phase 4.
