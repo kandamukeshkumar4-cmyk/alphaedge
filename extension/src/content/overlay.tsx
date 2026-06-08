@@ -8,6 +8,7 @@ import type { MarketPrefill } from "../prefill";
 import { buildForecastReceipt } from "../receipt";
 import { getSettings } from "../storage";
 import { buildRecordTelemetryMessage } from "../telemetry";
+import { SignalPanels, signalPanelStyles } from "./signal-panels";
 
 type Props = {
   market: ParsedSupportedMarket;
@@ -19,11 +20,12 @@ type Notice = {
   text: string;
 };
 
-type TabId = "edge" | "market" | "lock";
+type TabId = "edge" | "market" | "signals" | "lock";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "edge", label: "Edge" },
   { id: "market", label: "Market" },
+  { id: "signals", label: "Signals" },
   { id: "lock", label: "Lock" },
 ];
 
@@ -40,6 +42,7 @@ export function MirrorOverlay({ market, prefill }: Props) {
   const [marketProbability, setMarketProbability] = useState("");
   const [manualOdds, setManualOdds] = useState("");
   const [dashboardUrl, setDashboardUrl] = useState("http://localhost:3000/forecast");
+  const [apiBase, setApiBase] = useState("http://localhost:8000");
   const [lastReceipt, setLastReceipt] = useState("");
   const [lifecycleLabel, setLifecycleLabel] = useState(lifecycleStateForMarket(market).label);
   const [tab, setTab] = useState<TabId>("edge");
@@ -53,6 +56,7 @@ export function MirrorOverlay({ market, prefill }: Props) {
     void getSettings().then((settings) => {
       setToken(settings.token);
       setDashboardUrl(settings.dashboardUrl);
+      setApiBase(settings.apiBase);
     });
   }, []);
 
@@ -181,7 +185,7 @@ export function MirrorOverlay({ market, prefill }: Props) {
 
   return (
     <>
-      <style>{styles}</style>
+      <style>{`${styles}\n${signalPanelStyles}`}</style>
       <aside className="ae-panel" aria-label="AlphaEdge Mirror forecast tracker">
         <div className="ae-head">
           <div className="ae-brand">
@@ -276,6 +280,11 @@ export function MirrorOverlay({ market, prefill }: Props) {
                   : `Market implied ${(serverMarketProbability * 100).toFixed(1)}%`}
             </span>
           </section>
+        </div>
+
+        {/* SIGNALS — arb / dutch / smart-money / forecast panels */}
+        <div className="ae-pane" role="tabpanel" hidden={tab !== "signals"}>
+          <SignalPanels market={market} apiBase={apiBase} />
         </div>
 
         {/* LOCK — the forecast form */}

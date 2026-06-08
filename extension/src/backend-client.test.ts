@@ -4,8 +4,10 @@ import { buildLockForecastMessage } from "./messaging";
 import { idempotencyKeyFor, type QueuedForecast } from "./queue";
 import {
   createAnonymousForecaster,
+  fetchArbitrageSignal,
   fetchForecastDashboard,
   fetchForecastLifecycle,
+  fetchForecastSignal,
   recoverForecaster,
   resolveExternalMarket,
   sendForecastToBackend,
@@ -201,6 +203,45 @@ describe("backend client", () => {
           "X-Forecaster-Token": "secret-token",
         },
       },
+    );
+  });
+
+  it("fetches arbitrage and forecast signal endpoints for the active market", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/signals/arbitrage")) {
+        return jsonResponse({
+          paper_trading_only: true,
+          disclaimer: "Research only",
+          signal: { is_arbitrage: true, net_spread: 0.02 },
+        });
+      }
+      if (url.includes("/signals/forecast")) {
+        return jsonResponse({
+          paper_trading_only: true,
+          disclaimer: "Research only",
+          signal: { model_prob: 0.62, confidence: 0.5, is_edge: false, clv: null },
+        });
+      }
+      return new Response("not found", { status: 404 });
+    });
+
+    const arb = await fetchArbitrageSignal({
+      apiBase: "https://api.example.test",
+      platform: "polymarket",
+      marketId: "poly-lal-bos",
+      fetcher,
+    });
+    const forecast = await fetchForecastSignal({
+      apiBase: "https://api.example.test",
+      platform: "polymarket",
+      marketId: "poly-lal-bos",
+      fetcher,
+    });
+
+    expect(arb?.signal?.net_spread).toBe(0.02);
+    expect(forecast?.signal?.model_prob).toBe(0.62);
+    expect(fetcher.mock.calls[0][0]).toContain(
+      "/api/v1/signals/arbitrage?platform=polymarket&market_id=poly-lal-bos",
     );
   });
 });

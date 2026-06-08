@@ -36,6 +36,19 @@ from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
 from app.services.paper_account_service import PaperAccountService
 from app.services.paper_signal_service import PaperSignalService
+from app.schemas.signals import (
+    CLVRecordResponse,
+    CLVTrackRecordResponse,
+    PaperPnlSummaryResponse,
+    SignalFeedItemResponse,
+    SignalFeedResponse,
+    SignalsDashboardResponse,
+)
+from app.services.forecast_dashboard_service import (
+    CLV_PROVISIONAL_SAMPLE,
+    CLVTrackingService,
+    SIGNAL_DISCLAIMER,
+)
 from app.services.signals_service import InvalidSignalRequest, SignalsService
 from app.services.wallet_service import WalletService
 
@@ -182,6 +195,112 @@ async def get_smart_money_signal(
         return await WalletService(db).smart_money_signal(platform, market_id)
     except InvalidSignalRequest as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/signals/forecast")
+async def get_forecast_signal(
+    platform: str,
+    market_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await SignalsService(db).forecast_signal(platform, market_id)
+    except InvalidSignalRequest as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/signals", response_model=SignalFeedResponse)
+async def list_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
+    tracking = CLVTrackingService(db)
+    items = await tracking.get_signal_feed(limit=limit)
+    return SignalFeedResponse(
+        paper_trading_only=settings.paper_trading_only,
+        disclaimer=SIGNAL_DISCLAIMER,
+        signals=[
+            SignalFeedItemResponse(
+                id=item.id,
+                signal_type=item.signal_type,
+                platform=item.platform,
+                market_id=item.market_id,
+                market_name=item.market_name,
+                implied_edge=item.implied_edge,
+                sample_size=item.sample_size,
+                is_edge=item.is_edge,
+                provisional=item.sample_size < CLV_PROVISIONAL_SAMPLE,
+                created_at=item.created_at,
+                resolved=item.resolved,
+            )
+            for item in items
+        ],
+    )
+
+
+@router.get("/clv-track-record", response_model=CLVTrackRecordResponse)
+async def get_clv_track_record(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    tracking = CLVTrackingService(db)
+    records = await tracking.get_clv_track_record(limit=limit)
+    return CLVTrackRecordResponse(
+        paper_trading_only=settings.paper_trading_only,
+        disclaimer=SIGNAL_DISCLAIMER,
+        records=[
+            CLVRecordResponse(
+                market_slug=record.market_slug,
+                model_prob=record.model_prob,
+                closing_prob=record.closing_prob,
+                clv=record.clv,
+                resolved_at=record.resolved_at,
+                is_edge=record.is_edge,
+            )
+            for record in records
+        ],
+    )
+
+
+@router.get("/signals/dashboard", response_model=SignalsDashboardResponse)
+async def get_signals_dashboard(
+    signal_limit: int = 50,
+    clv_limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    tracking = CLVTrackingService(db)
+    feed = await tracking.get_signal_feed(limit=signal_limit)
+    records = await tracking.get_clv_track_record(limit=clv_limit)
+    paper_pnl = await tracking.get_paper_pnl_summary()
+    return SignalsDashboardResponse(
+        paper_trading_only=settings.paper_trading_only,
+        disclaimer=SIGNAL_DISCLAIMER,
+        signals=[
+            SignalFeedItemResponse(
+                id=item.id,
+                signal_type=item.signal_type,
+                platform=item.platform,
+                market_id=item.market_id,
+                market_name=item.market_name,
+                implied_edge=item.implied_edge,
+                sample_size=item.sample_size,
+                is_edge=item.is_edge,
+                provisional=item.sample_size < CLV_PROVISIONAL_SAMPLE,
+                created_at=item.created_at,
+                resolved=item.resolved,
+            )
+            for item in feed
+        ],
+        clv_records=[
+            CLVRecordResponse(
+                market_slug=record.market_slug,
+                model_prob=record.model_prob,
+                closing_prob=record.closing_prob,
+                clv=record.clv,
+                resolved_at=record.resolved_at,
+                is_edge=record.is_edge,
+            )
+            for record in records
+        ],
+        paper_pnl=PaperPnlSummaryResponse(**paper_pnl),
+        llm_explanation=None,
+    )
 
 
 @router.get("/markets/{slug}/signals", response_model=PaperSignalSummaryResponse)

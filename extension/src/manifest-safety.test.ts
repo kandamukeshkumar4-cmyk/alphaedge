@@ -43,6 +43,7 @@ describe("MV3 manifest and safety contract", () => {
       readFileSync(join(EXTENSION_ROOT, "src", "edge-preview.ts"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "backend-client.ts"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "content", "overlay.tsx"), "utf8"),
+      readFileSync(join(EXTENSION_ROOT, "src", "content", "signal-panels.tsx"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "content", "content.tsx"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "background.ts"), "utf8"),
       readFileSync(join(EXTENSION_ROOT, "src", "popup", "Popup.tsx"), "utf8"),
