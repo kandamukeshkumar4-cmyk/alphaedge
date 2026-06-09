@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -28,10 +29,20 @@ const CATEGORY_TABS = [
   { label: "Paper trading", href: "/portfolio" },
 ];
 
+function truncateEmail(value: string): string {
+  const at = value.indexOf("@");
+  if (at <= 0 || value.length <= 20) {
+    return value;
+  }
+  return `${value.slice(0, 6)}…${value.slice(at)}`;
+}
+
 export function SiteHeader() {
   const pathname = usePathname();
+  const { token, email, logout, isReady } = useAuth();
   const [open, setOpen] = useState(false);
   const showCategoryBar = pathname === "/" || pathname.startsWith("/markets");
+  const isLoggedIn = isReady && !!token;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
@@ -86,18 +97,30 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/auth/login"
-            className="hidden h-10 items-center rounded-xl border border-border px-5 text-sm font-bold text-text transition hover:border-border-light hover:bg-surface sm:inline-flex"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="inline-flex h-10 items-center rounded-xl bg-accent px-5 text-sm font-black text-white shadow-glow transition hover:brightness-110"
-          >
-            Sign up
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <span
+                className="hidden max-w-[160px] truncate text-sm font-semibold text-muted sm:inline"
+                title={email ?? undefined}
+              >
+                {email ? truncateEmail(email) : "Account"}
+              </span>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex h-10 items-center rounded-xl border border-border px-5 text-sm font-bold text-text transition hover:border-border-light hover:bg-surface"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="inline-flex h-10 items-center rounded-xl border border-border px-5 text-sm font-bold text-text transition hover:border-border-light hover:bg-surface"
+            >
+              Log In
+            </Link>
+          )}
           <button
             className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
             aria-label="Menu"

@@ -1,27 +1,56 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/components/ToastProvider";
+import { saveAuthSession } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
+import { API_BASE } from "@/lib/alphaedge-api";
 
 export default function SignupPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [agree, setAgree] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const strength = scorePassword(password);
   const canSubmit = email.includes("@") && password.length >= 8 && password === confirm && agree;
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    toast({
-      title: "Account created",
-      body: "Welcome to AlphaEdge — $100,000 paper balance granted.",
-      tone: "success",
-    });
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { detail?: string };
+        toast({
+          title: "Signup failed",
+          body: body.detail ?? "Unable to create account",
+          tone: "error",
+        });
+        return;
+      }
+      const body = (await response.json()) as { access_token: string };
+      saveAuthSession(body.access_token, email);
+      router.replace("/portfolio");
+    } catch {
+      toast({
+        title: "Signup failed",
+        body: "Unable to reach the server.",
+        tone: "error",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -88,10 +117,10 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || submitting}
             className="w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Create account
+            {submitting ? "Creating account…" : "Create account"}
           </button>
         </form>
 
