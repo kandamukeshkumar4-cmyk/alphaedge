@@ -8,7 +8,13 @@ import { useToast } from "./ToastProvider";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { cn } from "@/lib/cn";
 
-export function TradePanel({ market }: { market: Market }) {
+export function TradePanel({
+  market,
+  disabled = false,
+}: {
+  market: Market;
+  disabled?: boolean;
+}) {
   const { toast } = useToast();
   const [outcomeIdx, setOutcomeIdx] = useState(0);
   const [side, setSide] = useState<"YES" | "NO">("YES");
@@ -189,17 +195,19 @@ export function TradePanel({ market }: { market: Market }) {
 
       <button
         onClick={submit}
-        disabled={submitting || insufficient}
+        disabled={disabled || submitting || insufficient}
         className={cn(
           "mt-4 w-full rounded-xl py-2.5 text-sm font-bold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
           side === "YES" ? "bg-primary text-bg" : "bg-danger text-bg",
         )}
       >
-        {submitting
-          ? "Processing…"
-          : insufficient
-            ? "Insufficient balance"
-            : `Buy ${side} · ${outcome.label}`}
+        {disabled
+          ? "Market resolved"
+          : submitting
+            ? "Processing…"
+            : insufficient
+              ? "Insufficient balance"
+              : `Buy ${side} · ${outcome.label}`}
       </button>
 
       <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs text-muted">

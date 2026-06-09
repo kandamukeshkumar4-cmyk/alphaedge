@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.db.models import MarketResolution
 from app.db.session import get_db
 from app.schemas.market import (
     MarketDetailForecast,
@@ -32,6 +34,10 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
     yes_price = _best_outcome_price(book.get("yes", {}), 0.5)
     no_price = _best_outcome_price(book.get("no", {}), round(1.0 - yes_price, 4))
 
+    resolution = await db.scalar(select(MarketResolution).where(MarketResolution.slug == slug))
+    resolved = resolution is not None
+    resolution_outcome = resolution.outcome if resolution is not None else None
+
     forecast_payload: MarketDetailForecast | None = None
     forecast_result = ForecastService.predict(slug, implied_yes=yes_price)
     if forecast_result is not None:
@@ -55,6 +61,8 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
         traders=market.traders,
         resolution_criteria=market.resolution,
         paper_trading_only=settings.paper_trading_only,
+        resolved=resolved,
+        resolution_outcome=resolution_outcome,
     )
 
 
