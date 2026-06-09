@@ -17,6 +17,8 @@ import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
 import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
+import MarketExplainer from "@/components/MarketExplainer";
+import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
 import {
   fetchMarketDetail,
@@ -55,6 +57,8 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
       cancelled = true;
     };
   }, [slug]);
+
+  const livePrice = useMarketPrice(slug);
 
   if (!market && loadedApi) {
     return (
@@ -102,6 +106,12 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
               Resolved {resolutionOutcome ?? ""}
             </span>
           ) : null}
+          {livePrice.connected && (
+            <span className="flex items-center gap-1 text-xs font-medium text-green-400">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+              LIVE
+            </span>
+          )}
           <span className="font-mono">{formatCompactUSD(market.volume)} vol</span>
           <span className="font-mono">{market.traders.toLocaleString()} traders</span>
           <span className="rounded-md bg-surface-2 px-2 py-1 font-mono">
@@ -116,7 +126,11 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <div className="rounded-2xl border border-border bg-surface p-4">
             <PriceChart
               slug={market.slug}
-              endPrice={market.outcomes[0].price}
+              endPrice={
+                livePrice.connected && livePrice.yes > 0
+                  ? livePrice.yes
+                  : market.outcomes[0].price
+              }
               modelProb={market.forecast.prob}
               height={360}
             />
@@ -124,25 +138,34 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
 
           {/* Outcome strip */}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {market.outcomes.map((o) => (
-              <div
-                key={o.id}
-                className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2.5"
-              >
-                <span className="flex items-center gap-2 text-sm font-semibold text-text">
-                  <span>{o.emoji}</span>
-                  {o.label}
-                </span>
-                <span className="flex items-baseline gap-2">
-                  <span className="font-mono text-[11px] text-muted-2">
-                    {multiplier(o.price)}
+            {market.outcomes.map((o) => {
+              const displayPrice =
+                livePrice.connected && o.label === "YES"
+                  ? livePrice.yes
+                  : livePrice.connected && o.label === "NO"
+                    ? livePrice.no
+                    : o.price;
+
+              return (
+                <div
+                  key={o.id}
+                  className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2.5"
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <span>{o.emoji}</span>
+                    {o.label}
                   </span>
-                  <span className={cn("font-mono text-lg font-black", toneClass(o.tone))}>
-                    {pct(o.price)}
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-mono text-[11px] text-muted-2">
+                      {multiplier(displayPrice)}
+                    </span>
+                    <span className={cn("font-mono text-lg font-black", toneClass(o.tone))}>
+                      {pct(displayPrice)}
+                    </span>
                   </span>
-                </span>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -171,6 +194,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
         <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
           <TradePanel market={market} disabled={isResolved} />
           <DecisionSignalPanel market={market} />
+          <MarketExplainer slug={slug} />
         </div>
       </div>
 

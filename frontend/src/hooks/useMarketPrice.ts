@@ -1,85 +1,61 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 
-import { WS_BASE } from "@/lib/alphaedge-api";
-
-export function useMarketPrice(slug: string): {
+interface MarketPrice {
   yes: number;
   no: number;
-  loading: boolean;
-} {
-  const [yes, setYes] = useState(0);
-  const [no, setNo] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const reconnectAttempted = useRef(false);
+  ts: number | null;
+  connected: boolean;
+}
+
+const RECONNECT_DELAY_MS = 3000;
+
+export function useMarketPrice(slug: string): MarketPrice {
+  const [state, setState] = useState<MarketPrice>({
+    yes: 0,
+    no: 0,
+    ts: null,
+    connected: false,
+  });
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!WS_BASE || !slug) {
-      setLoading(true);
-      return;
-    }
+    if (!slug) return;
+    let dead = false;
 
-    let ws: WebSocket | null = null;
-    let cancelled = false;
+    function connect() {
+      if (dead) return;
+      const base =
+        process.env.NEXT_PUBLIC_WS_URL?.replace(/^http/, "ws") ??
+        "ws://localhost:8000";
+      const ws = new WebSocket(`${base}/api/v1/ws/prices?market=${slug}`);
+      wsRef.current = ws;
 
-    const connect = () => {
-      ws = new WebSocket(
-        `${WS_BASE}/api/v1/ws/prices?market=${encodeURIComponent(slug)}`,
-      );
+      ws.onopen = () => setState((s) => ({ ...s, connected: true }));
 
-      ws.onopen = () => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      };
-
-      ws.onmessage = (event) => {
+      ws.onmessage = (ev) => {
         try {
-          const data = JSON.parse(event.data as string) as {
-            yes?: number;
-            no?: number;
-          };
-          if (
-            !cancelled &&
-            typeof data.yes === "number" &&
-            typeof data.no === "number"
-          ) {
-            setYes(data.yes);
-            setNo(data.no);
-            setLoading(false);
-          }
+          const d = JSON.parse(ev.data);
+          setState({ yes: d.yes, no: d.no, ts: d.ts, connected: true });
         } catch {
-          // ignore malformed payloads
+          /* ignore malformed frames */
         }
       };
 
       ws.onclose = () => {
-        if (cancelled) {
-          return;
-        }
-        if (!reconnectAttempted.current) {
-          reconnectAttempted.current = true;
-          connect();
-          return;
-        }
-        setLoading(true);
+        setState((s) => ({ ...s, connected: false }));
+        if (!dead) setTimeout(connect, RECONNECT_DELAY_MS);
       };
 
-      ws.onerror = () => {
-        ws?.close();
-      };
-    };
+      ws.onerror = () => ws.close();
+    }
 
-    reconnectAttempted.current = false;
-    setLoading(true);
     connect();
-
     return () => {
-      cancelled = true;
-      ws?.close();
+      dead = true;
+      wsRef.current?.close();
     };
   }, [slug]);
 
-  return { yes, no, loading };
+  return state;
 }
