@@ -4,6 +4,7 @@ import { MARKETS, type Market as CardMarket } from "./mock-data";
 import type { Market, MarketSnapshot } from "./market-view-model";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "";
 export const PAPER_BALANCE = 100_000;
 export const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
 
