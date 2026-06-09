@@ -7,13 +7,13 @@ export const ACCESS_TOKEN_KEY = "alphaedge.accessToken";
 
 export type PortfolioPosition = {
   id: string;
-  market_slug: string;
-  market_title: string;
+  slug: string;
   side: string;
-  outcome: string;
-  quantity: number;
-  price: number | null;
-  realized_pnl?: number | null;
+  shares: number;
+  avg_cost: number;
+  cost: number;
+  current_price: number | null;
+  unrealized_pnl: number | null;
 };
 
 export type PortfolioView = {
