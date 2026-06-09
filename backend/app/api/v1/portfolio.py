@@ -59,7 +59,9 @@ async def get_portfolio(
     total_trades = 0
 
     try:
-        positions = await _load_paper_orders(db, str(current_user.id))
+        # current_user.id is a UUID; SQLite stores UUIDs as 32-char hex
+        # strings (CHAR(32), no dashes), so we pass .hex for the text() query.
+        positions = await _load_paper_orders(db, current_user.id.hex)
         total_trades = len(positions)
     except (OperationalError, ProgrammingError):
         positions = []

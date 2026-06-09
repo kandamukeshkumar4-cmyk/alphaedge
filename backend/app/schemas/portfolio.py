@@ -7,14 +7,12 @@ PORTFOLIO_DISCLAIMER = (
 
 
 class PortfolioPositionResponse(BaseModel):
-    id: str
+    id: str | None = None
     market_slug: str
-    market_title: str
     side: str
-    outcome: str
-    quantity: float
-    price: float | None = None
-    realized_pnl: float | None = None
+    shares: float
+    avg_cost: float
+    cost: float
 
 
 class PortfolioResponse(BaseModel):
