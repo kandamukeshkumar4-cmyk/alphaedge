@@ -32,6 +32,14 @@ const CATEGORY_TABS = [
   { label: "Paper trading", href: "/portfolio" },
 ];
 
+function formatPaperBalance(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 function truncateEmail(value: string): string {
   const at = value.indexOf("@");
   if (at <= 0 || value.length <= 20) {
@@ -55,7 +63,7 @@ function NavLabel({ label, unreadCount }: { label: string; unreadCount?: number 
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const { token, email, logout, isReady } = useAuth();
+  const { token, email, paperBalance, logout, isReady } = useAuth();
   const [open, setOpen] = useState(false);
   const { alerts, unreadCount, markRead } = useSignalAlerts();
   const showCategoryBar = pathname === "/" || pathname.startsWith("/markets");
@@ -122,6 +130,11 @@ export function SiteHeader() {
           <div className="flex items-center gap-2">
             {isLoggedIn ? (
               <>
+                {paperBalance !== null ? (
+                  <span className="hidden font-mono text-sm font-bold text-primary sm:inline">
+                    {formatPaperBalance(paperBalance)}
+                  </span>
+                ) : null}
                 <span
                   className="hidden max-w-[160px] truncate text-sm font-semibold text-muted sm:inline"
                   title={email ?? undefined}

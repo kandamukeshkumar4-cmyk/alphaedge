@@ -46,7 +46,7 @@ async def resolve_market(
 
     winner_credits: dict[uuid.UUID, Decimal] = {}
     for order in orders:
-        if order.side == outcome:
+        if order.outcome.upper() == outcome:
             credit = Decimal(str(order.shares)) * Decimal("1.0")
             winner_credits[order.user_id] = winner_credits.get(order.user_id, Decimal("0")) + credit
         order.settled = True
