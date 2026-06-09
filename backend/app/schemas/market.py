@@ -298,6 +298,31 @@ class PaperAccountResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MarketDetailOutcome(BaseModel):
+    label: str
+    implied_prob: float
+    price: float
+
+
+class MarketDetailForecast(BaseModel):
+    model_prob: float
+    clv_gate_passed: bool
+    provisional: bool
+
+
+class MarketDetailResponse(BaseModel):
+    slug: str
+    title: str
+    category: str
+    status: str
+    outcomes: list[MarketDetailOutcome]
+    forecast: Optional[MarketDetailForecast] = None
+    volume_usd: int
+    traders: int
+    resolution_criteria: str
+    paper_trading_only: bool = True
+
+
 class HealthResponse(BaseModel):
     status: str
     paper_trading_only: bool

@@ -18,22 +18,37 @@ import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
 import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
 import { cn } from "@/lib/cn";
-import { fetchMarketDetail } from "@/lib/alphaedge-api";
+import {
+  fetchMarketDetail,
+  fetchMarketDetailApi,
+  type MarketDetailApi,
+} from "@/lib/alphaedge-api";
+
+const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
+const PAPER_DISCLAIMER =
+  "This project is a paper-trading simulation for sports and election markets using simulated funds for research and portfolio demonstration only.";
 
 export default function MarketDetailClient({ slug }: { slug: string }) {
   const [apiMarket, setApiMarket] = useState<Market | null>(null);
+  const [apiDetail, setApiDetail] = useState<MarketDetailApi | null>(null);
   const [loadedApi, setLoadedApi] = useState(false);
   const localMarket = getMarket(slug);
   const market = apiMarket ?? localMarket;
+  const forecastProvisional = apiDetail?.forecast?.provisional ?? true;
+  const resolutionCriteria =
+    apiDetail?.resolution_criteria ?? market?.resolution ?? "Resolution criteria unavailable.";
 
   useEffect(() => {
     let cancelled = false;
-    fetchMarketDetail(slug).then((nextMarket) => {
-      if (!cancelled) {
-        setApiMarket(nextMarket);
-        setLoadedApi(true);
-      }
-    });
+    Promise.all([fetchMarketDetailApi(slug), fetchMarketDetail(slug)]).then(
+      ([detail, nextMarket]) => {
+        if (!cancelled) {
+          setApiDetail(detail);
+          setApiMarket(nextMarket);
+          setLoadedApi(true);
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -125,8 +140,22 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
 
           <div className="grid gap-5 md:grid-cols-2">
             <OrderBook market={market} />
-            <AIForecastPanel market={market} />
+            <div className="space-y-3">
+              {forecastProvisional ? (
+                <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-200">
+                  {PROVISIONAL_LABEL}
+                </p>
+              ) : null}
+              <AIForecastPanel market={market} />
+            </div>
           </div>
+
+          <section className="rounded-2xl border border-border bg-surface p-4">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
+              Resolution criteria
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-text">{resolutionCriteria}</p>
+          </section>
 
           <MarketTabs market={market} />
         </div>
@@ -137,6 +166,10 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <DecisionSignalPanel market={market} />
         </div>
       </div>
+
+      <footer className="mt-8 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-center text-xs text-muted">
+        {PAPER_DISCLAIMER}
+      </footer>
     </main>
   );
 }

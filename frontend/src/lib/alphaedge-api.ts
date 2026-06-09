@@ -123,7 +123,49 @@ export async function fetchMarketSnapshot(slug: string): Promise<MarketSnapshot>
   }
 }
 
+export type MarketDetailApi = {
+  slug: string;
+  title: string;
+  category: string;
+  status: string;
+  outcomes: Array<{ label: string; implied_prob: number; price: number }>;
+  forecast: {
+    model_prob: number;
+    clv_gate_passed: boolean;
+    provisional: boolean;
+  } | null;
+  volume_usd: number;
+  traders: number;
+  resolution_criteria: string;
+  paper_trading_only: boolean;
+};
+
+export async function fetchMarketDetailApi(
+  slug: string,
+): Promise<MarketDetailApi | null> {
+  if (!API_BASE) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/markets/${slug}/detail`, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as MarketDetailApi;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMarketDetail(slug: string): Promise<CardMarket | null> {
+  const detail = await fetchMarketDetailApi(slug);
+  if (detail) {
+    return mergeApiDetailForCards(detail, MARKETS);
+  }
+
   if (!API_BASE) {
     return null;
   }
@@ -134,6 +176,75 @@ export async function fetchMarketDetail(slug: string): Promise<CardMarket | null
   } catch {
     return null;
   }
+}
+
+function mergeApiDetailForCards(
+  detail: MarketDetailApi,
+  localMarkets: CardMarket[],
+): CardMarket {
+  const local = localMarkets.find((market) => market.slug === detail.slug);
+  const yes = detail.outcomes.find((outcome) => outcome.label === "YES");
+  const no = detail.outcomes.find((outcome) => outcome.label === "NO");
+  const yesPrice = yes?.price ?? 0.5;
+  const noPrice = no?.price ?? 0.5;
+
+  return {
+    id: local?.id ?? detail.slug,
+    slug: detail.slug,
+    category: (detail.category as CardMarket["category"]) ?? local?.category ?? "Sports",
+    icon: local?.icon ?? "📊",
+    title: detail.title,
+    question: local?.question ?? detail.title,
+    endsAt: local?.endsAt ?? new Date().toISOString(),
+    volume: detail.volume_usd,
+    traders: detail.traders,
+    marketCount: local?.marketCount ?? 1,
+    trendDelta: local?.trendDelta ?? 0,
+    outcomes: [
+      {
+        id: "yes",
+        label: local?.outcomes[0]?.label ?? "YES",
+        emoji: local?.outcomes[0]?.emoji ?? "Y",
+        price: yesPrice,
+        prevPrice: local?.outcomes[0]?.prevPrice ?? yesPrice,
+        tone: local?.outcomes[0]?.tone ?? "primary",
+      },
+      {
+        id: "no",
+        label: local?.outcomes[1]?.label ?? "NO",
+        emoji: local?.outcomes[1]?.emoji ?? "N",
+        price: noPrice,
+        prevPrice: local?.outcomes[1]?.prevPrice ?? noPrice,
+        tone: local?.outcomes[1]?.tone ?? "danger",
+      },
+      ...(local?.outcomes.slice(2) ?? []),
+    ],
+    forecast: detail.forecast
+      ? {
+          prob: detail.forecast.model_prob,
+          confidence: local?.forecast.confidence ?? 0.5,
+          edge: local?.forecast.edge ?? 0,
+          brier: local?.forecast.brier ?? 0,
+          reasoning:
+            local?.forecast.reasoning ??
+            "API-backed market forecast generated from current market proof.",
+        }
+      : local?.forecast ?? {
+          prob: 0.5,
+          confidence: 0.5,
+          edge: 0,
+          brier: 0,
+          reasoning: "Forecast unavailable.",
+        },
+    bids: local?.bids ?? [],
+    asks: local?.asks ?? [],
+    trades: local?.trades ?? [],
+    holders: local?.holders ?? [],
+    comments: local?.comments ?? [],
+    seed: local?.seed ?? 0,
+    description: local?.description ?? detail.resolution_criteria,
+    resolution: detail.resolution_criteria,
+  };
 }
 
 function fallbackForSlug(slug: string): MarketSnapshot {
