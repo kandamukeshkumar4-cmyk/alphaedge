@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { useAuth } from "@/hooks/useAuth";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatUSD } from "@/lib/mock-data";
@@ -13,15 +15,25 @@ import {
 } from "@/lib/portfolio-api";
 
 export default function PortfolioPage() {
+  const router = useRouter();
+  const { token, isReady } = useAuth();
   const [portfolio, setPortfolio] = useState<PortfolioView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    if (isReady && !token) {
+      router.replace("/auth/login");
+    }
+  }, [isReady, token, router]);
+
+  useEffect(() => {
     setMounted(true);
-    void loadPortfolio();
-  }, []);
+    if (token) {
+      void loadPortfolio();
+    }
+  }, [token]);
 
   async function loadPortfolio() {
     setLoading(true);
@@ -50,7 +62,7 @@ export default function PortfolioPage() {
     }
   }
 
-  if (!mounted) {
+  if (!mounted || !isReady || !token) {
     return (
       <main className="mx-auto max-w-[1200px] px-4 py-10">
         <div className="skeleton h-40 w-full" />
