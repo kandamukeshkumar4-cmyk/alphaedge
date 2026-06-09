@@ -27,6 +27,9 @@ dependencies = [
     "langgraph>=0.2.60",
     "langchain-core>=0.3.0",
     "openai>=1.55.0",
+    "pyjwt>=2.9.0",
+    "bcrypt>=4.2.0",
+    "email-validator>=2.2.0",
 ]
 
 [project.optional-dependencies]
