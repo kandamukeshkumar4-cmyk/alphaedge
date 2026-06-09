@@ -62,6 +62,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(orders_router)
 app.include_router(portfolio_router)
 app.include_router(v1_router)
 app.include_router(market_detail_router)
