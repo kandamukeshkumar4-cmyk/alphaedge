@@ -9,6 +9,7 @@ from slowapi.util import get_remote_address
 from app import PAPER_TRADING_DISCLAIMER
 from app.admin.agent_routes import router as agent_admin_router
 from app.admin.routes import router as admin_router
+from app.api.v1.admin_markets import router as admin_markets_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.orders import router as orders_router
 from app.api.v1.portfolio import router as portfolio_router
@@ -63,6 +64,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(admin_markets_router)
 app.include_router(orders_router)
 app.include_router(portfolio_router)
 app.include_router(v1_router)

@@ -35,6 +35,8 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
   const localMarket = getMarket(slug);
   const market = apiMarket ?? localMarket;
   const forecastProvisional = apiDetail?.forecast?.provisional ?? true;
+  const isResolved = apiDetail?.resolved ?? false;
+  const resolutionOutcome = apiDetail?.resolution_outcome ?? null;
   const resolutionCriteria =
     apiDetail?.resolution_criteria ?? market?.resolution ?? "Resolution criteria unavailable.";
 
@@ -95,6 +97,11 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           </div>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted">
+          {isResolved ? (
+            <span className="rounded-md bg-primary-dim px-2 py-1 font-bold uppercase text-primary">
+              Resolved {resolutionOutcome ?? ""}
+            </span>
+          ) : null}
           <span className="font-mono">{formatCompactUSD(market.volume)} vol</span>
           <span className="font-mono">{market.traders.toLocaleString()} traders</span>
           <span className="rounded-md bg-surface-2 px-2 py-1 font-mono">
@@ -162,7 +169,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
 
         {/* Right: sticky trade panel */}
         <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
-          <TradePanel market={market} />
+          <TradePanel market={market} disabled={isResolved} />
           <DecisionSignalPanel market={market} />
         </div>
       </div>

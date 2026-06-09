@@ -91,9 +91,19 @@ class PaperOrder(Base):
     shares: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     cost: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="paper_orders")
+
+
+class MarketResolution(Base):
+    __tablename__ = "market_resolutions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(3), nullable=False)
+    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Account(Base):

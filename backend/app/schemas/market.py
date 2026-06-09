@@ -321,6 +321,8 @@ class MarketDetailResponse(BaseModel):
     traders: int
     resolution_criteria: str
     paper_trading_only: bool = True
+    resolved: bool = False
+    resolution_outcome: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
