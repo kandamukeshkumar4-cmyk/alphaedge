@@ -13,6 +13,7 @@ CLV / significance / Kelly gate — no new gate logic.
 from __future__ import annotations
 
 import logging
+import pickle
 import re
 from datetime import date, datetime, timezone
 from functools import lru_cache
@@ -20,6 +21,17 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_CACHE_PATH = Path(__file__).parent / ".model_cache.pkl"
+
+
+def _cache_is_fresh(path: Path, max_age_hours: int = 24) -> bool:
+    if not path.exists():
+        return False
+    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    age_hours = (datetime.now(timezone.utc) - mtime).total_seconds() / 3600
+    return age_hours < max_age_hours
+
 
 FIFA_SLUG_PREFIX = "wc2026-"
 
@@ -91,6 +103,18 @@ class FifaPredictor:
             return False
 
     def _load_and_train(self) -> None:
+        if _CACHE_PATH.exists() and _cache_is_fresh(_CACHE_PATH, max_age_hours=24):
+            with _CACHE_PATH.open("rb") as cache_file:
+                (
+                    self._model,
+                    self._mc_result,
+                    self._results_df,
+                    self._bracket_df,
+                    self._fixtures_df,
+                ) = pickle.load(cache_file)
+            logger.info("FifaPredictor: loaded from cache %s", _CACHE_PATH)
+            return
+
         from app.data.fifa.loaders import load_intl_results, load_wc2026_bracket, load_wc2026_fixtures
         from app.data.fifa.model import FifaMatchModel, build_training_dataset
 
@@ -121,6 +145,19 @@ class FifaPredictor:
 
         # Run Monte Carlo (500 runs — enough for calibration, fast for init)
         self._run_monte_carlo(n_runs=500)
+
+        with _CACHE_PATH.open("wb") as cache_file:
+            pickle.dump(
+                (
+                    self._model,
+                    self._mc_result,
+                    self._results_df,
+                    self._bracket_df,
+                    self._fixtures_df,
+                ),
+                cache_file,
+            )
+        logger.info("FifaPredictor: wrote cache %s", _CACHE_PATH)
 
     def _run_monte_carlo(self, n_runs: int = 500) -> None:
         from app.data.fifa.monte_carlo import FifaTournamentSimulator

@@ -142,6 +142,50 @@ def test_monte_carlo_advances_sums_to_one():
     assert total_advance >= 1.0  # at least non-trivial advance rate
 
 
+def test_predictor_second_init_loads_from_cache_quickly(tmp_path, monkeypatch):
+    """Warm cache reload should skip training and finish in under 2 seconds."""
+    import pickle
+    import time
+
+    from app.data.fifa.model import FifaMatchModel, build_training_dataset
+    from app.data.fifa.predictor import FifaPredictor
+
+    cache_path = tmp_path / ".model_cache.pkl"
+    monkeypatch.setattr("app.data.fifa.predictor._CACHE_PATH", cache_path)
+
+    df = _make_results(200)
+    X, y = build_training_dataset(df, max_date=datetime.date(2026, 1, 1))
+    model = FifaMatchModel()
+    model.fit(X, y)
+
+    fixtures_df = pd.DataFrame(
+        [
+            {
+                "match_number": 1,
+                "home_team_canonical": "Brazil",
+                "away_team_canonical": "France",
+                "home_team_name": "Brazil",
+                "away_team_name": "France",
+                "home_group_letter": "A",
+                "home_is_placeholder": False,
+            }
+        ]
+    )
+
+    with cache_path.open("wb") as cache_file:
+        pickle.dump((model, None, df, None, fixtures_df), cache_file)
+
+    t0 = time.perf_counter()
+    predictor = FifaPredictor(data_dir=tmp_path)
+    assert predictor._ensure_initialized()
+    elapsed = time.perf_counter() - t0
+
+    assert elapsed < 2.0
+    prob = predictor.calibrated_prob("wc2026-m1-mex-homewin")
+    assert prob is not None
+    assert 0.0 < prob < 1.0
+
+
 @pytest.mark.skipif(
     not (DATA_DIR / "intl_results.csv").exists(),
     reason="intl_results.csv not present",
