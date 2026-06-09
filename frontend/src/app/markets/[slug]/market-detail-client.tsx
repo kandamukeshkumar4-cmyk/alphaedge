@@ -18,6 +18,7 @@ import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
 import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
 import MarketExplainer from "@/components/MarketExplainer";
+import { PredictionWidget } from "@/components/PredictionWidget";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
 import {
@@ -192,6 +193,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
 
         {/* Right: sticky trade panel */}
         <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
+          <PredictionWidget slug={slug} className="mt-4" />
           <TradePanel market={market} disabled={isResolved} />
           <DecisionSignalPanel market={market} />
           <MarketExplainer slug={slug} />
