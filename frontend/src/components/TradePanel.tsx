@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatUSD, cents, type Market } from "@/lib/mock-data";
-import { fetchPaperAccount, submitPaperOrder } from "@/lib/paper-trading-api";
+import { ACCESS_TOKEN_KEY, placePaperOrder } from "@/lib/orders-api";
 import { readPortfolio, subscribePortfolio } from "@/lib/portfolio-store";
 import { useToast } from "./ToastProvider";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -18,15 +18,8 @@ export function TradePanel({ market }: { market: Market }) {
 
   useEffect(() => {
     setBalance(readPortfolio().balance);
-    let cancelled = false;
-    fetchPaperAccount().then((account) => {
-      if (!cancelled && account?.paper_trading_only) {
-        setBalance(Number(account.available_cash));
-      }
-    });
     const unsubscribe = subscribePortfolio(() => setBalance(readPortfolio().balance));
     return () => {
-      cancelled = true;
       unsubscribe();
     };
   }, []);
@@ -51,43 +44,44 @@ export function TradePanel({ market }: { market: Market }) {
       toast({ title: "Enter a quantity", tone: "error" });
       return;
     }
-    setSubmitting(true);
-    const apiResult = await submitPaperOrder({
-      slug: market.slug,
-      side,
-      shares,
-      price,
-      forecast: {
-        predictedProb: market.forecast.prob,
-        confidence: market.forecast.confidence,
-        edge: side === "YES" ? market.forecast.edge : -market.forecast.edge,
-      },
-      currentDrawdown: 0,
-      minutesBeforeStart: minutesBeforeStart(market.endsAt),
-    });
 
-    if (apiResult.ok) {
-      setBalance(Number(apiResult.account.available_cash));
-      setSubmitting(false);
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) {
       toast({
-        title: "Order accepted",
-        body: apiResult.message,
-        tone: "success",
+        title: "Log in required",
+        body: "Sign in at /auth/login to place paper orders.",
+        tone: "error",
       });
       return;
     }
 
-    setSubmitting(false);
-    toast({
-      title: "Order rejected",
-      body: apiResult.message,
-      tone: "error",
-    });
+    setSubmitting(true);
+    try {
+      const result = await placePaperOrder(token, {
+        slug: market.slug,
+        side,
+        shares,
+        price,
+      });
+      setBalance(result.remaining_balance);
+      toast({
+        title: "Order accepted",
+        body: `Remaining paper balance: ${formatUSD(result.remaining_balance)}`,
+        tone: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Order rejected",
+        body: error instanceof Error ? error.message : "Unable to place order",
+        tone: "error",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      {/* Buy / Sell tabs */}
       <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1">
         <button
           onClick={() => setSide("YES")}
@@ -109,7 +103,6 @@ export function TradePanel({ market }: { market: Market }) {
         </button>
       </div>
 
-      {/* Outcome selector for multi-outcome markets */}
       {market.outcomes.length > 2 && (
         <div className="mt-3">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
@@ -134,7 +127,6 @@ export function TradePanel({ market }: { market: Market }) {
         </div>
       )}
 
-      {/* Price chips */}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div
           className={cn(
@@ -160,7 +152,6 @@ export function TradePanel({ market }: { market: Market }) {
         </div>
       </div>
 
-      {/* Shares */}
       <div className="mt-3">
         <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
           Shares
@@ -185,7 +176,6 @@ export function TradePanel({ market }: { market: Market }) {
         </div>
       </div>
 
-      {/* Preview */}
       <dl className="mt-4 space-y-2 text-sm">
         <Row label="Avg price" value={cents(price)} />
         <Row label="Cost" value={formatUSD(preview.cost)} />
@@ -225,11 +215,6 @@ export function TradePanel({ market }: { market: Market }) {
       </p>
     </div>
   );
-}
-
-function minutesBeforeStart(iso: string): number {
-  const ms = new Date(iso).getTime() - Date.now();
-  return Math.max(0, Math.floor(ms / 60_000));
 }
 
 function Row({
