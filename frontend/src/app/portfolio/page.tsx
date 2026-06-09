@@ -146,10 +146,9 @@ export default function PortfolioPage() {
                     <tr>
                       <th className="pb-2">Market</th>
                       <th className="pb-2">Side</th>
-                      <th className="pb-2 text-right">Shares</th>
-                      <th className="pb-2 text-right">Avg Cost</th>
-                      <th className="pb-2 text-right">Current Price</th>
-                      <th className="pb-2 text-right">Unrealized P&amp;L</th>
+                      <th className="pb-2 text-right">Quantity</th>
+                      <th className="pb-2 text-right">Price</th>
+                      <th className="pb-2 text-right">Realized P&amp;L</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -157,17 +156,20 @@ export default function PortfolioPage() {
                       <tr key={position.id} className="border-t border-border">
                         <td className="py-2">
                           <Link
-                            href={`/markets/${position.slug}`}
-                            className="font-mono text-text hover:text-accent"
+                            href={`/markets/${position.market_slug}`}
+                            className="hover:text-accent"
                           >
-                            {position.slug}
+                            <span className="text-text">{position.market_title}</span>
+                            <span className="block text-[11px] text-muted">
+                              {position.outcome}
+                            </span>
                           </Link>
                         </td>
                         <td className="py-2">
                           <span
                             className={cn(
                               "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
-                              position.side === "YES"
+                              position.outcome.toLowerCase() === "yes"
                                 ? "bg-primary-dim text-primary"
                                 : "bg-danger-dim text-danger",
                             )}
@@ -176,27 +178,23 @@ export default function PortfolioPage() {
                           </span>
                         </td>
                         <td className="py-2 text-right font-mono text-muted">
-                          {position.shares}
+                          {position.quantity}
                         </td>
                         <td className="py-2 text-right font-mono text-text">
-                          {formatUSD(position.avg_cost)}
-                        </td>
-                        <td className="py-2 text-right font-mono text-text">
-                          {position.current_price === null
-                            ? "—"
-                            : formatUSD(position.current_price)}
+                          {position.price === null ? "—" : formatUSD(position.price)}
                         </td>
                         <td
                           className={cn(
                             "py-2 text-right font-mono font-bold",
-                            (position.unrealized_pnl ?? 0) >= 0
+                            (position.realized_pnl ?? 0) >= 0
                               ? "text-primary"
                               : "text-danger",
                           )}
                         >
-                          {position.unrealized_pnl === null
+                          {position.realized_pnl === null ||
+                          position.realized_pnl === undefined
                             ? "—"
-                            : formatSignedUsd(position.unrealized_pnl)}
+                            : formatSignedUsd(position.realized_pnl)}
                         </td>
                       </tr>
                     ))}

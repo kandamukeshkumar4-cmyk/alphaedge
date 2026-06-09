@@ -8,13 +8,13 @@ PORTFOLIO_DISCLAIMER = (
 
 class PortfolioPositionResponse(BaseModel):
     id: str
-    slug: str
+    market_slug: str
+    market_title: str
     side: str
-    shares: float
-    avg_cost: float
-    cost: float
-    current_price: float | None = None
-    unrealized_pnl: float | None = None
+    outcome: str
+    quantity: float
+    price: float | None = None
+    realized_pnl: float | None = None
 
 
 class PortfolioResponse(BaseModel):
