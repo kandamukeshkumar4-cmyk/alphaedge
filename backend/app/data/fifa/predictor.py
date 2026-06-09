@@ -67,12 +67,15 @@ def predict_fifa_market(slug: str, features: dict[str, Any]) -> Any:
             return None
         implied = float(features.get("implied_yes", 0.5))
         edge = prob - implied
+        # is_edge stays False until WC2026 closing lines are available for the CLV gate.
+        # Do not set is_edge=True here — that decision belongs to assess_closing_edge
+        # once real market close snapshots are captured post-tournament.
         return ForecastPrediction(
             predicted_prob=prob,
             confidence=0.55 if abs(edge) > 0.03 else 0.5,
             edge=max(edge, 0.0),
-            is_edge=edge > 0.02,
-            reason="fifa-wdl-model" if edge > 0.02 else "fifa-model-no-edge",
+            is_edge=False,
+            reason="fifa-model-provisional-no-closing-line",
         )
     except Exception as exc:
         logger.warning("FIFA predict_fifa_market failed for %s: %s", slug, exc)

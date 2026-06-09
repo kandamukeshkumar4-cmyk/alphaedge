@@ -248,9 +248,9 @@ type Spec = {
   outcomes: Array<{ label: string; emoji: string; price: number }>;
   reasoning: string;
   confidence: number;
-  brier: number;
+  brier?: number;
   description: string;
-  resolution: string;
+  resolution?: string;
 };
 
 const SPECS: Spec[] = [
@@ -489,6 +489,142 @@ const SPECS: Spec[] = [
     description: "Will the FOMC cut the target range at its next scheduled meeting?",
     resolution: "Resolves to the official FOMC decision.",
   },
+  // ── FIFA World Cup 2026 ──────────────────────────────────────────────────────
+  {
+    slug: "wc2026-m1-mex-homewin",
+    category: "Sports",
+    icon: "⚽",
+    title: "WC2026 M1: Mexico win",
+    question: "Will Mexico win their Group A opener vs South Africa?",
+    endsInHours: 220,
+    volume: 184_000,
+    traders: 620,
+    marketCount: 3,
+    outcomes: [
+      { label: "Yes", emoji: "🇲🇽", price: 0.44 },
+      { label: "No", emoji: "❌", price: 0.56 },
+    ],
+    reasoning:
+      "Mexico's home-continent edge and recent form tilt the W/D/L model above the book; South Africa competitive but draw/away outcomes priced fairly.",
+    confidence: 0.58,
+    brier: 0.168,
+    description:
+      "FIFA World Cup 2026 Group A, Match 1: Mexico vs South Africa (regulation).",
+    resolution:
+      "Resolves YES if Mexico win in regulation. Paper-trading simulation only.",
+  },
+  {
+    slug: "wc2026-m1-draw",
+    category: "Sports",
+    icon: "⚽",
+    title: "WC2026 M1: Draw",
+    question: "Will Mexico vs South Africa end in a draw?",
+    endsInHours: 220,
+    volume: 92_000,
+    traders: 410,
+    marketCount: 3,
+    outcomes: [
+      { label: "Yes", emoji: "⚪", price: 0.27 },
+      { label: "No", emoji: "❌", price: 0.73 },
+    ],
+    reasoning:
+      "Group openers often cagey; model sees a modest draw tail vs the de-vigged trio summing to ~1.00.",
+    confidence: 0.52,
+    brier: 0.175,
+    description:
+      "FIFA World Cup 2026 Group A, Match 1: Mexico vs South Africa (regulation).",
+    resolution:
+      "Resolves YES if the match ends in a draw. Paper-trading simulation only.",
+  },
+  {
+    slug: "wc2026-m1-rsa-awaywin",
+    category: "Sports",
+    icon: "⚽",
+    title: "WC2026 M1: South Africa win",
+    question: "Will South Africa win their Group A opener vs Mexico?",
+    endsInHours: 220,
+    volume: 78_000,
+    traders: 355,
+    marketCount: 3,
+    outcomes: [
+      { label: "Yes", emoji: "🇿🇦", price: 0.29 },
+      { label: "No", emoji: "❌", price: 0.71 },
+    ],
+    reasoning:
+      "Away upset path priced near model; Mexico favored but South Africa's defensive structure keeps away-win live.",
+    confidence: 0.54,
+    brier: 0.172,
+    description:
+      "FIFA World Cup 2026 Group A, Match 1: Mexico vs South Africa (regulation).",
+    resolution:
+      "Resolves YES if South Africa win in regulation. Paper-trading simulation only.",
+  },
+  {
+    slug: "wc2026-winner-brazil",
+    category: "Sports",
+    icon: "🏆",
+    title: "WC2026: Brazil win",
+    question: "Will Brazil win the FIFA World Cup 2026?",
+    endsInHours: 220,
+    volume: 1_240_000,
+    traders: 4_820,
+    marketCount: 1,
+    outcomes: [
+      { label: "Yes", emoji: "🇧🇷", price: 0.16 },
+      { label: "No", emoji: "❌", price: 0.84 },
+    ],
+    reasoning:
+      "Monte Carlo cup path strong but bracket variance wide; model slightly below early book on Brazil.",
+    confidence: 0.62,
+    brier: 0.148,
+    description: "Brazil tournament-winner market for FIFA World Cup 2026.",
+    resolution:
+      "Resolves YES if Brazil lift the trophy. Paper-trading simulation only.",
+  },
+  {
+    slug: "wc2026-winner-france",
+    category: "Sports",
+    icon: "🏆",
+    title: "WC2026: France win",
+    question: "Will France win the FIFA World Cup 2026?",
+    endsInHours: 220,
+    volume: 1_180_000,
+    traders: 4_650,
+    marketCount: 1,
+    outcomes: [
+      { label: "Yes", emoji: "🇫🇷", price: 0.15 },
+      { label: "No", emoji: "❌", price: 0.85 },
+    ],
+    reasoning:
+      "Defending quality and depth keep France in the MC top tier; price aligns with simulated P(win cup).",
+    confidence: 0.61,
+    brier: 0.151,
+    description: "France tournament-winner market for FIFA World Cup 2026.",
+    resolution:
+      "Resolves YES if France lift the trophy. Paper-trading simulation only.",
+  },
+  {
+    slug: "wc2026-winner-argentina",
+    category: "Sports",
+    icon: "🏆",
+    title: "WC2026: Argentina win",
+    question: "Will Argentina win the FIFA World Cup 2026?",
+    endsInHours: 220,
+    volume: 1_310_000,
+    traders: 5_100,
+    marketCount: 1,
+    outcomes: [
+      { label: "Yes", emoji: "🇦🇷", price: 0.19 },
+      { label: "No", emoji: "❌", price: 0.81 },
+    ],
+    reasoning:
+      "Holder premium in the book; MC model trims Argentina slightly vs market on aging core risk.",
+    confidence: 0.64,
+    brier: 0.145,
+    description: "Argentina tournament-winner market for FIFA World Cup 2026.",
+    resolution:
+      "Resolves YES if Argentina lift the trophy. Paper-trading simulation only.",
+  },
 ];
 
 function buildMarket(spec: Spec): Market {
@@ -523,13 +659,13 @@ function buildMarket(spec: Spec): Market {
       prob: Math.min(0.97, yesPrice + (rand() - 0.3) * 0.08),
       confidence: spec.confidence,
       edge: Math.max(-0.06, Math.min(0.08, edge + (rand() - 0.5) * 0.02)),
-      brier: spec.brier,
+      brier: spec.brier ?? 0.15,
       reasoning: spec.reasoning,
     },
     bids: book.bids,
     asks: book.asks,
     description: spec.description,
-    resolution: spec.resolution,
+    resolution: spec.resolution ?? "Resolves per market rules.",
     trades: makeTrades(rand, outcomes),
     holders: makeHolders(rand),
     comments: makeComments(rand),
