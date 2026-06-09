@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     )
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     admin_api_key: str = Field(default="dev-admin-key", alias="ADMIN_API_KEY")
+    jwt_secret_key: str = Field(default="dev-jwt-secret-change-in-production", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_expire_minutes: int = Field(default=60 * 24 * 7, alias="JWT_EXPIRE_MINUTES")
     cors_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000",
         alias="CORS_ORIGINS",
