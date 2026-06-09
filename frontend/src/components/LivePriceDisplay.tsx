@@ -25,7 +25,8 @@ function usePriceFlash(value: number, loading: boolean): FlashDirection {
 }
 
 export function LivePriceDisplay({ slug }: { slug: string }) {
-  const { yes, no, loading } = useMarketPrice(slug);
+  const { yes, no, connected } = useMarketPrice(slug);
+  const loading = !connected;
   const yesFlash = usePriceFlash(yes, loading);
   const noFlash = usePriceFlash(no, loading);
 
