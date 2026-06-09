@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -24,18 +22,14 @@ async def _load_paper_orders(
     result = await db.execute(
         text(
             """
-            SELECT
-                id,
-                market_slug,
-                market_title,
-                side,
-                outcome,
-                quantity,
-                price,
-                realized_pnl
+            SELECT slug, side,
+                   SUM(shares) AS shares,
+                   AVG(price)  AS avg_cost,
+                   SUM(cost)   AS cost
             FROM paper_orders
             WHERE user_id = :user_id
-            ORDER BY created_at DESC
+            GROUP BY slug, side
+            ORDER BY MAX(created_at) DESC
             """
         ),
         {"user_id": user_id},
@@ -45,16 +39,12 @@ async def _load_paper_orders(
     for row in rows:
         positions.append(
             PortfolioPositionResponse(
-                id=str(row["id"]),
-                market_slug=str(row["market_slug"]),
-                market_title=str(row["market_title"]),
+                id=None,
+                market_slug=str(row["slug"]),
                 side=str(row["side"]),
-                outcome=str(row["outcome"]),
-                quantity=float(row["quantity"]),
-                price=float(row["price"]) if row["price"] is not None else None,
-                realized_pnl=(
-                    float(row["realized_pnl"]) if row["realized_pnl"] is not None else None
-                ),
+                shares=float(row["shares"]),
+                avg_cost=float(row["avg_cost"]),
+                cost=float(row["cost"]),
             )
         )
     return positions
@@ -66,24 +56,19 @@ async def get_portfolio(
     db: AsyncSession = Depends(get_db),
 ) -> PortfolioResponse:
     positions: list[PortfolioPositionResponse] = []
-    realized_pnl = Decimal("0")
     total_trades = 0
 
     try:
         positions = await _load_paper_orders(db, str(current_user.id))
         total_trades = len(positions)
-        for position in positions:
-            if position.realized_pnl is not None:
-                realized_pnl += Decimal(str(position.realized_pnl))
     except (OperationalError, ProgrammingError):
         positions = []
-        realized_pnl = Decimal("0")
         total_trades = 0
 
     return PortfolioResponse(
         paper_balance=float(current_user.paper_balance),
         positions=positions,
-        realized_pnl=float(realized_pnl),
+        realized_pnl=0.0,
         total_trades=total_trades,
         paper_trading_only=True,
         disclaimer=PORTFOLIO_DISCLAIMER,
