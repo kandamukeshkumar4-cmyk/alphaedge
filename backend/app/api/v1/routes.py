@@ -211,6 +211,11 @@ async def get_forecast_signal(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+@router.get("/signals/feed", response_model=SignalFeedResponse)
+async def get_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
+    return await list_signal_feed(limit=limit, db=db)
+
+
 @router.get("/signals", response_model=SignalFeedResponse)
 async def list_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
     tracking = CLVTrackingService(db)
