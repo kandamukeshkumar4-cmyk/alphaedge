@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -19,6 +21,16 @@ from app.db.models import (
 from app.events.bus import DomainEventBus
 from app.forecasting import scoring
 from app.forecasting.market_source import get_adapter
+from app.forecasting.predictor import predict_market
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class MarketDetailForecastResult:
+    model_prob: float
+    clv_gate_passed: bool
+    provisional: bool
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -36,6 +48,31 @@ class ForecastService:
     def __init__(self, session: AsyncSession, correlation_id: str | None = None):
         self.session = session
         self.events = DomainEventBus(session, correlation_id)
+
+    @staticmethod
+    def predict(slug: str, implied_yes: float = 0.5) -> MarketDetailForecastResult | None:
+        """Return a paper forecast for catalog markets when the predictor is available."""
+        try:
+            prediction = predict_market(
+                {
+                    "market_slug": slug,
+                    "implied_yes": implied_yes,
+                    "market_implied": implied_yes,
+                }
+            )
+        except Exception:
+            logger.exception("ForecastService.predict failed for slug=%s", slug)
+            return None
+
+        clv_gate_passed = (
+            prediction.evaluation is not None
+            and prediction.evaluation.model_beats_closing
+        )
+        return MarketDetailForecastResult(
+            model_prob=round(prediction.predicted_prob, 4),
+            clv_gate_passed=clv_gate_passed,
+            provisional=not clv_gate_passed,
+        )
 
     async def lock_forecast(
         self,

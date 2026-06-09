@@ -18,6 +18,19 @@ from app.events.bus import DomainEventBus
 from app.schemas.market import MarketResponse
 from app.services.ledger_service import LedgerService
 
+CATALOG_SLUGS: frozenset[str] = frozenset(
+    {
+        "nba-2025-01-15-lal-bos",
+        "elect-la-mayor-2026",
+        "wc2026-m1-mex-homewin",
+        "wc2026-m1-draw",
+        "wc2026-m1-rsa-awaywin",
+        "wc2026-winner-brazil",
+        "wc2026-winner-france",
+        "wc2026-winner-argentina",
+    }
+)
+
 
 class MarketService:
     def __init__(self, session: AsyncSession, correlation_id: str | None = None):
