@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-bg font-sans text-text">
         <ToastProvider>
+          <HealthBanner />
           <SiteHeader />
           <div className="min-h-[calc(100vh-7rem)]">{children}</div>
           <footer className="border-t border-border bg-surface/40 px-4 py-6 text-center">
