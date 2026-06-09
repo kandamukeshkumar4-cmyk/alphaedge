@@ -9,8 +9,33 @@ const PLATFORM_STYLES: Record<string, string> = {
   Kalshi: "border-primary/35 bg-primary/15 text-primary",
 };
 
+const CATEGORY_BADGE_STYLES: Record<string, string> = {
+  NBA: "border-accent/35 bg-accent/15 text-accent",
+  "FIFA WC2026": "border-emerald-500/35 bg-emerald-500/15 text-emerald-400",
+  Elections: "border-[#5B4FE8]/35 bg-[#5B4FE8]/15 text-[#B4ABFF]",
+};
+
+type CatalogCategory = keyof typeof CATEGORY_BADGE_STYLES;
+
 function platformBadgeClass(platform: string): string {
   return PLATFORM_STYLES[platform] ?? "border-border bg-surface-2 text-muted";
+}
+
+function catalogCategory(market: Market): CatalogCategory | null {
+  if (market.slug.startsWith("nba-") || market.category === "NBA") {
+    return "NBA";
+  }
+  if (market.slug.startsWith("wc2026-") || market.category === "FIFA WC2026") {
+    return "FIFA WC2026";
+  }
+  if (
+    market.slug.startsWith("elect-") ||
+    market.category === "Elections" ||
+    market.category === "Politics"
+  ) {
+    return "Elections";
+  }
+  return null;
 }
 
 function statusLabel(status: string): "Open" | "Resolved" {
@@ -20,6 +45,7 @@ function statusLabel(status: string): "Open" | "Resolved" {
 export function MarketCard({ market }: { market: Market }) {
   const impliedPct =
     market.implied_yes != null ? Math.round(market.implied_yes * 100) : null;
+  const category = catalogCategory(market);
 
   return (
     <Link
@@ -28,9 +54,20 @@ export function MarketCard({ market }: { market: Market }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-            {market.category}
-          </p>
+          {category ? (
+            <span
+              className={cn(
+                "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em]",
+                CATEGORY_BADGE_STYLES[category],
+              )}
+            >
+              {category}
+            </span>
+          ) : (
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+              {market.category}
+            </p>
+          )}
           <h3 className="mt-1.5 line-clamp-2 text-base font-black leading-snug text-text">
             {market.title}
           </h3>

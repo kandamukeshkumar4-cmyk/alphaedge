@@ -5,17 +5,39 @@ import { useEffect, useState } from "react";
 import { MarketCard, MarketCardSkeleton } from "@/components/MarketCard";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
-import { fetchMarkets, type Market } from "@/lib/markets-api";
+import {
+  fetchMarkets,
+  type Market,
+  type MarketCategory,
+} from "@/lib/markets-api";
 
 type StatusFilter = "all" | "open" | "resolved";
+type CategoryFilter = "all" | MarketCategory;
 
-const FILTERS: { label: string; value: StatusFilter }[] = [
+const CATEGORY_TABS: { label: string; value: CategoryFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "NBA", value: "NBA" },
+  { label: "FIFA WC2026", value: "FIFA WC2026" },
+  { label: "Elections", value: "Elections" },
+];
+
+const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
   { label: "All", value: "all" },
   { label: "Open", value: "open" },
   { label: "Resolved", value: "resolved" },
 ];
 
+function tabClass(active: boolean): string {
+  return cn(
+    "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition",
+    active
+      ? "border-accent bg-accent/15 text-accent"
+      : "border-border text-muted hover:border-border-light hover:text-text",
+  );
+}
+
 export default function MarketsPage() {
+  const [category, setCategory] = useState<CategoryFilter>("all");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +58,8 @@ export default function MarketsPage() {
       setError(null);
       try {
         const apiFilter = filter === "all" ? undefined : filter;
-        const next = await fetchMarkets(apiFilter);
+        const apiCategory = category === "all" ? undefined : category;
+        const next = await fetchMarkets(apiFilter, apiCategory);
         if (!cancelled) {
           setMarkets(next);
         }
@@ -58,7 +81,16 @@ export default function MarketsPage() {
     return () => {
       cancelled = true;
     };
-  }, [apiConfigured, filter]);
+  }, [apiConfigured, category, filter]);
+
+  const emptyLabel =
+    category === "all"
+      ? filter === "all"
+        ? ""
+        : `${filter} `
+      : filter === "all"
+        ? `${category} `
+        : `${category} ${filter} `;
 
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-8 sm:px-5">
@@ -73,18 +105,26 @@ export default function MarketsPage() {
         </p>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        {CATEGORY_TABS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setCategory(item.value)}
+            className={tabClass(category === item.value)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-6 flex flex-wrap gap-2">
-        {FILTERS.map((item) => (
+        {STATUS_FILTERS.map((item) => (
           <button
             key={item.value}
             type="button"
             onClick={() => setFilter(item.value)}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition",
-              filter === item.value
-                ? "border-accent bg-accent/15 text-accent"
-                : "border-border text-muted hover:border-border-light hover:text-text",
-            )}
+            className={tabClass(filter === item.value)}
           >
             {item.label}
           </button>
@@ -108,7 +148,7 @@ export default function MarketsPage() {
         </div>
       ) : markets.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
-          No {filter === "all" ? "" : `${filter} `}markets found.
+          No {emptyLabel}markets found.
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

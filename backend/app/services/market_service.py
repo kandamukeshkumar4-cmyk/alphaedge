@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy import String, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,8 @@ CATALOG_SLUGS: frozenset[str] = frozenset(
         "wc2026-winner-argentina",
     }
 )
+
+CATALOG_CATEGORIES: frozenset[str] = frozenset({"NBA", "FIFA WC2026", "Elections"})
 
 
 class MarketService:
@@ -153,27 +155,44 @@ class MarketService:
         result = await self.session.execute(select(Market).order_by(Market.created_at.desc()))
         return list(result.scalars().all())
 
-    async def list_public_markets(self) -> list[MarketResponse]:
-        result = await self.session.execute(
-            select(
-                Market.id,
-                Market.slug,
-                Market.title,
-                Market.question,
-                Market.category,
-                Market.icon,
-                Market.volume,
-                Market.traders,
-                Market.market_count,
-                Market.description,
-                Market.resolution,
-                cast(Market.status, String).label("status"),
-                Market.lock_at,
-                Market.resolved_at,
-                cast(Market.winning_outcome, String).label("winning_outcome"),
-            ).order_by(Market.created_at.desc())
-        )
+    async def list_public_markets(self, category: str | None = None) -> list[MarketResponse]:
+        stmt = select(
+            Market.id,
+            Market.slug,
+            Market.title,
+            Market.question,
+            Market.category,
+            Market.icon,
+            Market.volume,
+            Market.traders,
+            Market.market_count,
+            Market.description,
+            Market.resolution,
+            cast(Market.status, String).label("status"),
+            Market.lock_at,
+            Market.resolved_at,
+            cast(Market.winning_outcome, String).label("winning_outcome"),
+        ).order_by(Market.created_at.desc())
+        category_filter = self._catalog_category_filter(category)
+        if category_filter is not None:
+            stmt = stmt.where(category_filter)
+        result = await self.session.execute(stmt)
         return [self._market_response_from_row(row._mapping) for row in result.all()]
+
+    @staticmethod
+    def _catalog_category_filter(category: str | None):
+        if category is None:
+            return None
+        if category == "NBA":
+            return or_(Market.category == "NBA", Market.slug.like("nba-%"))
+        if category == "FIFA WC2026":
+            return or_(Market.category == "FIFA WC2026", Market.slug.like("wc2026-%"))
+        if category == "Elections":
+            return or_(
+                Market.category.in_(("Elections", "Politics")),
+                Market.slug.like("elect-%"),
+            )
+        return Market.category == category
 
     async def get_market_by_slug(self, slug: str) -> Market | None:
         result = await self.session.execute(select(Market).where(Market.slug == slug))
@@ -230,7 +249,7 @@ class MarketService:
                 "title": "Lakers vs Celtics",
                 "question": "Will the Lakers win?",
                 "lock_at": catalog_lock_at,
-                "category": "Sports",
+                "category": "NBA",
                 "icon": "🏀",
                 "volume": 2_413_000,
                 "traders": 3_214,
@@ -238,13 +257,13 @@ class MarketService:
                 "description": "Head-to-head paper market on the Lakers vs Celtics matchup.",
                 "resolution": "Resolves YES if the Lakers win the game, otherwise NO.",
             },
-            # ── Politics ─────────────────────────────────────────────────────────
+            # ── Elections ─────────────────────────────────────────────────────────
             {
                 "slug": "elect-la-mayor-2026",
                 "title": "Los Angeles mayoral election",
                 "question": "Will the incumbent win re-election?",
                 "lock_at": catalog_lock_at,
-                "category": "Politics",
+                "category": "Elections",
                 "icon": "🗳️",
                 "volume": 842_000,
                 "traders": 1_104,
@@ -259,7 +278,7 @@ class MarketService:
                 "title": "WC2026 M1: Will Mexico win vs South Africa?",
                 "question": "Will Mexico win their Group A opener vs South Africa?",
                 "lock_at": wc_lock,
-                "category": "Sports",
+                "category": "FIFA WC2026",
                 "icon": "⚽",
                 "volume": 0,
                 "traders": 0,
@@ -272,7 +291,7 @@ class MarketService:
                 "title": "WC2026 M1: Will Mexico vs South Africa draw?",
                 "question": "Will Mexico vs South Africa end in a draw?",
                 "lock_at": wc_lock,
-                "category": "Sports",
+                "category": "FIFA WC2026",
                 "icon": "⚽",
                 "volume": 0,
                 "traders": 0,
@@ -285,7 +304,7 @@ class MarketService:
                 "title": "WC2026 M1: Will South Africa win vs Mexico?",
                 "question": "Will South Africa win their Group A opener vs Mexico?",
                 "lock_at": wc_lock,
-                "category": "Sports",
+                "category": "FIFA WC2026",
                 "icon": "⚽",
                 "volume": 0,
                 "traders": 0,
@@ -299,7 +318,7 @@ class MarketService:
                 "title": "WC2026: Will Brazil win the World Cup?",
                 "question": "Will Brazil win the FIFA World Cup 2026?",
                 "lock_at": wc_lock,
-                "category": "Sports",
+                "category": "FIFA WC2026",
                 "icon": "⚽",
                 "volume": 0,
                 "traders": 0,
@@ -312,7 +331,7 @@ class MarketService:
                 "title": "WC2026: Will France win the World Cup?",
                 "question": "Will France win the FIFA World Cup 2026?",
                 "lock_at": wc_lock,
-                "category": "Sports",
+                "category": "FIFA WC2026",
                 "icon": "⚽",
                 "volume": 0,
                 "traders": 0,
@@ -325,7 +344,7 @@ class MarketService:
                 "title": "WC2026: Will Argentina win the World Cup?",
                 "question": "Will Argentina win the FIFA World Cup 2026?",
                 "lock_at": wc_lock,
-                "category": "Sports",
+                "category": "FIFA WC2026",
                 "icon": "⚽",
                 "volume": 0,
                 "traders": 0,

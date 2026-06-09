@@ -56,12 +56,24 @@ function matchesFilter(market: Market, filter?: "open" | "resolved"): boolean {
   return market.status === "resolved";
 }
 
-export async function fetchMarkets(filter?: "open" | "resolved"): Promise<Market[]> {
+export type MarketCategory = "NBA" | "FIFA WC2026" | "Elections";
+
+export async function fetchMarkets(
+  filter?: "open" | "resolved",
+  category?: MarketCategory,
+): Promise<Market[]> {
   if (!API_BASE) {
     return [];
   }
 
-  const response = await fetch(`${API_BASE}/api/v1/markets`, {
+  const params = new URLSearchParams();
+  if (category) {
+    params.set("category", category);
+  }
+  const query = params.toString();
+  const url = query ? `${API_BASE}/api/v1/markets?${query}` : `${API_BASE}/api/v1/markets`;
+
+  const response = await fetch(url, {
     cache: "no-store",
   });
   if (!response.ok) {

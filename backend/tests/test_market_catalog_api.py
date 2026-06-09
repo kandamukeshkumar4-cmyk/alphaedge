@@ -16,7 +16,7 @@ async def test_seed_catalog_markets_creates_sports_and_election_defaults(db_sess
 
     categories = {market.category for market in seeded}
     slugs = {market.slug for market in seeded}
-    assert {"Sports", "Politics"}.issubset(categories)
+    assert {"NBA", "Elections", "FIFA WC2026"}.issubset(categories)
     assert "nba-2025-01-15-lal-bos" in slugs
     assert "elect-la-mayor-2026" in slugs
 
@@ -34,7 +34,7 @@ async def test_seed_catalog_markets_updates_existing_rows_with_catalog_metadata(
     seeded = await service.seed_catalog_markets()
     canonical = next(market for market in seeded if market.slug == "nba-2025-01-15-lal-bos")
 
-    assert canonical.category == "Sports"
+    assert canonical.category == "NBA"
     assert canonical.icon == "🏀"
     assert canonical.volume == 2_413_000
     assert canonical.traders == 3_214
@@ -53,7 +53,7 @@ async def test_public_markets_include_sports_and_election_catalog_metadata(db_se
         title="Lakers vs Celtics",
         question="Will the Lakers win?",
         lock_at=datetime.now(timezone.utc) + timedelta(hours=6),
-        category="Sports",
+        category="NBA",
         icon="🏀",
         volume=2_413_000,
         traders=3_214,
@@ -66,7 +66,7 @@ async def test_public_markets_include_sports_and_election_catalog_metadata(db_se
         title="Los Angeles mayoral election",
         question="Will the incumbent win re-election?",
         lock_at=datetime.now(timezone.utc) + timedelta(days=30),
-        category="Politics",
+        category="Elections",
         icon="🗳️",
         volume=842_000,
         traders=1_104,
@@ -92,14 +92,14 @@ async def test_public_markets_include_sports_and_election_catalog_metadata(db_se
     markets = {market["slug"]: market for market in response.json()}
 
     assert markets["nba-2025-01-15-lal-bos"] | {
-        "category": "Sports",
+        "category": "NBA",
         "icon": "🏀",
         "volume": 2_413_000,
         "traders": 3_214,
         "market_count": 3,
     } == markets["nba-2025-01-15-lal-bos"]
     assert markets["elect-la-mayor-2026"] | {
-        "category": "Politics",
+        "category": "Elections",
         "icon": "🗳️",
         "volume": 842_000,
         "traders": 1_104,

@@ -57,9 +57,14 @@ settings = get_settings()
 
 
 @router.get("/markets", response_model=list[MarketResponse])
-async def list_markets(db: AsyncSession = Depends(get_db)):
+async def list_markets(
+    category: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    if category is not None and category not in {"NBA", "FIFA WC2026", "Elections"}:
+        raise HTTPException(status_code=400, detail="Invalid category filter")
     svc = MarketService(db)
-    return await svc.list_public_markets()
+    return await svc.list_public_markets(category=category)
 
 
 @router.get("/markets/{slug}", response_model=MarketResponse)
