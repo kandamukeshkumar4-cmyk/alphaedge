@@ -12,6 +12,7 @@
 | market-predictions-api | feat/market-predictions-api | - | - |
 | state-calibration   | feat/state-calibration   | - | - |
 | agent-skills        | feat/agent-skills        | - | - |
+| scheduled-autolab   | feat/scheduled-autolab    | pending | pytest 2/2 |
 
 ## Calibration Metrics
 
@@ -23,10 +24,10 @@
 
 - [ ] Drop FIFA CSVs into `backend/app/data/fifa/` → 7 skipped tests become active
 - [ ] GROUP BY slug/side (not id) in portfolio.py for net positions
-- [ ] Schedule calibration AutoLab loop
+- [x] Schedule calibration AutoLab loop
 
 ## AutoLab Baseline
 
 ```
-AutoLab: baseline=Brier threshold=0.25 | benchmark=tests/test_calibration.py | iterations=0 | budget=5 | outcome=pending first run
+AutoLab: baseline=Brier threshold=0.25 | benchmark=tests/test_calibration.py | schedule=nightly 3am UTC (.github/workflows/calibration-autolab.yml) | budget=5 | outcome=automation-armed
 ```
