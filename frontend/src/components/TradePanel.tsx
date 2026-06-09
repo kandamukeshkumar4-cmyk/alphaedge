@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { formatUSD, cents, type Market } from "@/lib/mock-data";
-import { ACCESS_TOKEN_KEY, placePaperOrder } from "@/lib/orders-api";
-import { readPortfolio, subscribePortfolio } from "@/lib/portfolio-store";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { formatUSD, type Market } from "@/lib/mock-data";
+import { placePaperOrder } from "@/lib/orders-api";
+import { useAuth } from "@/hooks/useAuth";
+import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { useToast } from "./ToastProvider";
-import { AnimatedNumber } from "./AnimatedNumber";
 import { cn } from "@/lib/cn";
 
 export function TradePanel({
@@ -16,48 +17,28 @@ export function TradePanel({
   disabled?: boolean;
 }) {
   const { toast } = useToast();
-  const [outcomeIdx, setOutcomeIdx] = useState(0);
-  const [side, setSide] = useState<"YES" | "NO">("YES");
+  const { token, refreshBalance } = useAuth();
+  const livePrice = useMarketPrice(market.slug);
+  const [outcome, setOutcome] = useState<"yes" | "no">("yes");
   const [shares, setShares] = useState(10);
-  const [balance, setBalance] = useState(100_000);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    setBalance(readPortfolio().balance);
-    const unsubscribe = subscribePortfolio(() => setBalance(readPortfolio().balance));
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  const staticYes = market.outcomes[0]?.price ?? 0.5;
+  const price =
+    outcome === "yes"
+      ? livePrice.connected && livePrice.yes > 0
+        ? livePrice.yes
+        : staticYes
+      : livePrice.connected && livePrice.no > 0
+        ? livePrice.no
+        : 1 - staticYes;
 
-  const outcome = market.outcomes[outcomeIdx];
-  const price = side === "YES" ? outcome.price : 1 - outcome.price;
-  const preview = useMemo(() => {
-    const cost = price * shares;
-    const toWin = shares;
-    return {
-      cost,
-      toWin,
-      profit: toWin - cost,
-      balanceAfter: balance - cost,
-    };
-  }, [price, shares, balance]);
-
-  const insufficient = preview.cost > balance;
+  const cost = useMemo(() => shares * price, [shares, price]);
 
   async function submit() {
-    if (shares <= 0) {
-      toast({ title: "Enter a quantity", tone: "error" });
-      return;
-    }
-
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (!token) {
-      toast({
-        title: "Log in required",
-        body: "Sign in at /auth/login to place paper orders.",
-        tone: "error",
-      });
+    if (!token) return;
+    if (shares < 1) {
+      toast({ title: "Enter at least 1 share", tone: "error" });
       return;
     }
 
@@ -65,14 +46,15 @@ export function TradePanel({
     try {
       const result = await placePaperOrder(token, {
         slug: market.slug,
-        side,
+        side: "buy",
+        outcome,
         shares,
         price,
       });
-      setBalance(result.remaining_balance);
+      await refreshBalance();
       toast({
-        title: "Order accepted",
-        body: `Remaining paper balance: ${formatUSD(result.remaining_balance)}`,
+        title: "Order placed",
+        body: `Cost ${formatUSD(result.cost)} · Balance ${formatUSD(result.remaining_balance)}`,
         tone: "success",
       });
     } catch (error) {
@@ -86,160 +68,91 @@ export function TradePanel({
     }
   }
 
+  if (!token) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-4 text-center">
+        <p className="text-sm font-semibold text-text">Log in to trade</p>
+        <Link
+          href="/auth/login"
+          className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
+        >
+          Log In
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1">
         <button
-          onClick={() => setSide("YES")}
+          type="button"
+          onClick={() => setOutcome("yes")}
           className={cn(
             "rounded-lg py-2 text-sm font-bold transition",
-            side === "YES" ? "bg-primary text-bg" : "text-muted hover:text-text",
+            outcome === "yes" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
           Buy Yes
         </button>
         <button
-          onClick={() => setSide("NO")}
+          type="button"
+          onClick={() => setOutcome("no")}
           className={cn(
             "rounded-lg py-2 text-sm font-bold transition",
-            side === "NO" ? "bg-danger text-bg" : "text-muted hover:text-text",
+            outcome === "no" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
           Buy No
         </button>
       </div>
 
-      {market.outcomes.length > 2 && (
-        <div className="mt-3">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
-            Outcome
-          </label>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {market.outcomes.map((o, i) => (
-              <button
-                key={o.id}
-                onClick={() => setOutcomeIdx(i)}
-                className={cn(
-                  "rounded-md border px-2 py-1 text-xs font-semibold transition",
-                  i === outcomeIdx
-                    ? "border-accent bg-surface-2 text-text"
-                    : "border-border text-muted hover:text-text",
-                )}
-              >
-                {o.emoji} {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div
-          className={cn(
-            "rounded-lg border p-2.5 text-center",
-            side === "YES" ? "border-primary/50 bg-primary-dim" : "border-border",
-          )}
-        >
-          <div className="text-[11px] font-semibold text-muted">Yes</div>
-          <div className="font-mono text-lg font-black text-primary">
-            {cents(outcome.price)}
-          </div>
-        </div>
-        <div
-          className={cn(
-            "rounded-lg border p-2.5 text-center",
-            side === "NO" ? "border-danger/50 bg-danger-dim" : "border-border",
-          )}
-        >
-          <div className="text-[11px] font-semibold text-muted">No</div>
-          <div className="font-mono text-lg font-black text-danger">
-            {cents(1 - outcome.price)}
-          </div>
-        </div>
-      </div>
-
       <div className="mt-3">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
+        <label
+          htmlFor={`trade-shares-${market.slug}`}
+          className="text-[11px] font-semibold uppercase tracking-wider text-muted-2"
+        >
           Shares
         </label>
-        <div className="mt-1.5 flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            value={shares}
-            onChange={(e) => setShares(Math.max(0, Number(e.target.value)))}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm text-text focus:border-accent focus:outline-none"
-          />
-          {[10, 50, 100].map((q) => (
-            <button
-              key={q}
-              onClick={() => setShares(q)}
-              className="rounded-md border border-border px-2 py-2 text-xs font-semibold text-muted transition hover:text-text"
-            >
-              {q}
-            </button>
-          ))}
-        </div>
+        <input
+          id={`trade-shares-${market.slug}`}
+          type="number"
+          min={1}
+          step={1}
+          value={shares}
+          onChange={(e) => setShares(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+          className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm text-text focus:border-accent focus:outline-none"
+        />
       </div>
 
       <dl className="mt-4 space-y-2 text-sm">
-        <Row label="Avg price" value={cents(price)} />
-        <Row label="Cost" value={formatUSD(preview.cost)} />
-        <Row label="To win" value={formatUSD(preview.toWin)} accent />
-        <Row
-          label="Potential profit"
-          value={`${preview.profit >= 0 ? "+" : ""}${formatUSD(preview.profit)}`}
-          accent
-        />
+        <div className="flex items-center justify-between">
+          <dt className="text-muted">Price</dt>
+          <dd className="font-mono font-bold text-text">{formatUSD(price)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="text-muted">Cost</dt>
+          <dd className="font-mono font-bold text-primary">{formatUSD(cost)}</dd>
+        </div>
       </dl>
 
       <button
+        type="button"
         onClick={submit}
-        disabled={disabled || submitting || insufficient}
+        disabled={disabled || submitting || shares < 1}
         className={cn(
           "mt-4 w-full rounded-xl py-2.5 text-sm font-bold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
-          side === "YES" ? "bg-primary text-bg" : "bg-danger text-bg",
+          outcome === "yes" ? "bg-primary text-bg" : "bg-danger text-bg",
         )}
       >
         {disabled
           ? "Market resolved"
           : submitting
-            ? "Processing…"
-            : insufficient
-              ? "Insufficient balance"
-              : `Buy ${side} · ${outcome.label}`}
+            ? "Placing order…"
+            : `Buy ${outcome.toUpperCase()}`}
       </button>
 
-      <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
-        <span>Paper balance</span>
-        <AnimatedNumber
-          value={balance}
-          format={(n) => formatUSD(n)}
-          className="font-mono font-bold text-text"
-        />
-      </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-2">
-        Paper simulation only.
-      </p>
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted">{label}</dt>
-      <dd className={cn("font-mono font-bold", accent ? "text-primary" : "text-text")}>
-        {value}
-      </dd>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-2">Paper simulation only.</p>
     </div>
   );
 }

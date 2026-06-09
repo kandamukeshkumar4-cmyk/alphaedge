@@ -88,6 +88,7 @@ class PaperOrder(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     slug: Mapped[str] = mapped_column(String(128), nullable=False)
     side: Mapped[str] = mapped_column(String(3), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(3), nullable=False, default="yes")
     shares: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     cost: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)

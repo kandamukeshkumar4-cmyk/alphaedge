@@ -4,7 +4,8 @@ export const ACCESS_TOKEN_KEY = "alphaedge.accessToken";
 
 export type PaperOrderInput = {
   slug: string;
-  side: "YES" | "NO";
+  side: "buy";
+  outcome: "yes" | "no";
   shares: number;
   price: number;
 };

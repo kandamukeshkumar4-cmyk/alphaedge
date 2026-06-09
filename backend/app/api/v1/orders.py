@@ -44,7 +44,8 @@ async def place_paper_order(
     order = PaperOrder(
         user_id=current_user.id,
         slug=body.slug,
-        side=body.side,
+        side=body.outcome.upper(),
+        outcome=body.outcome,
         shares=shares,
         price=price,
         cost=cost,
@@ -55,7 +56,7 @@ async def place_paper_order(
     return PaperOrderResponse(
         order_id=order.id,
         slug=order.slug,
-        side=body.side,
+        side=body.outcome.upper(),  # type: ignore[arg-type]
         shares=float(shares),
         cost=float(cost),
         remaining_balance=float(current_user.paper_balance),
