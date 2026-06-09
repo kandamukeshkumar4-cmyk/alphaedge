@@ -1,96 +1,122 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  MARKETS,
-  CATEGORIES,
-  trendingRows,
-  highestVolumeRows,
-  type Category,
-} from "@/lib/mock-data";
-import { fetchMarkets } from "@/lib/alphaedge-api";
-import { marketCountLabel } from "@/lib/market-copy";
-import { MarketCard } from "@/components/MarketCard";
-import { DiscoveryRail } from "@/components/DiscoveryRail";
-import { MotionReveal } from "@/components/MotionReveal";
-import { cn } from "@/lib/cn";
 
-type Filter = "All" | Category;
+import { MarketCard, MarketCardSkeleton } from "@/components/MarketCard";
+import { API_BASE } from "@/lib/alphaedge-api";
+import { cn } from "@/lib/cn";
+import { fetchMarkets, type Market } from "@/lib/markets-api";
+
+type StatusFilter = "all" | "open" | "resolved";
+
+const FILTERS: { label: string; value: StatusFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Open", value: "open" },
+  { label: "Resolved", value: "resolved" },
+];
 
 export default function MarketsPage() {
-  const [filter, setFilter] = useState<Filter>("All");
-  const [markets, setMarkets] = useState(MARKETS);
+  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [markets, setMarkets] = useState<Market[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const apiConfigured = Boolean(API_BASE);
 
   useEffect(() => {
-    const cat = new URLSearchParams(window.location.search).get("cat");
-    if (cat && (CATEGORIES as string[]).includes(cat)) {
-      setFilter(cat as Category);
+    if (!apiConfigured) {
+      setLoading(false);
+      setMarkets([]);
+      return;
     }
-  }, []);
 
-  useEffect(() => {
     let cancelled = false;
-    fetchMarkets().then((apiMarkets) => {
-      if (!cancelled) {
-        setMarkets(apiMarkets);
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const apiFilter = filter === "all" ? undefined : filter;
+        const next = await fetchMarkets(apiFilter);
+        if (!cancelled) {
+          setMarkets(next);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setMarkets([]);
+          setError(
+            loadError instanceof Error ? loadError.message : "Failed to load markets.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    });
+    }
+
+    void load();
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const filtered =
-    filter === "All" ? markets : markets.filter((m) => m.category === filter);
-  const categories = Array.from(new Set([...CATEGORIES, ...markets.map((m) => m.category)]));
-  const filters: Filter[] = ["All", ...categories];
+  }, [apiConfigured, filter]);
 
   return (
-    <main className="mx-auto max-w-[1400px] px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-text">All markets</h1>
-          <p className="mt-1 text-sm text-muted">
-            {marketCountLabel(filtered.length)} · AI edge, live book, and proof metrics.
-          </p>
-        </div>
-        <div className="rounded-lg border border-primary/25 bg-primary-dim px-4 py-2 text-sm">
-          <span className="font-mono font-bold text-primary">$100,000</span>{" "}
-          <span className="text-muted">paper bankroll</span>
-        </div>
+    <main className="mx-auto max-w-[1200px] px-4 py-8 sm:px-5">
+      <div className="mb-8">
+        <p className="text-xs font-bold uppercase tracking-[0.08em] text-accent">
+          Market discovery
+        </p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-text">Markets</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted">
+          Browse open and resolved prediction markets across Polymarket and Kalshi with
+          implied YES pricing at a glance.
+        </p>
       </div>
 
-      <div className="no-scrollbar mt-5 flex gap-2 overflow-x-auto">
-        {filters.map((f) => (
+      <div className="mb-6 flex flex-wrap gap-2">
+        {FILTERS.map((item) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={item.value}
+            type="button"
+            onClick={() => setFilter(item.value)}
             className={cn(
-              "whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-semibold transition",
-              filter === f
-                ? "border-primary bg-primary-dim text-primary"
-                : "border-border text-muted hover:text-text",
+              "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition",
+              filter === item.value
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border text-muted hover:border-border-light hover:text-text",
             )}
           >
-            {f}
+            {item.label}
           </button>
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          {filtered.map((m, i) => (
-            <MotionReveal key={m.slug} delay={Math.min(i * 0.03, 0.2)}>
-              <MarketCard market={m} />
-            </MotionReveal>
+      {!apiConfigured ? (
+        <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
+          Set <code className="font-mono text-text">NEXT_PUBLIC_API_URL</code> to load live
+          markets from the API.
+        </div>
+      ) : loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <MarketCardSkeleton key={index} />
           ))}
         </div>
-
-        <aside className="space-y-4 lg:sticky lg:top-28 lg:self-start">
-          <DiscoveryRail title="Trending" rows={trendingRows()} />
-          <DiscoveryRail title="Highest volume" rows={highestVolumeRows()} />
-        </aside>
-      </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-10 text-center text-sm text-danger">
+          {error}
+        </div>
+      ) : markets.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
+          No {filter === "all" ? "" : `${filter} `}markets found.
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {markets.map((market) => (
+            <MarketCard key={market.id} market={market} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
