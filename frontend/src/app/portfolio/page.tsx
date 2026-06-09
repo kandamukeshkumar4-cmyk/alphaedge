@@ -1,534 +1,238 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  readPortfolio,
-  subscribePortfolio,
-  resetPortfolio,
-  type PortfolioState,
-} from "@/lib/portfolio-store";
-import {
-  buildPaperAccountView,
-  selectDisplayedPortfolioState,
-  type PaperAccountView,
-} from "@/lib/paper-account-view-model";
-import {
-  cancelPaperOrder,
-  fetchPaperAccount,
-  resetPaperAccountSession,
-} from "@/lib/paper-trading-api";
-import { getMarket, formatUSD, cents, PAPER_BALANCE } from "@/lib/mock-data";
-import { Sparkline } from "@/components/Sparkline";
-import { AnimatedNumber } from "@/components/AnimatedNumber";
-import { useToast } from "@/components/ToastProvider";
-import { cn } from "@/lib/cn";
+import { useEffect, useState } from "react";
 
-function currentPriceFor(slug: string, outcome: string, side: "YES" | "NO"): number {
-  const m = getMarket(slug);
-  const oc = m?.outcomes.find((o) => o.label === outcome) ?? m?.outcomes[0];
-  const yes = oc?.price ?? 0.5;
-  return side === "YES" ? yes : 1 - yes;
-}
+import { API_BASE } from "@/lib/alphaedge-api";
+import { cn } from "@/lib/cn";
+import { formatUSD } from "@/lib/mock-data";
+import {
+  fetchPortfolio,
+  getAccessToken,
+  type PortfolioView,
+} from "@/lib/portfolio-api";
 
 export default function PortfolioPage() {
-  const { toast } = useToast();
-  const [state, setState] = useState<PortfolioState>({
-    balance: PAPER_BALANCE,
-    positions: [],
-    history: [],
-  });
-  const [accountView, setAccountView] = useState<PaperAccountView | null>(null);
-  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [resettingAccount, setResettingAccount] = useState(false);
+  const [portfolio, setPortfolio] = useState<PortfolioView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    setState(readPortfolio());
-    let cancelled = false;
-    fetchPaperAccount().then((account) => {
-      if (!cancelled && account?.paper_trading_only) {
-        setAccountView(buildPaperAccountView(account));
-      }
-    });
-    const unsubscribe = subscribePortfolio(() => setState(readPortfolio()));
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    void loadPortfolio();
   }, []);
 
-  const displayState = useMemo(
-    () => selectDisplayedPortfolioState(state, accountView),
-    [state, accountView],
-  );
-
-  const metrics = useMemo(() => {
-    let costBasis = 0;
-    let currentValue = 0;
-    let wins = 0;
-    for (const p of displayState.positions) {
-      const cur = currentPriceFor(p.slug, p.outcome, p.side);
-      costBasis += p.entryPrice * p.shares;
-      currentValue += cur * p.shares;
-      if (cur >= p.entryPrice) wins += 1;
+  async function loadPortfolio() {
+    setLoading(true);
+    setError(null);
+    const token = getAccessToken();
+    if (!token) {
+      setPortfolio(null);
+      setError("Log in to view your paper portfolio.");
+      setLoading(false);
+      return;
     }
-    const unrealized = currentValue - costBasis;
-    const accountCash = displayState.balance;
-    const equity = accountCash + currentValue + (accountView?.reservedCash ?? 0);
-    const pnl = equity - PAPER_BALANCE;
-    const roi = (pnl / PAPER_BALANCE) * 100;
-    const winRate = displayState.positions.length
-      ? (wins / displayState.positions.length) * 100
-      : 0;
-    return { unrealized, equity, pnl, roi, winRate, currentValue };
-  }, [displayState, accountView]);
-
-  // Equity curve from history (deterministic-ish reconstruction).
-  const equityCurve = useMemo(() => {
-    const pts: number[] = [PAPER_BALANCE];
-    let running = PAPER_BALANCE;
-    for (const h of [...displayState.history].reverse()) {
-      running += (currentPriceFor(h.slug, h.outcome, h.side) - h.entryPrice) * h.shares;
-      pts.push(running);
+    if (!API_BASE) {
+      setPortfolio(null);
+      setError("Set NEXT_PUBLIC_API_URL to load your portfolio.");
+      setLoading(false);
+      return;
     }
-    pts.push(metrics.equity);
-    return pts.length >= 2 ? pts : [PAPER_BALANCE, PAPER_BALANCE];
-  }, [displayState.history, metrics.equity]);
+    try {
+      const next = await fetchPortfolio(token);
+      setPortfolio(next);
+    } catch (err) {
+      setPortfolio(null);
+      setError(err instanceof Error ? err.message : "Failed to load portfolio.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (!mounted) {
     return (
-      <main className="mx-auto max-w-[1400px] px-4 py-10">
+      <main className="mx-auto max-w-[1200px] px-4 py-10">
         <div className="skeleton h-40 w-full" />
       </main>
     );
   }
 
-  const openOrders = accountView?.openOrders ?? [];
-  const orderHistory = accountView?.orderHistory ?? [];
-  const empty =
-    displayState.positions.length === 0 &&
-    openOrders.length === 0 &&
-    orderHistory.length === 0;
-  async function handleCancelOrder(orderId: string) {
-    if (cancellingOrderId) return;
-    setCancellingOrderId(orderId);
-    try {
-      const result = await cancelPaperOrder({ orderId });
-      if (result.ok) {
-        setAccountView(buildPaperAccountView(result.account));
-        toast({ title: "Order cancelled", tone: "success" });
-        return;
-      }
-      toast({ title: "Cancel failed", body: result.message, tone: "error" });
-    } finally {
-      setCancellingOrderId(null);
-    }
-  }
-
-  async function handleResetPaperAccount() {
-    if (resettingAccount) return;
-    setResettingAccount(true);
-    resetPortfolio();
-    setState(readPortfolio());
-    try {
-      const account = await resetPaperAccountSession();
-      setAccountView(account?.paper_trading_only ? buildPaperAccountView(account) : null);
-      toast({ title: "Paper account reset", tone: "success" });
-    } finally {
-      setResettingAccount(false);
-    }
-  }
+  const empty = !loading && portfolio !== null && portfolio.positions.length === 0;
 
   return (
-    <main className="mx-auto max-w-[1400px] px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <main className="mx-auto max-w-[1200px] px-4 py-8 sm:px-5">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-text">Portfolio</h1>
-          <p className="mt-1 text-sm text-muted">Paper-trading positions and P&L.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-accent">
+            Paper trading
+          </p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight text-text">Portfolio</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            Your paper balance and open positions from the AlphaEdge backend.
+          </p>
         </div>
         <button
           type="button"
-          onClick={handleResetPaperAccount}
-          disabled={resettingAccount}
-          className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-muted transition hover:text-text disabled:cursor-wait disabled:opacity-50"
+          onClick={() => void loadPortfolio()}
+          disabled={loading}
+          className="h-10 rounded-xl border border-border px-4 text-sm font-bold text-text transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {resettingAccount ? "Resetting" : "Reset paper account"}
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
-      {/* Metric cards */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Balance" >
-          <AnimatedNumber
-            value={displayState.balance}
-            format={formatUSD}
-            className="font-mono text-2xl font-black text-text"
-          />
-        </MetricCard>
-        <MetricCard label="Reserved">
-          <AnimatedNumber
-            value={accountView?.reservedCash ?? 0}
-            format={formatUSD}
-            className="font-mono text-2xl font-black text-text"
-          />
-        </MetricCard>
-        <MetricCard label="Equity">
-          <AnimatedNumber
-            value={metrics.equity}
-            format={formatUSD}
-            className="font-mono text-2xl font-black text-text"
-          />
-        </MetricCard>
-        <MetricCard label="Total P&L">
-          <span
-            className={cn(
-              "font-mono text-2xl font-black",
-              metrics.pnl >= 0 ? "text-primary" : "text-danger",
-            )}
-          >
-            {metrics.pnl >= 0 ? "+" : ""}
-            {formatUSD(metrics.pnl)}
-          </span>
-        </MetricCard>
-        <MetricCard label="ROI / Win rate">
-          <span
-            className={cn(
-              "font-mono text-2xl font-black",
-              metrics.roi >= 0 ? "text-primary" : "text-danger",
-            )}
-          >
-            {metrics.roi >= 0 ? "+" : ""}
-            {metrics.roi.toFixed(2)}%
-          </span>
-          <span className="ml-2 font-mono text-sm text-muted">
-            {metrics.winRate.toFixed(0)}% win
-          </span>
-        </MetricCard>
-      </div>
-
-      {/* Equity curve */}
-      <div className="mt-5 rounded-2xl border border-border bg-surface p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-text">Equity curve</h2>
-          <span className="font-mono text-xs text-muted">since open</span>
-        </div>
-        <div className="mt-3">
-          <Sparkline
-            data={equityCurve}
-            up={metrics.pnl >= 0}
-            width={900}
-            height={120}
-            className="h-[120px] w-full"
-          />
-        </div>
-      </div>
-
-      {empty ? (
-        <div className="mt-5 rounded-2xl border border-dashed border-border bg-surface p-10 text-center">
-          <p className="text-text">No positions yet.</p>
-          <p className="mt-1 text-sm text-muted">
-            Place your first paper trade to see it here.
-          </p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
-          >
-            Browse markets
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          {openOrders.length ? (
-            <OpenOrdersTable
-              orders={openOrders}
-              cancellingOrderId={cancellingOrderId}
-              onCancel={handleCancelOrder}
-            />
+      {error ? (
+        <section className="mb-6 rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+          <p>{error}</p>
+          {!getAccessToken() ? (
+            <p className="mt-3">
+              <Link href="/auth/login" className="font-semibold text-accent hover:underline">
+                Log in
+              </Link>{" "}
+              or{" "}
+              <Link href="/auth/signup" className="font-semibold text-accent hover:underline">
+                create an account
+              </Link>
+              .
+            </p>
           ) : null}
-          {displayState.positions.length ? <PositionsTable state={displayState} /> : null}
-          {displayState.history.length ? <HistoryTable state={displayState} /> : null}
-          {orderHistory.length ? <OrderHistoryTable orders={orderHistory} /> : null}
-        </div>
-      )}
+        </section>
+      ) : null}
+
+      {portfolio ? (
+        <>
+          <section className="mb-6 grid gap-3 sm:grid-cols-3">
+            <MetricCard label="Paper balance" value={formatUSD(portfolio.paper_balance)} />
+            <MetricCard
+              label="Realized P&amp;L"
+              value={formatSignedUsd(portfolio.realized_pnl)}
+              tone={portfolio.realized_pnl >= 0 ? "positive" : "negative"}
+            />
+            <MetricCard label="Total trades" value={String(portfolio.total_trades)} />
+          </section>
+
+          {empty ? (
+            <section className="rounded-2xl border border-dashed border-border bg-surface p-10 text-center">
+              <p className="text-lg font-semibold text-text">No paper trades yet</p>
+              <p className="mt-2 text-sm text-muted">
+                Place a paper trade on a market to see positions here.
+              </p>
+              <Link
+                href="/markets"
+                className="mt-5 inline-block rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
+              >
+                Browse markets
+              </Link>
+            </section>
+          ) : (
+            <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
+              <h2 className="text-sm font-black text-text">Positions</h2>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
+                    <tr>
+                      <th className="pb-2">Market</th>
+                      <th className="pb-2">Side</th>
+                      <th className="pb-2 text-right">Quantity</th>
+                      <th className="pb-2 text-right">Price</th>
+                      <th className="pb-2 text-right">Realized P&amp;L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {portfolio.positions.map((position) => (
+                      <tr key={position.id} className="border-t border-border">
+                        <td className="py-2">
+                          <Link
+                            href={`/markets/${position.market_slug}`}
+                            className="hover:text-accent"
+                          >
+                            <span className="text-text">{position.market_title}</span>
+                            <span className="block text-[11px] text-muted">
+                              {position.outcome}
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="py-2">
+                          <span
+                            className={cn(
+                              "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
+                              position.outcome.toLowerCase() === "yes"
+                                ? "bg-primary-dim text-primary"
+                                : "bg-danger-dim text-danger",
+                            )}
+                          >
+                            {position.side}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right font-mono text-muted">
+                          {position.quantity}
+                        </td>
+                        <td className="py-2 text-right font-mono text-text">
+                          {position.price === null ? "—" : formatUSD(position.price)}
+                        </td>
+                        <td
+                          className={cn(
+                            "py-2 text-right font-mono font-bold",
+                            (position.realized_pnl ?? 0) >= 0
+                              ? "text-primary"
+                              : "text-danger",
+                          )}
+                        >
+                          {position.realized_pnl === null ||
+                          position.realized_pnl === undefined
+                            ? "—"
+                            : formatSignedUsd(position.realized_pnl)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
+      ) : null}
+
+      <footer className="mt-8 rounded-2xl border border-border bg-surface p-4 text-xs leading-relaxed text-muted">
+        {portfolio?.disclaimer ??
+          "Research only — not financial advice. Verify resolution terms. Paper trading only."}
+      </footer>
     </main>
   );
 }
 
 function MetricCard({
   label,
-  children,
+  value,
+  tone = "neutral",
 }: {
   label: string;
-  children: React.ReactNode;
+  value: string;
+  tone?: "neutral" | "positive" | "negative";
 }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-2">
-        {label}
-      </div>
-      <div className="mt-1 flex items-baseline">{children}</div>
+      <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted">{label}</p>
+      <p
+        className={cn(
+          "mt-2 font-mono text-2xl font-black",
+          tone === "positive"
+            ? "text-primary"
+            : tone === "negative"
+              ? "text-danger"
+              : "text-text",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }
 
-function OpenOrdersTable({
-  orders,
-  cancellingOrderId,
-  onCancel,
-}: {
-  orders: PaperAccountView["openOrders"];
-  cancellingOrderId: string | null;
-  onCancel: (orderId: string) => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
-      <h2 className="text-sm font-black text-text">Open backend orders</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
-            <tr>
-              <th className="pb-2">Market</th>
-              <th className="pb-2">Side</th>
-              <th className="pb-2 text-right">Remaining</th>
-              <th className="pb-2 text-right">Limit</th>
-              <th className="pb-2 text-right">Reserved</th>
-              <th className="pb-2 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => {
-              const isCancelling = cancellingOrderId === order.id;
-              return (
-                <tr key={order.id} className="border-t border-border">
-                  <td className="py-2">
-                    <Link href={`/markets/${order.marketSlug}`} className="hover:text-accent">
-                      <span className="text-text">{order.marketTitle}</span>
-                      <span className="block text-[11px] text-muted">{order.outcome}</span>
-                    </Link>
-                  </td>
-                  <td className="py-2">
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                        order.outcome === "YES"
-                          ? "bg-primary-dim text-primary"
-                          : "bg-danger-dim text-danger",
-                      )}
-                    >
-                      {order.side}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right font-mono text-muted">
-                    {order.remainingShares}
-                  </td>
-                  <td className="py-2 text-right font-mono text-text">
-                    {cents(order.price)}
-                  </td>
-                  <td className="py-2 text-right font-mono font-bold text-text">
-                    {formatUSD(order.reservedNotional)}
-                  </td>
-                  <td className="py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onCancel(order.id)}
-                      disabled={isCancelling || cancellingOrderId !== null}
-                      className="min-w-20 rounded-md border border-border px-2 py-1 text-xs font-bold text-muted transition hover:border-danger hover:text-danger disabled:cursor-wait disabled:opacity-50"
-                    >
-                      {isCancelling ? "Cancelling" : "Cancel"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function OrderHistoryTable({ orders }: { orders: PaperAccountView["orderHistory"] }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
-      <h2 className="text-sm font-black text-text">Backend order history</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
-            <tr>
-              <th className="pb-2">Market</th>
-              <th className="pb-2">Side</th>
-              <th className="pb-2 text-right">Filled</th>
-              <th className="pb-2 text-right">Avg</th>
-              <th className="pb-2 text-right">Notional</th>
-              <th className="pb-2 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => {
-              const executionPrice = order.averageFillPrice ?? order.price;
-              return (
-                <tr key={order.id} className="border-t border-border">
-                  <td className="py-2">
-                    <Link href={`/markets/${order.marketSlug}`} className="hover:text-accent">
-                      <span className="text-text">{order.marketTitle}</span>
-                      <span className="block text-[11px] text-muted">
-                        {order.outcome} / {formatOrderTimestamp(order.createdAt)}
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="py-2">
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                        order.outcome === "YES"
-                          ? "bg-primary-dim text-primary"
-                          : "bg-danger-dim text-danger",
-                      )}
-                    >
-                      {order.side}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right font-mono text-muted">
-                    {order.filledQuantity}
-                  </td>
-                  <td className="py-2 text-right font-mono text-text">
-                    {executionPrice === null ? "--" : cents(executionPrice)}
-                  </td>
-                  <td className="py-2 text-right font-mono font-bold text-text">
-                    {formatUSD(order.filledNotional)}
-                  </td>
-                  <td className="py-2 text-right font-mono text-[11px] uppercase text-muted">
-                    {order.status}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function PositionsTable({ state }: { state: PortfolioState }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
-      <h2 className="text-sm font-black text-text">Open positions</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
-            <tr>
-              <th className="pb-2">Market</th>
-              <th className="pb-2">Side</th>
-              <th className="pb-2 text-right">Shares</th>
-              <th className="pb-2 text-right">Entry</th>
-              <th className="pb-2 text-right">Now</th>
-              <th className="pb-2 text-right">P&L</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.positions.map((p) => {
-              const cur = currentPriceFor(p.slug, p.outcome, p.side);
-              const pnl = (cur - p.entryPrice) * p.shares;
-              return (
-                <tr key={p.id} className="border-t border-border">
-                  <td className="py-2">
-                    <Link href={`/markets/${p.slug}`} className="hover:text-accent">
-                      <span className="text-text">{p.market}</span>
-                      <span className="block text-[11px] text-muted">{p.outcome}</span>
-                    </Link>
-                  </td>
-                  <td className="py-2">
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                        p.side === "YES"
-                          ? "bg-primary-dim text-primary"
-                          : "bg-danger-dim text-danger",
-                      )}
-                    >
-                      {p.side}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right font-mono text-muted">{p.shares}</td>
-                  <td className="py-2 text-right font-mono text-muted">{cents(p.entryPrice)}</td>
-                  <td className="py-2 text-right font-mono text-text">{cents(cur)}</td>
-                  <td
-                    className={cn(
-                      "py-2 text-right font-mono font-bold",
-                      pnl >= 0 ? "text-primary" : "text-danger",
-                    )}
-                  >
-                    {pnl >= 0 ? "+" : ""}
-                    {formatUSD(pnl)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function formatOrderTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown time";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function HistoryTable({ state }: { state: PortfolioState }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
-      <h2 className="text-sm font-black text-text">Trade history</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-2">
-            <tr>
-              <th className="pb-2">Market</th>
-              <th className="pb-2">Side</th>
-              <th className="pb-2 text-right">Shares</th>
-              <th className="pb-2 text-right">Price</th>
-              <th className="pb-2 text-right">Cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.history.map((h) => (
-              <tr key={h.id} className="border-t border-border">
-                <td className="py-2 text-text">{h.market}</td>
-                <td className="py-2">
-                  <span
-                    className={cn(
-                      "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                      h.side === "YES"
-                        ? "bg-primary-dim text-primary"
-                        : "bg-danger-dim text-danger",
-                    )}
-                  >
-                    {h.side}
-                  </span>
-                </td>
-                <td className="py-2 text-right font-mono text-muted">{h.shares}</td>
-                <td className="py-2 text-right font-mono text-muted">{cents(h.entryPrice)}</td>
-                <td className="py-2 text-right font-mono text-text">
-                  {formatUSD(h.entryPrice * h.shares)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+function formatSignedUsd(value: number): string {
+  const formatted = formatUSD(Math.abs(value));
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
 }
