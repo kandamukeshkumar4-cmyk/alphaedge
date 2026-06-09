@@ -8,7 +8,7 @@ import {
   highestVolumeRows,
 } from "@/lib/mock-data";
 import { HeroFeature } from "@/components/HeroFeature";
-import { MarketCard } from "@/components/MarketCard";
+import { FeaturedMarketCard } from "@/components/FeaturedMarketCard";
 import { DiscoveryRail } from "@/components/DiscoveryRail";
 import { LiveTicker } from "@/components/LiveTicker";
 import { MotionReveal } from "@/components/MotionReveal";
@@ -42,7 +42,7 @@ export default function Home() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                 {group.markets.map((market, mi) => (
                   <MotionReveal key={market.slug} delay={Math.min(0.04 * mi + 0.02 * gi, 0.2)}>
-                    <MarketCard market={market} />
+                    <FeaturedMarketCard market={market} />
                   </MotionReveal>
                 ))}
               </div>
