@@ -114,7 +114,7 @@ class FifaMatchModel:
             from xgboost import XGBClassifier
             xgb = XGBClassifier(
                 n_estimators=100, max_depth=4, learning_rate=0.05,
-                use_label_encoder=False, eval_metric="mlogloss",
+                eval_metric="mlogloss",
                 random_state=42, n_jobs=1,
             )
         except ImportError:

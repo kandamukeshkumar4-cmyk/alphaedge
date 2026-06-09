@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
-from unittest.mock import MagicMock
-
 import pandas as pd
 import pytest
 
@@ -81,11 +79,7 @@ def test_no_data_leakage_cutoff():
 
 
 def test_continent_advantage():
-    from app.data.fifa.features import (
-        _TEAM_CONTINENT,
-        _WC2026_HOST_CONTINENT,
-        build_match_features,
-    )
+    from app.data.fifa.features import build_match_features
 
     # CONCACAF team vs non-CONCACAF → home advantage flag set
     from app.data.fifa.features import TeamStats
