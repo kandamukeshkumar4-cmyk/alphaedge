@@ -17,6 +17,7 @@ from app.api.v1.eval_routes import router as eval_router
 from app.api.v1.forecast_routes import router as forecast_router
 from app.api.v1.health import router as health_router
 from app.api.v1.market_detail import router as market_detail_router
+from app.api.v1.market_prediction import router as market_prediction_router
 from app.api.v1.routes import router as v1_router
 from app.api.v1.ws import router as ws_router
 from app.observability.metrics import router as metrics_router
@@ -70,6 +71,7 @@ app.include_router(portfolio_router)
 app.include_router(v1_router)
 app.include_router(market_detail_router)
 app.include_router(health_router)
+app.include_router(market_prediction_router)
 app.include_router(ws_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
