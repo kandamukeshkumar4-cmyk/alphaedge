@@ -13,6 +13,7 @@ from app.api.v1.admin_markets import router as admin_markets_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.orders import router as orders_router
 from app.api.v1.portfolio import router as portfolio_router
+from app.api.v1.calibration import router as calibration_router
 from app.api.v1.eval_routes import router as eval_router
 from app.api.v1.forecast_routes import router as forecast_router
 from app.api.v1.health import router as health_router
@@ -75,6 +76,7 @@ app.include_router(market_prediction_router)
 app.include_router(ws_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
+app.include_router(calibration_router)
 app.include_router(admin_router)
 app.include_router(agent_admin_router)
 app.include_router(metrics_router)
