@@ -39,16 +39,18 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_lim
 logger = logging.getLogger(__name__)
 
 
-async def _run_startup_price_feed() -> None:
+async def _price_feed_loop() -> None:
     from app.workers.price_feed_worker import run_price_feed_once
 
-    async with AsyncSessionLocal() as session:
-        try:
-            await run_price_feed_once(session)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            logger.error("Startup price feed failed — candle data may be stale", exc_info=True)
+    while True:
+        async with AsyncSessionLocal() as session:
+            try:
+                await run_price_feed_once(session)
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                logger.error("Hourly price feed failed — candle data may be stale", exc_info=True)
+        await asyncio.sleep(3600)
 
 
 @asynccontextmanager
@@ -62,7 +64,7 @@ async def lifespan(app: FastAPI):
         )
         await svc.seed_catalog_markets()
         await session.commit()
-    asyncio.create_task(_run_startup_price_feed())
+    asyncio.create_task(_price_feed_loop())
     yield
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -10,6 +11,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.broadcast import hub
 from app.data.connectors.catalog_map import CATALOG_MAP
 from app.data.connectors.polymarket import PolymarketGammaConnector
 from app.db.models import OddsSnapshot
@@ -39,6 +41,15 @@ async def run_price_feed_once(db: AsyncSession) -> dict[str, str]:
             )
             captured_at = datetime.now(UTC)
             implied = Decimal(str(round(snapshot.implied_yes, 4)))
+
+            prev_row = await db.scalar(
+                select(OddsSnapshot.implied_yes)
+                .where(OddsSnapshot.market_slug == slug)
+                .order_by(OddsSnapshot.captured_at.desc())
+                .limit(1)
+            )
+            prev_yes = float(prev_row) if prev_row is not None else float(implied)
+
             await _upsert_snapshot(
                 db,
                 market_slug=slug,
@@ -47,6 +58,19 @@ async def run_price_feed_once(db: AsyncSession) -> dict[str, str]:
                 source="polymarket",
                 platform_market_id=snapshot.platform_market_id,
                 title=snapshot.title,
+            )
+            yes_float = float(implied)
+            no_float = round(1.0 - yes_float, 4)
+            alert = abs(yes_float - prev_yes) >= 0.05
+            await hub.publish(
+                slug,
+                {
+                    "slug": slug,
+                    "yes": yes_float,
+                    "no": no_float,
+                    "ts": int(time.time()),
+                    "alert": alert,
+                },
             )
             results[slug] = "ok"
         except httpx.HTTPStatusError as error:
