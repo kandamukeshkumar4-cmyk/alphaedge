@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import MarketResolution
+from app.db.models import MarketResolution, MarketStatus
 from app.db.session import get_db
 from app.schemas.market import (
     MarketDetailForecast,
@@ -35,7 +35,7 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
     no_price = _best_outcome_price(book.get("no", {}), round(1.0 - yes_price, 4))
 
     resolution = await db.scalar(select(MarketResolution).where(MarketResolution.slug == slug))
-    resolved = resolution is not None or market.status.value == "resolved"
+    resolved = resolution is not None or market.status == MarketStatus.RESOLVED
     resolution_outcome = resolution.outcome if resolution is not None else None
     winning_outcome = resolution_outcome
     if winning_outcome is None and market.winning_outcome is not None:

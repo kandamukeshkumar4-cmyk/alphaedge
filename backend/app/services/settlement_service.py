@@ -38,22 +38,6 @@ def _leg_payout(
     return Decimal("0")
 
 
-async def _has_settlement_entry(
-    session: AsyncSession,
-    account_id,
-    market_id,
-) -> bool:
-    existing = await session.scalar(
-        select(LedgerEntry.id)
-        .where(
-            LedgerEntry.account_id == account_id,
-            LedgerEntry.market_id == market_id,
-            LedgerEntry.entry_type == LedgerEntryType.SETTLEMENT,
-        )
-        .limit(1)
-    )
-    return existing is not None
-
 
 async def settle_market(
     session: AsyncSession,
@@ -87,12 +71,21 @@ async def settle_market(
         await session.scalars(select(Position).where(Position.market_id == market.id))
     ).all()
 
+    settled_account_ids: set = set(
+        await session.scalars(
+            select(LedgerEntry.account_id).where(
+                LedgerEntry.market_id == market.id,
+                LedgerEntry.entry_type == LedgerEntryType.SETTLEMENT,
+            )
+        )
+    )
+
     settled = 0
     skipped_already_settled = 0
     total_payout = Decimal("0")
 
     for pos in positions:
-        already_settled = await _has_settlement_entry(session, pos.account_id, market.id)
+        already_settled = pos.account_id in settled_account_ids
         if already_settled or pos.settled:
             if already_settled or pos.yes_shares > 0 or pos.no_shares > 0:
                 skipped_already_settled += 1

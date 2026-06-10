@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,18 +22,25 @@ async def _latest_implied_yes_by_slug(
     if not slugs:
         return {}
 
-    prices: dict[str, float] = {}
-    for slug in slugs:
-        row = await db.execute(
-            select(OddsSnapshot.implied_yes)
-            .where(OddsSnapshot.market_slug == slug)
-            .order_by(OddsSnapshot.captured_at.desc())
-            .limit(1)
+    latest_subq = (
+        select(
+            OddsSnapshot.market_slug,
+            func.max(OddsSnapshot.captured_at).label("max_at"),
         )
-        implied = row.scalar_one_or_none()
-        if implied is not None:
-            prices[slug] = float(implied)
-    return prices
+        .where(OddsSnapshot.market_slug.in_(slugs))
+        .group_by(OddsSnapshot.market_slug)
+        .subquery()
+    )
+    rows = (
+        await db.execute(
+            select(OddsSnapshot.market_slug, OddsSnapshot.implied_yes).join(
+                latest_subq,
+                (OddsSnapshot.market_slug == latest_subq.c.market_slug)
+                & (OddsSnapshot.captured_at == latest_subq.c.max_at),
+            )
+        )
+    ).all()
+    return {slug: float(implied) for slug, implied in rows}
 
 
 def _enrich_live_pnl(
@@ -83,11 +90,11 @@ async def _load_paper_orders(
                    SUM(po.shares)             AS shares,
                    AVG(po.price)              AS avg_cost,
                    SUM(po.cost)               AS cost,
-                   MAX(CASE WHEN po.settled=1 THEN 1 ELSE 0 END) AS settled,
+                   MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) AS settled,
                    SUM(
-                     CASE WHEN po.settled=1 AND UPPER(po.outcome)=COALESCE(mr.outcome,'')
+                     CASE WHEN po.settled AND UPPER(po.outcome)=COALESCE(mr.outcome,'')
                           THEN po.shares*1.0 - po.cost
-                          WHEN po.settled=1 THEN 0.0 - po.cost
+                          WHEN po.settled THEN 0.0 - po.cost
                           ELSE 0.0 END
                    ) AS realized_pnl
             FROM paper_orders po
