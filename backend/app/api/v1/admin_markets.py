@@ -9,9 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.broadcast import hub
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
-from app.db.models import MarketResolution, PaperOrder, User
+from app.db.models import JobRun, Market, MarketResolution, PaperOrder, User
 from app.db.session import get_db
-from app.schemas.admin_markets import MarketResolveResponse, ResolveMarketRequest
+from app.schemas.admin_markets import (
+    AdminJobRunItem,
+    AdminJobRunListResponse,
+    AdminMarketListItem,
+    MarketResolveResponse,
+    ResolveMarketRequest,
+)
 from app.services.market_service import CATALOG_SLUGS
 from app.services.settlement_service import settle_market
 
@@ -50,6 +56,44 @@ async def _settle_paper_orders(
 
     await db.flush()
     return len(orders)
+
+
+@router.get("/markets", response_model=list[AdminMarketListItem])
+async def list_admin_markets(
+    limit: int = 200,
+    tournament_tag: str | None = None,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminMarketListItem]:
+    bounded_limit = min(max(limit, 1), 500)
+    stmt = select(Market).order_by(Market.created_at.desc()).limit(bounded_limit)
+    if tournament_tag is not None:
+        stmt = stmt.where(Market.tournament_tag == tournament_tag)
+    result = await db.scalars(stmt)
+    return list(result.all())
+
+
+@router.get("/jobs", response_model=AdminJobRunListResponse)
+async def list_admin_jobs(
+    limit: int = 5,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> AdminJobRunListResponse:
+    bounded_limit = min(max(limit, 1), 50)
+    result = await db.scalars(
+        select(JobRun).order_by(JobRun.started_at.desc()).limit(bounded_limit)
+    )
+    runs = [
+        AdminJobRunItem(
+            job_name=run.job_name,
+            status=run.status,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            summary=run.summary or {},
+        )
+        for run in result.all()
+    ]
+    return AdminJobRunListResponse(runs=runs)
 
 
 @router.post(
