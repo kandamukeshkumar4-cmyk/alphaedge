@@ -151,27 +151,30 @@ def test_azure_static_web_apps_admin_proxy_is_viewer_token_gated():
     assert "x-alphaedge-admin-viewer-token" in proxy
 
 
-def test_admin_dashboard_uses_proof_proxy_for_run_actions():
+def test_admin_dashboard_uses_admin_api_for_wc2026_and_jobs():
     admin_page = (
         ROOT / "frontend" / "src" / "app" / "admin" / "page.tsx"
     ).read_text(encoding="utf-8")
     client = (
-        ROOT / "frontend" / "src" / "lib" / "admin-proof-api.ts"
+        ROOT / "frontend" / "src" / "lib" / "admin-dashboard-api.ts"
     ).read_text(encoding="utf-8")
+    auth = (ROOT / "frontend" / "src" / "lib" / "admin-auth.ts").read_text(
+        encoding="utf-8"
+    )
 
-    assert "runAdminAgentProof" in admin_page
-    assert "fetchAdminMarketSnapshotCaptures" in admin_page
-    assert "fetchAdminHistoricalClosingSnapshotCaptures" in admin_page
-    assert "runAdminHistoricalClosingSnapshotCapture" in admin_page
-    assert "Connector Capture Health" in admin_page
-    assert "Historical Closing Backfill" in admin_page
-    assert "marketSlug" in admin_page
-    assert "`/api/proof/agents/run/${encodeURIComponent(marketSlug)}`" in client
-    assert "`/api/proof/market-snapshot-captures?limit=${limit}`" in client
-    assert "`/api/proof/historical-closing-snapshot-captures?limit=${limit}`" in client
-    assert '"/api/proof/historical-closing-snapshot-captures"' in client
+    assert "WC2026AdminCard" in admin_page
+    assert "AdminMarketsTable" in admin_page
+    assert "SystemHealthCard" in admin_page
+    assert "useAdminApiKey" in admin_page
+    assert "/api/v1/admin/wc2026/status" in client
+    assert "/api/v1/admin/wc2026/seed" in client
+    assert "/api/v1/admin/wc2026/resolve" in client
+    assert "/api/v1/admin/markets?" in client
+    assert "/api/v1/admin/jobs?limit=" in client
+    assert "adminHeaders" in client
+    assert "X-Admin-API-Key" in auth
+    assert "localStorage" in auth
     assert "ADMIN_API_KEY" not in admin_page
-    assert "X-Admin-API-Key" not in client
 
 
 def test_public_frontend_does_not_default_to_localhost_api():
