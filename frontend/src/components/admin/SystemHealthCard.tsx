@@ -90,14 +90,16 @@ export function SystemHealthCard({ apiKey }: SystemHealthCardProps) {
 
 function JobStatusBadge({ status }: { status: string }) {
   const normalized = status.toLowerCase();
-  const isSuccess = normalized === "success";
-  const classes = isSuccess
-    ? "border-primary/45 bg-primary-dim text-primary"
-    : "border-danger/45 bg-danger-dim text-danger";
+  const classes =
+    normalized === "success"
+      ? "border-primary/45 bg-primary-dim text-primary"
+      : normalized === "degraded"
+        ? "border-accent/45 bg-accent/10 text-accent"
+        : "border-danger/45 bg-danger-dim text-danger";
 
   return (
     <span className={cn("inline-flex rounded border px-2 py-1 text-xs font-semibold", classes)}>
-      {isSuccess ? "success" : "fail"}
+      {normalized || "unknown"}
     </span>
   );
 }

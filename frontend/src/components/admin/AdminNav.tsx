@@ -19,9 +19,9 @@ export function AdminNav() {
         Admin
       </p>
       {LINKS.map((link) => {
-        const isOverview = link.href === "/admin" && pathname === "/admin";
-        const isHash = link.href.includes("#");
-        const active = isOverview || (isHash && pathname === "/admin");
+        // Only the exact Overview link is highlighted on /admin; the hash
+        // links (Markets/Jobs) are in-page anchors and shouldn't all light up.
+        const active = link.href === "/admin" && pathname === "/admin";
 
         return (
           <Link

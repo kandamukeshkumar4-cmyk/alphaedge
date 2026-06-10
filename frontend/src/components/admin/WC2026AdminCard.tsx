@@ -115,8 +115,6 @@ export function WC2026AdminCard({ apiKey }: WC2026AdminCardProps) {
           {resolving ? "Running…" : "Run Resolution"}
         </button>
       </div>
-
-      <p className="mt-4 text-xs text-muted-2">Last resolved: never</p>
     </section>
   );
 }
