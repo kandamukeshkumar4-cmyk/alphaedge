@@ -13,6 +13,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
+import { fetchMarketCandles } from "@/lib/alphaedge-api";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
@@ -50,6 +51,7 @@ export function PriceChart({
 
   const [range, setRange] = useState<RangeKey>("1D");
   const [mode, setMode] = useState<Mode>("area");
+  const [apiCandles, setApiCandles] = useState<Candle[] | null>(null);
   const [last, setLast] = useState(endPrice);
   const [hovered, setHovered] = useState<number | null>(null);
   const [openPrice, setOpenPrice] = useState(endPrice);
@@ -140,9 +142,22 @@ export function PriceChart({
     };
   }, [compact]);
 
-  // Load data when range changes.
   useEffect(() => {
-    const candles = generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    let cancelled = false;
+    fetchMarketCandles(slug, cfg.points).then((candles) => {
+      if (!cancelled) {
+        setApiCandles(candles);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, cfg.points]);
+
+  // Load data when range or API candles change.
+  useEffect(() => {
+    const candles =
+      apiCandles ?? generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
     dataRef.current = candles;
     const areaData = candles.map((c) => ({
       time: c.time as UTCTimestamp,
@@ -167,7 +182,7 @@ export function PriceChart({
     chartRef.current?.timeScale().fitContent();
     setOpenPrice(candles[0]?.close ?? endPrice);
     setLast(candles[candles.length - 1]?.close ?? endPrice);
-  }, [slug, cfg, endPrice]);
+  }, [slug, cfg, endPrice, apiCandles]);
 
   // Toggle series visibility.
   useEffect(() => {
