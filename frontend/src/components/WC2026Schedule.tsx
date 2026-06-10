@@ -5,6 +5,13 @@ import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 
+type ScheduleMarket = {
+  outcome: string;
+  slug: string;
+  implied_yes: number;
+  status?: string;
+};
+
 type ScheduleMatch = {
   fixture_id: number;
   home_team: string;
@@ -15,7 +22,9 @@ type ScheduleMatch = {
   p_home_win: number;
   p_draw: number;
   p_away_win: number;
-  markets: { outcome: string; slug: string; implied_yes: number }[];
+  home_score?: number | null;
+  away_score?: number | null;
+  markets: ScheduleMarket[];
 };
 
 type ScheduleResponse = {
@@ -37,6 +46,46 @@ function groupLabel(stageName: string) {
   return stageName;
 }
 
+function formatCountdown(ms: number) {
+  const totalHours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)));
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  if (days > 0) return `${days}d ${hours}h`;
+  const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+function matchStatusLabel(match: ScheduleMatch, now: Date): string | null {
+  const kickoff = new Date(match.kickoff_at);
+  const liveEnd = new Date(kickoff.getTime() + 2 * 60 * 60 * 1000);
+  const allResolved =
+    match.markets.length > 0 && match.markets.every((m) => m.status === "resolved");
+
+  if (allResolved) {
+    if (match.home_score != null && match.away_score != null) {
+      return `FINAL · ${match.home_score}-${match.away_score}`;
+    }
+    return "FINAL";
+  }
+
+  if (now >= kickoff && now <= liveEnd) {
+    const minutes = Math.floor((now.getTime() - kickoff.getTime()) / 60000);
+    return `LIVE · ${minutes}'`;
+  }
+
+  if (now < kickoff) {
+    return `UPCOMING · ${formatCountdown(kickoff.getTime() - now.getTime())}`;
+  }
+
+  return null;
+}
+
+function statusBadgeClass(label: string) {
+  if (label.startsWith("LIVE")) return "border-rose-400/40 bg-rose-400/10 text-rose-300";
+  if (label.startsWith("FINAL")) return "border-muted/40 bg-muted/10 text-muted";
+  return "border-gold/40 bg-gold/10 text-gold";
+}
+
 function ProbBar({ label, value, tone }: { label: string; value: number; tone: string }) {
   const pct = Math.round(value * 100);
   return (
@@ -54,6 +103,7 @@ function ProbBar({ label, value, tone }: { label: string; value: number; tone: s
 
 export function WC2026Schedule() {
   const [matches, setMatches] = useState<ScheduleMatch[]>([]);
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     if (!API_BASE) return;
@@ -65,6 +115,11 @@ export function WC2026Schedule() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   if (!matches.length) {
@@ -82,6 +137,7 @@ export function WC2026Schedule() {
           const homeMarket = match.markets.find((m) => m.outcome === "home_win");
           const drawMarket = match.markets.find((m) => m.outcome === "draw");
           const awayMarket = match.markets.find((m) => m.outcome === "away_win");
+          const statusLabel = matchStatusLabel(match, now);
 
           return (
             <article
@@ -89,9 +145,21 @@ export function WC2026Schedule() {
               className="min-w-[280px] max-w-[280px] shrink-0 rounded-2xl border border-border bg-surface p-4 shadow-card"
             >
               <div className="mb-3 space-y-1">
-                <p className="text-sm font-black text-text">
-                  {match.home_team} vs {match.away_team}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-black text-text">
+                    {match.home_team} vs {match.away_team}
+                  </p>
+                  {statusLabel && (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide",
+                        statusBadgeClass(statusLabel),
+                      )}
+                    >
+                      {statusLabel}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted">
                   {formatKickoff(match.kickoff_at)} · {match.venue}
                 </p>

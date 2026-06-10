@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     nim_api_key: str = Field(default="", alias="NIM_API_KEY")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
+    football_data_api_key: str = Field(default="", alias="FOOTBALL_DATA_API_KEY")
     odds_api_key: str = Field(default="", alias="ODDS_API_KEY")
     odds_api_sport_keys: str = Field(default="basketball_nba", alias="ODDS_API_SPORT_KEYS")
     odds_api_historical_snapshot_ats: str = Field(

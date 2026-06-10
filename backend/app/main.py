@@ -26,6 +26,7 @@ from app.api.v1.market_prediction import router as market_prediction_router
 from app.api.v1.routes import router as v1_router
 from app.api.v1.wc2026 import admin_router as wc2026_admin_router
 from app.api.v1.wc2026 import router as wc2026_router
+from app.api.v1.wc2026_admin import router as wc2026_admin_resolve_router
 from app.api.v1.ws import router as ws_router
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -91,6 +92,7 @@ app.include_router(auth_router)
 app.include_router(admin_markets_router)
 app.include_router(wc2026_router)
 app.include_router(wc2026_admin_router)
+app.include_router(wc2026_admin_resolve_router)
 app.include_router(orders_router)
 app.include_router(portfolio_router)
 app.include_router(v1_router)
