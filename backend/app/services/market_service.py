@@ -66,6 +66,7 @@ class MarketService:
         market_count: int = 1,
         description: str = "",
         resolution: str = "",
+        tournament_tag: str | None = None,
     ) -> Market:
         market = Market(
             slug=slug,
@@ -78,6 +79,7 @@ class MarketService:
             market_count=market_count,
             description=description,
             resolution=resolution,
+            tournament_tag=tournament_tag,
             status=MarketStatus.OPEN,
             lock_at=lock_at,
         )
@@ -220,7 +222,10 @@ class MarketService:
         # New lowercase API categories
         normalized = category.lower()
         if normalized == "sports":
-            return Market.category.in_(("NBA", "FIFA WC2026"))
+            return or_(
+                Market.category.in_(("NBA", "FIFA WC2026", "sports", "Sports")),
+                Market.tournament_tag == "wc2026",
+            )
         if normalized == "politics":
             return or_(
                 Market.category.in_(("Elections", "Politics")),

@@ -137,6 +137,7 @@ class Market(Base):
     market_count: Mapped[int] = mapped_column(Integer, default=1)
     description: Mapped[str] = mapped_column(Text, default="")
     resolution: Mapped[str] = mapped_column(Text, default="")
+    tournament_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
     status: Mapped[MarketStatus] = mapped_column(
         _pg_enum(MarketStatus, name="market_status"),
         default=MarketStatus.OPEN,

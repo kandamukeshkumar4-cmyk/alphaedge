@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   MARKETS,
@@ -18,6 +18,8 @@ import { MotionReveal } from "@/components/MotionReveal";
 import { PromoCard } from "@/components/RightRailExtras";
 import { OnboardingModal } from "@/components/OnboardingModal";
 import { MarketSearch } from "@/components/MarketSearch";
+import { WC2026Banner } from "@/components/WC2026Banner";
+import { WC2026Schedule } from "@/components/WC2026Schedule";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { fetchMarkets, type MarketFilterParams } from "@/lib/alphaedge-api";
 import type { LeaderboardEntry } from "@/lib/leaderboard-api";
@@ -131,6 +133,13 @@ export default function Home() {
             </MotionReveal>
 
             <MarketSearch onChange={handleFilterChange} loading={loading} />
+
+            <Suspense fallback={null}>
+              <WC2026Banner />
+            </Suspense>
+            <Suspense fallback={null}>
+              <WC2026Schedule />
+            </Suspense>
 
             {displayGroups.length === 0 && isFiltered && (
               <p className="py-8 text-center text-sm text-muted">
