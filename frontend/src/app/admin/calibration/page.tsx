@@ -66,7 +66,7 @@ export default function CalibrationAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolveSlug, setResolveSlug] = useState<string>(CATALOG_SLUGS[0]);
-  const [resolveOutcome, setResolveOutcome] = useState<"YES" | "NO">("YES");
+  const [resolveOutcome, setResolveOutcome] = useState<"YES" | "NO" | "VOID">("YES");
   const [adminApiKey, setAdminApiKey] = useState("");
   const [resolveMessage, setResolveMessage] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
@@ -142,12 +142,12 @@ export default function CalibrationAdminPage() {
           "Content-Type": "application/json",
           "X-Admin-API-Key": adminApiKey.trim(),
         },
-        body: JSON.stringify({ outcome: resolveOutcome }),
+        body: JSON.stringify({ winning_outcome: resolveOutcome }),
       });
 
       const body = (await response.json().catch(() => ({}))) as {
         detail?: string;
-        positions_settled?: number;
+        paper_orders_settled?: number;
       };
 
       if (!response.ok) {
@@ -156,7 +156,7 @@ export default function CalibrationAdminPage() {
       }
 
       setResolveMessage(
-        `Resolved ${resolveSlug} as ${resolveOutcome}. Settled ${body.positions_settled ?? 0} position(s).`,
+        `Resolved ${resolveSlug} as ${resolveOutcome}. Settled ${body.paper_orders_settled ?? 0} paper order(s).`,
       );
     } catch {
       setResolveError("Could not reach the API to resolve this market.");

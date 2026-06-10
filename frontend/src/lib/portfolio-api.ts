@@ -14,12 +14,18 @@ export type PortfolioPosition = {
   quantity: number;
   price: number | null;
   realized_pnl?: number | null;
+  settled?: boolean;
+  current_price?: number | null;
+  unrealized_pnl?: number | null;
+  pnl_pct?: number | null;
 };
 
 export type PortfolioView = {
   paper_balance: number;
   positions: PortfolioPosition[];
   realized_pnl: number;
+  unrealized_pnl: number;
+  portfolio_value: number;
   total_trades: number;
   paper_trading_only: boolean;
   disclaimer: string;
@@ -46,12 +52,18 @@ type RawPortfolioPosition = {
   avg_cost: number;
   cost: number;
   realized_pnl?: number | null;
+  settled?: boolean;
+  current_price?: number | null;
+  unrealized_pnl?: number | null;
+  pnl_pct?: number | null;
 };
 
 type RawPortfolioResponse = {
   paper_balance: number;
   positions: RawPortfolioPosition[];
   realized_pnl: number;
+  unrealized_pnl?: number;
+  portfolio_value?: number;
   total_trades: number;
   paper_trading_only: boolean;
   disclaimer: string;
@@ -104,6 +116,8 @@ export async function fetchPortfolio(
   return {
     paper_balance: body.paper_balance,
     realized_pnl: body.realized_pnl,
+    unrealized_pnl: body.unrealized_pnl ?? 0,
+    portfolio_value: body.portfolio_value ?? body.paper_balance,
     total_trades: body.total_trades,
     paper_trading_only: body.paper_trading_only,
     disclaimer: body.disclaimer,
@@ -118,6 +132,10 @@ export async function fetchPortfolio(
       quantity: position.shares,
       price: position.avg_cost,
       realized_pnl: position.realized_pnl ?? null,
+      settled: position.settled ?? false,
+      current_price: position.current_price ?? null,
+      unrealized_pnl: position.unrealized_pnl ?? null,
+      pnl_pct: position.pnl_pct ?? null,
     })),
   };
 }

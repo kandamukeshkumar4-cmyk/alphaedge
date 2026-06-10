@@ -17,7 +17,8 @@ import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
 import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
-import MarketExplainer from "@/components/MarketExplainer";
+import { AITakePanel } from "@/components/AITakePanel";
+import { ResolutionBanner } from "@/components/ResolutionBanner";
 import { PredictionWidget } from "@/components/PredictionWidget";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
@@ -80,25 +81,15 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
     );
   }
 
-  const resolvedBanner =
-    resolutionOutcome != null
-      ? `Market resolved — ${resolutionOutcome.toUpperCase()} wins`
-      : null;
+  const displayOutcome =
+    apiDetail?.winning_outcome ?? apiDetail?.resolution_outcome ?? resolutionOutcome;
 
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6">
-      {resolvedBanner ? (
-        <div
-          className={cn(
-            "mb-5 rounded-2xl border px-4 py-3 text-center text-sm font-bold",
-            resolutionOutcome?.toUpperCase() === "YES"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-              : "border-red-500/40 bg-red-500/10 text-red-200",
-          )}
-        >
-          {resolvedBanner}
-        </div>
-      ) : null}
+      <ResolutionBanner
+        outcome={isResolved ? displayOutcome : null}
+        resolvedAt={apiDetail?.resolved_at}
+      />
 
       {/* Breadcrumb + title */}
       <div className="flex items-center gap-2 text-xs text-muted">
@@ -150,7 +141,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
                   ? livePrice.yes
                   : market.outcomes[0].price
               }
-              modelProb={market.forecast.prob}
+              modelProb={apiDetail?.forecast?.model_prob ?? market.forecast.prob}
               height={360}
             />
           </div>
@@ -213,7 +204,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
         <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
           <PredictionWidget slug={slug} className="mt-4" />
           <DecisionSignalPanel market={market} />
-          <MarketExplainer slug={slug} />
+          <AITakePanel slug={slug} />
           {isResolved || resolutionOutcome != null ? (
             <div className="rounded-2xl border border-border bg-surface-2 px-4 py-6 text-center">
               <p className="text-sm font-bold uppercase tracking-[0.08em] text-muted">

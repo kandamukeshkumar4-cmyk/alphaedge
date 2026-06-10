@@ -57,7 +57,7 @@ async def test_leaderboard_ranks_users_by_realized_pnl(db_session):
         await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
 
         response = await client.get("/api/v1/leaderboard")
@@ -84,7 +84,7 @@ async def test_public_markets_include_resolution_outcome(db_session):
         await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
         after = await client.get("/api/v1/markets")
 

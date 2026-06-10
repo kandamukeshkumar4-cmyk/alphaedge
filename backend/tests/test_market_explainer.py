@@ -1,4 +1,4 @@
-"""Tests for the market explainer endpoint (Loop H)."""
+"""Tests for the market explainer / AI advisor endpoint (Loop R)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ UNKNOWN_SLUG = "not-a-real-market-slug"
 
 @pytest.mark.asyncio
 async def test_explainer_unknown_slug_returns_404():
-    """Slug not in CATALOG_SLUGS should return 404."""
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -24,11 +23,7 @@ async def test_explainer_unknown_slug_returns_404():
 
 
 @pytest.mark.asyncio
-async def test_explainer_no_api_key_returns_graceful_response(monkeypatch):
-    """When ANTHROPIC_API_KEY is absent the endpoint should still return 200
-    with model_used == 'none' and a human-readable explanation."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
+async def test_explainer_returns_deterministic_advisor_fields():
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -37,16 +32,15 @@ async def test_explainer_no_api_key_returns_graceful_response(monkeypatch):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["model_used"] == "none"
-    explanation = payload["explanation"].lower()
-    assert "unavailable" in explanation or "anthropic_api_key" in explanation
+    assert payload["model_used"] == "deterministic"
+    assert payload["slug"] == VALID_SLUG
+    assert "trade_rationale" in payload
+    assert "edge" in payload
+    assert payload["confidence_label"] in {"Weak", "Moderate", "Strong"}
 
 
 @pytest.mark.asyncio
-async def test_explainer_paper_trading_only_true(monkeypatch):
-    """Any valid slug must always return paper_trading_only == True."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
+async def test_explainer_paper_trading_only_true():
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -58,10 +52,7 @@ async def test_explainer_paper_trading_only_true(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_explainer_response_has_all_fields(monkeypatch):
-    """Response must contain slug, explanation, model_used, and paper_trading_only."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
+async def test_explainer_response_has_all_fields():
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -70,8 +61,18 @@ async def test_explainer_response_has_all_fields(monkeypatch):
 
     assert response.status_code == 200
     payload = response.json()
-    assert "slug" in payload
-    assert "explanation" in payload
-    assert "model_used" in payload
-    assert "paper_trading_only" in payload
+    for key in (
+        "slug",
+        "model_prob",
+        "market_implied",
+        "edge",
+        "edge_direction",
+        "confidence_label",
+        "news_signals",
+        "trade_rationale",
+        "provisional",
+        "paper_trading_only",
+    ):
+        assert key in payload
     assert payload["slug"] == VALID_SLUG
+    assert isinstance(payload["news_signals"], list)

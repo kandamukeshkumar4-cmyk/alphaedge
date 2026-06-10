@@ -324,6 +324,8 @@ class MarketDetailResponse(BaseModel):
     paper_trading_only: bool = True
     resolved: bool = False
     resolution_outcome: Optional[str] = None
+    winning_outcome: Optional[str] = None
+    resolved_at: Optional[datetime] = None
 
 
 class HealthResponse(BaseModel):

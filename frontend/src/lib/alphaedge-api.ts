@@ -198,7 +198,9 @@ export type MarketDetailApi = {
   resolution_criteria: string;
   paper_trading_only: boolean;
   resolved: boolean;
-  resolution_outcome: "YES" | "NO" | null;
+  resolution_outcome: "YES" | "NO" | "VOID" | null;
+  winning_outcome?: "YES" | "NO" | "VOID" | null;
+  resolved_at?: string | null;
 };
 
 export async function fetchMarketDetailApi(

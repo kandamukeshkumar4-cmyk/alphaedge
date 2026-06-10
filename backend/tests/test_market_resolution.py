@@ -40,7 +40,7 @@ async def test_resolve_market_rejects_invalid_admin_key(db_session):
         response = await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers={"X-Admin-API-Key": "wrong-key"},
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
     assert response.status_code == 401
 
@@ -51,7 +51,7 @@ async def test_resolve_market_rejects_unknown_slug(db_session):
         response = await client.post(
             "/api/v1/admin/markets/not-in-catalog/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
     assert response.status_code == 404
 
@@ -63,13 +63,13 @@ async def test_resolve_market_success(db_session):
         response = await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
     assert response.status_code == 200
     body = response.json()
     assert body["slug"] == CANONICAL_SLUG
-    assert body["outcome"] == "YES"
-    assert body["positions_settled"] == 0
+    assert body["winning_outcome"] == "YES"
+    assert body["paper_orders_settled"] == 0
 
 
 @pytest.mark.asyncio
@@ -79,7 +79,7 @@ async def test_resolve_market_paper_trading_only_true(db_session):
         response = await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "NO"},
+            json={"winning_outcome": "NO"},
         )
     assert response.json()["paper_trading_only"] is True
 
@@ -91,13 +91,13 @@ async def test_resolve_market_conflict_when_already_resolved(db_session):
         first = await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
         assert first.status_code == 200
         second = await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "NO"},
+            json={"winning_outcome": "NO"},
         )
     assert second.status_code == 409
 
@@ -118,12 +118,12 @@ async def test_resolve_market_credits_winner_balance(db_session):
         response = await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "YES"},
+            json={"winning_outcome": "YES"},
         )
         await db_session.refresh(user_before)
 
     assert response.status_code == 200
-    assert response.json()["positions_settled"] == 1
+    assert response.json()["paper_orders_settled"] == 1
     assert user_before.paper_balance == balance_before + Decimal("10.0")
 
     orders = (
@@ -141,7 +141,7 @@ async def test_market_detail_includes_resolution_fields(db_session):
         await client.post(
             f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
             headers=ADMIN_HEADERS,
-            json={"outcome": "NO"},
+            json={"winning_outcome": "NO"},
         )
         after = await client.get(f"/api/v1/markets/{CANONICAL_SLUG}/detail")
 
@@ -149,3 +149,5 @@ async def test_market_detail_includes_resolution_fields(db_session):
     assert before.json()["resolution_outcome"] is None
     assert after.json()["resolved"] is True
     assert after.json()["resolution_outcome"] == "NO"
+    assert after.json()["winning_outcome"] == "NO"
+    assert after.json()["resolved_at"] is not None
