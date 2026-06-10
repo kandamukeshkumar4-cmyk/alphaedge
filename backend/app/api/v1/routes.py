@@ -51,8 +51,10 @@ from app.services.forecast_dashboard_service import (
 )
 from app.services.signals_service import InvalidSignalRequest, SignalsService
 from app.services.wallet_service import WalletService
+from app.api.v1.leaderboard import router as leaderboard_router
 
 router = APIRouter(prefix="/api/v1", tags=["public"])
+router.include_router(leaderboard_router)
 settings = get_settings()
 
 

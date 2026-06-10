@@ -17,6 +17,7 @@ const NAV = [
   { label: "Culture", href: "/markets?cat=Culture" },
   { label: "Mirror", href: "/forecast" },
   { label: "Signals", href: "/signals" },
+  { label: "Leaderboard", href: "/leaderboard" },
   { label: "Portfolio", href: "/portfolio" },
 ];
 

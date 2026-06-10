@@ -8,6 +8,7 @@ export type Market = {
   status: string;
   implied_yes: number | null;
   category: string;
+  resolution_outcome: string | null;
 };
 
 type ApiMarketCatalogItem = {
@@ -18,6 +19,7 @@ type ApiMarketCatalogItem = {
   status: string;
   platform?: string;
   implied_yes?: number | null;
+  resolution_outcome?: string | null;
 };
 
 function normalizePlatform(value: string | undefined): string {
@@ -43,6 +45,7 @@ function toMarket(item: ApiMarketCatalogItem): Market {
     status: item.status,
     implied_yes: item.implied_yes ?? null,
     category: item.category,
+    resolution_outcome: item.resolution_outcome ?? null,
   };
 }
 

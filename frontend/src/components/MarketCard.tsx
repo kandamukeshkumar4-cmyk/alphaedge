@@ -42,15 +42,35 @@ function statusLabel(status: string): "Open" | "Resolved" {
   return status === "resolved" ? "Resolved" : "Open";
 }
 
+function isResolvedMarket(market: Market): boolean {
+  return market.status === "resolved" || market.resolution_outcome != null;
+}
+
+function winningOutcomeLabel(outcome: string | null): string | null {
+  if (!outcome) {
+    return null;
+  }
+  const normalized = outcome.toUpperCase();
+  if (normalized === "YES" || normalized === "NO") {
+    return normalized;
+  }
+  return null;
+}
+
 export function MarketCard({ market }: { market: Market }) {
   const impliedPct =
     market.implied_yes != null ? Math.round(market.implied_yes * 100) : null;
   const category = catalogCategory(market);
+  const resolved = isResolvedMarket(market);
+  const winner = winningOutcomeLabel(market.resolution_outcome);
 
   return (
     <Link
       href={`/markets/${market.slug}`}
-      className="group flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 hover:shadow-glow"
+      className={cn(
+        "group flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 hover:shadow-glow",
+        resolved && "opacity-75",
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -98,16 +118,36 @@ export function MarketCard({ market }: { market: Market }) {
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-        <span
-          className={cn(
-            "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em]",
-            statusLabel(market.status) === "Open"
-              ? "bg-accent/15 text-accent"
-              : "bg-muted/15 text-muted",
+        <div className="flex flex-wrap items-center gap-2">
+          {resolved ? (
+            <>
+              <span className="rounded-full border border-red-500/35 bg-red-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-red-300">
+                RESOLVED
+              </span>
+              {winner === "YES" ? (
+                <span className="rounded-full border border-emerald-500/35 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-emerald-300">
+                  YES ✓
+                </span>
+              ) : null}
+              {winner === "NO" ? (
+                <span className="rounded-full border border-red-500/35 bg-red-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-red-300">
+                  NO ✓
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <span
+              className={cn(
+                "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em]",
+                statusLabel(market.status) === "Open"
+                  ? "bg-accent/15 text-accent"
+                  : "bg-muted/15 text-muted",
+              )}
+            >
+              {statusLabel(market.status)}
+            </span>
           )}
-        >
-          {statusLabel(market.status)}
-        </span>
+        </div>
         <span className="text-xs font-semibold text-muted transition group-hover:text-accent">
           View market →
         </span>
