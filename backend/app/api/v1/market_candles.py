@@ -60,6 +60,36 @@ async def get_market_candles(
     }
 
 
+@router.get("/markets/{slug}/prices/latest")
+async def get_latest_price(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    if slug not in CATALOG_SLUGS:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    result = await db.execute(
+        select(OddsSnapshot.implied_yes, OddsSnapshot.captured_at)
+        .where(OddsSnapshot.market_slug == slug)
+        .order_by(OddsSnapshot.captured_at.desc())
+        .limit(1)
+    )
+    row = result.first()
+    if row is None:
+        entry = CATALOG_MAP.get(slug)
+        yes = entry.spec_price if entry is not None else 0.5
+        return {"slug": slug, "yes": yes, "no": round(1.0 - yes, 4), "ts": None, "source": "seed"}
+
+    yes = float(row[0])
+    return {
+        "slug": slug,
+        "yes": yes,
+        "no": round(1.0 - yes, 4),
+        "ts": row[1].isoformat(),
+        "source": "db",
+    }
+
+
 def _candle_payload(candle: SeedCandle) -> dict[str, float | int]:
     return {
         "time": candle.time,

@@ -14,6 +14,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { fetchMarketCandles } from "@/lib/alphaedge-api";
+import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
@@ -57,6 +58,8 @@ export function PriceChart({
   const [hovered, setHovered] = useState<number | null>(null);
   const [openPrice, setOpenPrice] = useState(endPrice);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
+
+  const livePrice = useMarketPrice(slug);
 
   const cfg = useMemo(
     () => RANGES.find((r) => r.key === range) ?? RANGES[2],
@@ -212,41 +215,33 @@ export function PriceChart({
     }
   }, [modelProb, range]);
 
-  // Live ticks: nudge the last candle, occasionally append a new one.
+  // Live ticks from WS hub when connected; fall back to no-op in seed mode.
   useEffect(() => {
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
-
-    const interval = setInterval(() => {
-      const data = dataRef.current;
-      if (data.length === 0 || isApiModeRef.current) return;
-      const lastCandle = data[data.length - 1];
-      const drift = (Math.random() - 0.5) * 0.018;
-      const newClose = Math.min(0.97, Math.max(0.03, lastCandle.close + drift));
-      const updated: Candle = {
-        ...lastCandle,
-        close: newClose,
-        high: Math.max(lastCandle.high, newClose),
-        low: Math.min(lastCandle.low, newClose),
-      };
-      data[data.length - 1] = updated;
-      const t = updated.time as UTCTimestamp;
-      areaRef.current?.update({ time: t, value: newClose });
-      candleRef.current?.update({
-        time: t,
-        open: updated.open,
-        high: updated.high,
-        low: updated.low,
-        close: newClose,
-      });
-      setFlash(newClose >= lastCandle.close ? "up" : "down");
-      setLast(newClose);
-      setTimeout(() => setFlash(null), 700);
-    }, 1800);
-    return () => clearInterval(interval);
-  }, []);
+    if (!livePrice.connected || livePrice.ts === null) return;
+    const newClose = livePrice.yes;
+    const data = dataRef.current;
+    if (data.length === 0) return;
+    const lastCandle = data[data.length - 1];
+    const updated: Candle = {
+      ...lastCandle,
+      close: newClose,
+      high: Math.max(lastCandle.high, newClose),
+      low: Math.min(lastCandle.low, newClose),
+    };
+    data[data.length - 1] = updated;
+    const t = updated.time as UTCTimestamp;
+    areaRef.current?.update({ time: t, value: newClose });
+    candleRef.current?.update({
+      time: t,
+      open: updated.open,
+      high: updated.high,
+      low: updated.low,
+      close: newClose,
+    });
+    setFlash(newClose >= lastCandle.close ? "up" : "down");
+    setLast(newClose);
+    setTimeout(() => setFlash(null), 700);
+  }, [livePrice.yes, livePrice.ts, livePrice.connected]);
 
   const shown = hovered ?? last;
   const change = shown - openPrice;

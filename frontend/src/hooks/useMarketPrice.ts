@@ -36,6 +36,7 @@ export function useMarketPrice(slug: string): MarketPrice {
       ws.onmessage = (ev) => {
         try {
           const d = JSON.parse(ev.data);
+          if (d.keepalive) return;
           setState({ yes: d.yes, no: d.no, ts: d.ts, connected: true });
         } catch {
           /* ignore malformed frames */

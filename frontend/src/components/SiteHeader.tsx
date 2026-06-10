@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertToast } from "@/components/AlertToast";
+import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useSignalAlerts } from "@/hooks/useSignalAlerts";
 import { cn } from "@/lib/cn";
+import { MARKETS } from "@/lib/mock-data";
 
 const NAV = [
   { label: "Markets", href: "/markets" },
@@ -68,6 +70,7 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { alerts, unreadCount, markRead } = useSignalAlerts();
   const showCategoryBar = pathname === "/" || pathname.startsWith("/markets");
+  const catalogSlugs = useMemo(() => MARKETS.map((m) => m.slug), []);
   const isLoggedIn = isReady && !!token;
   const onSignalsNav = pathname === "/signals" || pathname.startsWith("/signals/");
 
@@ -158,6 +161,7 @@ export function SiteHeader() {
                 Log In
               </Link>
             )}
+            <NotificationBell slugs={catalogSlugs} />
             <button
               className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
               aria-label="Menu"

@@ -16,6 +16,33 @@ export type Candle = {
   close: number;
 };
 
+export type LivePrice = {
+  slug: string;
+  yes: number;
+  no: number;
+  ts: string | null;
+  source: "db" | "seed";
+};
+
+export async function fetchLatestPrice(slug: string): Promise<LivePrice | null> {
+  if (!API_BASE) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/prices/latest`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as LivePrice;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMarketCandles(
   slug: string,
   points = 90,
