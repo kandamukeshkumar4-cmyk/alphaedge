@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -29,3 +30,14 @@ class PaperOrderResponse(BaseModel):
     cost: float
     remaining_balance: float
     paper_trading_only: bool = True
+
+
+class PaperOrderHistoryItem(BaseModel):
+    slug: str
+    outcome: str
+    side: str
+    shares: float
+    price: float
+    cost: float
+    settled: bool
+    created_at: datetime
