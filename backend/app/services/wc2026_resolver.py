@@ -81,13 +81,23 @@ async def fetch_wc2026_results(session: httpx.AsyncClient) -> list[MatchResult]:
     if fixtures is None:
         return []
 
-    response = await session.get(
-        f"{FOOTBALL_DATA_BASE}/competitions/WC/matches",
-        params={"status": "FINISHED"},
-        headers={"X-Auth-Token": settings.football_data_api_key},
-        timeout=30.0,
-    )
-    response.raise_for_status()
+    try:
+        response = await session.get(
+            f"{FOOTBALL_DATA_BASE}/competitions/WC/matches",
+            params={"status": "FINISHED"},
+            headers={"X-Auth-Token": settings.football_data_api_key},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "football-data.org returned HTTP %s — skipping resolution poll",
+            exc.response.status_code,
+        )
+        return []
+    except httpx.RequestError as exc:
+        logger.warning("football-data.org request error: %s — skipping resolution poll", exc)
+        return []
 
     results: list[MatchResult] = []
     for match in response.json().get("matches", []):
