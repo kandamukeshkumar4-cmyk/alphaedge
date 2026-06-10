@@ -110,6 +110,30 @@ async def ingest_odds_task(ctx: dict) -> dict:
     return {"ingested": count, "quality_passed": report.passed, "issues": report.issues}
 
 
+WC2026_RESOLVE_JOB_NAME = "wc2026_resolve_task"
+
+
+async def wc2026_resolve_task(ctx: dict) -> dict:
+    """Fetch finished WC2026 matches and resolve corresponding markets."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.wc2026_resolver import resolve_finished_wc2026_markets
+
+    started_at = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        summary = await resolve_finished_wc2026_markets(session)
+        session.add(
+            JobRun(
+                job_name=WC2026_RESOLVE_JOB_NAME,
+                status="success",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                summary=summary,
+            )
+        )
+        await session.commit()
+    return summary
+
+
 FETCH_NEWS_SIGNALS_JOB_NAME = "fetch_news_signals_task"
 
 
@@ -196,9 +220,11 @@ class WorkerSettings:
         run_eval_on_resolve_task,
         run_backtest_task,
         fetch_news_signals_task,
+        wc2026_resolve_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
         cron(ingest_odds_task, hour={12}, minute=0),
         cron(fetch_news_signals_task, minute={30}),  # every hour at :30
+        cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
     ]
