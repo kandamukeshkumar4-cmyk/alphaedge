@@ -13,6 +13,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
+import { fetchMarketCandles } from "@/lib/alphaedge-api";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
@@ -48,8 +49,10 @@ export function PriceChart({
   const modelLineRef = useRef<ReturnType<ISeriesApi<"Area">["createPriceLine"]> | null>(null);
   const dataRef = useRef<Candle[]>([]);
 
+  const isApiModeRef = useRef<boolean>(false);
   const [range, setRange] = useState<RangeKey>("1D");
   const [mode, setMode] = useState<Mode>("area");
+  const [apiCandles, setApiCandles] = useState<Candle[] | null>(null);
   const [last, setLast] = useState(endPrice);
   const [hovered, setHovered] = useState<number | null>(null);
   const [openPrice, setOpenPrice] = useState(endPrice);
@@ -140,9 +143,23 @@ export function PriceChart({
     };
   }, [compact]);
 
-  // Load data when range changes.
   useEffect(() => {
-    const candles = generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    let cancelled = false;
+    fetchMarketCandles(slug, cfg.points).then((candles) => {
+      if (!cancelled) {
+        setApiCandles(candles);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, cfg.points]);
+
+  // Load data when range or API candles change.
+  useEffect(() => {
+    const candles =
+      apiCandles ?? generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    isApiModeRef.current = apiCandles !== null;
     dataRef.current = candles;
     const areaData = candles.map((c) => ({
       time: c.time as UTCTimestamp,
@@ -167,7 +184,7 @@ export function PriceChart({
     chartRef.current?.timeScale().fitContent();
     setOpenPrice(candles[0]?.close ?? endPrice);
     setLast(candles[candles.length - 1]?.close ?? endPrice);
-  }, [slug, cfg, endPrice]);
+  }, [slug, cfg, endPrice, apiCandles]);
 
   // Toggle series visibility.
   useEffect(() => {
@@ -204,7 +221,7 @@ export function PriceChart({
 
     const interval = setInterval(() => {
       const data = dataRef.current;
-      if (data.length === 0) return;
+      if (data.length === 0 || isApiModeRef.current) return;
       const lastCandle = data[data.length - 1];
       const drift = (Math.random() - 0.5) * 0.018;
       const newClose = Math.min(0.97, Math.max(0.03, lastCandle.close + drift));

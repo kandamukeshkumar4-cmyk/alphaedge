@@ -8,6 +8,37 @@ export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "";
 export const PAPER_BALANCE = 100_000;
 export const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
 
+export type Candle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+export async function fetchMarketCandles(
+  slug: string,
+  points = 90,
+): Promise<Candle[] | null> {
+  if (!API_BASE) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const data = (await response.json()) as { candles?: Candle[] };
+    return data.candles ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const canonicalMarket: Market = {
   id: "00000000-0000-0000-0000-000000000101",
   slug: CANONICAL_SLUG,

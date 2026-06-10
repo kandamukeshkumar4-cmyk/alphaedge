@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -17,6 +19,7 @@ from app.api.v1.calibration import router as calibration_router
 from app.api.v1.eval_routes import router as eval_router
 from app.api.v1.forecast_routes import router as forecast_router
 from app.api.v1.health import router as health_router
+from app.api.v1.market_candles import router as market_candles_router
 from app.api.v1.market_detail import router as market_detail_router
 from app.api.v1.market_explainer import router as market_explainer_router
 from app.api.v1.market_prediction import router as market_prediction_router
@@ -33,6 +36,19 @@ from decimal import Decimal
 
 settings = get_settings()
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit])
+logger = logging.getLogger(__name__)
+
+
+async def _run_startup_price_feed() -> None:
+    from app.workers.price_feed_worker import run_price_feed_once
+
+    async with AsyncSessionLocal() as session:
+        try:
+            await run_price_feed_once(session)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.error("Startup price feed failed — candle data may be stale", exc_info=True)
 
 
 @asynccontextmanager
@@ -46,6 +62,7 @@ async def lifespan(app: FastAPI):
         )
         await svc.seed_catalog_markets()
         await session.commit()
+    asyncio.create_task(_run_startup_price_feed())
     yield
 
 
@@ -72,6 +89,7 @@ app.include_router(orders_router)
 app.include_router(portfolio_router)
 app.include_router(v1_router)
 app.include_router(market_detail_router)
+app.include_router(market_candles_router)
 app.include_router(market_explainer_router)
 app.include_router(health_router)
 app.include_router(market_prediction_router)

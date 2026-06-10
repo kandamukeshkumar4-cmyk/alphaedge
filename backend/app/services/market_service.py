@@ -6,6 +6,7 @@ from sqlalchemy import or_, select
 from sqlalchemy import String, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.data.connectors.catalog_map import CATALOG_MAP
 from app.db.models import (
     Account,
     LedgerEntryType,
@@ -15,6 +16,7 @@ from app.db.models import (
     OrderOutcome,
     Position,
 )
+from app.services.price_snapshot_seed import seed_price_snapshots
 from app.events.bus import DomainEventBus
 from app.schemas.market import MarketResponse
 from app.services.ledger_service import LedgerService
@@ -496,8 +498,18 @@ class MarketService:
                 existing.description = spec["description"]
                 existing.resolution = spec["resolution"]
                 markets.append(existing)
-                continue
-            markets.append(await self.create_market(**spec))
+            else:
+                markets.append(await self.create_market(**spec))
+
+            catalog_entry = CATALOG_MAP.get(spec["slug"])
+            if catalog_entry is not None:
+                await seed_price_snapshots(
+                    self.session,
+                    spec["slug"],
+                    end_price=catalog_entry.spec_price,
+                    n_points=90,
+                    step_sec=3600,
+                )
         return markets
 
     async def seed_system_account(self, account_id: UUID, bankroll: Decimal, name: str) -> Account:
