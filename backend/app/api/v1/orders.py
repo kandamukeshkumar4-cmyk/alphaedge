@@ -8,7 +8,7 @@ from app.api.v1.deps import get_current_user
 from app.core.config import get_settings
 from app.db.models import Market, PaperOrder, User
 from app.db.session import get_db
-from app.schemas.orders import PaperOrderCreate, PaperOrderResponse
+from app.schemas.orders import PaperOrderCreate, PaperOrderHistoryItem, PaperOrderResponse
 
 router = APIRouter(prefix="/api/v1", tags=["orders"])
 settings = get_settings()
@@ -62,3 +62,32 @@ async def place_paper_order(
         remaining_balance=float(current_user.paper_balance),
         paper_trading_only=True,
     )
+
+
+@router.get("/orders/history", response_model=list[PaperOrderHistoryItem])
+async def get_order_history(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PaperOrderHistoryItem]:
+    orders = (
+        await db.scalars(
+            select(PaperOrder)
+            .where(PaperOrder.user_id == current_user.id)
+            .order_by(PaperOrder.created_at.desc())
+            .limit(50)
+        )
+    ).all()
+
+    return [
+        PaperOrderHistoryItem(
+            slug=order.slug,
+            outcome=order.outcome,
+            side=order.side,
+            shares=float(order.shares),
+            price=float(order.price),
+            cost=float(order.cost),
+            settled=order.settled,
+            created_at=order.created_at,
+        )
+        for order in orders
+    ]

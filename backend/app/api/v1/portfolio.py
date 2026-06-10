@@ -22,14 +22,23 @@ async def _load_paper_orders(
     result = await db.execute(
         text(
             """
-            SELECT slug, side,
-                   SUM(shares) AS shares,
-                   AVG(price)  AS avg_cost,
-                   SUM(cost)   AS cost
-            FROM paper_orders
-            WHERE user_id = :user_id
-            GROUP BY slug, side
-            ORDER BY MAX(created_at) DESC
+            SELECT po.slug, po.side, po.outcome,
+                   COALESCE(m.title, po.slug) AS market_title,
+                   SUM(po.shares)             AS shares,
+                   AVG(po.price)              AS avg_cost,
+                   SUM(po.cost)               AS cost,
+                   SUM(
+                     CASE WHEN po.settled=1 AND UPPER(po.outcome)=COALESCE(mr.outcome,'')
+                          THEN po.shares*1.0 - po.cost
+                          WHEN po.settled=1 THEN 0.0 - po.cost
+                          ELSE 0.0 END
+                   ) AS realized_pnl
+            FROM paper_orders po
+            LEFT JOIN markets m ON m.slug=po.slug
+            LEFT JOIN market_resolutions mr ON mr.slug=po.slug
+            WHERE po.user_id=:user_id
+            GROUP BY po.slug, po.side, po.outcome
+            ORDER BY MAX(po.created_at) DESC
             """
         ),
         {"user_id": user_id},
@@ -37,14 +46,20 @@ async def _load_paper_orders(
     rows = result.mappings().all()
     positions: list[PortfolioPositionResponse] = []
     for row in rows:
+        slug = str(row["slug"])
+        side = str(row["side"])
+        outcome = str(row["outcome"])
         positions.append(
             PortfolioPositionResponse(
-                id=None,
-                market_slug=str(row["slug"]),
-                side=str(row["side"]),
+                id=f"{slug}:{side}:{outcome}",
+                market_slug=slug,
+                side=side,
+                outcome=outcome,
+                market_title=str(row["market_title"]),
                 shares=float(row["shares"]),
                 avg_cost=float(row["avg_cost"]),
                 cost=float(row["cost"]),
+                realized_pnl=float(row["realized_pnl"]),
             )
         )
     return positions
@@ -67,10 +82,14 @@ async def get_portfolio(
         positions = []
         total_trades = 0
 
+    realized_pnl = sum(
+        pos.realized_pnl for pos in positions if pos.realized_pnl is not None
+    )
+
     return PortfolioResponse(
         paper_balance=float(current_user.paper_balance),
         positions=positions,
-        realized_pnl=0.0,
+        realized_pnl=realized_pnl,
         total_trades=total_trades,
         paper_trading_only=True,
         disclaimer=PORTFOLIO_DISCLAIMER,

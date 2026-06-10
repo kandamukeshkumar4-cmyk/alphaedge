@@ -1,8 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
+const ADMIN_API_KEY_STORAGE = "alphaedge.adminApiKey";
+
+const CATALOG_SLUGS = [
+  "nba-2025-01-15-lal-bos",
+  "elect-la-mayor-2026",
+  "wc2026-m1-mex-homewin",
+  "wc2026-m1-draw",
+  "wc2026-m1-rsa-awaywin",
+  "wc2026-winner-brazil",
+  "wc2026-winner-france",
+  "wc2026-winner-argentina",
+] as const;
 
 type CalibrationGate = "pass" | "fail" | "no-data";
 
@@ -53,6 +65,23 @@ export default function CalibrationAdminPage() {
   const [data, setData] = useState<CalibrationLatest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resolveSlug, setResolveSlug] = useState<string>(CATALOG_SLUGS[0]);
+  const [resolveOutcome, setResolveOutcome] = useState<"YES" | "NO">("YES");
+  const [adminApiKey, setAdminApiKey] = useState("");
+  const [resolveMessage, setResolveMessage] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveLoading, setResolveLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(ADMIN_API_KEY_STORAGE);
+      if (stored) {
+        setAdminApiKey(stored);
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, []);
 
   useEffect(() => {
     if (!API) {
@@ -84,6 +113,57 @@ export default function CalibrationAdminPage() {
       ? Math.min(100, Math.max(0, (data.brier_score / 0.5) * 100))
       : 0;
   const gateStyle = gateBadgeStyle(data?.gate ?? "no-data");
+
+  async function handleResolveMarket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResolveMessage(null);
+    setResolveError(null);
+
+    if (!API) {
+      setResolveError("Set NEXT_PUBLIC_API_URL to resolve markets.");
+      return;
+    }
+    if (!adminApiKey.trim()) {
+      setResolveError("Admin API key is required.");
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(ADMIN_API_KEY_STORAGE, adminApiKey);
+    } catch {
+      // sessionStorage unavailable
+    }
+
+    setResolveLoading(true);
+    try {
+      const response = await fetch(`${API}/api/v1/admin/markets/${resolveSlug}/resolve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-API-Key": adminApiKey.trim(),
+        },
+        body: JSON.stringify({ outcome: resolveOutcome }),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        detail?: string;
+        positions_settled?: number;
+      };
+
+      if (!response.ok) {
+        setResolveError(body.detail ?? `Request failed (${response.status})`);
+        return;
+      }
+
+      setResolveMessage(
+        `Resolved ${resolveSlug} as ${resolveOutcome}. Settled ${body.positions_settled ?? 0} position(s).`,
+      );
+    } catch {
+      setResolveError("Could not reach the API to resolve this market.");
+    } finally {
+      setResolveLoading(false);
+    }
+  }
 
   return (
     <main
@@ -188,6 +268,117 @@ export default function CalibrationAdminPage() {
           </div>
         </section>
       ) : null}
+
+      <section style={{ marginTop: "1rem" }}>
+        <div
+          style={{
+            borderRadius: "0.75rem",
+            border: "1px solid #1e293b",
+            background: "#0b1220",
+            padding: "1.25rem",
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>Resolve Market</h2>
+          <p style={{ margin: "0.5rem 0 0", fontSize: "0.875rem", color: "#94a3b8" }}>
+            Settle paper positions for a catalog market (admin only).
+          </p>
+
+          <form onSubmit={(event) => void handleResolveMarket(event)} style={{ marginTop: "1rem" }}>
+            <label style={{ display: "block", fontSize: "0.75rem", color: "#64748b" }}>
+              Market
+              <select
+                value={resolveSlug}
+                onChange={(event) => setResolveSlug(event.target.value)}
+                style={{
+                  display: "block",
+                  marginTop: "0.35rem",
+                  width: "100%",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #334155",
+                  background: "#0f172a",
+                  color: "#e2e8f0",
+                  padding: "0.5rem 0.75rem",
+                }}
+              >
+                {CATALOG_SLUGS.map((slug) => (
+                  <option key={slug} value={slug}>
+                    {slug}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <fieldset style={{ marginTop: "1rem", border: "none", padding: 0 }}>
+              <legend style={{ fontSize: "0.75rem", color: "#64748b" }}>Winning outcome</legend>
+              <label style={{ marginRight: "1rem", fontSize: "0.875rem" }}>
+                <input
+                  type="radio"
+                  name="resolve-outcome"
+                  value="YES"
+                  checked={resolveOutcome === "YES"}
+                  onChange={() => setResolveOutcome("YES")}
+                />{" "}
+                YES
+              </label>
+              <label style={{ fontSize: "0.875rem" }}>
+                <input
+                  type="radio"
+                  name="resolve-outcome"
+                  value="NO"
+                  checked={resolveOutcome === "NO"}
+                  onChange={() => setResolveOutcome("NO")}
+                />{" "}
+                NO
+              </label>
+            </fieldset>
+
+            <label style={{ display: "block", marginTop: "1rem", fontSize: "0.75rem", color: "#64748b" }}>
+              Admin API key
+              <input
+                type="password"
+                value={adminApiKey}
+                onChange={(event) => setAdminApiKey(event.target.value)}
+                autoComplete="off"
+                style={{
+                  display: "block",
+                  marginTop: "0.35rem",
+                  width: "100%",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #334155",
+                  background: "#0f172a",
+                  color: "#e2e8f0",
+                  padding: "0.5rem 0.75rem",
+                }}
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={resolveLoading}
+              style={{
+                marginTop: "1rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #38bdf8",
+                background: "#0ea5e9",
+                color: "#0f172a",
+                fontWeight: 700,
+                padding: "0.5rem 1rem",
+                cursor: resolveLoading ? "not-allowed" : "pointer",
+                opacity: resolveLoading ? 0.6 : 1,
+              }}
+            >
+              {resolveLoading ? "Resolving…" : "Resolve market"}
+            </button>
+          </form>
+
+          {resolveMessage ? (
+            <p style={{ marginTop: "1rem", fontSize: "0.875rem", color: "#22c55e" }}>{resolveMessage}</p>
+          ) : null}
+          {resolveError ? (
+            <p style={{ marginTop: "1rem", fontSize: "0.875rem", color: "#fbbf24" }}>{resolveError}</p>
+          ) : null}
+        </div>
+      </section>
     </main>
   );
 }

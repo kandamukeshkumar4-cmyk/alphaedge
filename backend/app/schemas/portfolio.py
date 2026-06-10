@@ -10,9 +10,12 @@ class PortfolioPositionResponse(BaseModel):
     id: str | None = None
     market_slug: str
     side: str
+    outcome: str = "yes"
+    market_title: str = ""
     shares: float
     avg_cost: float
     cost: float
+    realized_pnl: float | None = None
 
 
 class PortfolioResponse(BaseModel):
