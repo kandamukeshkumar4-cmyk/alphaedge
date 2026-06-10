@@ -13,7 +13,7 @@ import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from xgboost import XGBClassifier
 
-from app.data.fifa.loaders import canonical_team, load_wc2026_fixtures
+from app.data.fifa.loaders import canonical_team, load_wc2026_fixtures, parse_bool
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +39,6 @@ FEATURE_COLUMNS: list[str] = [
 _FORM_WINDOW = 20
 _H2H_WINDOW = 5
 _DEFAULT_PROBS = (1 / 3, 1 / 3, 1 / 3)
-
-
-def _parse_bool(value: object) -> bool:
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"true", "1", "yes"}
 
 
 def _wdl_label(home_score: float, away_score: float) -> int:
@@ -119,7 +113,7 @@ def build_code_to_name_map(fixtures_path: Path | None = None) -> dict[str, str]:
         for prefix in ("home", "away"):
             code = str(row.get(f"{prefix}_team_code", "")).strip()
             name = str(row.get(f"{prefix}_team_name", "")).strip()
-            if code and name and not _parse_bool(row.get(f"{prefix}_is_placeholder", False)):
+            if code and name and not parse_bool(row.get(f"{prefix}_is_placeholder", False)):
                 mapping[code.upper()] = canonical_team(name)
     return mapping
 
@@ -259,7 +253,7 @@ def _build_training_frame(results: pd.DataFrame) -> tuple[pd.DataFrame, pd.Serie
         away = str(row["away_team"])
         hs = float(row["home_score"])
         as_ = float(row["away_score"])
-        neutral = _parse_bool(row.get("neutral", False))
+        neutral = parse_bool(row.get("neutral", False))
         rows.append(tracker.features_for_match(home, away, neutral=neutral))
         labels.append(_wdl_label(hs, as_))
         tracker.record_match(home, away, hs, as_)

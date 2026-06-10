@@ -36,6 +36,13 @@ def canonical_team(name: str) -> str:
     return FIXTURE_TO_CANONICAL.get(name, name)
 
 
+def parse_bool(value: object) -> bool:
+    """Coerce a CSV cell to bool (handles bool objects, '1', 'true', 'yes')."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"true", "1", "yes"}
+
+
 def load_intl_results(data_dir: Path = DATA_DIR) -> pd.DataFrame | None:
     """Load all international results.
 

@@ -8,19 +8,13 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.data.fifa.loaders import load_wc2026_fixtures
+from app.data.fifa.loaders import load_wc2026_fixtures, parse_bool
 from app.db.models import Market
 from app.ml.wc2026_model import predict_match
 from app.services.market_service import MarketService
 from app.services.price_snapshot_seed import seed_price_snapshots
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "fifa"
-
-
-def _parse_bool(value: object) -> bool:
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"true", "1", "yes"}
 
 
 def _group_letter(row) -> str:
@@ -81,7 +75,7 @@ async def seed_wc2026_markets(
     eligible = 0
 
     for _, row in fixtures.iterrows():
-        if _parse_bool(row.get("home_is_placeholder")) or _parse_bool(row.get("away_is_placeholder")):
+        if parse_bool(row.get("home_is_placeholder")) or parse_bool(row.get("away_is_placeholder")):
             continue
         eligible += 1
 
