@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { useMarketPrice } from "@/hooks/useMarketPrice";
 
 import { useAuth } from "@/hooks/useAuth";
 import { API_BASE } from "@/lib/alphaedge-api";
@@ -13,6 +15,7 @@ import {
   fetchPortfolio,
   getAccessToken,
   type OrderHistoryItem,
+  type PortfolioPosition,
   type PortfolioView,
 } from "@/lib/portfolio-api";
 
@@ -144,14 +147,22 @@ export default function PortfolioPage() {
 
       {portfolio ? (
         <>
-          <section className="mb-6 grid gap-3 sm:grid-cols-3">
+          <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label="Portfolio value"
+              value={formatUSD(portfolio.portfolio_value)}
+            />
             <MetricCard label="Paper balance" value={formatUSD(portfolio.paper_balance)} />
+            <MetricCard
+              label="Unrealized P&amp;L"
+              value={formatSignedUsd(portfolio.unrealized_pnl)}
+              tone={portfolio.unrealized_pnl >= 0 ? "positive" : "negative"}
+            />
             <MetricCard
               label="Realized P&amp;L"
               value={formatSignedUsd(portfolio.realized_pnl)}
               tone={portfolio.realized_pnl >= 0 ? "positive" : "negative"}
             />
-            <MetricCard label="Total trades" value={String(portfolio.total_trades)} />
           </section>
 
           <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
@@ -204,56 +215,15 @@ export default function PortfolioPage() {
                         <th className="pb-2">Market</th>
                         <th className="pb-2">Side</th>
                         <th className="pb-2 text-right">Quantity</th>
-                        <th className="pb-2 text-right">Price</th>
-                        <th className="pb-2 text-right">Realized P&amp;L</th>
+                        <th className="pb-2 text-right">Entry</th>
+                        <th className="pb-2 text-right">Mark</th>
+                        <th className="pb-2 text-right">Unrealized</th>
+                        <th className="pb-2 text-right">Realized</th>
                       </tr>
                     </thead>
                     <tbody>
                       {portfolio.positions.map((position) => (
-                        <tr key={position.id} className="border-t border-border">
-                          <td className="py-2">
-                            <Link
-                              href={`/markets/${position.market_slug}`}
-                              className="hover:text-accent"
-                            >
-                              <span className="text-text">{position.market_title}</span>
-                              <span className="block text-[11px] text-muted">
-                                {position.outcome}
-                              </span>
-                            </Link>
-                          </td>
-                          <td className="py-2">
-                            <span
-                              className={cn(
-                                "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
-                                position.outcome.toLowerCase() === "yes"
-                                  ? "bg-primary-dim text-primary"
-                                  : "bg-danger-dim text-danger",
-                              )}
-                            >
-                              {position.side}
-                            </span>
-                          </td>
-                          <td className="py-2 text-right font-mono text-muted">
-                            {position.quantity}
-                          </td>
-                          <td className="py-2 text-right font-mono text-text">
-                            {position.price === null ? "—" : formatUSD(position.price)}
-                          </td>
-                          <td
-                            className={cn(
-                              "py-2 text-right font-mono font-bold",
-                              (position.realized_pnl ?? 0) >= 0
-                                ? "text-primary"
-                                : "text-danger",
-                            )}
-                          >
-                            {position.realized_pnl === null ||
-                            position.realized_pnl === undefined
-                              ? "—"
-                              : formatSignedUsd(position.realized_pnl)}
-                          </td>
-                        </tr>
+                        <PortfolioPositionRow key={position.id} position={position} />
                       ))}
                     </tbody>
                   </table>
@@ -324,6 +294,80 @@ export default function PortfolioPage() {
           "Research only — not financial advice. Verify resolution terms. Paper trading only."}
       </footer>
     </main>
+  );
+}
+
+function PortfolioPositionRow({ position }: { position: PortfolioPosition }) {
+  const live = useMarketPrice(position.settled ? "" : position.market_slug);
+  const markPrice = useMemo(() => {
+    if (position.settled) {
+      return null;
+    }
+    if (live.connected && live.yes > 0) {
+      return position.outcome.toLowerCase() === "yes" ? live.yes : live.no;
+    }
+    return position.current_price ?? position.price;
+  }, [live.connected, live.no, live.yes, position]);
+
+  const unrealized =
+    position.settled || markPrice === null || position.price === null
+      ? 0
+      : position.quantity * (markPrice - position.price);
+
+  return (
+    <tr
+      className={cn(
+        "border-t border-border",
+        position.settled && "opacity-60",
+      )}
+    >
+      <td className="py-2">
+        <Link href={`/markets/${position.market_slug}`} className="hover:text-accent">
+          <span className="flex items-center gap-1.5 text-text">
+            {position.settled ? <span aria-hidden>✓</span> : null}
+            {position.market_title}
+          </span>
+          <span className="block text-[11px] text-muted">{position.outcome}</span>
+        </Link>
+      </td>
+      <td className="py-2">
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
+            position.outcome.toLowerCase() === "yes"
+              ? "bg-primary-dim text-primary"
+              : "bg-danger-dim text-danger",
+          )}
+        >
+          {position.side}
+        </span>
+      </td>
+      <td className="py-2 text-right font-mono text-muted">{position.quantity}</td>
+      <td className="py-2 text-right font-mono text-text">
+        {position.price === null ? "—" : formatUSD(position.price)}
+      </td>
+      <td className="py-2 text-right font-mono text-text">
+        {markPrice === null ? "—" : formatUSD(markPrice)}
+      </td>
+      <td
+        className={cn(
+          "py-2 text-right font-mono font-bold",
+          unrealized >= 0 ? "text-primary" : "text-danger",
+        )}
+      >
+        {position.settled ? "—" : formatSignedUsd(unrealized)}
+      </td>
+      <td
+        className={cn(
+          "py-2 text-right font-mono font-bold",
+          (position.realized_pnl ?? 0) >= 0 ? "text-primary" : "text-danger",
+        )}
+      >
+        {position.realized_pnl === null || position.realized_pnl === undefined
+          ? "—"
+          : formatSignedUsd(position.realized_pnl)}
+      </td>
+    </tr>
   );
 }
 

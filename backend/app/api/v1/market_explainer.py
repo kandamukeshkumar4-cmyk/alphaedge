@@ -1,85 +1,104 @@
 from __future__ import annotations
 
-import os
+import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from app.agents.graph import prefetch_news_for_market
+from app.api.v1.market_prediction import _implied_prob_from_catalog, _is_provisional
 from app.forecasting.predictor import predict_market
-from app.schemas.market_explainer import MarketExplainerResponse
+from app.schemas.market_explainer import MarketExplainerResponse, NewsSignalItem
 from app.services.market_service import CATALOG_SLUGS
+from app.signals.news_signal import get_cached_signal
 
 router = APIRouter(prefix="/api/v1", tags=["markets"])
 
-# Human-readable titles for catalog slugs (slug -> title).
-# Used when a DB session is not available in this lightweight endpoint.
-_CATALOG_TITLES: dict[str, str] = {
-    "nba-2025-01-15-lal-bos": "Lakers vs Celtics",
-    "elect-la-mayor-2026": "Los Angeles mayoral election",
-    "wc2026-m1-mex-homewin": "WC2026 M1: Will Mexico win vs South Africa?",
-    "wc2026-m1-draw": "WC2026 M1: Will Mexico vs South Africa draw?",
-    "wc2026-m1-rsa-awaywin": "WC2026 M1: Will South Africa win vs Mexico?",
-    "wc2026-winner-brazil": "WC2026: Will Brazil win the World Cup?",
-    "wc2026-winner-france": "WC2026: Will France win the World Cup?",
-    "wc2026-winner-argentina": "WC2026: Will Argentina win the World Cup?",
-}
 
-_UNAVAILABLE = "AI explainer unavailable — set ANTHROPIC_API_KEY to enable market insights."
+def _confidence_label(edge: float) -> str:
+    magnitude = abs(edge)
+    if magnitude < 0.02:
+        return "Weak"
+    if magnitude < 0.05:
+        return "Moderate"
+    return "Strong"
+
+
+def _edge_direction(edge: float) -> str:
+    if edge > 0.005:
+        return "model_above_market"
+    if edge < -0.005:
+        return "model_below_market"
+    return "aligned"
+
+
+def _sentiment_label(score: float) -> str:
+    if score > 0.15:
+        return "bullish"
+    if score < -0.15:
+        return "bearish"
+    return "neutral"
+
+
+def _trade_rationale(edge: float, edge_direction: str, news_sentiment: float | None) -> str:
+    direction = {
+        "model_above_market": "Model leans YES vs market",
+        "model_below_market": "Model leans NO vs market",
+        "aligned": "Model aligned with market",
+    }[edge_direction]
+    sentiment = _sentiment_label(news_sentiment if news_sentiment is not None else 0.0)
+    edge_pct = f"{abs(edge):.1%}"
+    return f"{direction} ({edge_pct} edge); news sentiment {sentiment}."
+
+
+def _news_items(slug: str) -> list[NewsSignalItem]:
+    signal = get_cached_signal(slug)
+    if signal is None:
+        return []
+    return [
+        NewsSignalItem(
+            headline=signal.headline,
+            sentiment_score=signal.sentiment_score,
+            volume_score=signal.volume_score,
+            sources_count=signal.sources_count,
+        )
+    ]
 
 
 @router.get("/markets/{slug}/explain", response_model=MarketExplainerResponse)
-async def explain_market(slug: str) -> MarketExplainerResponse:
+async def explain_market(slug: str, background_tasks: BackgroundTasks) -> MarketExplainerResponse:
     if slug not in CATALOG_SLUGS:
         raise HTTPException(status_code=404, detail="Market not found")
 
-    prediction = predict_market({"market_slug": slug, "implied_yes": 0.5})
-    predicted_prob = prediction.predicted_prob
-    reason = prediction.reason
+    market_implied = _implied_prob_from_catalog(slug)
+    prediction = predict_market({"market_slug": slug, "implied_yes": market_implied})
+    edge = prediction.edge
+    edge_dir = _edge_direction(edge)
+    news = _news_items(slug)
+    top_sentiment = news[0].sentiment_score if news else None
 
-    title = _CATALOG_TITLES.get(slug, slug)
+    if not news:
+        background_tasks.add_task(prefetch_news_for_market, slug, timeout=5.0)
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return MarketExplainerResponse(
-            slug=slug,
-            explanation=_UNAVAILABLE,
-            model_used="none",
-            paper_trading_only=True,
-        )
+    trade_rationale = _trade_rationale(edge, edge_dir, top_sentiment)
+    provisional = _is_provisional(slug, prediction.is_edge, prediction.reason)
 
-    try:
-        import anthropic
+    return MarketExplainerResponse(
+        slug=slug,
+        model_prob=round(prediction.predicted_prob, 4),
+        market_implied=round(market_implied, 4),
+        edge=round(edge, 4),
+        edge_direction=edge_dir,
+        confidence_label=_confidence_label(edge),
+        news_signals=news,
+        trade_rationale=trade_rationale,
+        provisional=provisional,
+        explanation=trade_rationale,
+        model_used="deterministic",
+        paper_trading_only=True,
+    )
 
-        response = anthropic.Anthropic().messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            system=(
-                "You are a prediction market analyst. Explain this market in 2-3 sentences: "
-                "what it's asking, what the AI model thinks, and why. Be factual and concise. "
-                "Do not give financial advice."
-            ),
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        f"Market: {title}. "
-                        f"Current YES price: {0.5:.0%}. "
-                        f"Model predicts YES={predicted_prob:.0%}. "
-                        f"Reason: {reason}."
-                    ),
-                }
-            ],
-        )
-        explanation = response.content[0].text
-        return MarketExplainerResponse(
-            slug=slug,
-            explanation=explanation,
-            model_used="claude-haiku-4-5",
-            paper_trading_only=True,
-        )
-    except Exception:
-        return MarketExplainerResponse(
-            slug=slug,
-            explanation=_UNAVAILABLE,
-            model_used="none",
-            paper_trading_only=True,
-        )
+
+async def warm_explainer_news(slug: str) -> None:
+    """Helper for tests: block until news cache is warmed."""
+    await prefetch_news_for_market(slug, timeout=5.0)
+    await asyncio.sleep(0)

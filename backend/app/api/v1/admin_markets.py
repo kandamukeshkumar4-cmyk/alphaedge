@@ -1,19 +1,55 @@
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.broadcast import hub
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
 from app.db.models import MarketResolution, PaperOrder, User
 from app.db.session import get_db
-from app.schemas.admin_markets import MarketResolveRequest, MarketResolveResponse
+from app.schemas.admin_markets import MarketResolveResponse, ResolveMarketRequest
 from app.services.market_service import CATALOG_SLUGS
+from app.services.settlement_service import settle_market
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-markets"])
 settings = get_settings()
+
+
+async def _settle_paper_orders(
+    db: AsyncSession,
+    slug: str,
+    winning_outcome: str,
+) -> int:
+    """Credit JWT user paper balances for resolved paper orders."""
+    orders = (
+        await db.scalars(
+            select(PaperOrder).where(PaperOrder.slug == slug, PaperOrder.settled.is_(False))
+        )
+    ).all()
+
+    winner_credits: dict[uuid.UUID, Decimal] = {}
+    for order in orders:
+        if winning_outcome == "VOID":
+            credit = Decimal(str(order.cost))
+        elif order.outcome.upper() == winning_outcome:
+            credit = Decimal(str(order.shares)) * Decimal("1.0")
+        else:
+            credit = Decimal("0")
+        if credit > 0:
+            winner_credits[order.user_id] = winner_credits.get(order.user_id, Decimal("0")) + credit
+        order.settled = True
+
+    for user_id, credit in winner_credits.items():
+        user = await db.get(User, user_id)
+        if user is not None:
+            user.paper_balance += credit
+
+    await db.flush()
+    return len(orders)
 
 
 @router.post(
@@ -23,7 +59,7 @@ settings = get_settings()
 )
 async def resolve_market(
     slug: str,
-    body: MarketResolveRequest,
+    body: ResolveMarketRequest,
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> MarketResolveResponse:
@@ -37,32 +73,36 @@ async def resolve_market(
             detail="Market already resolved",
         )
 
-    outcome = body.outcome
-    orders = (
-        await db.scalars(
-            select(PaperOrder).where(PaperOrder.slug == slug, PaperOrder.settled.is_(False))
-        )
-    ).all()
+    winning_outcome = body.winning_outcome.upper()
 
-    winner_credits: dict[uuid.UUID, Decimal] = {}
-    for order in orders:
-        if order.outcome.upper() == outcome:
-            credit = Decimal(str(order.shares)) * Decimal("1.0")
-            winner_credits[order.user_id] = winner_credits.get(order.user_id, Decimal("0")) + credit
-        order.settled = True
+    try:
+        summary = await settle_market(db, slug, winning_outcome)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
-    for user_id, credit in winner_credits.items():
-        user = await db.get(User, user_id)
-        if user is not None:
-            user.paper_balance += credit
+    paper_orders_settled = await _settle_paper_orders(db, slug, winning_outcome)
 
-    resolution = MarketResolution(slug=slug, outcome=outcome)
+    resolution = MarketResolution(slug=slug, outcome=winning_outcome)
     db.add(resolution)
     await db.flush()
 
+    ts = datetime.now(timezone.utc).isoformat()
+    await hub.publish(
+        slug,
+        {
+            "slug": slug,
+            "resolved": True,
+            "winning_outcome": winning_outcome,
+            "ts": ts,
+        },
+    )
+
     return MarketResolveResponse(
         slug=slug,
-        outcome=outcome,
-        positions_settled=len(orders),
+        winning_outcome=winning_outcome,
+        settled=int(summary["settled"]),
+        skipped_already_settled=int(summary["skipped_already_settled"]),
+        total_payout=str(summary["total_payout"]),
+        paper_orders_settled=paper_orders_settled,
         paper_trading_only=True,
     )

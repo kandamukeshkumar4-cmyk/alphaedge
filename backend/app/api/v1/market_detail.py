@@ -35,8 +35,12 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
     no_price = _best_outcome_price(book.get("no", {}), round(1.0 - yes_price, 4))
 
     resolution = await db.scalar(select(MarketResolution).where(MarketResolution.slug == slug))
-    resolved = resolution is not None
+    resolved = resolution is not None or market.status.value == "resolved"
     resolution_outcome = resolution.outcome if resolution is not None else None
+    winning_outcome = resolution_outcome
+    if winning_outcome is None and market.winning_outcome is not None:
+        winning_outcome = market.winning_outcome.value.upper()
+    resolved_at = market.resolved_at
 
     forecast_payload: MarketDetailForecast | None = None
     forecast_result = ForecastService.predict(slug, implied_yes=yes_price)
@@ -63,6 +67,8 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
         paper_trading_only=settings.paper_trading_only,
         resolved=resolved,
         resolution_outcome=resolution_outcome,
+        winning_outcome=winning_outcome,
+        resolved_at=resolved_at,
     )
 
 

@@ -221,6 +221,7 @@ class Position(Base):
     no_shares: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
     avg_yes_cost: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0"))
     avg_no_cost: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0"))
+    settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
