@@ -31,6 +31,15 @@ export function MarketSearch({ onChange, loading = false }: Props) {
   const [sort, setSort] = useState<SortOption>("volume");
   const [query, setQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const categoryRef = useRef("all");
+  const sortRef = useRef<SortOption>("volume");
+
+  function clearDebounce() {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  }
 
   function fireChange(cat: string, s: SortOption, q: string) {
     onChange({
@@ -41,29 +50,29 @@ export function MarketSearch({ onChange, loading = false }: Props) {
   }
 
   function handleCategory(cat: string) {
+    clearDebounce();
+    categoryRef.current = cat;
     setCategory(cat);
-    fireChange(cat, sort, query);
+    fireChange(cat, sortRef.current, query);
   }
 
   function handleSort(s: SortOption) {
+    clearDebounce();
+    sortRef.current = s;
     setSort(s);
-    fireChange(category, s, query);
+    fireChange(categoryRef.current, s, query);
   }
 
   function handleQuery(e: React.ChangeEvent<HTMLInputElement>) {
     const q = e.target.value;
     setQuery(q);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    clearDebounce();
     debounceRef.current = setTimeout(() => {
-      fireChange(category, sort, q);
+      fireChange(categoryRef.current, sortRef.current, q);
     }, 300);
   }
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  useEffect(() => () => clearDebounce(), []);
 
   return (
     <div className="space-y-3">

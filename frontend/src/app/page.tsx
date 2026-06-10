@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   MARKETS,
@@ -68,16 +68,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [activeParams, setActiveParams] = useState<MarketFilterParams>({});
+  const requestIdRef = useRef(0);
 
   const loadMarkets = useCallback(async (params: MarketFilterParams) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const result = await fetchMarkets(params);
+      if (requestId !== requestIdRef.current) return;
       setFilteredMarkets(result);
     } catch {
+      if (requestId !== requestIdRef.current) return;
       setFilteredMarkets(MARKETS);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 

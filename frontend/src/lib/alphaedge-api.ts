@@ -93,6 +93,22 @@ export type MarketFilterParams = {
   q?: string;
 };
 
+/** Map UI/backend category labels to valid GET /markets category query values. */
+export function toApiCategory(category: string): string | undefined {
+  const normalized = category.trim().toLowerCase();
+  const map: Record<string, string> = {
+    sports: "sports",
+    nba: "sports",
+    "fifa wc2026": "sports",
+    politics: "politics",
+    elections: "politics",
+    crypto: "crypto",
+    culture: "culture",
+    economics: "economics",
+  };
+  return map[normalized];
+}
+
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
   if (!API_BASE) {
     return MARKETS;

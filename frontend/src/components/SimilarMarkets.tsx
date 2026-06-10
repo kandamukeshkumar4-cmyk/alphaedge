@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { fetchMarkets } from "@/lib/alphaedge-api";
+import { fetchMarkets, toApiCategory } from "@/lib/alphaedge-api";
 import type { Market } from "@/lib/mock-data";
 import { formatCompactUSD, pct } from "@/lib/mock-data";
 
@@ -17,7 +17,11 @@ export function SimilarMarkets({ currentSlug, category }: Props) {
   useEffect(() => {
     let cancelled = false;
 
-    const categoryParam = category.toLowerCase().replace(/\s+/g, "");
+    const categoryParam = toApiCategory(category);
+    if (!categoryParam) {
+      setMarkets([]);
+      return;
+    }
 
     fetchMarkets({ category: categoryParam, sort: "volume" })
       .then((all) => {
