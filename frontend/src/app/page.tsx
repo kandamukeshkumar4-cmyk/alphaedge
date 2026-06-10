@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   MARKETS,
-  marketsByCategory,
   trendingRows,
   topMoverRows,
   newRows,
@@ -28,6 +27,19 @@ import { cn } from "@/lib/cn";
 function formatPnl(pnl: number) {
   const sign = pnl >= 0 ? "+" : "";
   return `${sign}$${Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function groupMarketsByCategory(markets: Market[]) {
+  const byCategory = new Map<string, Market[]>();
+  for (const market of markets) {
+    const list = byCategory.get(market.category) ?? [];
+    list.push(market);
+    byCategory.set(market.category, list);
+  }
+  return Array.from(byCategory.entries()).map(([category, items]) => ({
+    category,
+    markets: items,
+  }));
 }
 
 function LeaderboardSidebar({ entries }: { entries: LeaderboardEntry[] }) {
@@ -61,7 +73,6 @@ function LeaderboardSidebar({ entries }: { entries: LeaderboardEntry[] }) {
 
 export default function Home() {
   const featured = MARKETS.slice(0, 4);
-  const groups = marketsByCategory();
   const { shouldShow, markDone } = useOnboarding();
 
   const [filteredMarkets, setFilteredMarkets] = useState<Market[]>(MARKETS);
@@ -106,7 +117,7 @@ export default function Home() {
     ? filteredMarkets.length > 0
       ? [{ category: "Results", markets: filteredMarkets }]
       : []
-    : groups;
+    : groupMarketsByCategory(filteredMarkets);
 
   return (
     <>
