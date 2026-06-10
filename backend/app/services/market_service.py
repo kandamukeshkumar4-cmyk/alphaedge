@@ -22,17 +22,27 @@ from app.services.ledger_service import LedgerService
 CATALOG_SLUGS: frozenset[str] = frozenset(
     {
         "nba-2025-01-15-lal-bos",
+        "nba-warriors-playoff-seed",
         "elect-la-mayor-2026",
+        "elect-2028-dem-nominee",
         "wc2026-m1-mex-homewin",
         "wc2026-m1-draw",
         "wc2026-m1-rsa-awaywin",
         "wc2026-winner-brazil",
         "wc2026-winner-france",
         "wc2026-winner-argentina",
+        "crypto-btc-friday-5pm",
+        "crypto-eth-100k-eoy",
+        "culture-gta6-trailer",
+        "culture-love-island-elim",
+        "econ-cpi-above-3",
+        "econ-fed-cut-march",
     }
 )
 
-CATALOG_CATEGORIES: frozenset[str] = frozenset({"NBA", "FIFA WC2026", "Elections"})
+CATALOG_CATEGORIES: frozenset[str] = frozenset(
+    {"NBA", "FIFA WC2026", "Elections", "Crypto", "Culture", "Economics"}
+)
 
 
 class MarketService:
@@ -268,6 +278,19 @@ class MarketService:
                 "description": "Head-to-head paper market on the Lakers vs Celtics matchup.",
                 "resolution": "Resolves YES if the Lakers win the game, otherwise NO.",
             },
+            {
+                "slug": "nba-warriors-playoff-seed",
+                "title": "Warriors Playoffs Top-4 Seed",
+                "question": "Will the Warriors finish as a top-4 seed?",
+                "lock_at": catalog_lock_at,
+                "category": "NBA",
+                "icon": "🏀",
+                "volume": 1_280_000,
+                "traders": 2_450,
+                "market_count": 2,
+                "description": "Paper market on Golden State's final regular-season seeding.",
+                "resolution": "Resolves YES if the Warriors finish top-4 in the Western Conference.",
+            },
             # ── Elections ─────────────────────────────────────────────────────────
             {
                 "slug": "elect-la-mayor-2026",
@@ -281,6 +304,19 @@ class MarketService:
                 "market_count": 1,
                 "description": "Paper market on the certified Los Angeles mayoral result.",
                 "resolution": "Resolves to the certified winner of the election.",
+            },
+            {
+                "slug": "elect-2028-dem-nominee",
+                "title": "2028 Democratic Nominee",
+                "question": "Will Harris be the 2028 Dem presidential nominee?",
+                "lock_at": catalog_lock_at,
+                "category": "Elections",
+                "icon": "🗳️",
+                "volume": 3_920_000,
+                "traders": 4_800,
+                "market_count": 2,
+                "description": "Paper market on the 2028 Democratic presidential nomination.",
+                "resolution": "Resolves YES if Kamala Harris is the certified Democratic nominee.",
             },
             # ── FIFA World Cup 2026 ──────────────────────────────────────────────
             # Group A Match 1 — 3 binary outcome markets (FIFA canonical test match)
@@ -362,6 +398,87 @@ class MarketService:
                 "market_count": 1,
                 "description": "Argentina tournament-winner market for FIFA World Cup 2026.",
                 "resolution": "Resolves YES if Argentina lift the trophy. Paper-trading simulation only.",
+            },
+            # ── Crypto ─────────────────────────────────────────────────────────────
+            {
+                "slug": "crypto-btc-friday-5pm",
+                "title": "BTC Above $70K This Friday",
+                "question": "Will Bitcoin close above $70,000 at 5 PM ET this Friday?",
+                "lock_at": catalog_lock_at,
+                "category": "Crypto",
+                "icon": "₿",
+                "volume": 2_750_000,
+                "traders": 3_100,
+                "market_count": 2,
+                "description": "Paper market on Bitcoin's Friday 5 PM ET close price.",
+                "resolution": "Resolves YES if BTC closes above $70,000 at 5 PM ET on the target Friday.",
+            },
+            {
+                "slug": "crypto-eth-100k-eoy",
+                "title": "ETH to $10K by End of 2026",
+                "question": "Will Ethereum reach $10,000 by December 31, 2026?",
+                "lock_at": catalog_lock_at,
+                "category": "Crypto",
+                "icon": "Ξ",
+                "volume": 1_640_000,
+                "traders": 1_920,
+                "market_count": 2,
+                "description": "Paper market on Ethereum reaching $10,000 before year-end 2026.",
+                "resolution": "Resolves YES if ETH trades at or above $10,000 on any major exchange by Dec 31, 2026.",
+            },
+            # ── Culture ──────────────────────────────────────────────────────────
+            {
+                "slug": "culture-gta6-trailer",
+                "title": "GTA 6 Release Before Dec 2025",
+                "question": "Will GTA 6 launch for PS5/Xbox before December 31, 2025?",
+                "lock_at": catalog_lock_at,
+                "category": "Culture",
+                "icon": "🎮",
+                "volume": 4_000_000,
+                "traders": 5_000,
+                "market_count": 2,
+                "description": "Paper market on Grand Theft Auto VI console launch timing.",
+                "resolution": "Resolves YES if GTA 6 launches on PS5 or Xbox before Dec 31, 2025.",
+            },
+            {
+                "slug": "culture-love-island-elim",
+                "title": "Love Island Next Elimination",
+                "question": "Will a female contestant be eliminated first?",
+                "lock_at": catalog_lock_at,
+                "category": "Culture",
+                "icon": "💘",
+                "volume": 680_000,
+                "traders": 920,
+                "market_count": 2,
+                "description": "Paper market on the next Love Island elimination outcome.",
+                "resolution": "Resolves YES if the next eliminated contestant is female.",
+            },
+            # ── Economics ──────────────────────────────────────────────────────────
+            {
+                "slug": "econ-cpi-above-3",
+                "title": "CPI Stays Above 3% in Q3 2026",
+                "question": "Will US CPI remain above 3.0% for all of Q3 2026?",
+                "lock_at": catalog_lock_at,
+                "category": "Economics",
+                "icon": "📈",
+                "volume": 1_100_000,
+                "traders": 1_450,
+                "market_count": 2,
+                "description": "Paper market on US CPI inflation during Q3 2026.",
+                "resolution": "Resolves YES if every monthly CPI YoY print in Q3 2026 exceeds 3.0%.",
+            },
+            {
+                "slug": "econ-fed-cut-march",
+                "title": "Fed Rate Cut in June 2026",
+                "question": "Will the Federal Reserve cut rates at the June 2026 FOMC meeting?",
+                "lock_at": catalog_lock_at,
+                "category": "Economics",
+                "icon": "🏦",
+                "volume": 2_200_000,
+                "traders": 2_800,
+                "market_count": 2,
+                "description": "Paper market on the June 2026 FOMC rate decision.",
+                "resolution": "Resolves YES if the Fed announces a rate cut at the June 2026 meeting.",
             },
         ]
         markets = []

@@ -19,6 +19,9 @@ const CATEGORY_TABS: { label: string; value: CategoryFilter }[] = [
   { label: "NBA", value: "NBA" },
   { label: "FIFA WC2026", value: "FIFA WC2026" },
   { label: "Elections", value: "Elections" },
+  { label: "Crypto", value: "Crypto" },
+  { label: "Culture", value: "Culture" },
+  { label: "Economics", value: "Economics" },
 ];
 
 const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [

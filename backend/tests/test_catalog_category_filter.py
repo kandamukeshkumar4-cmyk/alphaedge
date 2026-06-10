@@ -7,11 +7,11 @@ from app.services.market_service import CATALOG_SLUGS, MarketService
 
 
 @pytest.mark.asyncio
-async def test_seed_catalog_markets_populates_all_eight_slugs(db_session):
+async def test_seed_catalog_markets_populates_all_sixteen_slugs(db_session):
     service = MarketService(db_session)
     seeded = await service.seed_catalog_markets()
 
-    assert len(seeded) == 8
+    assert len(seeded) == 16
     assert {market.slug for market in seeded} == set(CATALOG_SLUGS)
 
 
@@ -21,7 +21,14 @@ async def test_seed_catalog_markets_uses_loop_l_categories(db_session):
     seeded = await service.seed_catalog_markets()
 
     categories = {market.category for market in seeded}
-    assert {"NBA", "FIFA WC2026", "Elections"}.issubset(categories)
+    assert {
+        "NBA",
+        "FIFA WC2026",
+        "Elections",
+        "Crypto",
+        "Culture",
+        "Economics",
+    }.issubset(categories)
 
 
 @pytest.mark.asyncio
@@ -44,7 +51,7 @@ async def test_list_markets_category_filter_nba(db_session):
 
     assert response.status_code == 200
     slugs = {market["slug"] for market in response.json()}
-    assert slugs == {"nba-2025-01-15-lal-bos"}
+    assert slugs == {"nba-2025-01-15-lal-bos", "nba-warriors-playoff-seed"}
 
 
 @pytest.mark.asyncio
@@ -97,7 +104,7 @@ async def test_list_markets_category_filter_elections(db_session):
 
     assert response.status_code == 200
     slugs = {market["slug"] for market in response.json()}
-    assert slugs == {"elect-la-mayor-2026"}
+    assert slugs == {"elect-la-mayor-2026", "elect-2028-dem-nominee"}
 
 
 @pytest.mark.asyncio
@@ -111,7 +118,7 @@ async def test_list_markets_rejects_invalid_category(db_session):
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/markets", params={"category": "Crypto"})
+            response = await client.get("/api/v1/markets", params={"category": "Sports"})
     finally:
         app.dependency_overrides.clear()
 
