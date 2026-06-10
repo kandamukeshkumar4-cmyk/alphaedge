@@ -26,6 +26,7 @@ import {
   fetchMarketDetailApi,
   type MarketDetailApi,
 } from "@/lib/alphaedge-api";
+import { SimilarMarkets } from "@/components/SimilarMarkets";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
 const PAPER_DISCLAIMER =
@@ -227,6 +228,10 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
             <TradePanel market={market} disabled={false} />
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <SimilarMarkets currentSlug={slug} category={market.category} />
       </div>
 
       <footer className="mt-8 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-center text-xs text-muted">

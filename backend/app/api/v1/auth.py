@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,16 @@ from app.db.session import get_db
 from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserProfileResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+class UpdateMeRequest(BaseModel):
+    onboarded: bool | None = None
+    display_name: str | None = Field(default=None, max_length=32)
+
+
+class UpdateMeResponse(BaseModel):
+    onboarded: bool
+    display_name: str | None
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -46,4 +57,26 @@ async def me(current_user: User = Depends(get_current_user)) -> UserProfileRespo
         email=current_user.email,
         paper_balance=float(current_user.paper_balance),
         created_at=current_user.created_at,
+    )
+
+
+@router.patch("/me", response_model=UpdateMeResponse)
+async def update_me(
+    body: UpdateMeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UpdateMeResponse:
+    if body.onboarded is not None:
+        current_user.onboarded = body.onboarded
+    if body.display_name is not None:
+        if len(body.display_name) > 32:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="display_name must be 32 characters or fewer",
+            )
+        current_user.display_name = body.display_name
+    await db.flush()
+    return UpdateMeResponse(
+        onboarded=current_user.onboarded,
+        display_name=current_user.display_name,
     )

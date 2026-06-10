@@ -58,22 +58,27 @@ router.include_router(leaderboard_router)
 settings = get_settings()
 
 
+_VALID_CATEGORIES = {
+    "sports", "politics", "crypto", "culture", "economics", "all",
+    # legacy capitalized values kept for backward-compat
+    "NBA", "FIFA WC2026", "Elections", "Crypto", "Culture", "Economics",
+}
+_VALID_SORTS = {"volume", "traders", "newest"}
+
+
 @router.get("/markets", response_model=list[MarketResponse])
 async def list_markets(
     category: str | None = None,
+    sort: str = "volume",
+    q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    if category is not None and category not in {
-        "NBA",
-        "FIFA WC2026",
-        "Elections",
-        "Crypto",
-        "Culture",
-        "Economics",
-    }:
+    if category is not None and category not in _VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category filter")
+    if sort not in _VALID_SORTS:
+        raise HTTPException(status_code=400, detail="Invalid sort parameter")
     svc = MarketService(db)
-    return await svc.list_public_markets(category=category)
+    return await svc.list_public_markets(category=category, sort=sort, q=q)
 
 
 @router.get("/markets/{slug}", response_model=MarketResponse)

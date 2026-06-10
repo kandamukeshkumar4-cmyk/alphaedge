@@ -166,7 +166,12 @@ class MarketService:
         result = await self.session.execute(select(Market).order_by(Market.created_at.desc()))
         return list(result.scalars().all())
 
-    async def list_public_markets(self, category: str | None = None) -> list[MarketResponse]:
+    async def list_public_markets(
+        self,
+        category: str | None = None,
+        sort: str = "volume",
+        q: str | None = None,
+    ) -> list[MarketResponse]:
         stmt = (
             select(
                 Market.id,
@@ -187,18 +192,45 @@ class MarketService:
                 MarketResolution.outcome.label("resolution_outcome"),
             )
             .outerjoin(MarketResolution, MarketResolution.slug == Market.slug)
-            .order_by(Market.created_at.desc())
         )
+
         category_filter = self._catalog_category_filter(category)
         if category_filter is not None:
             stmt = stmt.where(category_filter)
+
+        if q:
+            stmt = stmt.where(Market.title.ilike(f"%{q}%"))
+
+        if sort == "traders":
+            stmt = stmt.order_by(Market.traders.desc(), Market.created_at.desc())
+        elif sort == "newest":
+            stmt = stmt.order_by(Market.created_at.desc())
+        else:
+            stmt = stmt.order_by(Market.volume.desc(), Market.created_at.desc())
+
         result = await self.session.execute(stmt)
         return [self._market_response_from_row(row._mapping) for row in result.all()]
 
     @staticmethod
     def _catalog_category_filter(category: str | None):
-        if category is None:
+        if category is None or category == "all":
             return None
+        # New lowercase API categories
+        normalized = category.lower()
+        if normalized == "sports":
+            return Market.category.in_(("NBA", "FIFA WC2026"))
+        if normalized == "politics":
+            return or_(
+                Market.category.in_(("Elections", "Politics")),
+                Market.slug.like("elect-%"),
+            )
+        if normalized == "crypto":
+            return Market.category == "Crypto"
+        if normalized == "culture":
+            return Market.category == "Culture"
+        if normalized == "economics":
+            return Market.category == "Economics"
+        # Legacy capitalized values
         if category == "NBA":
             return or_(Market.category == "NBA", Market.slug.like("nba-%"))
         if category == "FIFA WC2026":
