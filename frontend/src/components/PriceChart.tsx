@@ -49,6 +49,7 @@ export function PriceChart({
   const modelLineRef = useRef<ReturnType<ISeriesApi<"Area">["createPriceLine"]> | null>(null);
   const dataRef = useRef<Candle[]>([]);
 
+  const isApiModeRef = useRef<boolean>(false);
   const [range, setRange] = useState<RangeKey>("1D");
   const [mode, setMode] = useState<Mode>("area");
   const [apiCandles, setApiCandles] = useState<Candle[] | null>(null);
@@ -158,6 +159,7 @@ export function PriceChart({
   useEffect(() => {
     const candles =
       apiCandles ?? generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    isApiModeRef.current = apiCandles !== null;
     dataRef.current = candles;
     const areaData = candles.map((c) => ({
       time: c.time as UTCTimestamp,
@@ -219,7 +221,7 @@ export function PriceChart({
 
     const interval = setInterval(() => {
       const data = dataRef.current;
-      if (data.length === 0) return;
+      if (data.length === 0 || isApiModeRef.current) return;
       const lastCandle = data[data.length - 1];
       const drift = (Math.random() - 0.5) * 0.018;
       const newClose = Math.min(0.97, Math.max(0.03, lastCandle.close + drift));

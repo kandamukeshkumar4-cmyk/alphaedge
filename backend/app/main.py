@@ -48,7 +48,7 @@ async def _run_startup_price_feed() -> None:
             await session.commit()
         except Exception:
             await session.rollback()
-            logger.warning("Startup price feed failed", exc_info=True)
+            logger.error("Startup price feed failed — candle data may be stale", exc_info=True)
 
 
 @asynccontextmanager

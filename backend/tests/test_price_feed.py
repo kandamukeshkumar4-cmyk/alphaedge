@@ -58,7 +58,7 @@ async def test_get_candles_returns_ninety_with_ohlcv_shape(db_session):
                 params={"points": 90},
             )
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 200
     payload = response.json()
@@ -88,7 +88,7 @@ async def test_get_candles_time_monotonically_increasing(db_session):
                 params={"points": 90},
             )
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(get_db, None)
 
     times = [candle["time"] for candle in response.json()["candles"]]
     assert times == sorted(times)
@@ -124,6 +124,6 @@ async def test_get_candles_unknown_slug_returns_404(db_session):
         ) as client:
             response = await client.get("/api/v1/markets/not-a-real-slug/candles")
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 404

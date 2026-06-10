@@ -26,7 +26,7 @@ export async function fetchMarketCandles(
 
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${slug}/candles?points=${points}`,
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
       { cache: "no-store" },
     );
     if (!response.ok) {

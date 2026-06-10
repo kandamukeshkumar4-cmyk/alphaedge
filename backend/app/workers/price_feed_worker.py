@@ -66,7 +66,7 @@ async def run_price_feed_once(db: AsyncSession) -> dict[str, str]:
                     market_slug=slug,
                     implied_yes=Decimal(str(round(fallback, 4))),
                     captured_at=datetime.now(UTC),
-                    source="polymarket",
+                    source="polymarket-fallback",
                     title=f"seed-fallback:{slug}",
                 )
                 results[slug] = "error"
