@@ -59,7 +59,13 @@ function matchesFilter(market: Market, filter?: "open" | "resolved"): boolean {
   return market.status === "resolved";
 }
 
-export type MarketCategory = "NBA" | "FIFA WC2026" | "Elections";
+export type MarketCategory =
+  | "NBA"
+  | "FIFA WC2026"
+  | "Elections"
+  | "Crypto"
+  | "Culture"
+  | "Economics";
 
 export async function fetchMarkets(
   filter?: "open" | "resolved",
