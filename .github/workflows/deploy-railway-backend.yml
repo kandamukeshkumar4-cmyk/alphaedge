@@ -55,6 +55,19 @@ jobs:
           done
           exit 1
 
+      - name: Setup uv
+        if: ${{ inputs.api_url != '' }}
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run deploy smoke tests
+        if: ${{ inputs.api_url != '' }}
+        env:
+          RAILWAY_PUBLIC_URL: ${{ inputs.api_url }}
+        working-directory: backend
+        run: |
+          uv sync --extra dev
+          uv run --extra dev pytest tests/smoke/ -q --base-url="${RAILWAY_PUBLIC_URL}"
+
       - name: Rebuild Azure Static Web Apps frontend with backend URL
         if: ${{ inputs.api_url != '' }}
         env:
