@@ -32,8 +32,9 @@ def mulberry32(seed: int):
         nonlocal a
         a = _i32(a)
         a = _i32(a + 0x6D2B79F5)
-        t = _imul(a ^ (a >> 15), (1 | a) & 0xFFFFFFFF)
-        t = _i32(_imul(t ^ (t >> 7), (61 | t) & 0xFFFFFFFF) ^ t)
+        # Mask before shifting to match JS unsigned `>>>` (zero-fill, not sign-fill).
+        t = _imul(a ^ ((a & 0xFFFFFFFF) >> 15), (1 | a) & 0xFFFFFFFF)
+        t = _i32(_imul(t ^ ((t & 0xFFFFFFFF) >> 7), (61 | t) & 0xFFFFFFFF) ^ t)
         return ((t ^ (t >> 14)) & 0xFFFFFFFF) / 4294967296
 
     return random
@@ -48,6 +49,9 @@ class SeedCandle:
     close: float
 
 
+_SEED_EPOCH = datetime(2026, 6, 2, 17, 0, 0, tzinfo=UTC)
+
+
 def generate_candles(
     slug: str,
     points: int,
@@ -58,7 +62,7 @@ def generate_candles(
 ) -> list[SeedCandle]:
     rand = mulberry32(hash_seed(slug))
     if now is None:
-        now = datetime.now(UTC)
+        now = _SEED_EPOCH
     now_ts = int(now.timestamp())
 
     closes: list[float] = [end_price]

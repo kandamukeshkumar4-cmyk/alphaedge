@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -33,7 +34,9 @@ async def run_price_feed_once(db: AsyncSession) -> dict[str, str]:
             continue
 
         try:
-            snapshot = connector.fetch_market_snapshot(external_slug)
+            snapshot = await asyncio.to_thread(
+                connector.fetch_market_snapshot, external_slug
+            )
             captured_at = datetime.now(UTC)
             implied = Decimal(str(round(snapshot.implied_yes, 4)))
             await _upsert_snapshot(

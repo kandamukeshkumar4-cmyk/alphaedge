@@ -34,10 +34,14 @@ async def get_market_candles(
     result = await db.execute(
         select(OddsSnapshot.captured_at, OddsSnapshot.implied_yes)
         .where(OddsSnapshot.market_slug == slug)
-        .order_by(OddsSnapshot.captured_at.asc())
+        .order_by(OddsSnapshot.captured_at.desc())
         .limit(points * 2)
     )
-    rows = [(captured_at, float(implied)) for captured_at, implied in result.all()]
+    # Fetch newest-first, then reverse so bucket_snapshots receives ascending order.
+    rows = [
+        (captured_at, float(implied))
+        for captured_at, implied in reversed(result.all())
+    ]
 
     entry = CATALOG_MAP.get(slug)
     end_price = entry.spec_price if entry is not None else 0.5
