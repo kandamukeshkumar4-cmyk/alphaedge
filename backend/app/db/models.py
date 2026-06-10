@@ -76,6 +76,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     paper_balance: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("100000"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    onboarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    display_name: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
     paper_orders: Mapped[list["PaperOrder"]] = relationship(back_populates="user")
 

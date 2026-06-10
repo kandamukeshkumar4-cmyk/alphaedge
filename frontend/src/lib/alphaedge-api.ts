@@ -145,15 +145,42 @@ export const fallbackSnapshot: MarketSnapshot = {
   },
 };
 
-export async function fetchMarkets(): Promise<CardMarket[]> {
+export type MarketFilterParams = {
+  category?: string;
+  sort?: "volume" | "traders" | "newest";
+  q?: string;
+};
+
+/** Map UI/backend category labels to valid GET /markets category query values. */
+export function toApiCategory(category: string): string | undefined {
+  const normalized = category.trim().toLowerCase();
+  const map: Record<string, string> = {
+    sports: "sports",
+    nba: "sports",
+    "fifa wc2026": "sports",
+    politics: "politics",
+    elections: "politics",
+    crypto: "crypto",
+    culture: "culture",
+    economics: "economics",
+  };
+  return map[normalized];
+}
+
+export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
   if (!API_BASE) {
     return MARKETS;
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/v1/markets`, {
-      cache: "no-store",
-    });
+    const url = new URL(`${API_BASE}/api/v1/markets`);
+    if (params?.category && params.category !== "all") {
+      url.searchParams.set("category", params.category);
+    }
+    if (params?.sort) url.searchParams.set("sort", params.sort);
+    if (params?.q) url.searchParams.set("q", params.q);
+
+    const response = await fetch(url.toString(), { cache: "no-store" });
     if (!response.ok) {
       return MARKETS;
     }
@@ -161,6 +188,37 @@ export async function fetchMarkets(): Promise<CardMarket[]> {
     return markets.length ? mergeApiMarketsForCards(markets, MARKETS) : MARKETS;
   } catch {
     return MARKETS;
+  }
+}
+
+export type PatchMeRequest = {
+  onboarded?: boolean;
+  display_name?: string;
+};
+
+export type PatchMeResponse = {
+  onboarded: boolean;
+  display_name: string | null;
+};
+
+export async function patchMe(
+  token: string,
+  body: PatchMeRequest,
+): Promise<PatchMeResponse | null> {
+  if (!API_BASE) return null;
+  try {
+    const resp = await fetch(`${API_BASE}/api/v1/auth/me`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()) as PatchMeResponse;
+  } catch {
+    return null;
   }
 }
 
