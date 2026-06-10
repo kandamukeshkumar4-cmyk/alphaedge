@@ -10,6 +10,7 @@ from app.db.models import (
     Account,
     LedgerEntryType,
     Market,
+    MarketResolution,
     MarketStatus,
     OrderOutcome,
     Position,
@@ -156,23 +157,28 @@ class MarketService:
         return list(result.scalars().all())
 
     async def list_public_markets(self, category: str | None = None) -> list[MarketResponse]:
-        stmt = select(
-            Market.id,
-            Market.slug,
-            Market.title,
-            Market.question,
-            Market.category,
-            Market.icon,
-            Market.volume,
-            Market.traders,
-            Market.market_count,
-            Market.description,
-            Market.resolution,
-            cast(Market.status, String).label("status"),
-            Market.lock_at,
-            Market.resolved_at,
-            cast(Market.winning_outcome, String).label("winning_outcome"),
-        ).order_by(Market.created_at.desc())
+        stmt = (
+            select(
+                Market.id,
+                Market.slug,
+                Market.title,
+                Market.question,
+                Market.category,
+                Market.icon,
+                Market.volume,
+                Market.traders,
+                Market.market_count,
+                Market.description,
+                Market.resolution,
+                cast(Market.status, String).label("status"),
+                Market.lock_at,
+                Market.resolved_at,
+                cast(Market.winning_outcome, String).label("winning_outcome"),
+                MarketResolution.outcome.label("resolution_outcome"),
+            )
+            .outerjoin(MarketResolution, MarketResolution.slug == Market.slug)
+            .order_by(Market.created_at.desc())
+        )
         category_filter = self._catalog_category_filter(category)
         if category_filter is not None:
             stmt = stmt.where(category_filter)
@@ -216,7 +222,10 @@ class MarketService:
                 Market.lock_at,
                 Market.resolved_at,
                 cast(Market.winning_outcome, String).label("winning_outcome"),
-            ).where(Market.slug == slug)
+                MarketResolution.outcome.label("resolution_outcome"),
+            )
+            .outerjoin(MarketResolution, MarketResolution.slug == Market.slug)
+            .where(Market.slug == slug)
         )
         row = result.first()
         if row is None:
@@ -230,6 +239,8 @@ class MarketService:
             data["status"] = str(data["status"]).lower()
         if data.get("winning_outcome"):
             data["winning_outcome"] = str(data["winning_outcome"]).lower()
+        if data.get("resolution_outcome"):
+            data["resolution_outcome"] = str(data["resolution_outcome"]).upper()
         return MarketResponse.model_validate(data)
 
     async def seed_canonical_market(self) -> Market | None:

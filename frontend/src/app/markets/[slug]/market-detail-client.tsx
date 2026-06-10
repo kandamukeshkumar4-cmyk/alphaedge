@@ -80,8 +80,26 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
     );
   }
 
+  const resolvedBanner =
+    resolutionOutcome != null
+      ? `Market resolved — ${resolutionOutcome.toUpperCase()} wins`
+      : null;
+
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6">
+      {resolvedBanner ? (
+        <div
+          className={cn(
+            "mb-5 rounded-2xl border px-4 py-3 text-center text-sm font-bold",
+            resolutionOutcome?.toUpperCase() === "YES"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+              : "border-red-500/40 bg-red-500/10 text-red-200",
+          )}
+        >
+          {resolvedBanner}
+        </div>
+      ) : null}
+
       {/* Breadcrumb + title */}
       <div className="flex items-center gap-2 text-xs text-muted">
         <Link href="/" className="hover:text-text">
@@ -196,7 +214,18 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <PredictionWidget slug={slug} className="mt-4" />
           <DecisionSignalPanel market={market} />
           <MarketExplainer slug={slug} />
-          <TradePanel market={market} disabled={isResolved} />
+          {isResolved || resolutionOutcome != null ? (
+            <div className="rounded-2xl border border-border bg-surface-2 px-4 py-6 text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.08em] text-muted">
+                Trading closed
+              </p>
+              <p className="mt-2 text-base font-semibold text-text">
+                This market is closed
+              </p>
+            </div>
+          ) : (
+            <TradePanel market={market} disabled={false} />
+          )}
         </div>
       </div>
 

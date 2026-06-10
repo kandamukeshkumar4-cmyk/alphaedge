@@ -38,6 +38,7 @@ class MarketResponse(BaseModel):
     lock_at: Optional[datetime]
     resolved_at: Optional[datetime]
     winning_outcome: Optional[OrderOutcome]
+    resolution_outcome: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
