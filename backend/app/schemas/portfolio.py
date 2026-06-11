@@ -22,6 +22,14 @@ class PortfolioPositionResponse(BaseModel):
     pnl_pct: float | None = None
 
 
+class PortfolioSummaryResponse(BaseModel):
+    bankroll: float
+    open_positions: int = 0
+    total_invested: float = 0.0
+    unrealized_pnl: float = 0.0
+    unrealized_pnl_pct: float = 0.0
+
+
 class PortfolioResponse(BaseModel):
     paper_balance: float
     positions: list[PortfolioPositionResponse] = Field(default_factory=list)

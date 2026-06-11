@@ -140,6 +140,33 @@ export async function fetchPortfolio(
   };
 }
 
+export type PortfolioSummary = {
+  bankroll: number;
+  open_positions: number;
+  total_invested: number;
+  unrealized_pnl: number;
+  unrealized_pnl_pct: number;
+};
+
+export async function fetchPortfolioSummary(
+  token: string,
+  input?: { apiBase?: string; fetcher?: Fetcher },
+): Promise<PortfolioSummary | null> {
+  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
+  if (!apiBase) return null;
+  const fetcher = input?.fetcher ?? fetch;
+  try {
+    const response = await fetcher(`${apiBase}/api/v1/portfolio/summary`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as PortfolioSummary;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOrderHistory(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
