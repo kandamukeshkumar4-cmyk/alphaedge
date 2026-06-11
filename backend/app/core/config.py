@@ -80,7 +80,7 @@ class Settings(BaseSettings):
         default="https://external-api.kalshi.com/trade-api/v2", alias="KALSHI_API_BASE_URL"
     )
     kalshi_api_key_id: str = Field(default="", alias="KALSHI_API_KEY_ID")
-    kalshi_private_key_pem: str = Field(default="", alias="KALSHI_PRIVATE_KEY_PEM")
+    kalshi_signing_pem: str = Field(default="", alias="KALSHI_SIGNING_PEM")
     polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")
     polymarket_subgraph_url: str = Field(default="", alias="POLYMARKET_SUBGRAPH_URL")
     tracked_wallet_addresses: str = Field(default="", alias="TRACKED_WALLET_ADDRESSES")

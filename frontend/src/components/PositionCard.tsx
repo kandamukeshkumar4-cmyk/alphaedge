@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/cn";
-import { placePaperOrder } from "@/lib/orders-api";
+import { closePaperPosition } from "@/lib/orders-api";
 import { useToast } from "./ToastProvider";
 
 function fmt(v: number) {
@@ -43,15 +43,14 @@ export function PositionCard({
   async function closePosition() {
     setClosing(true);
     try {
-      const oppositeOutcome = position.outcome.toLowerCase() === "yes" ? "no" : "yes";
-      await placePaperOrder(token, {
+      const result = await closePaperPosition(token, {
         slug: position.market_slug,
-        side: "buy",
-        outcome: oppositeOutcome,
-        shares: Math.floor(position.shares),
-        price: currentPrice,
+        outcome: position.outcome.toLowerCase() === "yes" ? "yes" : "no",
+        shares: position.shares,
+        price: Math.min(Math.max(currentPrice, 0.01), 0.99),
       });
-      toast({ title: "Position closed", tone: "success" });
+      const pnlText = `${result.realized_pnl >= 0 ? "+" : ""}$${result.realized_pnl.toFixed(2)}`;
+      toast({ title: "Position closed", body: `Realized P&L ${pnlText}`, tone: "success" });
       onClosed?.();
     } catch (err) {
       toast({
@@ -116,7 +115,9 @@ export function PositionCard({
         disabled={closing}
         className="mt-3 w-full rounded-lg border border-border py-1.5 text-xs font-semibold text-muted transition hover:border-danger hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {closing ? "Closing…" : `Close (Buy ${position.outcome.toLowerCase() === "yes" ? "NO" : "YES"} ${fmtUSD(position.shares * currentPrice)})`}
+        {closing
+          ? "Closing…"
+          : `Sell ${position.shares.toFixed(0)} shares (${fmtUSD(position.shares * currentPrice)})`}
       </button>
     </div>
   );

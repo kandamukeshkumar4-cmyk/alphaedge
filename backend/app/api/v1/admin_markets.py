@@ -37,17 +37,40 @@ async def _settle_paper_orders(
         )
     ).all()
 
-    winner_credits: dict[uuid.UUID, Decimal] = {}
+    groups: dict[tuple[uuid.UUID, str], list[PaperOrder]] = {}
     for order in orders:
+        key = (order.user_id, order.outcome)
+        groups.setdefault(key, []).append(order)
+
+    winner_credits: dict[uuid.UUID, Decimal] = {}
+    for (user_id, outcome), group_orders in groups.items():
+        net_shares = Decimal("0")
+        net_buy_cost = Decimal("0")
+        for order in group_orders:
+            if order.action == "SELL":
+                net_shares -= Decimal(str(order.shares))
+            else:
+                net_shares += Decimal(str(order.shares))
+                net_buy_cost += Decimal(str(order.cost))
+            order.settled = True
+
+        if net_shares <= 0:
+            continue
+
+        buy_shares = sum(
+            Decimal(str(o.shares)) for o in group_orders if o.action != "SELL"
+        )
         if winning_outcome == "VOID":
-            credit = Decimal(str(order.cost))
-        elif order.outcome.upper() == winning_outcome:
-            credit = Decimal(str(order.shares)) * Decimal("1.0")
+            credit = (
+                net_buy_cost * (net_shares / buy_shares) if buy_shares > 0 else Decimal("0")
+            )
+        elif outcome.upper() == winning_outcome:
+            credit = net_shares * Decimal("1.0")
         else:
             credit = Decimal("0")
+
         if credit > 0:
-            winner_credits[order.user_id] = winner_credits.get(order.user_id, Decimal("0")) + credit
-        order.settled = True
+            winner_credits[user_id] = winner_credits.get(user_id, Decimal("0")) + credit
 
     if winner_credits:
         users = (
