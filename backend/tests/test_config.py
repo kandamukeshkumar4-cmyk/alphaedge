@@ -22,7 +22,7 @@ def test_market_adapter_settings_have_safe_defaults():
     assert settings.polymarket_gamma_base_url == "https://gamma-api.polymarket.com"
     assert settings.kalshi_api_base_url == "https://external-api.kalshi.com/trade-api/v2"
     assert settings.kalshi_api_key_id == ""
-    assert settings.kalshi_private_key_pem == ""
+    assert settings.kalshi_signing_pem == ""
 
 
 def test_paper_trading_only_cannot_be_disabled():

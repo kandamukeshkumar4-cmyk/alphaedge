@@ -32,6 +32,25 @@ class PaperOrderResponse(BaseModel):
     paper_trading_only: bool = True
 
 
+class PositionCloseRequest(BaseModel):
+    slug: str = Field(min_length=1, max_length=128)
+    outcome: Literal["yes", "no"]
+    shares: float = Field(gt=0)
+    price: float = Field(ge=0.01, le=0.99)
+
+
+class PositionCloseResponse(BaseModel):
+    order_id: UUID
+    slug: str
+    outcome: Literal["yes", "no"]
+    shares_sold: float
+    proceeds: float
+    realized_pnl: float
+    remaining_shares: float
+    remaining_balance: float
+    paper_trading_only: bool = True
+
+
 class PaperOrderHistoryItem(BaseModel):
     slug: str
     outcome: str
@@ -39,5 +58,7 @@ class PaperOrderHistoryItem(BaseModel):
     shares: float
     price: float
     cost: float
+    action: str = "BUY"
+    realized_pnl: float | None = None
     settled: bool
     created_at: datetime

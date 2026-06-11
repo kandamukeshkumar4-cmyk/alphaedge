@@ -88,16 +88,29 @@ async def _load_paper_orders(
             """
             SELECT po.slug, po.side, po.outcome,
                    COALESCE(m.title, po.slug) AS market_title,
-                   SUM(po.shares)             AS shares,
-                   AVG(po.price)              AS avg_cost,
-                   SUM(po.cost)               AS cost,
+                   SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS shares,
+                   CASE WHEN SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) > 0
+                        THEN CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
+                             / CAST(SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) AS REAL)
+                        ELSE 0 END                                                    AS avg_cost,
+                   SUM(CASE WHEN po.action='SELL' THEN -po.cost ELSE po.cost END)     AS cost,
                    MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) AS settled,
-                   SUM(
-                     CASE WHEN po.settled AND UPPER(po.outcome)=COALESCE(mr.outcome,'')
-                          THEN po.shares*1.0 - po.cost
-                          WHEN po.settled THEN 0.0 - po.cost
-                          ELSE 0.0 END
-                   ) AS realized_pnl
+                   SUM(COALESCE(po.realized_pnl, 0.0)) +
+                   CASE
+                     WHEN MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) = 1
+                          AND SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) > 0
+                          AND UPPER(po.outcome) = COALESCE(MAX(mr.outcome),'')
+                     THEN CAST(SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS REAL)
+                          - CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
+                            * CAST(SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS REAL)
+                            / NULLIF(CAST(SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) AS REAL), 0)
+                     WHEN MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) = 1
+                          AND SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) > 0
+                     THEN 0.0 - CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
+                                * CAST(SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS REAL)
+                                / NULLIF(CAST(SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) AS REAL), 0)
+                     ELSE 0.0
+                   END                                                             AS realized_pnl
             FROM paper_orders po
             LEFT JOIN markets m ON m.slug=po.slug
             LEFT JOIN market_resolutions mr ON mr.slug=po.slug
@@ -114,6 +127,10 @@ async def _load_paper_orders(
         slug = str(row["slug"])
         side = str(row["side"])
         outcome = str(row["outcome"])
+        shares = float(row["shares"])
+        settled = bool(row["settled"])
+        if shares <= 0 and not settled:
+            settled = True
         positions.append(
             PortfolioPositionResponse(
                 id=f"{slug}:{side}:{outcome}",
@@ -121,11 +138,11 @@ async def _load_paper_orders(
                 side=side,
                 outcome=outcome,
                 market_title=str(row["market_title"]),
-                shares=float(row["shares"]),
+                shares=max(shares, 0.0),
                 avg_cost=float(row["avg_cost"]),
-                cost=float(row["cost"]),
+                cost=max(float(row["cost"]), 0.0),
                 realized_pnl=float(row["realized_pnl"]),
-                settled=bool(row["settled"]),
+                settled=settled,
             )
         )
     return positions

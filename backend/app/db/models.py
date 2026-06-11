@@ -94,6 +94,8 @@ class PaperOrder(Base):
     shares: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     cost: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    action: Mapped[str] = mapped_column(String(4), nullable=False, default="BUY", server_default="BUY")
+    realized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
