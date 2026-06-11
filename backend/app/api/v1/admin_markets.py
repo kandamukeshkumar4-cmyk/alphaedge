@@ -49,10 +49,12 @@ async def _settle_paper_orders(
             winner_credits[order.user_id] = winner_credits.get(order.user_id, Decimal("0")) + credit
         order.settled = True
 
-    for user_id, credit in winner_credits.items():
-        user = await db.get(User, user_id)
-        if user is not None:
-            user.paper_balance += credit
+    if winner_credits:
+        users = (
+            await db.scalars(select(User).where(User.id.in_(list(winner_credits))))
+        ).all()
+        for user in users:
+            user.paper_balance += winner_credits[user.id]
 
     await db.flush()
     return len(orders)

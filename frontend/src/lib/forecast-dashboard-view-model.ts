@@ -12,6 +12,12 @@ export type SummaryCard = {
   value: string;
 };
 
+export type PathScoreCard = {
+  label: string;
+  value: string;
+  provisional: boolean;
+};
+
 export type DashboardView = {
   emptyState: { title: string; body: string } | null;
   summaryCards: SummaryCard[];
@@ -19,11 +25,14 @@ export type DashboardView = {
   platformBreakdown: PlatformEdge[];
   timeBreakdown: TimeBucketEdge[];
   brierTrend: BrierTrendPoint[];
+  firstIndependentBrier: PathScoreCard;
+  timeWeightedBrier: PathScoreCard;
 };
 
 export function buildForecastDashboardView(
   dashboard: ForecastDashboardViewInput | null,
 ): DashboardView {
+  const emptyPathCard: PathScoreCard = { label: "", value: "—", provisional: true };
   if (!dashboard) {
     return {
       emptyState: {
@@ -40,6 +49,14 @@ export function buildForecastDashboardView(
       platformBreakdown: [],
       timeBreakdown: [],
       brierTrend: [],
+      firstIndependentBrier: {
+        ...emptyPathCard,
+        label: "First independent forecast (Brier)",
+      },
+      timeWeightedBrier: {
+        ...emptyPathCard,
+        label: "Time-weighted path (Brier)",
+      },
     };
   }
 
@@ -62,6 +79,7 @@ export function buildForecastDashboardView(
     }
   }
 
+  const provisional = dashboard.live.resolved_count < 30;
   return {
     emptyState: dashboard.live.resolved_count + dashboard.live.unresolved_count === 0
       ? {
@@ -79,6 +97,20 @@ export function buildForecastDashboardView(
     platformBreakdown: dashboard.platform_breakdown ?? [],
     timeBreakdown: dashboard.time_breakdown ?? [],
     brierTrend: dashboard.brier_trend ?? [],
+    firstIndependentBrier: {
+      label: "First independent forecast (Brier)",
+      value: dashboard.live.first_independent_mean_brier != null
+        ? dashboard.live.first_independent_mean_brier.toFixed(4)
+        : "—",
+      provisional,
+    },
+    timeWeightedBrier: {
+      label: "Time-weighted path (Brier)",
+      value: dashboard.live.time_weighted_brier != null
+        ? dashboard.live.time_weighted_brier.toFixed(4)
+        : "—",
+      provisional,
+    },
   };
 }
 

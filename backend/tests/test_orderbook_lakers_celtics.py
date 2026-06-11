@@ -396,8 +396,6 @@ async def test_get_l2_rehydrates_persisted_open_orders_after_restart(db_session)
       Decimal("0.64"),
   )
 
-  OrderBookService._books.clear()
-
   restarted = OrderBookService(db_session)
   l2 = await restarted.get_l2(market.id)
 
@@ -430,8 +428,6 @@ async def test_market_order_matches_persisted_liquidity_after_restart(db_session
       Decimal("40"),
       Decimal("0.55"),
   )
-  OrderBookService._books.clear()
-
   restarted = OrderBookService(db_session)
   market_order = await restarted.submit_order(
       market.id,
@@ -478,8 +474,6 @@ async def test_crossing_limit_order_matches_persisted_liquidity_after_restart(db
       Decimal("40"),
       Decimal("0.55"),
   )
-  OrderBookService._books.clear()
-
   restarted = OrderBookService(db_session)
   limit_order = await restarted.submit_order(
       market.id,

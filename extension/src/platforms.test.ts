@@ -26,16 +26,9 @@ describe("platform URL parsing", () => {
     });
   });
 
-  it("keeps FanDuel manual-only and never extracts odds from the DOM", () => {
+  it("FanDuel URLs are deferred and return null (unrecognized)", () => {
     expect(
       parseSupportedUrl("https://sportsbook.fanduel.com/navigation/nba", "Lakers vs Celtics"),
-    ).toEqual({
-      platform: "manual",
-      provider: "fanduel",
-      externalId: "fanduel:sportsbook.fanduel.com/navigation/nba",
-      canonicalUrl: "https://sportsbook.fanduel.com/navigation/nba",
-      manualOnly: true,
-      title: "Lakers vs Celtics",
-    });
+    ).toBeNull();
   });
 });

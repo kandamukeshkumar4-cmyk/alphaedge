@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,8 +10,13 @@ router = APIRouter(prefix="/api/v1/eval", tags=["evaluation"])
 
 
 @router.get("/evaluations")
-async def list_evaluations(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Evaluation).order_by(Evaluation.created_at.desc()))
+async def list_evaluations(
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Evaluation).order_by(Evaluation.created_at.desc()).limit(limit)
+    )
     evals = result.scalars().all()
     return [
         {

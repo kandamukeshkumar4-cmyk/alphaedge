@@ -1,6 +1,9 @@
+from decimal import Decimal
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.db.models import Market, MarketStatus, PaperOrder, User
 from app.db.session import get_db
 from app.main import app
 
@@ -54,3 +57,35 @@ async def test_calibration_no_resolved_markets_returns_no_data():
     body = response.json()
     assert body["gate"] == "no-data"
     assert body["markets_evaluated"] == 0
+
+
+@pytest.mark.asyncio
+async def test_calibration_ignores_resolved_market_without_winning_outcome(db_session):
+    user = User(email="calibration@example.com", hashed_password="hash")
+    market = Market(
+        slug="calibration-missing-outcome",
+        title="Calibration missing outcome",
+        question="Will missing outcomes fail explicitly?",
+        status=MarketStatus.RESOLVED,
+        winning_outcome=None,
+    )
+    db_session.add_all([user, market])
+    await db_session.flush()
+    db_session.add(
+        PaperOrder(
+            user_id=user.id,
+            slug=market.slug,
+            side="YES",
+            outcome="yes",
+            shares=Decimal("1"),
+            price=Decimal("0.5"),
+            cost=Decimal("0.5"),
+        )
+    )
+    await db_session.flush()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/calibration/latest")
+
+    assert response.status_code == 200
+    assert response.json()["gate"] == "no-data"

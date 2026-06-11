@@ -70,7 +70,10 @@ async def explain_market(slug: str, background_tasks: BackgroundTasks) -> Market
         raise HTTPException(status_code=404, detail="Market not found")
 
     market_implied = _implied_prob_from_catalog(slug)
-    prediction = predict_market({"market_slug": slug, "implied_yes": market_implied})
+    prediction = await asyncio.to_thread(
+        predict_market,
+        {"market_slug": slug, "implied_yes": market_implied},
+    )
     edge = prediction.edge
     edge_dir = _edge_direction(edge)
     news = _news_items(slug)

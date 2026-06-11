@@ -60,10 +60,12 @@ async def test_settle_market_credits_yes_winner(db_session):
 
     summary = await settle_market(db_session, "settle-yes-win", "YES")
     await db_session.refresh(taker)
+    await db_session.refresh(maker)
 
-    assert summary["settled"] == 1
+    assert summary["settled"] == 2
     assert Decimal(summary["total_payout"]) == Decimal("50")
     assert taker.cash_balance == Decimal("5030")
+    assert maker.cash_balance == Decimal("4970.0000")
 
 
 @pytest.mark.asyncio
@@ -105,7 +107,7 @@ async def test_settle_market_pays_zero_for_loser(db_session):
     summary = await settle_market(db_session, "settle-no-lose", "NO")
     await db_session.refresh(holder)
 
-    assert summary["settled"] == 1
+    assert summary["settled"] == 2
     assert holder.cash_balance == before
 
 
@@ -189,9 +191,9 @@ async def test_settle_market_idempotent_skips_second_call(db_session):
     first = await settle_market(db_session, "settle-idempotent", "YES")
     second = await settle_market(db_session, "settle-idempotent", "YES")
 
-    assert first["settled"] == 1
+    assert first["settled"] == 2
     assert second["settled"] == 0
-    assert second["skipped_already_settled"] == 1
+    assert second["skipped_already_settled"] == 2
 
     entries = (
         await db_session.scalars(
@@ -201,7 +203,7 @@ async def test_settle_market_idempotent_skips_second_call(db_session):
             )
         )
     ).all()
-    assert len(entries) == 1
+    assert len(entries) == 2
 
 
 @pytest.mark.asyncio

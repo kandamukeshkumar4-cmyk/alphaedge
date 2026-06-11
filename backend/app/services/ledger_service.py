@@ -11,8 +11,11 @@ class LedgerService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_account(self, account_id: UUID) -> Account:
-        result = await self.session.execute(select(Account).where(Account.id == account_id))
+    async def get_account(self, account_id: UUID, *, lock: bool = False) -> Account:
+        stmt = select(Account).where(Account.id == account_id)
+        if lock:
+            stmt = stmt.with_for_update()
+        result = await self.session.execute(stmt)
         account = result.scalar_one_or_none()
         if not account:
             raise ValueError(f"Account {account_id} not found")
@@ -26,7 +29,7 @@ class LedgerService:
         description: str = "",
         market_id: UUID | None = None,
     ) -> LedgerEntry:
-        account = await self.get_account(account_id)
+        account = await self.get_account(account_id, lock=True)
         account.cash_balance += amount
         entry = LedgerEntry(
             account_id=account_id,

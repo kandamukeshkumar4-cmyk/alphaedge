@@ -43,6 +43,9 @@ export type DashboardMetrics = {
   synthetic_pnl_total: number;
   brier_provisional: boolean;
   calibration_provisional: boolean;
+  first_independent_count: number;
+  first_independent_mean_brier: number | null;
+  time_weighted_brier: number | null;
 };
 
 export type PracticeMetrics = {

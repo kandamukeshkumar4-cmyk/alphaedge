@@ -191,6 +191,15 @@ class FifaTournamentSimulator:
         self._groups = groups or _DEFAULT_GROUPS
         self._bracket_df = bracket_df
         self._match_date = match_date or date(2026, 6, 11)
+        self._prediction_cache: dict[tuple[str, str, date], tuple[float, float, float]] = {}
+
+    def _predict_cached(self, home: str, away: str, match_date: date) -> tuple[float, float, float]:
+        key = (home, away, match_date)
+        cached = self._prediction_cache.get(key)
+        if cached is None:
+            cached = self._predict(home, away, match_date)
+            self._prediction_cache[key] = cached
+        return cached
 
     def simulate(self, n_runs: int = 10_000, seed: int = 42) -> SimulationResult:
         rng = np.random.default_rng(seed)
@@ -221,7 +230,7 @@ class FifaTournamentSimulator:
         counters: dict[str, dict[str, int]],
     ) -> None:
         md = self._match_date
-        predict = self._predict
+        predict = self._predict_cached
 
         # ── Group stage ──────────────────────────────────────────────────────
         group_standings: dict[str, list[tuple[str, int, float, float]]] = {}

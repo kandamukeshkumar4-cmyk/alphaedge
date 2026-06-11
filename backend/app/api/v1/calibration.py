@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,7 +112,11 @@ async def _from_paper_orders(db: AsyncSession) -> tuple[list[float], list[int], 
     rows = result.all()
     by_slug: dict[str, tuple[list[float], list[int], datetime | None]] = {}
     for order, market in rows:
-        assert market.winning_outcome is not None
+        if market.winning_outcome is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Resolved market {market.slug} has no winning_outcome",
+            )
         predicted = _predicted_yes_prob(order.side, float(order.price))
         outcome = _yes_outcome(market.winning_outcome)
         resolved_at = market.resolved_at

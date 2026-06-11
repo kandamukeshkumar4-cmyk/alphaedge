@@ -43,7 +43,7 @@ class ExternalMarketService:
     ) -> ResolvedExternalMarket:
         parsed = parse_market_url(url)
         if parsed is None:
-            raise ValueError("Unrecognized market URL (Polymarket, Kalshi, and FanDuel only)")
+            raise ValueError("Unrecognized market URL (Polymarket and Kalshi only)")
 
         adapter_snapshot = get_adapter(parsed.platform).fetch_snapshot(parsed.external_id)
         metadata = adapter_snapshot.metadata or {}

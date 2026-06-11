@@ -38,6 +38,19 @@ def _leg_payout(
     return Decimal("0")
 
 
+def _leg_liability(
+    leg: str,
+    quantity: Decimal,
+    winning_outcome: str,
+) -> Decimal:
+    if quantity >= 0:
+        return Decimal("0")
+    if winning_outcome == "YES" and leg == "YES":
+        return -quantity
+    if winning_outcome == "NO" and leg == "NO":
+        return -quantity
+    return Decimal("0")
+
 
 async def settle_market(
     session: AsyncSession,
@@ -92,15 +105,20 @@ async def settle_market(
             pos.settled = True
             continue
 
-        has_shares = pos.yes_shares > 0 or pos.no_shares > 0
+        has_shares = pos.yes_shares != 0 or pos.no_shares != 0
         if not has_shares:
             continue
 
         payout = Decimal("0")
+        liability = Decimal("0")
         if pos.yes_shares > 0:
             payout += _leg_payout("YES", pos.yes_shares, pos.avg_yes_cost, outcome)
+        else:
+            liability += _leg_liability("YES", pos.yes_shares, outcome)
         if pos.no_shares > 0:
             payout += _leg_payout("NO", pos.no_shares, pos.avg_no_cost, outcome)
+        else:
+            liability += _leg_liability("NO", pos.no_shares, outcome)
 
         if payout > 0:
             await ledger.credit(
@@ -111,6 +129,14 @@ async def settle_market(
                 market.id,
             )
             total_payout += payout
+        if liability > 0:
+            await ledger.debit(
+                pos.account_id,
+                liability,
+                LedgerEntryType.SETTLEMENT,
+                f"Settlement liability for {market_slug} ({outcome})",
+                market.id,
+            )
 
         pos.yes_shares = Decimal("0")
         pos.no_shares = Decimal("0")

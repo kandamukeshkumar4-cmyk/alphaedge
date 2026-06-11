@@ -8,6 +8,8 @@ platforms' official APIs server-side — not from scraping the rendered DOM. Tha
 keeps the extension a trivial, robust URL detector and keeps us on the
 documented-API side of each platform's terms.
 
+Supported platforms: Polymarket and Kalshi only. FanDuel is deferred entirely.
+
 The concrete HTTP adapters (Polymarket Gamma/CLOB, Kalshi REST) are deliberately
 left as a registry seam: wiring them requires verifying each API's terms, auth,
 and rate limits. Until then, snapshot/resolution come from the caller (extension
@@ -37,7 +39,6 @@ class ParsedMarket:
 
 _POLYMARKET_HOSTS = {"polymarket.com", "www.polymarket.com"}
 _KALSHI_HOSTS = {"kalshi.com", "www.kalshi.com"}
-_FANDUEL_HOSTS = {"sportsbook.fanduel.com", "www.sportsbook.fanduel.com"}
 
 # Polymarket market/event pages: /event/<slug> or /market/<slug>
 _POLYMARKET_PATH = re.compile(r"^/(?:event|market)/([A-Za-z0-9\-_]+)")
@@ -77,15 +78,6 @@ def parse_market_url(url: str) -> Optional[ParsedMarket]:
             platform=Platform.KALSHI,
             external_id=external_id,
             canonical_url=f"https://kalshi.com/markets/{external_id}",
-        )
-
-    if host in _FANDUEL_HOSTS:
-        normalized_path = path.rstrip("/") or "/"
-        external_id = f"fanduel:{host}{normalized_path}".lower()
-        return ParsedMarket(
-            platform=Platform.MANUAL,
-            external_id=external_id,
-            canonical_url=f"https://sportsbook.fanduel.com{normalized_path}",
         )
 
     return None
@@ -401,14 +393,23 @@ def _compact_metadata(values: dict[str, object]) -> dict[str, object]:
     return {key: value for key, value in values.items() if value not in (None, "")}
 
 
-_ADAPTERS: dict[Platform, MarketDataAdapter] = {
-    Platform.POLYMARKET: PolymarketGammaAdapter(),
-    Platform.KALSHI: KalshiRestAdapter(),
-    Platform.MANUAL: ManualAdapter(),
-}
+_ADAPTERS: dict[Platform, MarketDataAdapter] = {}
+
+
+def _build_default_adapters() -> dict[Platform, MarketDataAdapter]:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    return {
+        Platform.POLYMARKET: PolymarketGammaAdapter(settings.polymarket_gamma_base_url),
+        Platform.KALSHI: KalshiRestAdapter(settings.kalshi_api_base_url),
+        Platform.MANUAL: ManualAdapter(),
+    }
 
 
 def get_adapter(platform: Platform) -> MarketDataAdapter:
+    if not _ADAPTERS:
+        _ADAPTERS.update(_build_default_adapters())
     return _ADAPTERS.get(platform, ManualAdapter())
 
 

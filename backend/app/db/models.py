@@ -264,6 +264,14 @@ class DomainEvent(Base):
 # Week 2+ tables
 class OddsSnapshot(Base):
     __tablename__ = "odds_snapshots"
+    __table_args__ = (
+        Index(
+            "ix_odds_snapshots_market_source_captured",
+            "market_slug",
+            "source",
+            "captured_at",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     market_slug: Mapped[str] = mapped_column(String(128), index=True)
@@ -559,6 +567,7 @@ class ExternalMarket(Base):
     __tablename__ = "external_markets"
     __table_args__ = (
         Index("ix_external_markets_platform_external_id", "platform", "external_id", unique=True),
+        Index("ix_external_markets_status", "status"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -623,6 +632,8 @@ class ForecastLog(Base):
             "idempotency_key",
             unique=True,
         ),
+        Index("ix_forecast_logs_forecaster_id", "forecaster_id"),
+        Index("ix_forecast_logs_forecaster_locked", "forecaster_id", "locked_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)

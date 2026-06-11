@@ -22,6 +22,7 @@ from app.forecasting import (
     CALIBRATION_BINS,
     CALIBRATION_MIN_SAMPLE,
 )
+from app.forecasting.scoring import PathPoint, first_independent_brier, time_weighted_path_brier
 from app.schemas.forecast import (
     BrierTrendPoint,
     CalibrationBin,
@@ -72,8 +73,12 @@ class CLVTrackingService:
         self.session = session
 
     async def get_clv_track_record(self, limit: int = 100) -> list[CLVRecord]:
+        bounded_limit = min(max(limit, 1), 1000)
+        scan_limit = min(bounded_limit * 10, 10_000)
         result = await self.session.execute(
-            select(SignalEvent).order_by(SignalEvent.created_at.desc())
+            select(SignalEvent)
+            .order_by(SignalEvent.created_at.desc())
+            .limit(scan_limit)
         )
         records: list[CLVRecord] = []
         for event in result.scalars().all():
@@ -84,7 +89,7 @@ class CLVTrackingService:
             if record is not None:
                 records.append(record)
         records.sort(key=lambda row: row.resolved_at or datetime.min, reverse=True)
-        return records[:limit]
+        return records[:bounded_limit]
 
     async def get_paper_pnl_summary(self) -> dict[str, Any]:
         records = await self.get_clv_track_record(limit=10_000)
@@ -205,6 +210,34 @@ class ForecastDashboardService:
         ]
         pnl_total = round(sum(float(r.score.synthetic_pnl) for r in headline), 4)
 
+        # Path-score metrics: group live_scored rows by market.
+        by_market: dict = {}
+        for r in live_scored:
+            by_market.setdefault(r.forecast.external_market_id, []).append(r)
+
+        first_independent_values: list[float] = []
+        path_values: list[float] = []
+        for rows in by_market.values():
+            outcome = rows[0].score.actual_outcome
+            points = [
+                PathPoint(
+                    locked_at_seconds=_aware_ts(r.forecast.locked_at),
+                    user_probability=float(r.forecast.user_probability),
+                    is_independent=r.forecast.is_independent,
+                )
+                for r in rows
+            ]
+            fib = first_independent_brier(points, outcome)
+            if fib is not None:
+                first_independent_values.append(fib)
+            close_at = rows[0].market.close_at
+            resolved_at = rows[0].market.resolved_at
+            window_end = close_at or resolved_at
+            if window_end is not None:
+                path = time_weighted_path_brier(points, outcome, _aware_ts(window_end))
+                if path is not None:
+                    path_values.append(path)
+
         resolved_count = len(live_scored)
         return DashboardMetrics(
             resolved_count=resolved_count,
@@ -218,6 +251,9 @@ class ForecastDashboardService:
             synthetic_pnl_total=pnl_total,
             brier_provisional=resolved_count < BRIER_MIN_SAMPLE,
             calibration_provisional=len(independent) < CALIBRATION_MIN_SAMPLE,
+            first_independent_count=len(first_independent_values),
+            first_independent_mean_brier=_mean(first_independent_values),
+            time_weighted_brier=_mean(path_values),
         )
 
     def _practice_metrics(self, practice_scored: list[_Row]) -> PracticeMetrics:
@@ -332,6 +368,15 @@ class ForecastDashboardService:
             )
             for index, r in enumerate(ordered, start=1)
         ]
+
+
+def _aware_ts(dt: datetime) -> float:
+    """Return a POSIX timestamp, normalizing naive datetimes to UTC."""
+    from datetime import timezone as _tz
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_tz.utc)
+    return dt.timestamp()
 
 
 def _time_bucket(forecast: ForecastLog) -> str:

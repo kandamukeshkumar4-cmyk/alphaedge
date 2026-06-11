@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import PAPER_TRADING_DISCLAIMER
@@ -20,6 +20,7 @@ class Settings(BaseSettings):
         alias="DATABASE_URL_SYNC",
     )
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    app_env: str = Field(default="development", alias="APP_ENV")
     admin_api_key: str = Field(default="dev-admin-key", alias="ADMIN_API_KEY")
     jwt_secret_key: str = Field(default="dev-jwt-secret-change-in-production", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
@@ -28,7 +29,7 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://127.0.0.1:3000",
         alias="CORS_ORIGINS",
     )
-    rate_limit: str = Field(default="60/minute", alias="RATE_LIMIT")
+    rate_limit: str = Field(default="600/minute", alias="RATE_LIMIT")
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",
@@ -72,6 +73,14 @@ class Settings(BaseSettings):
     )
     polymarket_market_slugs: str = Field(default="", alias="POLYMARKET_MARKET_SLUGS")
     kalshi_market_tickers: str = Field(default="", alias="KALSHI_MARKET_TICKERS")
+    polymarket_gamma_base_url: str = Field(
+        default="https://gamma-api.polymarket.com", alias="POLYMARKET_GAMMA_BASE_URL"
+    )
+    kalshi_api_base_url: str = Field(
+        default="https://external-api.kalshi.com/trade-api/v2", alias="KALSHI_API_BASE_URL"
+    )
+    kalshi_api_key_id: str = Field(default="", alias="KALSHI_API_KEY_ID")
+    kalshi_private_key_pem: str = Field(default="", alias="KALSHI_PRIVATE_KEY_PEM")
     polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")
     polymarket_subgraph_url: str = Field(default="", alias="POLYMARKET_SUBGRAPH_URL")
     tracked_wallet_addresses: str = Field(default="", alias="TRACKED_WALLET_ADDRESSES")
@@ -82,6 +91,15 @@ class Settings(BaseSettings):
         if not v:
             raise ValueError("PAPER_TRADING_ONLY must be true for simulated-funds operation.")
         return v
+
+    @model_validator(mode="after")
+    def production_secrets_must_be_explicit(self) -> "Settings":
+        if (
+            self.app_env.strip().lower() in {"prod", "production", "staging"}
+            and self.jwt_secret_key == "dev-jwt-secret-change-in-production"
+        ):
+            raise ValueError("JWT_SECRET_KEY must be set outside local development.")
+        return self
 
     @property
     def cors_origin_list(self) -> List[str]:
