@@ -23,6 +23,7 @@ from app.schemas.forecast import (
     ExternalMarketSnapshotResponse,
     ForecastCreateRequest,
     ForecastLifecycleResponse,
+    ForecasterCreateRequest,
     ForecasterCreateResponse,
     ForecasterRecoverRequest,
     ForecasterRecoverResponse,
@@ -56,8 +57,14 @@ async def _require_forecaster(
 
 
 @router.post("/forecasters/anonymous", response_model=ForecasterCreateResponse)
-async def create_forecaster(db: AsyncSession = Depends(get_db)):
-    forecaster, raw_token, recovery_code = await ForecasterService(db).create_anonymous()
+async def create_forecaster(
+    body: ForecasterCreateRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    service = ForecasterService(db)
+    forecaster, raw_token, recovery_code = await service.create_anonymous()
+    if body is not None and body.recovery_email:
+        await service.attach_recovery_email(forecaster, body.recovery_email)
     return ForecasterCreateResponse(
         id=forecaster.id,
         token=raw_token,

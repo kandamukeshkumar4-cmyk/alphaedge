@@ -22,7 +22,7 @@ describe("platform fixture corpus", () => {
     },
   );
 
-  it.each(["polymarket", "kalshi", "fanduel"] as const)(
+  it.each(["polymarket", "kalshi"] as const)(
     "parses every %s fixture into the expected capture mode",
     (platform) => {
       for (const fixture of corpus[platform] as Fixture[]) {
@@ -31,12 +31,14 @@ describe("platform fixture corpus", () => {
         expect(parsed?.provider).toBe(platform);
         expect(parsed?.externalId).toBe(fixture.expectedExternalId);
         expect(parsed?.manualOnly).toBe(fixture.manualOnly);
-        if (platform === "fanduel") {
-          expect(parsed?.platform).toBe("manual");
-        } else {
-          expect(parsed?.platform).toBe(platform);
-        }
+        expect(parsed?.platform).toBe(platform);
       }
     },
   );
+
+  it("FanDuel fixtures are deferred — parseSupportedUrl returns null for all fanduel URLs", () => {
+    for (const fixture of corpus["fanduel"] as Fixture[]) {
+      expect(parseSupportedUrl(fixture.url, fixture.title), fixture.url).toBeNull();
+    }
+  });
 });

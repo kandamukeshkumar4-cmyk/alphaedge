@@ -185,8 +185,8 @@ export default function ForecastMirrorPage() {
             AlphaEdge Mirror
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Research and paper simulation only. No betting execution, wallet handling,
-            payments, account scraping, copy trading, or real-money flows.
+            Research and paper simulation only. No betting execution, payments,
+            account scraping, or copy trading.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.08em]">
             <StatusPill label="Mode" value={mode} />
@@ -203,7 +203,7 @@ export default function ForecastMirrorPage() {
             <input
               id="forecaster-token"
               className="min-h-11 min-w-0 flex-1 rounded border border-border bg-surface px-3 font-mono text-xs text-text outline-none transition placeholder:text-muted-2 focus:border-primary"
-              type="password"
+              type="text"
               autoComplete="off"
               placeholder="Forecaster token"
               value={tokenDraft}

@@ -18,7 +18,6 @@ describe("MV3 manifest and safety contract", () => {
         "https://*.polymarket.com/*",
         "https://kalshi.com/*",
         "https://*.kalshi.com/*",
-        "https://sportsbook.fanduel.com/*",
         "https://*.alphaedge.local/*",
         "http://localhost:8000/*",
         "https://*.azurestaticapps.net/*",
@@ -28,6 +27,17 @@ describe("MV3 manifest and safety contract", () => {
     expect(JSON.stringify(manifest)).not.toContain("<all_urls>");
     expect(JSON.stringify(manifest)).not.toContain("webRequest");
     expect(JSON.stringify(manifest)).not.toContain("tabs");
+  });
+
+  it("manifest host_permissions and content_scripts do not reference fanduel", () => {
+    const allPerms = [
+      ...manifest.host_permissions,
+      ...manifest.content_scripts.flatMap((cs) => cs.matches),
+    ];
+    for (const entry of allPerms) {
+      expect(entry.toLowerCase()).not.toContain("fanduel");
+    }
+    expect(manifest.permissions).toEqual(["storage"]);
   });
 
   it("contains no betting execution, wallet, private-key, payment, or account scraping paths", () => {

@@ -53,6 +53,55 @@ def synthetic_pnl(
 
 
 @dataclass(frozen=True)
+class PathPoint:
+    """One locked forecast on a market's timeline (seconds are absolute epochs
+    or any monotone clock; only differences are used)."""
+
+    locked_at_seconds: float
+    user_probability: float
+    is_independent: bool
+
+
+def first_independent_brier(points: list[PathPoint], outcome: int) -> Optional[float]:
+    """Brier of the FIRST independent forecast on a market (earliest lock).
+    Returns None when no independent forecast exists."""
+    ordered = sorted(points, key=lambda p: p.locked_at_seconds)
+    for point in ordered:
+        if point.is_independent:
+            return brier(point.user_probability, outcome)
+    return None
+
+
+def time_weighted_path_brier(
+    points: list[PathPoint], outcome: int, close_at_seconds: float
+) -> Optional[float]:
+    """Time-weighted Brier over a forecaster's full belief path on one market.
+
+    Each forecast is weighted by the fraction of [first_lock, close) during
+    which it was the forecaster's current belief. Returns None when there are
+    no points or the close time is not strictly after the first lock.
+    """
+    ordered = sorted(points, key=lambda p: p.locked_at_seconds)
+    if not ordered:
+        return None
+    start = ordered[0].locked_at_seconds
+    total = close_at_seconds - start
+    if total <= 0:
+        return None
+    weighted = 0.0
+    for index, point in enumerate(ordered):
+        end = (
+            ordered[index + 1].locked_at_seconds
+            if index + 1 < len(ordered)
+            else close_at_seconds
+        )
+        end = min(end, close_at_seconds)
+        duration = max(end - point.locked_at_seconds, 0.0)
+        weighted += (duration / total) * brier(point.user_probability, outcome)
+    return weighted
+
+
+@dataclass(frozen=True)
 class ScoreResult:
     actual_outcome: int
     user_brier: float

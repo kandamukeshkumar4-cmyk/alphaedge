@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -470,12 +470,6 @@ async def cancel_order(
         raise HTTPException(status_code=status_code, detail=detail) from e
 
 
-@router.get("/accounts/{account_id}/positions", response_model=list[PositionResponse])
-async def get_positions(account_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Position).where(Position.account_id == account_id))
-    return list(result.scalars().all())
-
-
 def _edge_vs_book(predicted_prob: float, book: dict) -> float | None:
     yes_book = book.get("yes", {})
     reference_levels = yes_book.get("asks") or yes_book.get("bids") or []
@@ -503,7 +497,15 @@ def _paper_account_id_from_token(token: str) -> UUID:
 
 def _verify_paper_account_token(account_id: UUID, token: str | None) -> None:
     if not token:
-        return
+        if str(account_id) in {
+            settings.system_account_id,
+            settings.smoke_account_id,
+        }:
+            return
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="paper account token required for account-scoped action",
+        )
     expected_account_id = _paper_account_id_from_token(token)
     if account_id != expected_account_id:
         raise HTTPException(
@@ -514,6 +516,9 @@ def _verify_paper_account_token(account_id: UUID, token: str | None) -> None:
 
 def _resolve_paper_account_context(account_id: UUID | None, token: str | None) -> UUID | None:
     if not token:
+        if account_id is None:
+            return None
+        _verify_paper_account_token(account_id, None)
         return account_id
     expected_account_id = _paper_account_id_from_token(token)
     if account_id is not None and account_id != expected_account_id:
@@ -522,3 +527,14 @@ def _resolve_paper_account_context(account_id: UUID | None, token: str | None) -
             detail="account token does not match account_id",
         )
     return expected_account_id
+
+
+@router.get("/accounts/{account_id}/positions", response_model=list[PositionResponse])
+async def get_positions(
+    account_id: UUID,
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    _verify_paper_account_token(account_id, x_paper_account_token)
+    result = await db.execute(select(Position).where(Position.account_id == account_id))
+    return list(result.scalars().all())

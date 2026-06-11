@@ -82,6 +82,65 @@ describe("forecast dashboard view model", () => {
       "Calibration provisional: 0/150 resolved",
     ]);
   });
+  it("provisional label shown when resolved_count < 30", () => {
+    const payload = {
+      ...sampleDashboard,
+      live: {
+        ...sampleDashboard.live,
+        resolved_count: 5,
+        brier_provisional: true,
+        first_independent_mean_brier: 0.18,
+        time_weighted_brier: 0.20,
+      },
+    };
+    const view = buildForecastDashboardView(payload);
+
+    expect(view.qualityLabels[0]).toMatch(/Brier provisional/);
+    expect(view.firstIndependentBrier.provisional).toBe(true);
+  });
+
+  it("calibration provisional when independent < 150", () => {
+    const payload = {
+      ...sampleDashboard,
+      live: {
+        ...sampleDashboard.live,
+        calibration_provisional: true,
+      },
+    };
+    const view = buildForecastDashboardView(payload);
+
+    expect(view.qualityLabels.some((l) => /Calibration provisional/.test(l))).toBe(true);
+  });
+
+  it("empty state when no forecasts — time_weighted_brier null renders dash", () => {
+    const payload: ForecastDashboardViewInput = {
+      ...sampleDashboard,
+      live: {
+        resolved_count: 0,
+        unresolved_count: 0,
+        independent_count: 0,
+        anchored_count: 0,
+        headline_count: 0,
+        mean_user_brier: null,
+        mean_market_brier: null,
+        mean_brier_delta: null,
+        synthetic_pnl_total: 0,
+        brier_provisional: true,
+        calibration_provisional: true,
+        first_independent_count: 0,
+        first_independent_mean_brier: null,
+        time_weighted_brier: null,
+      },
+      calibration: [],
+      brier_trend: [],
+    };
+    const view = buildForecastDashboardView(payload);
+
+    expect(view.emptyState).not.toBeNull();
+    expect(view.summaryCards.map((c) => c.value)).toEqual(["0", "0", "N/A", "$0.00"]);
+    expect(view.firstIndependentBrier.value).toBe("—");
+    expect(view.timeWeightedBrier.value).toBe("—");
+  });
 });
 
 const sampleDashboard: ForecastDashboardViewInput = {
@@ -100,6 +159,9 @@ const sampleDashboard: ForecastDashboardViewInput = {
     synthetic_pnl_total: 3.5,
     brier_provisional: true,
     calibration_provisional: true,
+    first_independent_count: 5,
+    first_independent_mean_brier: 0.12,
+    time_weighted_brier: 0.14,
   },
   practice: {
     resolved_count: 2,

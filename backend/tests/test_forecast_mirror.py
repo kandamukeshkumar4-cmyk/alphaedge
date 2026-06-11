@@ -88,12 +88,8 @@ def test_parse_unknown_url_returns_none():
     assert parse_market_url("https://example.com/foo") is None
 
 
-def test_parse_fanduel_url_creates_manual_market_shell():
-    parsed = parse_market_url(FANDUEL_URL)
-    assert parsed is not None
-    assert parsed.platform == Platform.MANUAL
-    assert parsed.external_id == "fanduel:sportsbook.fanduel.com/navigation/nba"
-    assert parsed.canonical_url == "https://sportsbook.fanduel.com/navigation/nba"
+def test_fanduel_urls_are_rejected_deferred():
+    assert parse_market_url(FANDUEL_URL) is None
 
 
 def test_polymarket_adapter_extracts_metadata_and_yes_probability(monkeypatch):

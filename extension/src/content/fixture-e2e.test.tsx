@@ -25,7 +25,10 @@ type Fixture = {
   html: string;
 };
 
-const fixtures = (["polymarket", "kalshi", "fanduel"] as PlatformName[]).flatMap(
+// FanDuel deferred: extension no longer matches FanDuel pages; skip those fixtures.
+const ACTIVE_PLATFORMS: PlatformName[] = ["polymarket", "kalshi"];
+
+const fixtures = ACTIVE_PLATFORMS.flatMap(
   (platform) =>
     (corpus[platform] as Fixture[]).map((fixture, index) => ({
       platform,
@@ -50,6 +53,67 @@ describe("fixture-page overlay E2E", () => {
     root = null;
     vi.unstubAllGlobals();
     document.body.innerHTML = "";
+  });
+
+  it("capture card exposes a probability slider and a Lock forecast button", async () => {
+    const polyFixtures = corpus["polymarket"] as Fixture[];
+    const fixture = polyFixtures[0];
+    document.body.innerHTML = fixture.html;
+    document.title = fixture.title;
+    const market = parseSupportedUrl(fixture.url, fixture.title)!;
+
+    const prefill = await prefillForMarket({
+      apiBase: "https://api.example.test",
+      market,
+      pageTitle: fixture.title,
+      fetcher: async () => resolveResponse("polymarket", fixture),
+    });
+    const overlayHost = createOverlayHost(document as unknown as OverlayDocument);
+    const shadowRoot = overlayHost.shadowRoot as ShadowRoot;
+    const mount = document.createElement("div");
+    shadowRoot.appendChild(mount);
+
+    await act(async () => {
+      root = createRoot(mount);
+      root.render(<MirrorOverlay market={market} prefill={prefill} />);
+    });
+    await act(flushEffects);
+
+    expect(shadowRoot.querySelector('input[type="range"]')).not.toBeNull();
+    const buttons = Array.from(shadowRoot.querySelectorAll("button"));
+    const lockButton = buttons.find((b) => /lock forecast/i.test(b.textContent ?? ""));
+    expect(lockButton).not.toBeUndefined();
+  });
+
+  it("capture card contains no banned execution copy", async () => {
+    const polyFixtures = corpus["polymarket"] as Fixture[];
+    const fixture = polyFixtures[0];
+    document.body.innerHTML = fixture.html;
+    document.title = fixture.title;
+    const market = parseSupportedUrl(fixture.url, fixture.title)!;
+
+    const prefill = await prefillForMarket({
+      apiBase: "https://api.example.test",
+      market,
+      pageTitle: fixture.title,
+      fetcher: async () => resolveResponse("polymarket", fixture),
+    });
+    const overlayHost = createOverlayHost(document as unknown as OverlayDocument);
+    const shadowRoot = overlayHost.shadowRoot as ShadowRoot;
+    const mount = document.createElement("div");
+    shadowRoot.appendChild(mount);
+
+    await act(async () => {
+      root = createRoot(mount);
+      root.render(<MirrorOverlay market={market} prefill={prefill} />);
+    });
+    await act(flushEffects);
+
+    const text = (shadowRoot.textContent ?? "").toLowerCase();
+    const BANNED = ["place bet", "auto bet", "guaranteed profit", "wallet", "private key", "real-money"];
+    for (const phrase of BANNED) {
+      expect(text.includes(phrase), `banned phrase "${phrase}" in overlay`).toBe(false);
+    }
   });
 
   it.each(fixtures)(

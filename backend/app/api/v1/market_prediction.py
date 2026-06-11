@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import get_settings
@@ -38,11 +40,12 @@ async def get_market_prediction(slug: str) -> MarketPredictionResponse:
         raise HTTPException(status_code=404, detail="Market not found")
 
     implied_prob = _implied_prob_from_catalog(slug)
-    prediction = predict_market(
+    prediction = await asyncio.to_thread(
+        predict_market,
         {
             "market_slug": slug,
             "implied_yes": implied_prob,
-        }
+        },
     )
 
     return MarketPredictionResponse(

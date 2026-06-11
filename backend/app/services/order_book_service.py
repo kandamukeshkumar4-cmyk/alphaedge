@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Dict
 from uuid import UUID
 
 from sqlalchemy import select
@@ -27,12 +26,11 @@ from app.services.ledger_service import LedgerService
 class OrderBookService:
     """Persists orders/fills and maintains per-market in-memory books."""
 
-    _books: Dict[UUID, OrderBook] = {}
-
     def __init__(self, session: AsyncSession, correlation_id: str | None = None):
         self.session = session
         self.events = DomainEventBus(session, correlation_id)
         self.ledger = LedgerService(session)
+        self._books: dict[UUID, OrderBook] = {}
 
     def _get_book(self, market_id: UUID) -> OrderBook:
         if market_id not in self._books:
@@ -94,7 +92,7 @@ class OrderBookService:
         return pos
 
     async def _reserve_cash(self, account_id: UUID, amount: Decimal) -> None:
-        account = await self.ledger.get_account(account_id)
+        account = await self.ledger.get_account(account_id, lock=True)
         reserved = await self.reserved_cash(account_id)
         available = account.cash_balance - reserved
         if available < amount:

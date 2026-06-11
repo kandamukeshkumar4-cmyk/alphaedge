@@ -111,3 +111,45 @@ async def test_evaluate_market_uses_latest_pre_close_odds_snapshot_for_closing_i
     assert float(evaluation.brier_score) == pytest.approx(0.0784)
     assert float(evaluation.predicted_prob) == pytest.approx(0.72)
     assert float(evaluation.closing_implied) == pytest.approx(0.64)
+
+
+@pytest.mark.asyncio
+async def test_evaluations_endpoint_applies_bounded_limit(db_session):
+    from httpx import ASGITransport, AsyncClient
+
+    from app.db.session import get_db
+    from app.main import app
+
+    markets = [
+        Market(
+            slug=f"eval-route-market-{index}",
+            title=f"Eval route market {index}",
+            question="Will the route limit evaluations?",
+        )
+        for index in range(3)
+    ]
+    db_session.add_all(markets)
+    await db_session.flush()
+    for market in markets:
+        db_session.add(
+            Evaluation(
+                market_id=market.id,
+                brier_score=Decimal("0.250000"),
+                predicted_prob=Decimal("0.5000"),
+                actual_outcome=1,
+            )
+        )
+    await db_session.flush()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/eval/evaluations", params={"limit": 2})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2

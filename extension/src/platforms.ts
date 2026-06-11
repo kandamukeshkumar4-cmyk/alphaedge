@@ -12,7 +12,6 @@ export type ParsedSupportedMarket = {
 
 const POLYMARKET_HOSTS = new Set(["polymarket.com", "www.polymarket.com"]);
 const KALSHI_HOSTS = new Set(["kalshi.com", "www.kalshi.com"]);
-const FANDUEL_HOSTS = new Set(["sportsbook.fanduel.com"]);
 
 export function parseSupportedUrl(url: string, title = ""): ParsedSupportedMarket | null {
   let parsed: URL;
@@ -53,18 +52,6 @@ export function parseSupportedUrl(url: string, title = ""): ParsedSupportedMarke
       externalId,
       canonicalUrl: `https://kalshi.com/markets/${externalId}`,
       manualOnly: false,
-      title,
-    };
-  }
-
-  if (FANDUEL_HOSTS.has(host)) {
-    const normalizedPath = path.replace(/\/+$/g, "") || "/";
-    return {
-      platform: "manual",
-      provider: "fanduel",
-      externalId: `fanduel:${host}${normalizedPath}`,
-      canonicalUrl: `https://sportsbook.fanduel.com${normalizedPath}`,
-      manualOnly: true,
       title,
     };
   }

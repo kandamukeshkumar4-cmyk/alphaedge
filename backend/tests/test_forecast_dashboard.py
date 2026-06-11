@@ -158,3 +158,34 @@ async def test_clv_track_record_endpoint(db_session):
     assert len(body["records"]) == 1
     assert body["records"][0]["market_slug"] == "endpoint-market"
     assert body["records"][0]["clv"] == pytest.approx(0.02)
+
+
+@pytest.mark.asyncio
+async def test_get_clv_track_record_bounds_scan_and_limits_resolved_records(db_session):
+    for index in range(15):
+        db_session.add(
+            SignalEvent(
+                signal_type="forecast",
+                platform="polymarket",
+                market_id=f"bounded-{index}",
+                headline_eligible=True,
+                payload={
+                    "tracking": {
+                        "resolved": True,
+                        "resolved_at": f"2026-01-{index + 1:02d}T00:00:00+00:00",
+                        "market_slug": f"bounded-{index}",
+                        "model_prob": 0.6,
+                        "closing_prob": 0.55,
+                    }
+                },
+            )
+        )
+    await db_session.flush()
+
+    records = await CLVTrackingService(db_session).get_clv_track_record(limit=3)
+
+    assert [record.market_slug for record in records] == [
+        "bounded-14",
+        "bounded-13",
+        "bounded-12",
+    ]

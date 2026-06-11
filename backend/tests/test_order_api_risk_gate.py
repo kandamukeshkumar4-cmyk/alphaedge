@@ -15,6 +15,7 @@ from app.db.models import (
     OrderSide,
     OrderStatus,
     OrderType,
+    Position,
 )
 from app.db.session import get_db
 from app.main import app
@@ -31,9 +32,7 @@ async def test_order_api_rejects_low_edge_before_creating_order(db_session):
         question="Will the risk gate reject weak edge?",
         lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
     )
-    account = Account(name="Risk Test Trader", cash_balance=Decimal("10000"))
-    db_session.add(account)
-    await db_session.flush()
+    headers = {"X-Paper-Account-Token": "11111111-1111-4111-8111-000000000001"}
 
     async def override_get_db():
         yield db_session
@@ -44,10 +43,12 @@ async def test_order_api_rejects_low_edge_before_creating_order(db_session):
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
+            account = await client.get("/api/v1/paper-account", headers=headers)
             response = await client.post(
                 f"/api/v1/markets/{market.slug}/orders",
+                headers=headers,
                 json={
-                    "account_id": str(account.id),
+                    "account_id": account.json()["id"],
                     "side": "buy",
                     "outcome": "yes",
                     "order_type": "limit",
@@ -80,9 +81,7 @@ async def test_order_api_accepts_risk_approved_paper_order(db_session):
         question="Will the risk gate approve strong edge?",
         lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
     )
-    account = Account(name="Risk Approved Trader", cash_balance=Decimal("10000"))
-    db_session.add(account)
-    await db_session.flush()
+    headers = {"X-Paper-Account-Token": "11111111-1111-4111-8111-000000000002"}
 
     async def override_get_db():
         yield db_session
@@ -93,10 +92,12 @@ async def test_order_api_accepts_risk_approved_paper_order(db_session):
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
+            account = await client.get("/api/v1/paper-account", headers=headers)
             response = await client.post(
                 f"/api/v1/markets/{market.slug}/orders",
+                headers=headers,
                 json={
-                    "account_id": str(account.id),
+                    "account_id": account.json()["id"],
                     "side": "buy",
                     "outcome": "yes",
                     "order_type": "limit",
@@ -116,7 +117,7 @@ async def test_order_api_accepts_risk_approved_paper_order(db_session):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["account_id"] == str(account.id)
+    assert payload["account_id"] == account.json()["id"]
     assert payload["market_id"] == str(market.id)
     assert payload["status"] == "open"
 
@@ -130,9 +131,7 @@ async def test_order_api_derives_start_window_from_market_lock_at(db_session):
         question="Will stale markets ignore client risk timing?",
         lock_at=datetime.now(timezone.utc) - timedelta(minutes=1),
     )
-    account = Account(name="Stale Lock Trader", cash_balance=Decimal("10000"))
-    db_session.add(account)
-    await db_session.flush()
+    headers = {"X-Paper-Account-Token": "11111111-1111-4111-8111-000000000003"}
 
     async def override_get_db():
         yield db_session
@@ -143,10 +142,12 @@ async def test_order_api_derives_start_window_from_market_lock_at(db_session):
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
+            account = await client.get("/api/v1/paper-account", headers=headers)
             response = await client.post(
                 f"/api/v1/markets/{market.slug}/orders",
+                headers=headers,
                 json={
-                    "account_id": str(account.id),
+                    "account_id": account.json()["id"],
                     "side": "buy",
                     "outcome": "yes",
                     "order_type": "limit",
@@ -310,6 +311,66 @@ async def test_paper_order_token_rejects_cross_session_account_replay(db_session
     assert account_b_after.json()["id"] == account_b.json()["id"]
     assert account_b_after.json()["reserved_cash"] == "0.0000"
     assert account_b_after.json()["open_orders"] == []
+
+
+@pytest.mark.asyncio
+async def test_session_account_positions_require_matching_token(db_session):
+    market_service = MarketService(db_session)
+    market = await market_service.create_market(
+        slug="nba-position-token-market",
+        title="Position token market",
+        question="Will positions be token scoped?",
+        lock_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    headers_a = {"X-Paper-Account-Token": "11111111-1111-4111-8111-111111111111"}
+    headers_b = {"X-Paper-Account-Token": "22222222-2222-4222-8222-222222222222"}
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            account_a = await client.get("/api/v1/paper-account", headers=headers_a)
+            account_b = await client.get("/api/v1/paper-account", headers=headers_b)
+            db_session.add(
+                Position(
+                    account_id=UUID(account_a.json()["id"]),
+                    market_id=market.id,
+                    yes_shares=Decimal("3"),
+                )
+            )
+            await db_session.flush()
+
+            missing = await client.get(f"/api/v1/accounts/{account_a.json()['id']}/positions")
+            replay = await client.get(
+                f"/api/v1/accounts/{account_a.json()['id']}/positions",
+                headers=headers_b,
+            )
+            valid = await client.get(
+                f"/api/v1/accounts/{account_a.json()['id']}/positions",
+                headers=headers_a,
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert account_a.status_code == 200
+    assert account_b.status_code == 200
+    assert missing.status_code == 401
+    assert replay.status_code == 400
+    assert valid.status_code == 200
+    assert valid.json() == [
+        {
+            "market_id": str(market.id),
+            "yes_shares": "3.0000",
+            "no_shares": "0.0000",
+            "avg_yes_cost": "0.0000",
+            "avg_no_cost": "0.0000",
+        }
+    ]
 
 
 @pytest.mark.asyncio

@@ -9,7 +9,6 @@
     "https://*.polymarket.com/*",
     "https://kalshi.com/*",
     "https://*.kalshi.com/*",
-    "https://sportsbook.fanduel.com/*",
     "https://*.alphaedge.local/*",
     "http://localhost:8000/*",
     "https://*.azurestaticapps.net/*",
@@ -29,8 +28,7 @@
         "https://polymarket.com/*",
         "https://*.polymarket.com/*",
         "https://kalshi.com/*",
-        "https://*.kalshi.com/*",
-        "https://sportsbook.fanduel.com/*"
+        "https://*.kalshi.com/*"
       ],
       "js": ["assets/content.js"],
       "run_at": "document_idle"

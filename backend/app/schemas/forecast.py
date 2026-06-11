@@ -7,6 +7,12 @@ from pydantic import BaseModel, Field
 from app.db.models import ExternalMarketStatus, ForecastMode, ForecastSource, Platform
 
 
+class ForecasterCreateRequest(BaseModel):
+    recovery_email: Optional[str] = Field(
+        default=None, max_length=255, description="Optional email for recovery only."
+    )
+
+
 class ForecasterCreateResponse(BaseModel):
     id: UUID
     token: str = Field(description="Raw token. Shown once; store it client-side to keep your history.")
@@ -160,6 +166,9 @@ class DashboardMetrics(BaseModel):
     synthetic_pnl_total: float
     brier_provisional: bool
     calibration_provisional: bool
+    first_independent_count: int = 0
+    first_independent_mean_brier: Optional[float] = None
+    time_weighted_brier: Optional[float] = None
 
 
 class PracticeMetrics(BaseModel):
