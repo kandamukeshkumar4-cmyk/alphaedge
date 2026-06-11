@@ -4,6 +4,7 @@ import "./globals.css";
 import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
+import { PortfolioBanner } from "@/components/PortfolioBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ToastProvider>
           <HealthBanner />
           <SiteHeader />
+          <PortfolioBanner />
           <div className="min-h-[calc(100vh-7rem)]">{children}</div>
           <footer className="border-t border-border bg-surface/40 px-4 py-6 text-center">
             <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">

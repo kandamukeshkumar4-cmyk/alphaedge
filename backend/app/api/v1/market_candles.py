@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,6 +90,49 @@ async def get_latest_price(
         "ts": row[1].isoformat(),
         "source": "db",
     }
+
+
+@router.get("/markets/{slug}/history")
+async def get_market_history(
+    slug: str,
+    days: int = Query(default=7, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return daily [timestamp, yes_price] pairs for the past N days."""
+    if slug not in CATALOG_SLUGS:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    market = await MarketService(db).get_market_by_slug(slug)
+    if market is None:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await db.execute(
+        select(OddsSnapshot.captured_at, OddsSnapshot.implied_yes)
+        .where(OddsSnapshot.market_slug == slug)
+        .where(OddsSnapshot.captured_at >= since)
+        .order_by(OddsSnapshot.captured_at.asc())
+    )
+    rows = result.all()
+
+    entry = CATALOG_MAP.get(slug)
+    end_price = entry.spec_price if entry is not None else 0.5
+
+    if not rows:
+        now = datetime.now(timezone.utc)
+        history = []
+        for i in range(days):
+            ts = now - timedelta(days=days - 1 - i)
+            frac = i / max(days - 1, 1)
+            price = round(0.5 + frac * (end_price - 0.5), 4)
+            history.append({"timestamp": int(ts.timestamp()), "yes_price": price})
+        return {"history": history, "source": "synthetic"}
+
+    history = [
+        {"timestamp": int(captured_at.timestamp()), "yes_price": float(implied_yes)}
+        for captured_at, implied_yes in rows
+    ]
+    return {"history": history, "source": "db"}
 
 
 def _candle_payload(candle: SeedCandle) -> dict[str, float | int]:

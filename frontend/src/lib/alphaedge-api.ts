@@ -16,6 +16,47 @@ export type Candle = {
   close: number;
 };
 
+export type HistoryPoint = {
+  timestamp: number;
+  yes_price: number;
+};
+
+export async function fetchMarketHistory(
+  slug: string,
+  days = 7,
+): Promise<HistoryPoint[]> {
+  if (!API_BASE) return [];
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/history?days=${days}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return [];
+    const data = (await response.json()) as { history?: HistoryPoint[] };
+    return data.history ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export type OrderBookLevel = { price: number; size: number };
+export type OrderBookSide = { bids: OrderBookLevel[]; asks: OrderBookLevel[] };
+export type OrderBookResponse = { yes: OrderBookSide; no: OrderBookSide };
+
+export async function fetchOrderBook(slug: string): Promise<OrderBookResponse | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/book`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as OrderBookResponse;
+  } catch {
+    return null;
+  }
+}
+
 export type LivePrice = {
   slug: string;
   yes: number;

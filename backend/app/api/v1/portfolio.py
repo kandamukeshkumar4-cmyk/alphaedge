@@ -10,6 +10,7 @@ from app.schemas.portfolio import (
     PORTFOLIO_DISCLAIMER,
     PortfolioPositionResponse,
     PortfolioResponse,
+    PortfolioSummaryResponse,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["portfolio"])
@@ -128,6 +129,36 @@ async def _load_paper_orders(
             )
         )
     return positions
+
+
+@router.get("/portfolio/summary", response_model=PortfolioSummaryResponse)
+async def get_portfolio_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PortfolioSummaryResponse:
+    positions: list[PortfolioPositionResponse] = []
+    try:
+        positions = await _load_paper_orders(db, current_user.id.hex)
+    except (OperationalError, ProgrammingError):
+        positions = []
+
+    paper_balance = float(current_user.paper_balance)
+    open_positions = [p for p in positions if not p.settled]
+    slugs = list({pos.market_slug for pos in open_positions})
+    implied_by_slug = await _latest_implied_yes_by_slug(db, slugs)
+    unrealized_pnl, _ = _enrich_live_pnl(list(open_positions), implied_by_slug, paper_balance)
+
+    total_invested = sum(pos.cost for pos in open_positions)
+    return PortfolioSummaryResponse(
+        bankroll=paper_balance,
+        open_positions=len(open_positions),
+        total_invested=round(total_invested, 2),
+        unrealized_pnl=round(unrealized_pnl, 2),
+        unrealized_pnl_pct=round(
+            unrealized_pnl / total_invested * 100 if total_invested > 0 else 0.0,
+            2,
+        ),
+    )
 
 
 @router.get("/portfolio", response_model=PortfolioResponse)

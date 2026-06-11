@@ -12,7 +12,6 @@ import {
   toneClass,
 } from "@/lib/mock-data";
 import { PriceChart } from "@/components/PriceChart";
-import { TradePanel } from "@/components/TradePanel";
 import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
@@ -20,6 +19,9 @@ import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
 import { AITakePanel } from "@/components/AITakePanel";
 import { ResolutionBanner } from "@/components/ResolutionBanner";
 import { PredictionWidget } from "@/components/PredictionWidget";
+import { MarketTradingPanel } from "@/components/MarketTradingPanel";
+import { OrderbookDepthChart } from "@/components/OrderbookDepthChart";
+import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChart";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
 import {
@@ -179,8 +181,13 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
             })}
           </div>
 
+          <ProbabilityHistoryChart slug={slug} height={100} />
+
           <div className="grid gap-5 md:grid-cols-2">
-            <OrderBook market={market} />
+            <div className="space-y-3">
+              <OrderbookDepthChart slug={slug} />
+              <OrderBook market={market} />
+            </div>
             <div className="space-y-3">
               {forecastProvisional ? (
                 <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-200">
@@ -206,18 +213,17 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <PredictionWidget slug={slug} className="mt-4" />
           <DecisionSignalPanel market={market} />
           <AITakePanel slug={slug} />
-          {isResolved || resolutionOutcome != null ? (
-            <div className="rounded-2xl border border-border bg-surface-2 px-4 py-6 text-center">
-              <p className="text-sm font-bold uppercase tracking-[0.08em] text-muted">
-                Trading closed
-              </p>
-              <p className="mt-2 text-base font-semibold text-text">
-                This market is closed
-              </p>
-            </div>
-          ) : (
-            <TradePanel market={market} disabled={false} />
-          )}
+          <MarketTradingPanel
+            slug={slug}
+            title={market.title}
+            status={isResolved || resolutionOutcome != null ? "resolved" : "open"}
+            closeTime={market.endsAt}
+            initialYesPrice={
+              livePrice.connected && livePrice.yes > 0
+                ? livePrice.yes
+                : market.outcomes[0]?.price ?? 0.5
+            }
+          />
         </div>
       </div>
 
