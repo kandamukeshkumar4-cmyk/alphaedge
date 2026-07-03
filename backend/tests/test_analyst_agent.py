@@ -128,3 +128,51 @@ def test_build_citations_price_fallback_when_only_price():
     state.evidence = {"news": [], "whales": [], "model": {}}
     cites = build_citations(state)
     assert len(cites) == 1 and cites[0]["kind"] == "orderbook"
+
+
+# ── E13 personas ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_analyst_persona_persists_and_frames(db_session):
+    await _seed_market(db_session, slug="pm-persona")
+    model = await run_analyst(
+        db_session, "pm-persona", direction="up", persona="macro",
+        settings=_no_llm_settings(),
+    )
+    assert model.generator == "fallback"
+    assert model.body_markdown.startswith("Macro-desk read: ")
+
+    await db_session.flush()
+    row = await db_session.scalar(
+        select(AnalystBrief).where(AnalystBrief.market_slug == "pm-persona").limit(1)
+    )
+    assert row is not None and row.persona == "macro"
+
+
+@pytest.mark.asyncio
+async def test_run_analyst_unknown_persona_ignored(db_session):
+    await _seed_market(db_session, slug="pm-persona-x")
+    model = await run_analyst(
+        db_session, "pm-persona-x", direction="up", persona="not-a-persona",
+        settings=_no_llm_settings(),
+    )
+    assert not model.body_markdown.startswith("Macro-desk read: ")
+    await db_session.flush()
+    row = await db_session.scalar(
+        select(AnalystBrief).where(AnalystBrief.market_slug == "pm-persona-x").limit(1)
+    )
+    assert row is not None and row.persona is None
+
+
+def test_persona_foregrounds_evidence_kind():
+    from app.agents.analyst import build_citations
+
+    state = AnalystState(market_slug="m", direction="up", persona="whale-flow")
+    state.evidence = {
+        "model": {"predicted_prob": 0.6, "edge": 0.05},
+        "news": [{"direction": "up", "detail": {"relevance": 0.7}, "url": None}],
+        "whales": [{"direction": "up", "detail": {"action": "add"}}],
+    }
+    citations = build_citations(state)
+    assert citations[0]["kind"] == "wallet"  # whale evidence foregrounded
