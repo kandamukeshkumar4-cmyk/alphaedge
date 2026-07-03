@@ -41,6 +41,9 @@ services:
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       SYSTEM_ACCOUNT_ID: "00000000-0000-0000-0000-000000000001"
       SYSTEM_INITIAL_BANKROLL: "100000.00"
+      # E07: instability index ON in dev (PROVISIONAL — model unvalidated;
+      # forecast-feature flag stays OFF until the election dataset exists)
+      INSTABILITY_ENABLED: "true"
     depends_on:
       db:
         condition: service_healthy
@@ -62,6 +65,7 @@ services:
       DATABASE_URL_SYNC: postgresql://alphaedge:alphaedge@db:5432/alphaedge
       REDIS_URL: redis://redis:6379/0
       ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+      INSTABILITY_ENABLED: "true"
     depends_on:
       db:
         condition: service_healthy

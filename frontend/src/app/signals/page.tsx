@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
+import { InstabilityPanel } from "@/components/InstabilityPanel";
 import { fetchSignalsDashboard } from "@/lib/signals-dashboard-api";
 import { buildSignalsDashboardView } from "@/lib/signals-dashboard-view-model";
 
@@ -99,6 +100,8 @@ export default function SignalsPage() {
           <p>{view.llmExplanation}</p>
         </section>
       ) : null}
+
+      <InstabilityPanel />
 
       <section className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-3">

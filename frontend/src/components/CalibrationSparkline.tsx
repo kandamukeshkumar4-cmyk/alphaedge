@@ -19,13 +19,10 @@ type AggregateItem = {
   dim_key: string;
   window_days: number;
   n: number;
-  accuracy: float;
-  brier: float;
+  accuracy: number;
+  brier: number;
   provisional: boolean;
 };
-
-// TS alias — float doesn't exist in TS, use number
-type float = number;
 
 type TrackRecordResponse = {
   aggregates: AggregateItem[];

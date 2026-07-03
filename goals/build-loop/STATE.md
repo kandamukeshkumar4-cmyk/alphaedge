@@ -16,7 +16,7 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 |-----|-----------------------------------------|--------|------------|------|-------------|
 | U01 | Unified market search (PM+Kalshi)       | DONE   | -          | -    | 2026-07-03 verifier PASS (701p/5s, §G clean, UI reachable) |
 | U02 | Unified activity feed                   | DONE   | -          | -    | 2026-07-03 iter 2 PASS (732p/5s, §G clean, feed page + nav reachable) |
-| U03 | Decision dashboard (Bet/Pass card)      | CLAIMED | opus-4-8 (maker agent) | U01 | 2026-07-03 iteration 3 |
+| U03 | Decision dashboard (Bet/Pass card)      | IN-REVIEW | opus-4-8 maker → verifier | U01 | 2026-07-03 iter 3: maker done 749p/5s, verifier running |
 | U04 | Portfolio exposure analysis             | TODO   | -          | -    | 2026-07-03 queued |
 | U05 | Assistant chat (analysis-only, no-order)| TODO   | -          | U04  | 2026-07-03 queued |
 | U06 | Agent Builder "Clone-lite"              | TODO   | -          | -    | 2026-07-03 queued |

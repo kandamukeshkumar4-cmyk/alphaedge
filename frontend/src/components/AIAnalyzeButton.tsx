@@ -13,9 +13,12 @@ type Props = {
 };
 
 /**
- * On-demand "AI Analyze" trigger. Opens the existing AITakePanel (model vs
- * market, edge, confidence, news signals) in a modal so it works from any
- * surface — including the market listing cards, which otherwise show no AI take.
+ * On-demand "AI Analyze" trigger. Opens the DecisionCard (verdict chip,
+ * model vs market bars, edge, CLV-gate status, calibration curve, rationale
+ * trace, news signals) in a modal so it works from any surface — including
+ * market listing cards, which otherwise show no AI take.
+ *
+ * Advisory only — no order-submission controls in this modal.
  */
 export function AIAnalyzeButton({ slug, title, variant = "card", className }: Props) {
   const [open, setOpen] = useState(false);
