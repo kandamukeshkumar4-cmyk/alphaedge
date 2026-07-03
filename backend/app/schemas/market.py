@@ -39,6 +39,9 @@ class MarketResponse(BaseModel):
     resolved_at: Optional[datetime]
     winning_outcome: Optional[OrderOutcome]
     resolution_outcome: Optional[str] = None
+    source: str = "seed"
+    image_url: Optional[str] = None
+    yes_price: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -332,3 +335,23 @@ class HealthResponse(BaseModel):
     status: str
     paper_trading_only: bool
     disclaimer: str
+
+
+class UnifiedMarketSearchResult(BaseModel):
+    """
+    Unified cross-platform market search result.
+
+    Shape inspired by pmxt (MIT) UnifiedMarket model
+    (vendor-study/pmxt-dev__pmxt/sdks/python/pmxt/models.py).
+    Attribution: pmxt-dev/pmxt, MIT License.
+    See docs/ATTRIBUTIONS.md.
+    """
+
+    slug: str
+    title: str
+    platform: str  # "Polymarket" | "Kalshi" | "AlphaEdge"
+    category: str
+    market_type: str = "prediction"
+    yes_price: Optional[float] = None
+    volume: int = 0
+    status: str = "open"  # "open" | "locked" | "resolved"

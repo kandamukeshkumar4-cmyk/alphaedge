@@ -1,4 +1,4 @@
-import { mergeApiMarketsForCards, type ApiMarketCatalogItem } from "./api-market-adapter";
+import { apiCatalogToMarkets, type ApiMarketCatalogItem } from "./api-market-adapter";
 import { mergeApiSnapshotForDetail } from "./api-market-detail-adapter";
 import { MARKETS, type Market as CardMarket } from "./mock-data";
 import type { Market, MarketSnapshot } from "./market-view-model";
@@ -100,8 +100,26 @@ export async function fetchMarketCandles(
     if (!response.ok) {
       return null;
     }
-    const data = (await response.json()) as { candles?: Candle[] };
+    const data = (await response.json()) as { candles?: Candle[]; source?: string };
     return data.candles ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchMarketCandlesMeta(
+  slug: string,
+  points = 90,
+): Promise<{ candles: Candle[]; source: string } | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as { candles?: Candle[]; source?: string };
+    return { candles: data.candles ?? [], source: data.source ?? "unknown" };
   } catch {
     return null;
   }
@@ -210,26 +228,25 @@ export function toApiCategory(category: string): string | undefined {
 
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
   if (!API_BASE) {
-    return MARKETS;
+    return [];
   }
 
-  try {
-    const url = new URL(`${API_BASE}/api/v1/markets`);
-    if (params?.category && params.category !== "all") {
-      url.searchParams.set("category", params.category);
+  const url = new URL(`${API_BASE}/api/v1/markets`);
+  if (params?.category && params.category !== "all") {
+    const apiCategory = toApiCategory(params.category);
+    if (apiCategory) {
+      url.searchParams.set("category", apiCategory);
     }
-    if (params?.sort) url.searchParams.set("sort", params.sort);
-    if (params?.q) url.searchParams.set("q", params.q);
-
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (!response.ok) {
-      return MARKETS;
-    }
-    const markets = (await response.json()) as ApiMarketCatalogItem[];
-    return markets.length ? mergeApiMarketsForCards(markets, MARKETS) : MARKETS;
-  } catch {
-    return MARKETS;
   }
+  if (params?.sort) url.searchParams.set("sort", params.sort);
+  if (params?.q) url.searchParams.set("q", params.q);
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Markets HTTP ${response.status}`);
+  }
+  const markets = (await response.json()) as ApiMarketCatalogItem[];
+  return apiCatalogToMarkets(markets);
 }
 
 export type PatchMeRequest = {

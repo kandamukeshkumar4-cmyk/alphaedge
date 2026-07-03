@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import "@astryxdesign/core/reset.css";
+import "@astryxdesign/core/astryx.css";
 import "./globals.css";
+import { AstryxThemeProvider } from "@/components/AstryxThemeProvider";
 import { HealthBanner } from "@/components/HealthBanner";
-import { SiteHeader } from "@/components/SiteHeader";
+import { QuestHeader } from "@/components/quest/QuestHeader";
+import { QuestOnboarding } from "@/components/quest/QuestOnboarding";
 import { ToastProvider } from "@/components/ToastProvider";
-import { PortfolioBanner } from "@/components/PortfolioBanner";
+import { GamificationLayer } from "@/components/GamificationLayer";
+import { GamificationProvider } from "@/lib/gamification";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -12,7 +17,8 @@ const inter = Inter({
   display: "swap",
 });
 
-const mono = IBM_Plex_Mono({
+// CoinbaseMono substitute per docs/design/DESIGN-coinbase.md — JetBrains Mono 500.
+const mono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
@@ -31,17 +37,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-bg font-sans text-text">
-        <ToastProvider>
-          <HealthBanner />
-          <SiteHeader />
-          <PortfolioBanner />
-          <div className="min-h-[calc(100vh-7rem)]">{children}</div>
-          <footer className="border-t border-border bg-surface/40 px-4 py-6 text-center">
-            <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
-              {DISCLAIMER}
-            </p>
-          </footer>
-        </ToastProvider>
+        {/* Apply the saved theme before paint to avoid a flash of the wrong one. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('ae_theme')==='light')document.documentElement.classList.add('light')}catch(e){}",
+          }}
+        />
+        <AstryxThemeProvider>
+          <GamificationProvider>
+            <ToastProvider>
+              <HealthBanner />
+              <QuestHeader />
+              <div className="min-h-[calc(100vh-7rem)]">{children}</div>
+              <footer className="border-t border-border bg-bg px-4 py-6 text-center">
+                <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
+                  {DISCLAIMER}
+                </p>
+              </footer>
+              <GamificationLayer />
+              <QuestOnboarding />
+            </ToastProvider>
+          </GamificationProvider>
+        </AstryxThemeProvider>
       </body>
     </html>
   );

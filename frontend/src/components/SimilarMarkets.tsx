@@ -1,5 +1,6 @@
 "use client";
 
+import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchMarkets, toApiCategory } from "@/lib/alphaedge-api";
@@ -49,7 +50,7 @@ export function SimilarMarkets({ currentSlug, category }: Props) {
           return (
             <li key={m.slug}>
               <Link
-                href={`/markets/${m.slug}`}
+                href={marketHref(m.slug)}
                 className="flex items-center justify-between gap-3 rounded-xl p-2 transition hover:bg-surface-2"
               >
                 <span className="flex items-center gap-2 min-w-0">

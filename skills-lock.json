@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "improve": {
+      "source": "shadcn/improve",
+      "sourceType": "github",
+      "skillPath": "skills/improve/SKILL.md",
+      "computedHash": "992d71e2ed2a83e7f25d8522d069f090e2ea16286ec29ea86f84cfa05c0c2430"
+    },
+    "maintainer-orchestrator": {
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "skillPath": "skills/maintainer-orchestrator/SKILL.md",
+      "computedHash": "dce18663a6512cde2b9ffa368c0fca3221d418f4fb3b32e27113c16c619bfc66"
+    },
+    "github-project-triage": {
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "skillPath": "skills/github-project-triage/SKILL.md",
+      "computedHash": "479f0e1a516bc821d6ebccbec68893615bd8347681e45b5522b1fc56ab9af644"
+    }
+  }
+}

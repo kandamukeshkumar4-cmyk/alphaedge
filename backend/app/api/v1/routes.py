@@ -31,6 +31,7 @@ from app.schemas.market import (
     PaperSignalCreate,
     PaperSignalSummaryResponse,
     PositionResponse,
+    UnifiedMarketSearchResult,
 )
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
@@ -79,6 +80,24 @@ async def list_markets(
         raise HTTPException(status_code=400, detail="Invalid sort parameter")
     svc = MarketService(db)
     return await svc.list_public_markets(category=category, sort=sort, q=q)
+
+
+@router.get("/search", response_model=list[UnifiedMarketSearchResult])
+async def search_markets(
+    q: str | None = None,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unified cross-platform market search (U01).
+    Returns markets from Polymarket + Kalshi + AlphaEdge seed catalog
+    from the local DB — no live external calls in this path.
+    Results ranked by: title-match quality → open status → volume.
+    """
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
+    svc = MarketService(db)
+    return await svc.search_markets(q=q, limit=limit)
 
 
 @router.get("/markets/{slug}", response_model=MarketResponse)

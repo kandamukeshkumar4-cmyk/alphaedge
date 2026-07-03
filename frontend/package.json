@@ -12,6 +12,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@astryxdesign/cli": "^0.1.2",
+    "@astryxdesign/core": "^0.1.2",
+    "@astryxdesign/theme-neutral": "^0.1.2",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
     "lightweight-charts": "^5.2.0",

@@ -140,6 +140,14 @@ class Market(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     resolution: Mapped[str] = mapped_column(Text, default="")
     tournament_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(32), default="seed", server_default="seed")
+    external_slug: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    clob_token_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    image_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    last_synced_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[MarketStatus] = mapped_column(
         _pg_enum(MarketStatus, name="market_status"),
         default=MarketStatus.OPEN,
@@ -359,6 +367,7 @@ class PredictionLog(Base):
         ForeignKey("feature_versions.id"), nullable=True
     )
     input_feature_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    explanation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # T11 SHAP top features
     odds_snapshot_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("odds_snapshots.id"), nullable=True
     )
@@ -465,6 +474,111 @@ class WalletPosition(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tracked_wallet: Mapped["TrackedWallet"] = relationship(back_populates="positions")
+
+
+class WalletPositionSnapshot(Base):
+    """T05 time-series of a whale's positions, for diffing into whale_delta events.
+
+    Distinct from WalletPosition (current state): this is append-only history keyed
+    by (wallet_address, market_slug, captured_at) so consecutive snapshots can be
+    diffed to detect adds/exits/flips.
+    """
+
+    __tablename__ = "wallet_position_snapshots"
+    __table_args__ = (
+        Index(
+            "ix_wallet_pos_snap_wallet_market_captured",
+            "wallet_address",
+            "market_slug",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    wallet_address: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(8), default="YES")
+    size: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    avg_price: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AnalystBrief(Base):
+    """T07 AI research brief generated on an analyst.trigger."""
+
+    __tablename__ = "analyst_briefs"
+    __table_args__ = (
+        Index("ix_analyst_briefs_market_created", "market_slug", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    trigger_event_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    headline: Mapped[str] = mapped_column(String(160), nullable=False)
+    body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    model_version: Mapped[str] = mapped_column(String(64), default="unknown")
+    prompt_version: Mapped[str] = mapped_column(String(32), default="v1")
+    generator: Mapped[str] = mapped_column(String(16), default="llm")
+    kind: Mapped[str] = mapped_column(String(16), default="brief")  # brief | digest
+    latency_ms: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    claim: Mapped[Optional["BriefClaim"]] = relationship(
+        back_populates="brief", uselist=False
+    )
+
+
+class BriefClaim(Base):
+    """The falsifiable claim attached to a brief; graded by the eval harness (T08)."""
+
+    __tablename__ = "brief_claims"
+    __table_args__ = (
+        Index("ix_brief_claims_status_horizon", "status", "horizon_minutes"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    brief_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("analyst_briefs.id"))
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    horizon_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    confidence: Mapped[float] = mapped_column(Numeric(6, 4), default=0)
+    price_at_claim: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    resolution_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    brief: Mapped["AnalystBrief"] = relationship(back_populates="claim")
+
+
+class AnalystEvalAggregate(Base):
+    """T08 public track-record aggregate: accuracy/Brier per dimension + window."""
+
+    __tablename__ = "analyst_eval_aggregates"
+    __table_args__ = (
+        Index("ix_analyst_eval_dimension_key_window", "dimension", "dim_key", "window_days"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dimension: Mapped[str] = mapped_column(String(32), nullable=False)  # category|claim_type|model_version|prompt_version|overall
+    dim_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    window_days: Mapped[int] = mapped_column(Integer, default=7)  # 7 | 30 | 0 (all)
+    n: Mapped[int] = mapped_column(Integer, default=0)
+    accuracy: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0"))
+    brier: Mapped[Decimal] = mapped_column(Numeric(8, 6), default=Decimal("0"))
+    provisional: Mapped[bool] = mapped_column(Boolean, default=True)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 # Week 4

@@ -3,204 +3,139 @@
 @tailwind utilities;
 
 /*
- * vidIQ-inspired palette: cool near-black navy canvas, one bright blue brand
- * accent (#2E7DF6) + a coral secondary (#FF4D8D). Green/red are reserved strictly
- * for YES/NO + up/down trade semantics. These !important utilities override
- * Tailwind's generated classes, so retuning the hex here reskins the whole app.
+ * Quest design system — dark terminal canvas (default) + light theme.
+ * All semantic tokens live here as RGB triplets so both themes share the
+ * same Tailwind class names; toggle by adding .light to <html>.
  */
-@layer utilities {
-  .bg-bg {
-    background-color: #0a0c12 !important;
-  }
-  .bg-bg\/95 {
-    background-color: rgb(10 12 18 / 0.95) !important;
-  }
-  .bg-bg\/65 {
-    background-color: rgb(10 12 18 / 0.65) !important;
-  }
-  .bg-bg\/55 {
-    background-color: rgb(10 12 18 / 0.55) !important;
-  }
-  .bg-surface {
-    background-color: #12141c !important;
-  }
-  .bg-surface\/40 {
-    background-color: rgb(18 20 28 / 0.4) !important;
-  }
-  .bg-surface-2 {
-    background-color: #181b26 !important;
-  }
-  .bg-surface-3 {
-    background-color: #222636 !important;
-  }
-  .bg-primary {
-    background-color: #24c66d !important;
-  }
-  .bg-primary\/10 {
-    background-color: rgb(36 198 109 / 0.1) !important;
-  }
-  .bg-primary\/70 {
-    background-color: rgb(36 198 109 / 0.7) !important;
-  }
-  .bg-primary-dim {
-    background-color: #0c2618 !important;
-  }
-  .bg-primary-dim\/55 {
-    background-color: rgb(12 38 24 / 0.55) !important;
-  }
-  .bg-danger {
-    background-color: #ff4d4f !important;
-  }
-  .bg-danger-dim {
-    background-color: #2b1012 !important;
-  }
-  .bg-accent {
-    background-color: #2e7df6 !important;
-  }
-  .bg-accent\/10 {
-    background-color: rgb(46 125 246 / 0.1) !important;
-  }
-  .bg-accent\/15 {
-    background-color: rgb(46 125 246 / 0.15) !important;
-  }
-  .bg-accent-dim {
-    background-color: #0e1f3d !important;
-  }
-  .bg-secondary {
-    background-color: #ff4d8d !important;
-  }
-  .bg-secondary-dim {
-    background-color: #2a1020 !important;
-  }
-  .text-bg {
-    color: #0a0c12 !important;
-  }
-  .text-text {
-    color: #eef1f7 !important;
-  }
-  .text-muted {
-    color: #9aa3b5 !important;
-  }
-  .text-muted-2 {
-    color: #646c7e !important;
-  }
-  .text-primary {
-    color: #24c66d !important;
-  }
-  .text-danger {
-    color: #ff4d4f !important;
-  }
-  .text-accent {
-    color: #2e7df6 !important;
-  }
-  .text-secondary {
-    color: #ff4d8d !important;
-  }
-  .border-border {
-    border-color: #232838 !important;
-  }
-  .border-border\/60 {
-    border-color: rgb(35 40 56 / 0.6) !important;
-  }
-  .border-border\/70 {
-    border-color: rgb(35 40 56 / 0.7) !important;
-  }
-  .border-border-light {
-    border-color: #353b4f !important;
-  }
-  .border-primary {
-    border-color: #24c66d !important;
-  }
-  .border-primary\/55 {
-    border-color: rgb(36 198 109 / 0.55) !important;
-  }
-  .border-primary\/45 {
-    border-color: rgb(36 198 109 / 0.45) !important;
-  }
-  .border-primary\/40 {
-    border-color: rgb(36 198 109 / 0.4) !important;
-  }
-  .border-primary\/35 {
-    border-color: rgb(36 198 109 / 0.35) !important;
-  }
-  .border-primary\/25 {
-    border-color: rgb(36 198 109 / 0.25) !important;
-  }
-  .border-primary\/20 {
-    border-color: rgb(36 198 109 / 0.2) !important;
-  }
-  .border-danger {
-    border-color: #ff4d4f !important;
-  }
-  .border-danger\/55 {
-    border-color: rgb(255 77 79 / 0.55) !important;
-  }
-  .border-danger\/45 {
-    border-color: rgb(255 77 79 / 0.45) !important;
-  }
-  .border-danger\/40 {
-    border-color: rgb(255 77 79 / 0.4) !important;
-  }
-  .border-accent {
-    border-color: #2e7df6 !important;
-  }
-  .border-accent\/55 {
-    border-color: rgb(46 125 246 / 0.55) !important;
-  }
-  .border-accent\/45 {
-    border-color: rgb(46 125 246 / 0.45) !important;
-  }
-  .border-accent\/30 {
-    border-color: rgb(46 125 246 / 0.3) !important;
-  }
-  .shadow-card {
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.35) !important;
-  }
-  .shadow-lift {
-    box-shadow: 0 8px 28px rgb(0 0 0 / 0.55) !important;
-  }
-  .shadow-glow {
-    box-shadow:
-      0 0 0 1px rgb(46 125 246 / 0.4),
-      0 12px 32px rgb(46 125 246 / 0.18) !important;
-  }
-  .hover\:bg-primary:hover {
-    background-color: #24c66d !important;
-  }
-  .hover\:bg-accent:hover {
-    background-color: #2e7df6 !important;
-  }
-  .hover\:bg-accent-dim:hover {
-    background-color: #0e1f3d !important;
-  }
-  .hover\:bg-surface:hover {
-    background-color: #12141c !important;
-  }
-  .hover\:bg-surface-2:hover {
-    background-color: #181b26 !important;
-  }
-  .hover\:text-primary:hover {
-    color: #24c66d !important;
-  }
-  .hover\:text-accent:hover {
-    color: #2e7df6 !important;
-  }
-  .hover\:text-text:hover {
-    color: #eef1f7 !important;
-  }
-  .hover\:border-primary:hover {
-    border-color: #24c66d !important;
-  }
-  .hover\:border-accent:hover {
-    border-color: #2e7df6 !important;
-  }
-  .hover\:border-border-light:hover {
-    border-color: #353b4f !important;
-  }
-}
-
 :root {
   color-scheme: dark;
+  --c-bg: 10 14 13;
+  --c-surface: 16 22 20;
+  --c-surface-2: 21 29 26;
+  --c-surface-3: 27 36 32;
+  --c-border: 30 41 36;
+  --c-border-light: 42 56 49;
+  --c-text: 242 247 245;
+  --c-muted: 159 176 169;
+  --c-muted-2: 109 126 119;
+  --c-primary: 32 201 151;
+  --c-primary-dim: 12 35 28;
+  --c-danger: 229 72 77;
+  --c-danger-dim: 42 14 17;
+  --c-accent: 32 201 151;
+  --c-accent-active: 23 169 126;
+  --c-accent-dim: 12 42 34;
+  --c-accent-bright: 62 230 176;
+  --c-secondary: 244 176 0;
+  --c-secondary-dim: 42 34 10;
+  --c-scrollbar: 42 56 49;
+  --shadow-strength: 0.35;
+}
+
+.light {
+  color-scheme: light;
+  --c-bg: 246 248 247;
+  --c-surface: 255 255 255;
+  --c-surface-2: 238 242 240;
+  --c-surface-3: 228 234 231;
+  --c-border: 221 228 225;
+  --c-border-light: 200 210 205;
+  --c-text: 13 26 21;
+  --c-muted: 75 92 85;
+  --c-muted-2: 113 130 123;
+  --c-primary: 15 157 118;
+  --c-primary-dim: 217 242 234;
+  --c-danger: 211 63 68;
+  --c-danger-dim: 251 227 228;
+  --c-accent: 15 157 118;
+  --c-accent-active: 12 134 99;
+  --c-accent-dim: 217 242 234;
+  --c-accent-bright: 16 185 129;
+  --c-secondary: 158 110 0;
+  --c-secondary-dim: 245 234 208;
+  --c-scrollbar: 200 210 205;
+  --shadow-strength: 0.12;
+}
+
+/*
+ * Token utilities with !important so they win over any legacy hardcoded
+ * classes; every value is var-driven so .light reskins the whole app.
+ */
+@layer utilities {
+  .bg-bg { background-color: rgb(var(--c-bg)) !important; }
+  .bg-bg\/95 { background-color: rgb(var(--c-bg) / 0.95) !important; }
+  .bg-bg\/65 { background-color: rgb(var(--c-bg) / 0.65) !important; }
+  .bg-bg\/55 { background-color: rgb(var(--c-bg) / 0.55) !important; }
+  .bg-surface { background-color: rgb(var(--c-surface)) !important; }
+  .bg-surface\/40 { background-color: rgb(var(--c-surface) / 0.4) !important; }
+  .bg-surface-2 { background-color: rgb(var(--c-surface-2)) !important; }
+  .bg-surface-3 { background-color: rgb(var(--c-surface-3)) !important; }
+  .bg-primary { background-color: rgb(var(--c-primary)) !important; }
+  .bg-primary\/10 { background-color: rgb(var(--c-primary) / 0.1) !important; }
+  .bg-primary\/70 { background-color: rgb(var(--c-primary) / 0.7) !important; }
+  .bg-primary-dim { background-color: rgb(var(--c-primary-dim)) !important; }
+  .bg-primary-dim\/55 { background-color: rgb(var(--c-primary-dim) / 0.55) !important; }
+  .bg-danger { background-color: rgb(var(--c-danger)) !important; }
+  .bg-danger-dim { background-color: rgb(var(--c-danger-dim)) !important; }
+  .bg-accent { background-color: rgb(var(--c-accent)) !important; }
+  .bg-accent\/10 { background-color: rgb(var(--c-accent) / 0.1) !important; }
+  .bg-accent\/15 { background-color: rgb(var(--c-accent) / 0.15) !important; }
+  .bg-accent-dim { background-color: rgb(var(--c-accent-dim)) !important; }
+  .bg-accent-bright { background-color: rgb(var(--c-accent-bright)) !important; }
+  .bg-secondary { background-color: rgb(var(--c-secondary)) !important; }
+  .bg-secondary-dim { background-color: rgb(var(--c-secondary-dim)) !important; }
+  .text-bg { color: rgb(var(--c-bg)) !important; }
+  .text-text { color: rgb(var(--c-text)) !important; }
+  .text-muted { color: rgb(var(--c-muted)) !important; }
+  .text-muted-2 { color: rgb(var(--c-muted-2)) !important; }
+  .text-primary { color: rgb(var(--c-primary)) !important; }
+  .text-danger { color: rgb(var(--c-danger)) !important; }
+  .text-accent { color: rgb(var(--c-accent)) !important; }
+  .text-accent-bright { color: rgb(var(--c-accent-bright)) !important; }
+  .text-secondary { color: rgb(var(--c-secondary)) !important; }
+  .border-border { border-color: rgb(var(--c-border)) !important; }
+  .border-border\/60 { border-color: rgb(var(--c-border) / 0.6) !important; }
+  .border-border\/70 { border-color: rgb(var(--c-border) / 0.7) !important; }
+  .border-border-light { border-color: rgb(var(--c-border-light)) !important; }
+  .border-primary { border-color: rgb(var(--c-primary)) !important; }
+  .border-primary\/55 { border-color: rgb(var(--c-primary) / 0.55) !important; }
+  .border-primary\/45 { border-color: rgb(var(--c-primary) / 0.45) !important; }
+  .border-primary\/40 { border-color: rgb(var(--c-primary) / 0.4) !important; }
+  .border-primary\/35 { border-color: rgb(var(--c-primary) / 0.35) !important; }
+  .border-primary\/30 { border-color: rgb(var(--c-primary) / 0.3) !important; }
+  .border-primary\/25 { border-color: rgb(var(--c-primary) / 0.25) !important; }
+  .border-primary\/20 { border-color: rgb(var(--c-primary) / 0.2) !important; }
+  .border-danger { border-color: rgb(var(--c-danger)) !important; }
+  .border-danger\/55 { border-color: rgb(var(--c-danger) / 0.55) !important; }
+  .border-danger\/45 { border-color: rgb(var(--c-danger) / 0.45) !important; }
+  .border-danger\/40 { border-color: rgb(var(--c-danger) / 0.4) !important; }
+  .border-danger\/30 { border-color: rgb(var(--c-danger) / 0.3) !important; }
+  .border-danger\/25 { border-color: rgb(var(--c-danger) / 0.25) !important; }
+  .border-accent { border-color: rgb(var(--c-accent)) !important; }
+  .border-accent\/55 { border-color: rgb(var(--c-accent) / 0.55) !important; }
+  .border-accent\/45 { border-color: rgb(var(--c-accent) / 0.45) !important; }
+  .border-accent\/30 { border-color: rgb(var(--c-accent) / 0.3) !important; }
+  .border-accent-bright { border-color: rgb(var(--c-accent-bright)) !important; }
+  .border-secondary\/30 { border-color: rgb(var(--c-secondary) / 0.3) !important; }
+  .shadow-card { box-shadow: 0 2px 8px rgb(0 0 0 / var(--shadow-strength)) !important; }
+  .shadow-lift { box-shadow: 0 8px 28px rgb(0 0 0 / calc(var(--shadow-strength) + 0.2)) !important; }
+  .shadow-glow {
+    box-shadow:
+      0 0 0 1px rgb(var(--c-accent) / 0.4),
+      0 12px 32px rgb(var(--c-accent) / 0.18) !important;
+  }
+  .hover\:bg-primary:hover { background-color: rgb(var(--c-primary)) !important; }
+  .hover\:bg-accent:hover { background-color: rgb(var(--c-accent)) !important; }
+  .hover\:bg-accent-dim:hover { background-color: rgb(var(--c-accent-dim)) !important; }
+  .hover\:bg-surface:hover { background-color: rgb(var(--c-surface)) !important; }
+  .hover\:bg-surface-2:hover { background-color: rgb(var(--c-surface-2)) !important; }
+  .hover\:text-primary:hover { color: rgb(var(--c-primary)) !important; }
+  .hover\:text-accent:hover { color: rgb(var(--c-accent)) !important; }
+  .hover\:text-accent-bright:hover { color: rgb(var(--c-accent-bright)) !important; }
+  .hover\:text-text:hover { color: rgb(var(--c-text)) !important; }
+  .hover\:border-primary:hover { border-color: rgb(var(--c-primary)) !important; }
+  .hover\:border-accent:hover { border-color: rgb(var(--c-accent)) !important; }
+  .hover\:border-border-light:hover { border-color: rgb(var(--c-border-light)) !important; }
 }
 
 html {
@@ -211,26 +146,25 @@ body {
   @apply bg-bg text-text antialiased;
   font-feature-settings: "tnum" 1, "ss01" 1;
   background:
-    radial-gradient(1200px 480px at 50% -120px, rgba(46, 125, 246, 0.12) 0%, rgba(46, 125, 246, 0) 70%),
-    linear-gradient(180deg, rgba(18, 22, 34, 0.7) 0%, rgba(10, 12, 18, 0) 240px),
-    #0a0c12;
+    radial-gradient(1200px 480px at 50% -120px, rgb(var(--c-accent) / 0.1) 0%, rgb(var(--c-accent) / 0) 70%),
+    rgb(var(--c-bg));
 }
 
-/* Thin dark scrollbars */
+/* Thin themed scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3142 transparent;
+  scrollbar-color: rgb(var(--c-scrollbar)) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2a3142;
+  background: rgb(var(--c-scrollbar));
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #353b4f;
+  background: rgb(var(--c-border-light));
 }
 *::-webkit-scrollbar-track {
   background: transparent;
@@ -249,10 +183,10 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    #12141c 0%,
-    #1d2230 20%,
-    #12141c 40%,
-    #12141c 100%
+    rgb(var(--c-surface)) 0%,
+    rgb(var(--c-surface-3)) 20%,
+    rgb(var(--c-surface)) 40%,
+    rgb(var(--c-surface)) 100%
   );
   background-size: 936px 100%;
   @apply animate-shimmer rounded;
@@ -302,4 +236,15 @@ body {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Route themes: legacy brand accents (kept for older components) */
+.theme-kalshi {
+  --brand-accent: #00c389;
+  --brand-surface: #0d0f14;
+}
+
+.theme-polymarket {
+  --brand-accent: #5b4fe8;
+  --brand-surface: #12131a;
 }

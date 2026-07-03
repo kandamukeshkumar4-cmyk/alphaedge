@@ -1,5 +1,6 @@
 "use client";
 
+import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -256,7 +257,7 @@ export default function PortfolioPage() {
                       >
                         <td className="py-2">
                           <Link
-                            href={`/markets/${trade.slug}`}
+                            href={marketHref(trade.slug)}
                             className="text-text hover:text-accent"
                           >
                             {trade.slug}
@@ -322,7 +323,7 @@ function PortfolioPositionRow({ position }: { position: PortfolioPosition }) {
       )}
     >
       <td className="py-2">
-        <Link href={`/markets/${position.market_slug}`} className="hover:text-accent">
+        <Link href={marketHref(position.market_slug)} className="hover:text-accent">
           <span className="flex items-center gap-1.5 text-text">
             {position.settled ? <span aria-hidden>✓</span> : null}
             {position.market_title}

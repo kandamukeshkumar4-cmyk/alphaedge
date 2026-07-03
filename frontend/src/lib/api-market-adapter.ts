@@ -22,8 +22,19 @@ export type ApiMarketCatalogItem = {
   market_count: number;
   description: string;
   resolution: string;
+  source?: string;
+  image_url?: string | null;
+  yes_price?: number | null;
 };
 
+/** Map API catalog rows to card markets — API is the sole source of truth. */
+export function apiCatalogToMarkets(apiMarkets: ApiMarketCatalogItem[]): Market[] {
+  return apiMarkets.map((apiMarket) =>
+    buildApiOnlyMarket(apiMarket, coerceCategory(apiMarket.category)),
+  );
+}
+
+/** @deprecated Prefer apiCatalogToMarkets; kept for tests that merge legacy mock shapes. */
 export function mergeApiMarketsForCards(
   apiMarkets: ApiMarketCatalogItem[],
   localMarkets: Market[],
@@ -32,7 +43,7 @@ export function mergeApiMarketsForCards(
     const local = localMarkets.find((market) => market.slug === apiMarket.slug);
     const category = coerceCategory(apiMarket.category);
     if (local) {
-      return {
+      const merged = {
         ...local,
         id: apiMarket.id,
         title: apiMarket.title,
@@ -45,7 +56,13 @@ export function mergeApiMarketsForCards(
         marketCount: apiMarket.market_count,
         description: apiMarket.description || local.description,
         resolution: apiMarket.resolution || local.resolution,
+        source: apiMarket.source ?? local.source,
+        imageUrl: apiMarket.image_url ?? local.imageUrl,
       };
+      if (typeof apiMarket.yes_price === "number") {
+        merged.outcomes = buildBinaryOutcomes(apiMarket.yes_price);
+      }
+      return merged;
     }
 
     return buildApiOnlyMarket(apiMarket, category);
@@ -54,8 +71,11 @@ export function mergeApiMarketsForCards(
 
 function buildApiOnlyMarket(apiMarket: ApiMarketCatalogItem, category: Category): Market {
   const seed = hashSeed(apiMarket.slug);
-  const price = priceFromSeed(seed);
-  const outcomes = buildBinaryOutcomes(price);
+  const hasPrice = typeof apiMarket.yes_price === "number";
+  const price = hasPrice ? apiMarket.yes_price! : 0;
+  const outcomes = hasPrice
+    ? buildBinaryOutcomes(price)
+    : buildBinaryOutcomes(0.5).map((o) => ({ ...o, price: 0, prevPrice: 0 }));
   return {
     id: apiMarket.id,
     slug: apiMarket.slug,
@@ -67,29 +87,26 @@ function buildApiOnlyMarket(apiMarket: ApiMarketCatalogItem, category: Category)
     volume: apiMarket.volume,
     traders: apiMarket.traders,
     marketCount: apiMarket.market_count,
-    trendDelta: Math.round(((seed % 41) - 20) * 1.5),
+    trendDelta: 0,
     outcomes,
     forecast: {
-      prob: Math.min(0.97, price + 0.04),
-      confidence: 0.74,
-      edge: 0.06,
-      brier: 0.18,
-      reasoning: "API-backed paper market awaiting richer model lineage.",
+      prob: hasPrice ? price : 0,
+      confidence: 0,
+      edge: 0,
+      brier: 0,
+      reasoning: "",
     },
-    bids: [
-      { price: Math.max(0.01, price - 0.02), size: 820 },
-      { price: Math.max(0.01, price - 0.03), size: 540 },
-    ],
-    asks: [
-      { price: Math.min(0.99, price + 0.02), size: 760 },
-      { price: Math.min(0.99, price + 0.03), size: 510 },
-    ],
+    bids: [],
+    asks: [],
     description: apiMarket.description,
     resolution: apiMarket.resolution,
     trades: [],
     holders: [],
     comments: [],
     seed,
+    source: apiMarket.source,
+    imageUrl: apiMarket.image_url ?? undefined,
+    status: apiMarket.status,
   };
 }
 
@@ -115,7 +132,17 @@ function buildBinaryOutcomes(price: number): MarketOutcome[] {
 }
 
 function coerceCategory(value: string): Category {
-  return (CATEGORIES as string[]).includes(value) ? (value as Category) : "Sports";
+  const normalized = value.trim();
+  if ((CATEGORIES as string[]).includes(normalized)) {
+    return normalized as Category;
+  }
+  const lower = normalized.toLowerCase();
+  if (lower === "elections" || lower === "politics") return "Politics";
+  if (lower === "nba" || lower === "fifa wc2026" || lower === "sports") return "Sports";
+  if (lower === "crypto") return "Crypto";
+  if (lower === "culture") return "Culture";
+  if (lower === "economics") return "Economics";
+  return "Sports";
 }
 
 function iconForCategory(category: Category): string {
@@ -127,10 +154,6 @@ function iconForCategory(category: Category): string {
     Economics: "E",
   };
   return icons[category];
-}
-
-function priceFromSeed(seed: number): number {
-  return 0.35 + (seed % 31) / 100;
 }
 
 function hashSeed(value: string): number {

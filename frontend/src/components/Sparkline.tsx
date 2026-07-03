@@ -1,3 +1,5 @@
+import { cn } from "@/lib/cn";
+
 // Lightweight inline SVG sparkline for cards — cheap, deterministic, no deps.
 export function Sparkline({
   data,
@@ -24,7 +26,7 @@ export function Sparkline({
   });
   const line = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const area = `${line} L${width},${height} L0,${height} Z`;
-  const color = up ? "#24C66D" : "#FF4D4F";
+  const color = up ? "#05b169" : "#e5484d";
   const id = `spark-${up ? "u" : "d"}-${Math.round(min * 1000)}-${data.length}`;
 
   return (

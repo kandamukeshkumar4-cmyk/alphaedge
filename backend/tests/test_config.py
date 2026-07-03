@@ -20,7 +20,7 @@ def test_market_adapter_settings_have_safe_defaults():
     settings = Settings(APP_ENV="development")
 
     assert settings.polymarket_gamma_base_url == "https://gamma-api.polymarket.com"
-    assert settings.kalshi_api_base_url == "https://external-api.kalshi.com/trade-api/v2"
+    assert settings.kalshi_api_base_url == "https://api.elections.kalshi.com/trade-api/v2"
     assert settings.kalshi_api_key_id == ""
     assert settings.kalshi_signing_pem == ""
 

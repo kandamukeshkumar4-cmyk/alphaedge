@@ -21,10 +21,41 @@ SOURCE = "kalshi.rest"
 class KalshiConnector:
     def __init__(
         self,
-        base_url: str = "https://external-api.kalshi.com/trade-api/v2",
+        base_url: str = "https://api.elections.kalshi.com/trade-api/v2",
         client: httpx.Client | None = None,
     ):
         self.http = JsonConnectorClient(base_url=base_url, client=client)
+
+    def list_series_events(self, series_ticker: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        payload = self.http.get_json(
+            "/events",
+            params={"series_ticker": series_ticker.upper(), "limit": str(limit)},
+        )
+        if not isinstance(payload, dict):
+            return []
+        events = payload.get("events")
+        return events if isinstance(events, list) else []
+
+    def list_open_events(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        """Open events across ALL categories (no series filter)."""
+        payload = self.http.get_json(
+            "/events",
+            params={"status": "open", "limit": str(min(limit, 200))},
+        )
+        if not isinstance(payload, dict):
+            return []
+        events = payload.get("events")
+        return events if isinstance(events, list) else []
+
+    def list_event_markets(self, event_ticker: str) -> list[dict[str, Any]]:
+        payload = self.http.get_json(
+            "/markets",
+            params={"event_ticker": event_ticker.upper(), "status": "open"},
+        )
+        if not isinstance(payload, dict):
+            return []
+        markets = payload.get("markets")
+        return markets if isinstance(markets, list) else []
 
     def fetch_market_snapshot(
         self,
@@ -66,9 +97,10 @@ def normalize_kalshi_market(
         raise ValueError("Kalshi market payload does not include a usable YES price")
 
     captured = parse_timestamp(captured_at or market.get("last_update_time"))
+    raw_status = str(market.get("status") or "").lower()
     metadata = {
         "category": market.get("category"),
-        "status": market.get("status"),
+        "status": _normalize_kalshi_status(raw_status),
         "result": market.get("result"),
     }
     metadata.update(
@@ -191,6 +223,20 @@ def _fill_orderbook_bid(
     price = _best_orderbook_price(levels)
     if price is not None:
         market[cents_name] = price
+
+
+def _normalize_kalshi_status(status: str) -> str:
+    if status in {"finalized", "settled", "determined"}:
+        return "resolved"
+    if status in {"closed", "inactive"}:
+        return "closed"
+    return status or "open"
+
+
+def implied_yes_from_kalshi_payload(market: dict[str, Any]) -> float | None:
+    """Best-effort YES price from a Kalshi market dict (no network)."""
+    quotes = _market_binary_quotes(market)
+    return _market_implied_yes(market, quotes)
 
 
 def _best_orderbook_price(levels: object) -> float | None:

@@ -20,6 +20,7 @@ import { AITakePanel } from "@/components/AITakePanel";
 import { ResolutionBanner } from "@/components/ResolutionBanner";
 import { PredictionWidget } from "@/components/PredictionWidget";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
+import { LatencyBadge } from "@/components/LatencyBadge";
 import { OrderbookDepthChart } from "@/components/OrderbookDepthChart";
 import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChart";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
@@ -30,6 +31,8 @@ import {
   type MarketDetailApi,
 } from "@/lib/alphaedge-api";
 import { SimilarMarkets } from "@/components/SimilarMarkets";
+import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
+import { QuestMarketActivity } from "@/components/quest/QuestMarketActivity";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
 const PAPER_DISCLAIMER =
@@ -88,7 +91,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
     apiDetail?.winning_outcome ?? apiDetail?.resolution_outcome ?? resolutionOutcome;
 
   return (
-    <main className="mx-auto max-w-[1400px] px-4 py-6">
+    <main className="theme-polymarket mx-auto max-w-[1400px] px-4 py-6">
       <ResolutionBanner
         outcome={isResolved ? displayOutcome : null}
         resolvedAt={apiDetail?.resolved_at}
@@ -109,7 +112,10 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
             {market.icon}
           </span>
           <div>
-            <h1 className="text-xl font-black text-text sm:text-2xl">{market.title}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-black text-text sm:text-2xl">{market.title}</h1>
+              <LatencyBadge slug={market.slug} />
+            </div>
             <p className="mt-0.5 text-sm text-muted">{market.question}</p>
           </div>
         </div>
@@ -211,6 +217,8 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
         {/* Right: sticky trade panel */}
         <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
           <PredictionWidget slug={slug} className="mt-4" />
+          <QuestMarketRail slug={slug} />
+          <QuestMarketActivity slug={slug} />
           <DecisionSignalPanel market={market} />
           <AITakePanel slug={slug} />
           <MarketTradingPanel

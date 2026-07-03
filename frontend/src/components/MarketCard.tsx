@@ -1,8 +1,10 @@
+import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 
 import type { Market } from "@/lib/markets-api";
 import { cn } from "@/lib/cn";
 import { formatProbabilityAxis } from "@/lib/probability-format";
+import { AIAnalyzeButton } from "./AIAnalyzeButton";
 
 const PLATFORM_STYLES: Record<string, string> = {
   Polymarket: "border-[#5B4FE8]/35 bg-[#5B4FE8]/15 text-[#B4ABFF]",
@@ -66,7 +68,7 @@ export function MarketCard({ market }: { market: Market }) {
 
   return (
     <Link
-      href={`/markets/${market.slug}`}
+      href={marketHref(market.slug)}
       className={cn(
         "group flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 hover:shadow-glow",
         resolved && "opacity-75",
@@ -148,9 +150,14 @@ export function MarketCard({ market }: { market: Market }) {
             </span>
           )}
         </div>
-        <span className="text-xs font-semibold text-muted transition group-hover:text-accent">
-          View market →
-        </span>
+        <div className="flex items-center gap-2">
+          {!resolved ? (
+            <AIAnalyzeButton slug={market.slug} title={market.title} variant="card" />
+          ) : null}
+          <span className="text-xs font-semibold text-muted transition group-hover:text-accent">
+            View market →
+          </span>
+        </div>
       </div>
     </Link>
   );

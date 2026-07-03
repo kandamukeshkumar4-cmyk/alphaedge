@@ -4,6 +4,8 @@ import asyncio
 import logging
 from collections import defaultdict
 
+from app.observability.metrics import set_ws_clients
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,12 +18,18 @@ class BroadcastHub:
     def subscribe(self, slug: str) -> asyncio.Queue[dict]:
         q: asyncio.Queue[dict] = asyncio.Queue(maxsize=32)
         self._queues[slug].add(q)
+        self._sync_ws_clients_gauge()
         return q
 
     def unsubscribe(self, slug: str, q: asyncio.Queue[dict]) -> None:
         self._queues[slug].discard(q)
         if not self._queues[slug]:
             del self._queues[slug]
+        self._sync_ws_clients_gauge()
+
+    def _sync_ws_clients_gauge(self) -> None:
+        total = sum(len(queues) for queues in self._queues.values())
+        set_ws_clients(total)
 
     async def publish(self, slug: str, payload: dict) -> None:
         queues = list(self._queues.get(slug, []))

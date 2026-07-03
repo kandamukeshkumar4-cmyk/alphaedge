@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from datetime import UTC, datetime
 
@@ -16,6 +17,8 @@ from app.pipeline.ingest import (
     ingest_fixtures,
 )
 
+
+logger = logging.getLogger(__name__)
 
 CAPTURE_MARKET_SNAPSHOTS_JOB_NAME = "capture_market_snapshots_task"
 CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME = (
@@ -197,6 +200,179 @@ def _artifact_dir_from_ctx(ctx: dict) -> Path | None:
     return Path(raw)
 
 
+REFRESH_WHALES_JOB_NAME = "refresh_whales_task"
+SNAPSHOT_WHALES_JOB_NAME = "snapshot_whale_positions_task"
+
+
+async def refresh_whales_task(ctx: dict) -> dict:
+    """Weekly: pull the Polymarket data-api leaderboard, qualify each wallet from its
+    trade history, and upsert TrackedWallet rows. Read-only; no execution."""
+    import asyncio
+
+    from app.data.connectors.polymarket_data_api import PolymarketDataApiConnector
+    from app.db.session import AsyncSessionLocal
+    from app.services.whale_tracker_service import WhaleTrackerService
+
+    connector = PolymarketDataApiConnector()
+    started_at = datetime.now(UTC)
+    qualified = evaluated = 0
+    try:
+        entries = await asyncio.to_thread(connector.fetch_leaderboard, limit=200)
+    except Exception as error:  # noqa: BLE001 - external API, degrade gracefully
+        logger.warning("Whale leaderboard fetch failed: %s", error)
+        return {"skipped": True, "reason": "leaderboard_fetch_failed"}
+
+    async with AsyncSessionLocal() as session:
+        service = WhaleTrackerService(session)
+        for entry in entries:
+            try:
+                trades = await asyncio.to_thread(
+                    connector.fetch_closed_positions, entry.wallet_address
+                )
+            except Exception as error:  # noqa: BLE001 - per-wallet isolation
+                logger.warning("Trades fetch failed for %s: %s", entry.wallet_address, error)
+                continue
+            stats = _wallet_stats_from_trades(trades)
+            evaluated += 1
+            result = await service.upsert_qualification(entry.wallet_address, stats)
+            if result.qualified:
+                qualified += 1
+        await session.commit()
+    return {
+        "evaluated": evaluated,
+        "qualified": qualified,
+        "started_at": started_at.isoformat(),
+    }
+
+
+def _wallet_stats_from_trades(trades):
+    """Derive WalletStats from resolved trades (wins/losses/top win)."""
+    from decimal import Decimal
+
+    from app.signals.smart_money import WalletStats
+
+    resolved = [t for t in trades if t.resolved]
+    wins = [t for t in resolved if t.pnl > 0]
+    losses = [t for t in resolved if t.pnl < 0]
+    gross_profit = sum((t.pnl for t in wins), Decimal("0"))
+    gross_loss = sum((-t.pnl for t in losses), Decimal("0"))
+    top_win = max((t.pnl for t in wins), default=Decimal("0"))
+    return WalletStats(
+        resolved_count=len(resolved),
+        wins=len(wins),
+        gross_profit=gross_profit,
+        gross_loss=gross_loss,
+        top_win=top_win,
+    )
+
+
+async def snapshot_whale_positions_task(ctx: dict) -> dict:
+    """Every ~3 min: snapshot qualified wallets' positions and diff into whale_delta
+    events that feed the alignment scorer. Read-only; no execution."""
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.data.connectors.polymarket_data_api import PolymarketDataApiConnector
+    from app.db.models import TrackedWallet
+    from app.db.session import AsyncSessionLocal
+    from app.services.whale_tracker_service import WhaleTrackerService
+
+    connector = PolymarketDataApiConnector()
+    deltas = wallets = 0
+    async with AsyncSessionLocal() as session:
+        addresses = (
+            await session.execute(
+                select(TrackedWallet.wallet_address).where(TrackedWallet.qualified.is_(True))
+            )
+        ).scalars().all()
+        service = WhaleTrackerService(session)
+        for address in addresses:
+            try:
+                positions = await asyncio.to_thread(connector.fetch_positions, address)
+            except Exception as error:  # noqa: BLE001 - per-wallet isolation
+                logger.warning("Positions fetch failed for %s: %s", address, error)
+                continue
+            events = await service.snapshot_and_diff(address, positions)
+            wallets += 1
+            deltas += len(events)
+        await session.commit()
+    return {"wallets": wallets, "deltas": deltas}
+
+
+SCORE_CLAIMS_JOB_NAME = "score_claims_task"
+ANALYST_AGGREGATES_JOB_NAME = "analyst_aggregates_task"
+
+
+async def score_claims_task(ctx: dict) -> dict:
+    """Every 15 min: grade analyst claims whose horizon has elapsed. Read-only."""
+    from app.db.session import AsyncSessionLocal
+    from app.eval.claim_scorer import ClaimScorerService
+
+    settings = ctx.get("settings") or get_settings()
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        service = ClaimScorerService(session, epsilon=settings.eval_claim_epsilon)
+        counts = await service.score_pending(now=now)
+        await session.commit()
+    return counts
+
+
+async def analyst_aggregates_task(ctx: dict) -> dict:
+    """Hourly: recompute the public track-record aggregates."""
+    from app.db.session import AsyncSessionLocal
+    from app.eval.analyst_metrics import AnalystMetricsService
+
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        n = await AnalystMetricsService(session).recompute(now=now)
+        await session.commit()
+    return {"aggregates": n}
+
+
+MORNING_RESEARCH_JOB_NAME = "morning_research_task"
+
+
+async def morning_research_task(ctx: dict) -> dict:
+    """Daily: sweep top-moving markets, run the analyst on each, write a digest,
+    and optionally distribute it to notification channels (T14, off by default)."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.digest_distribution import DigestDistributionService
+    from app.services.research_digest_service import ResearchDigestService
+
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        summary = await ResearchDigestService(session).run_daily(now=now)
+        distribution: dict = {"dispatched": False}
+        try:
+            distribution = await DigestDistributionService(session).distribute(summary, now=now)
+            await _attach_distribution_metadata(session, now, distribution)
+        except Exception:  # noqa: BLE001 - distribution must not fail the digest
+            logger.warning("Digest distribution failed", exc_info=True)
+        await session.commit()
+    return {**summary, "distribution": distribution}
+
+
+async def _attach_distribution_metadata(session, now, distribution: dict) -> None:
+    """Record channels attempted/sent on today's digest row (spec: digest row gains
+    distribution metadata)."""
+    from sqlalchemy import select
+
+    from app.db.models import AnalystBrief
+
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    digest = await session.scalar(
+        select(AnalystBrief)
+        .where(AnalystBrief.kind == "digest", AnalystBrief.created_at >= day_start)
+        .order_by(AnalystBrief.created_at.desc())
+        .limit(1)
+    )
+    if digest is not None:
+        citations = list(digest.citations or [])
+        citations.append({"kind": "model", "ref": "distribution", "url": None, "distribution": distribution})
+        digest.citations = citations
+
+
 async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str) -> None:
     from app.db.models import FailedJob
     from app.db.session import AsyncSessionLocal
@@ -221,10 +397,23 @@ class WorkerSettings:
         run_backtest_task,
         fetch_news_signals_task,
         wc2026_resolve_task,
+        refresh_whales_task,
+        snapshot_whale_positions_task,
+        score_claims_task,
+        analyst_aggregates_task,
+        morning_research_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
         cron(ingest_odds_task, hour={12}, minute=0),
         cron(fetch_news_signals_task, minute={30}),  # every hour at :30
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
+        # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
+        cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
+        cron(snapshot_whale_positions_task, minute=set(range(0, 60, 3))),
+        # grade claims every 15 min; recompute the public track record hourly
+        cron(score_claims_task, minute={0, 15, 30, 45}),
+        cron(analyst_aggregates_task, minute={50}),
+        # daily research digest at 06:00 — "the desk runs while you sleep"
+        cron(morning_research_task, hour={6}, minute={0}),
     ]

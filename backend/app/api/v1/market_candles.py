@@ -19,6 +19,16 @@ from app.services.market_service import CATALOG_SLUGS, MarketService
 
 router = APIRouter(prefix="/api/v1", tags=["markets"])
 
+_LIVE_MIRROR_SOURCES = frozenset({"polymarket", "kalshi"})
+
+
+def _is_live_mirror_source(source: str | None) -> bool:
+    return source in _LIVE_MIRROR_SOURCES
+
+
+def _is_accessible_mirror_market(slug: str, source: str | None) -> bool:
+    return slug in CATALOG_SLUGS or _is_live_mirror_source(source)
+
 
 @router.get("/markets/{slug}/candles")
 async def get_market_candles(
@@ -26,12 +36,11 @@ async def get_market_candles(
     points: int = Query(default=90, ge=10, le=500),
     db: AsyncSession = Depends(get_db),
 ):
-    if slug not in CATALOG_SLUGS:
+    market = await MarketService(db).get_market_by_slug(slug)
+    if market is None or not _is_accessible_mirror_market(slug, market.source):
         raise HTTPException(status_code=404, detail="Market not found")
 
-    market = await MarketService(db).get_market_by_slug(slug)
-    if market is None:
-        raise HTTPException(status_code=404, detail="Market not found")
+    is_live = _is_live_mirror_source(market.source)
 
     result = await db.execute(
         select(OddsSnapshot.captured_at, OddsSnapshot.implied_yes)
@@ -48,7 +57,12 @@ async def get_market_candles(
     entry = CATALOG_MAP.get(slug)
     end_price = entry.spec_price if entry is not None else 0.5
 
-    if not rows:
+    if is_live:
+        # Live mirrored markets never show synthetic candles — only real ticks.
+        bucketed = bucket_snapshots(rows) if rows else []
+        candles = bucketed
+        source = "live"
+    elif not rows:
         candles = generate_candles(slug, points, end_price, step_sec=3600)
         source = "seed"
     else:
@@ -68,7 +82,9 @@ async def get_latest_price(
     db: AsyncSession = Depends(get_db),
 ):
     if slug not in CATALOG_SLUGS:
-        raise HTTPException(status_code=404, detail="Market not found")
+        market = await MarketService(db).get_market_by_slug(slug)
+        if market is None or not _is_live_mirror_source(market.source):
+            raise HTTPException(status_code=404, detail="Market not found")
 
     result = await db.execute(
         select(OddsSnapshot.implied_yes, OddsSnapshot.captured_at)
@@ -99,11 +115,8 @@ async def get_market_history(
     db: AsyncSession = Depends(get_db),
 ):
     """Return daily [timestamp, yes_price] pairs for the past N days."""
-    if slug not in CATALOG_SLUGS:
-        raise HTTPException(status_code=404, detail="Market not found")
-
     market = await MarketService(db).get_market_by_slug(slug)
-    if market is None:
+    if market is None or not _is_accessible_mirror_market(slug, market.source):
         raise HTTPException(status_code=404, detail="Market not found")
 
     since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -117,6 +130,9 @@ async def get_market_history(
 
     entry = CATALOG_MAP.get(slug)
     end_price = entry.spec_price if entry is not None else 0.5
+
+    if not rows and _is_live_mirror_source(market.source):
+        return {"history": [], "source": "live"}
 
     if not rows:
         now = datetime.now(timezone.utc)

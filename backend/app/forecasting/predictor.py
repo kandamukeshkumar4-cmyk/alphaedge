@@ -36,6 +36,7 @@ class ForecastPrediction:
     clv: ForecastClvEvaluation | None = None
     outcome: ForecastOutcome = "yes"
     executable_price: float = 0.5
+    top_features: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,13 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
 
     edge = recommendation.edge if is_edge else 0.0
     confidence = _confidence(features, is_edge)
+    top_features: tuple[dict[str, Any], ...] = ()
+    try:
+        from app.ml.explain import explain_from_features
+
+        top_features = tuple(explain_from_features(features))
+    except Exception:  # noqa: BLE001 - explanations are best-effort, never block a forecast
+        top_features = ()
     return ForecastPrediction(
         predicted_prob=predicted,
         confidence=confidence,
@@ -127,6 +135,7 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
         clv=clv,
         outcome=recommendation.outcome,
         executable_price=recommendation.price,
+        top_features=top_features,
     )
 
 

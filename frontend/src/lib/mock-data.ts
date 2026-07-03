@@ -86,6 +86,9 @@ export type Market = {
   holders: Holder[];
   comments: Comment[];
   seed: number;
+  source?: string;
+  imageUrl?: string;
+  status?: "open" | "locked" | "resolved";
 };
 
 export const CATEGORIES: Category[] = [
