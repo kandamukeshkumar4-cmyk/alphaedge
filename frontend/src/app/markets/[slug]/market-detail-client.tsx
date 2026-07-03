@@ -16,7 +16,7 @@ import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
 import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
-import { AITakePanel } from "@/components/AITakePanel";
+import { DecisionCard } from "@/components/DecisionCard";
 import { ResolutionBanner } from "@/components/ResolutionBanner";
 import { PredictionWidget } from "@/components/PredictionWidget";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
@@ -220,7 +220,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <QuestMarketRail slug={slug} />
           <QuestMarketActivity slug={slug} />
           <DecisionSignalPanel market={market} />
-          <AITakePanel slug={slug} />
+          <DecisionCard slug={slug} />
           <MarketTradingPanel
             slug={slug}
             title={market.title}

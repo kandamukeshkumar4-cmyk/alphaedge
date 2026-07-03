@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
-import { AITakePanel } from "./AITakePanel";
+import { DecisionCard } from "./DecisionCard";
 
 type Props = {
   slug: string;
@@ -80,7 +80,7 @@ export function AIAnalyzeButton({ slug, title, variant = "card", className }: Pr
                 Close
               </button>
             </div>
-            <AITakePanel slug={slug} />
+            <DecisionCard slug={slug} />
           </div>
         </div>
       ) : null}

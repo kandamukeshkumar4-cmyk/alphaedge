@@ -523,6 +523,8 @@ class AnalystBrief(Base):
     prompt_version: Mapped[str] = mapped_column(String(32), default="v1")
     generator: Mapped[str] = mapped_column(String(16), default="llm")
     kind: Mapped[str] = mapped_column(String(16), default="brief")  # brief | digest
+    # E13 analyst persona lens: macro | whale-flow | news | NULL (default desk)
+    persona: Mapped[Optional[str]] = mapped_column(String(24), nullable=True)
     latency_ms: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

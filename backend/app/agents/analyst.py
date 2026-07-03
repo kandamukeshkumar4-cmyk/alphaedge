@@ -36,6 +36,7 @@ class AnalystState:
     market_slug: str
     trigger_event_id: Optional[str] = None
     direction: str = "up"
+    persona: Optional[str] = None  # E13: macro | whale-flow | news | None
     market_state: dict[str, Any] = field(default_factory=dict)
     evidence: dict[str, Any] = field(default_factory=dict)
     headline: str = ""
@@ -43,6 +44,40 @@ class AnalystState:
     generator: str = "fallback"
     model_version: str = "unknown"
     started_perf: float = 0.0
+
+
+# E13 analyst personas — named lenses over the SAME pipeline. A persona only
+# changes emphasis (prompt framing + which evidence is foregrounded); the
+# deterministic claim, order path, and eval harness are untouched.
+PERSONAS: dict[str, dict[str, str]] = {
+    "macro": {
+        "label": "Macro desk",
+        "emphasis": (
+            "Lead with the macro backdrop (rates, inflation, election cycle) and how it "
+            "frames this market; treat whale and news evidence as secondary."
+        ),
+        "framing": "Macro-desk read: ",
+        "foreground_kind": "model",
+    },
+    "whale-flow": {
+        "label": "Whale flow",
+        "emphasis": (
+            "Lead with positioning: who is moving size, in which direction, and whether "
+            "the book absorbed it; treat news and model as secondary."
+        ),
+        "framing": "Whale-flow read: ",
+        "foreground_kind": "whale",
+    },
+    "news": {
+        "label": "News desk",
+        "emphasis": (
+            "Lead with the freshest headlines and whether the price has absorbed them; "
+            "treat whale flow and model as secondary."
+        ),
+        "framing": "News-desk read: ",
+        "foreground_kind": "news",
+    },
+}
 
 
 async def gather_market_state(session: AsyncSession, state: AnalystState) -> AnalystState:
@@ -148,6 +183,14 @@ def build_citations(state: AnalystState) -> list[dict[str, Any]]:
         citations.append(
             {"kind": "orderbook", "ref": f"price {state.market_state['implied_yes']:.3f}", "url": None}
         )
+
+    # E13: a persona foregrounds its evidence kind (stable order otherwise).
+    persona = PERSONAS.get(state.persona or "")
+    if persona:
+        fg = persona["foreground_kind"]
+        # "whale" evidence persists with kind "wallet" — match either.
+        keys = {fg, "wallet" if fg == "whale" else fg}
+        citations.sort(key=lambda c: 0 if c.get("kind") in keys else 1)
     return citations
 
 
@@ -159,13 +202,15 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
     n_whales = len(state.evidence.get("whales", []))
     price_txt = f"{implied:.0%}" if isinstance(implied, (int, float)) else "n/a"
     n_signals = n_news + n_whales
+    persona = PERSONAS.get(state.persona or "")
+    framing = persona["framing"] if persona else ""
     if state.trigger_event_id is None:
         # Commissioned (on-demand) analysis — no alignment trigger to cite.
         headline = f"{title[:86]}: analyst read — leaning {state.direction}"
-        opener = f"Commissioned analysis of {title}, leaning **{state.direction}**. "
+        opener = f"{framing}Commissioned analysis of {title}, leaning **{state.direction}**. "
     else:
         headline = f"{title[:80]} moved {state.direction} — {n_signals} signals aligned"
-        opener = f"Alignment fired **{state.direction}** on {title}. "
+        opener = f"{framing}Alignment fired **{state.direction}** on {title}. "
     body = (
         opener
         + f"Current price {price_txt}. "
@@ -198,12 +243,14 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
         "Write a one-line headline (<=110 chars) then a short evidence-cited brief "
         "(<=1000 chars) explaining WHY the market moved. Do not recommend bet size."
     )
+    persona = PERSONAS.get(state.persona or "")
+    system_prompt = _SYSTEM_PROMPT + (f" {persona['emphasis']}" if persona else "")
     try:
         client = get_llm_client(settings)
         response = await client.chat.completions.create(
             model=settings.llm_model,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.3,
@@ -275,6 +322,7 @@ async def persist_publish(session: AsyncSession, state: AnalystState, settings) 
         prompt_version=model.prompt_version,
         generator=model.generator,
         kind="brief",
+        persona=state.persona,
         latency_ms=Decimal(str(model.latency_ms)),
     )
     session.add(brief_row)
@@ -323,6 +371,7 @@ async def run_analyst(
     *,
     trigger_event_id: str | None = None,
     direction: str = "up",
+    persona: str | None = None,
     settings=None,
 ) -> Any:
     """Run the full analyst pipeline once and return the validated brief model."""
@@ -335,6 +384,7 @@ async def run_analyst(
         market_slug=market_slug,
         trigger_event_id=trigger_event_id,
         direction=direction,
+        persona=persona if persona in PERSONAS else None,
         started_perf=time.perf_counter(),
     )
     state = await gather_market_state(session, state)

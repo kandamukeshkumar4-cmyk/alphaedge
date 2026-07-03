@@ -27,6 +27,7 @@ class BriefOut(BaseModel):
     generator: str
     model_version: str
     prompt_version: str
+    persona: Optional[str] = None  # E13 analyst lens
     created_at: datetime
     claim: Optional[ClaimOut] = None
 

@@ -65,6 +65,7 @@ def _brief_to_out(brief: AnalystBrief) -> BriefOut:
         generator=brief.generator,
         model_version=brief.model_version,
         prompt_version=brief.prompt_version,
+        persona=brief.persona,
         created_at=brief.created_at,
         claim=_claim_to_out(brief.claim),
     )
@@ -121,6 +122,11 @@ async def get_brief(brief_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post("/analyst/run", response_model=BriefOut)
 async def run_analyst_on_demand(
     market_slug: str = Query(..., min_length=3, max_length=128),
+    persona: Optional[str] = Query(
+        default=None,
+        pattern="^(macro|whale-flow|news)$",
+        description="E13 analyst lens: macro | whale-flow | news (default: general desk)",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Run the analyst pipeline on one market, on demand (the "ask the analyst"
@@ -134,7 +140,7 @@ async def run_analyst_on_demand(
     from app.agents.analyst import run_analyst
 
     try:
-        result = await run_analyst(db, market_slug)
+        result = await run_analyst(db, market_slug, persona=persona)
     except Exception as error:  # noqa: BLE001 - surface as API error, no partial state
         await db.rollback()
         raise HTTPException(status_code=502, detail=f"Analyst failed: {error}") from error

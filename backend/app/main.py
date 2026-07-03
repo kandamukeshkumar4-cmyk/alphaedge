@@ -33,6 +33,7 @@ from app.api.v1.activity import router as activity_router
 from app.api.v1.briefs import router as briefs_router
 from app.api.v1.macro import router as macro_router
 from app.api.v1.feed import router as feed_router
+from app.api.v1.agent_trace import router as agent_trace_router
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
 from app.core.middleware import RequestIdMiddleware
@@ -253,6 +254,7 @@ app.include_router(briefs_router)
 app.include_router(activity_router)
 app.include_router(macro_router)
 app.include_router(feed_router)
+app.include_router(agent_trace_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
