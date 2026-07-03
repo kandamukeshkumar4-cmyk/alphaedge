@@ -44,6 +44,41 @@ function LiveBadge() {
   );
 }
 
+function MoreMenu() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative" onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="px-2.5 py-1 text-[13px] font-medium text-muted transition hover:text-text"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        More ▾
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-50 mt-1 w-40 rounded-lg border border-border bg-surface p-1 shadow-lift"
+        >
+          {MORE_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setOpen(false)}
+              role="menuitem"
+              className="block rounded-md px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-surface-2 hover:text-text"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const NAV_LINKS: Array<{ href: string; label: string; tour: string }> = [
   { href: "/", label: "Discover", tour: "nav-discover" },
   { href: "/feed", label: "Feed", tour: "nav-feed" },
@@ -56,7 +91,7 @@ const NAV_LINKS: Array<{ href: string; label: string; tour: string }> = [
   { href: "/macro", label: "Macro", tour: "nav-macro" },
 ];
 
-// Secondary destinations — mobile menu only, keeps the top bar scannable.
+// Secondary destinations — desktop "More" dropdown + mobile menu.
 const MORE_LINKS: Array<{ href: string; label: string }> = [
   { href: "/alerts", label: "Alerts" },
   { href: "/eval", label: "Model eval" },
@@ -102,6 +137,7 @@ function QuestHeaderInner() {
               </Link>
             );
           })}
+          <MoreMenu />
         </nav>
 
         {/* Header search box — clicking opens the command palette */}

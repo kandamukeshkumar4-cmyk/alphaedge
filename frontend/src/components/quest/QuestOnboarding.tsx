@@ -32,9 +32,15 @@ const STEPS: Step[] = [
     cta: { label: "View track record", href: "/track-record" },
   },
   {
+    icon: "⌁",
+    title: "Watch the engine room",
+    body: "The bell icon opens Alerts: every price jump, whale delta, news arrival and alignment trigger, streamed in real time. The Macro tab adds the economic backdrop — GDP, inflation, rates — live from FRED.",
+    cta: { label: "Open alerts", href: "/alerts" },
+  },
+  {
     icon: "▲",
     title: "Trade with a $100k paper bankroll",
-    body: "Go long or short on any market with simulated funds. Orders run through the same risk-checked path as our agents. Climb the leaderboard, keep your streak, level up.",
+    body: "Go long or short on any market with simulated funds. Orders run through the same risk-checked path as our agents. Your portfolio page tracks win rate, drawdown and exposure. Tip: the sun/moon icon switches light and dark themes.",
     cta: { label: "Start trading", href: "/markets" },
   },
 ];
