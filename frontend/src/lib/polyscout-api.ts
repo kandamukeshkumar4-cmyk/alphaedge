@@ -26,6 +26,7 @@ export type AnalystBrief = {
   prompt_version: string;
   generator: string; // llm | fallback
   kind: string; // brief | digest
+  persona?: string | null; // E13 analyst lens: macro | whale-flow | news
   latency_ms: number;
   created_at: string;
   claim: BriefClaim | null;

@@ -100,6 +100,18 @@ function BriefDetailInner() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {brief.claim && <ClaimBadge claim={brief.claim} />}
+        {brief.persona && (
+          <span
+            className="rounded-pill bg-accent-dim px-2.5 py-0.5 font-mono text-[11px] font-semibold text-accent-bright"
+            title="Analyst lens used for this brief"
+          >
+            {brief.persona === "whale-flow"
+              ? "whale flow"
+              : brief.persona === "macro"
+                ? "macro desk"
+                : "news desk"}
+          </span>
+        )}
         <span className="rounded-pill bg-surface-2 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-muted">
           {brief.generator === "llm" ? brief.model_version : "deterministic fallback"}
         </span>
