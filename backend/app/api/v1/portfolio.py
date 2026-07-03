@@ -8,11 +8,14 @@ from app.db.models import Market, OddsSnapshot, User
 from app.db.session import get_db
 from app.schemas.portfolio import (
     PORTFOLIO_DISCLAIMER,
+    ExposureGroupResponse,
+    ExposureResponse,
     PortfolioPositionResponse,
     PortfolioResponse,
     PortfolioRiskResponse,
     PortfolioSummaryResponse,
 )
+from app.services.exposure_service import PositionInput, compute_exposure
 from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_metrics
 
 router = APIRouter(prefix="/api/v1", tags=["portfolio"])
@@ -224,6 +227,69 @@ async def get_portfolio_risk(
         sharpe=metrics.sharpe,
         exposure_by_category=metrics.exposure_by_category,
         exposure_pct_by_category=metrics.exposure_pct_by_category,
+    )
+
+
+@router.get("/portfolio/exposure", response_model=ExposureResponse)
+async def get_portfolio_exposure(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ExposureResponse:
+    """Aggregate open paper positions by correlated underlier (U04).
+
+    Returns exposure groups sorted by total notional descending, plus a
+    concentration flag when any single underlier exceeds 40 % of total open
+    notional.  Deterministic math only — no LLM call.  Read-only endpoint.
+    """
+    try:
+        all_positions = await _load_paper_orders(db, current_user.id.hex)
+    except (OperationalError, ProgrammingError):
+        all_positions = []
+
+    open_positions = [p for p in all_positions if not p.settled]
+
+    # Fetch DB category for each open market slug
+    open_slugs = list({p.market_slug for p in open_positions})
+    slug_to_category: dict[str, str] = {}
+    if open_slugs:
+        rows = (
+            await db.execute(
+                select(Market.slug, Market.category).where(Market.slug.in_(open_slugs))
+            )
+        ).all()
+        slug_to_category = {str(slug): str(cat or "") for slug, cat in rows}
+
+    inputs = [
+        PositionInput(
+            market_slug=p.market_slug,
+            outcome=p.outcome,
+            shares=p.shares,
+            avg_cost=p.avg_cost,
+            category=slug_to_category.get(p.market_slug),
+        )
+        for p in open_positions
+        if p.shares > 0 and p.avg_cost > 0
+    ]
+
+    summary = compute_exposure(inputs)
+
+    return ExposureResponse(
+        total_open_notional=summary.total_open_notional,
+        groups=[
+            ExposureGroupResponse(
+                underlier=g.underlier,
+                position_count=g.position_count,
+                net_directional=g.net_directional,
+                total_notional=g.total_notional,
+                pct_of_total=g.pct_of_total,
+                concentrated=g.concentrated,
+                positions=g.positions,
+            )
+            for g in summary.groups
+        ],
+        has_concentration=summary.has_concentration,
+        concentrated_underliers=summary.concentrated_underliers,
+        paper_trading_only=True,
     )
 
 

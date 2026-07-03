@@ -16,8 +16,8 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 |-----|-----------------------------------------|--------|------------|------|-------------|
 | U01 | Unified market search (PM+Kalshi)       | DONE   | -          | -    | 2026-07-03 verifier PASS (701p/5s, §G clean, UI reachable) |
 | U02 | Unified activity feed                   | DONE   | -          | -    | 2026-07-03 iter 2 PASS (732p/5s, §G clean, feed page + nav reachable) |
-| U03 | Decision dashboard (Bet/Pass card)      | IN-REVIEW | opus-4-8 maker → verifier | U01 | 2026-07-03 iter 3: maker done 749p/5s, verifier running |
-| U04 | Portfolio exposure analysis             | TODO   | -          | -    | 2026-07-03 queued |
+| U03 | Decision dashboard (Bet/Pass card)      | DONE   | -          | U01  | 2026-07-03 iter 3 verifier PASS (749p/5s, §G clean, both deviations OK) |
+| U04 | Portfolio exposure analysis             | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-03 iter 4: maker done 774p/5s, verifier running |
 | U05 | Assistant chat (analysis-only, no-order)| TODO   | -          | U04  | 2026-07-03 queued |
 | U06 | Agent Builder "Clone-lite"              | TODO   | -          | -    | 2026-07-03 queued |
 | U07 | Clone leaderboard / arena               | TODO   | -          | U06  | 2026-07-03 queued |
@@ -29,6 +29,21 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-03 iter 3 VERDICT: U03 **PASS** → DONE. Verifier independent gate:
+  749 passed, 5 skipped (baseline 732), ruff clean, frontend all green. §G clean:
+  agent_trace.py no order-path imports (docstring mention only), paper_trading_only
+  =True hardcoded in response, DecisionCard advises-only (no execution control),
+  config validator untouched. derive_verdict boundaries genuinely tested (14 tests,
+  edge at exactly 0.019/0.02/0.05 + provisional-forces-non-BET). UI reachable:
+  DecisionCard mounted market-detail-client.tsx:223, AIAnalyzeButton opens it.
+  Deviations RULED ACCEPTABLE: (a) AITakePanel orphaned = inert dead code, cleanup
+  later; (b) CalibrationSparkline approximate curve but honest empty state + real
+  Brier number, not misleading — future U12 can wire binned reliability data.
+  COMMIT NOTE: U03 files already committed (aa6fd0a WIP snapshot + parallel
+  e2e-loop `git add -A` commits swept final refinements — shared-branch
+  interleaving). Work is safe + verified green; history is just non-atomic.
+  New baseline: **749p/5s**. Iteration 4: U04 (portfolio exposure) claimed.
 
 - 2026-07-03 iter 2 VERDICT: U02 **PASS** → DONE. Maker #2 completed the build
   before being killed mid-self-verification; orchestrator finished verification

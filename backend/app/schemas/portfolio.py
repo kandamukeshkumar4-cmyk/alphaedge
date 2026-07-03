@@ -5,6 +5,31 @@ PORTFOLIO_DISCLAIMER = (
     "Research only — not financial advice. Verify resolution terms. Paper trading only."
 )
 
+EXPOSURE_DISCLAIMER = (
+    "Research only — not financial advice. "
+    "Exposure figures are cost-basis notional, not mark-to-market. "
+    "Paper trading only."
+)
+
+
+class ExposureGroupResponse(BaseModel):
+    underlier: str
+    position_count: int
+    net_directional: float
+    total_notional: float
+    pct_of_total: float
+    concentrated: bool
+    positions: list[str] = Field(default_factory=list)
+
+
+class ExposureResponse(BaseModel):
+    total_open_notional: float = 0.0
+    groups: list[ExposureGroupResponse] = Field(default_factory=list)
+    has_concentration: bool = False
+    concentrated_underliers: list[str] = Field(default_factory=list)
+    paper_trading_only: bool = True
+    disclaimer: str = EXPOSURE_DISCLAIMER
+
 
 class PortfolioPositionResponse(BaseModel):
     id: str | None = None

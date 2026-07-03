@@ -198,6 +198,44 @@ export async function fetchPortfolioRisk(
   }
 }
 
+export type ExposureGroup = {
+  underlier: string;
+  position_count: number;
+  net_directional: number;
+  total_notional: number;
+  pct_of_total: number;
+  concentrated: boolean;
+  positions: string[];
+};
+
+export type PortfolioExposure = {
+  total_open_notional: number;
+  groups: ExposureGroup[];
+  has_concentration: boolean;
+  concentrated_underliers: string[];
+  paper_trading_only: boolean;
+  disclaimer: string;
+};
+
+export async function fetchPortfolioExposure(
+  token: string,
+  input?: { apiBase?: string; fetcher?: Fetcher },
+): Promise<PortfolioExposure | null> {
+  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
+  if (!apiBase) return null;
+  const fetcher = input?.fetcher ?? fetch;
+  try {
+    const response = await fetcher(`${apiBase}/api/v1/portfolio/exposure`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as PortfolioExposure;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOrderHistory(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },

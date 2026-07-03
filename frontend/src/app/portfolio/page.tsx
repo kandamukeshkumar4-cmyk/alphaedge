@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 
 import { useAuth } from "@/hooks/useAuth";
+import { ExposurePanel } from "@/components/ExposurePanel";
 import { PortfolioRiskPanel } from "@/components/PortfolioRiskPanel";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
@@ -166,6 +167,8 @@ export default function PortfolioPage() {
               tone={portfolio.realized_pnl >= 0 ? "positive" : "negative"}
             />
           </section>
+
+          {token ? <ExposurePanel token={token} /> : null}
 
           {token ? <PortfolioRiskPanel token={token} /> : null}
 
