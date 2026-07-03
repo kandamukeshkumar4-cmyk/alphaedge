@@ -30,6 +30,20 @@ class PortfolioSummaryResponse(BaseModel):
     unrealized_pnl_pct: float = 0.0
 
 
+class PortfolioRiskResponse(BaseModel):
+    """Risk metrics over the user's paper book (E12). Descriptive, not advice."""
+
+    n_closed: int = 0
+    total_realized_pnl: float = 0.0
+    win_rate: float | None = None
+    max_drawdown: float = 0.0
+    sharpe: float | None = None  # per-trade, NOT annualized
+    exposure_by_category: dict[str, float] = Field(default_factory=dict)
+    exposure_pct_by_category: dict[str, float] = Field(default_factory=dict)
+    paper_trading_only: bool = True
+    disclaimer: str = PORTFOLIO_DISCLAIMER
+
+
 class PortfolioResponse(BaseModel):
     paper_balance: float
     positions: list[PortfolioPositionResponse] = Field(default_factory=list)

@@ -167,6 +167,37 @@ export async function fetchPortfolioSummary(
   }
 }
 
+export type PortfolioRisk = {
+  n_closed: number;
+  total_realized_pnl: number;
+  win_rate: number | null;
+  max_drawdown: number;
+  sharpe: number | null; // per-trade, NOT annualized
+  exposure_by_category: Record<string, number>;
+  exposure_pct_by_category: Record<string, number>;
+  paper_trading_only: boolean;
+  disclaimer: string;
+};
+
+export async function fetchPortfolioRisk(
+  token: string,
+  input?: { apiBase?: string; fetcher?: Fetcher },
+): Promise<PortfolioRisk | null> {
+  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
+  if (!apiBase) return null;
+  const fetcher = input?.fetcher ?? fetch;
+  try {
+    const response = await fetcher(`${apiBase}/api/v1/portfolio/risk`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as PortfolioRisk;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOrderHistory(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },

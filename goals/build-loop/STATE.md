@@ -15,8 +15,8 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | id  | title                                   | status | claimed_by | deps | last_update |
 |-----|-----------------------------------------|--------|------------|------|-------------|
 | U01 | Unified market search (PM+Kalshi)       | DONE   | -          | -    | 2026-07-03 verifier PASS (701p/5s, §G clean, UI reachable) |
-| U02 | Unified activity feed                   | CLAIMED | fable-5 (maker agent #2) | - | 2026-07-03 iter 2 restart after quota kill |
-| U03 | Decision dashboard (Bet/Pass card)      | TODO   | -          | U01  | 2026-07-03 queued |
+| U02 | Unified activity feed                   | DONE   | -          | -    | 2026-07-03 iter 2 PASS (732p/5s, §G clean, feed page + nav reachable) |
+| U03 | Decision dashboard (Bet/Pass card)      | CLAIMED | opus-4-8 (maker agent) | U01 | 2026-07-03 iteration 3 |
 | U04 | Portfolio exposure analysis             | TODO   | -          | -    | 2026-07-03 queued |
 | U05 | Assistant chat (analysis-only, no-order)| TODO   | -          | U04  | 2026-07-03 queued |
 | U06 | Agent Builder "Clone-lite"              | TODO   | -          | -    | 2026-07-03 queued |
@@ -29,6 +29,19 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-03 iter 2 VERDICT: U02 **PASS** → DONE. Maker #2 completed the build
+  before being killed mid-self-verification; orchestrator finished verification
+  inline (no separate verifier agent — avoided re-doing finished work on limited
+  quota). Artifacts: api/v1/feed.py (300 lines) + api/v1/activity.py, test_feed_api
+  + test_activity_api (21 scoped tests green), frontend /feed/page.tsx, "Feed" nav
+  entry (QuestHeader.tsx:49), feed_router registered in main.py:35. FULL GATE:
+  backend pytest exit 0, 737 collected → 732 passed, 5 skipped (baseline 701);
+  ruff clean; frontend typecheck+lint+build all green. §G sweep CLEAN: no
+  OrderBookService/RiskService imports in feed/activity, no live HTTP in feed path
+  (DB-read only), PAPER_TRADING_ONLY validator untouched (config.py:164, default
+  True). New test baseline: **732p/5s**. Iteration 3: U03 (Bet/Pass decision
+  dashboard, dep U01 satisfied) claimed, maker launched.
 
 - 2026-07-03 INCIDENT + RECOVERY: U02 maker #1 killed mid-build by session usage
   limit; simultaneously the working tree was git-stashed (all tracked mods →

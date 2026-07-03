@@ -4,14 +4,16 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
-from app.db.models import OddsSnapshot, User
+from app.db.models import Market, OddsSnapshot, User
 from app.db.session import get_db
 from app.schemas.portfolio import (
     PORTFOLIO_DISCLAIMER,
     PortfolioPositionResponse,
     PortfolioResponse,
+    PortfolioRiskResponse,
     PortfolioSummaryResponse,
 )
+from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_metrics
 
 router = APIRouter(prefix="/api/v1", tags=["portfolio"])
 
@@ -175,6 +177,53 @@ async def get_portfolio_summary(
             unrealized_pnl / total_invested * 100 if total_invested > 0 else 0.0,
             2,
         ),
+    )
+
+
+@router.get("/portfolio/risk", response_model=PortfolioRiskResponse)
+async def get_portfolio_risk(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PortfolioRiskResponse:
+    """Risk metrics over the user's paper book (E12): win rate, drawdown,
+    per-trade Sharpe, and open exposure by market category."""
+    try:
+        positions = await _load_paper_orders(db, current_user.id.hex)
+    except (OperationalError, ProgrammingError):
+        positions = []
+
+    closed = [
+        ClosedTrade(cost=p.cost, realized_pnl=p.realized_pnl or 0.0)
+        for p in positions
+        if p.settled
+    ]
+    open_positions = [p for p in positions if not p.settled]
+
+    categories: dict[str, str] = {}
+    open_slugs = list({p.market_slug for p in open_positions})
+    if open_slugs:
+        rows = (
+            await db.execute(
+                select(Market.slug, Market.category).where(Market.slug.in_(open_slugs))
+            )
+        ).all()
+        categories = {str(slug): str(cat or "Other") for slug, cat in rows}
+
+    exposures = [
+        OpenExposure(category=categories.get(p.market_slug, "Other"), cost=p.cost)
+        for p in open_positions
+        if p.cost > 0
+    ]
+
+    metrics = compute_risk_metrics(closed, exposures)
+    return PortfolioRiskResponse(
+        n_closed=metrics.n_closed,
+        total_realized_pnl=metrics.total_realized_pnl,
+        win_rate=metrics.win_rate,
+        max_drawdown=metrics.max_drawdown,
+        sharpe=metrics.sharpe,
+        exposure_by_category=metrics.exposure_by_category,
+        exposure_pct_by_category=metrics.exposure_pct_by_category,
     )
 
 
