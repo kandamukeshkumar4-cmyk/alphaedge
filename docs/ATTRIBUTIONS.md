@@ -26,6 +26,20 @@ This file records source-code attributions per the Loop C §G4 license policy.
   implementation building on AlphaEdge's existing `GRAPH_NODES` / `run_agent_graph_with_trace`.
 - **Ticket**: U06 — Agent Builder (Clone-lite)
 
+## Cross-platform arb repos (no license — ideas only, §G4)
+
+- **Repos**: taetaehoho/arb, ImMike/polymarket-arbitrage, AlexM800/arb-bot,
+  TopTrenDev/arb
+- **License**: No license declared (§G4: prefer reimplement over paste)
+- **Used in**: `backend/app/signals/matching.py` (title-token Jaccard sub-score),
+  `backend/app/signals/arb_service.py`, `backend/app/api/v1/arb.py`
+- **What was studied**: README-level concept only — the central insight from
+  each repo is that "matching the same underlying event across Polymarket
+  (free-text titles) and Kalshi (structured event paths) is the hard part".
+  No source code was read, cloned, or copied; all logic in matching.py and
+  arb_service.py is a clean-room reimplementation.
+- **Ticket**: U11 — Cross-platform arb hardening
+
 ## Jon-Becker/prediction-market-analysis (MIT)
 
 - **Repo**: https://github.com/Jon-Becker/prediction-market-analysis

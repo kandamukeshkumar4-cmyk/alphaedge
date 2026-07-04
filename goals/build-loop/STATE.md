@@ -23,12 +23,26 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U07 | Clone leaderboard / arena               | DONE   | -          | U06  | 2026-07-03 iter 7 verifier PASS (845p/5s, scorer reuse, honest stub); committed dc43429 |
 | U08 | Multi-model ensemble + router (AutoLab) | DONE   | -          | -    | 2026-07-04 iter 8 verifier PASS (886p/5s, honest iter=0 flag OFF, baseline byte-identical); committed e55237e |
 | U09 | Memory / learning loop (AutoLab)        | DONE   | -          | -    | 2026-07-04 iter 9 verifier PASS (911p/5s, cross-ticket U06 safe, honest iter=0); committed 50d66a1 |
-| U10 | Backtest replay + realistic fills       | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-04 iter 10: maker done 937p/5s, mig 030; verifier running |
-| U11 | Cross-platform arb hardening            | TODO   | -          | U02  | 2026-07-03 queued |
+| U10 | Backtest replay + realistic fills       | DONE   | -          | -    | 2026-07-04 iter 10 verifier PASS (937p/5s, no-lookahead genuine, mig 030); committed 7c82fa6 |
+| U11 | Cross-platform arb hardening            | IN-REVIEW | opus-4-8 maker → verifier | U02 | 2026-07-04 iter 11: maker done 976p/5s; verifier running |
 | U12 | Observability + calibration drift       | TODO   | -          | -    | 2026-07-03 queued |
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-04 iter 10 VERDICT: U10 **PASS** → DONE, committed 7c82fa6. Verifier
+  confirmed all 5: (1) no-lookahead negative-control GENUINE (test:262 injects
+  T+5h row → asserts trades+equity+snapshot_count all unchanged; query
+  captured_at<=end_date at SQL; Brier proxy uses snapshots[i+1] within bounded
+  range = not a leak); no_lookahead_verified is structural assertion proven by
+  test (T08 pattern, acceptable); (2) fill_model always worse-than-mid (yes_buy
+  above, yes_sell below, no_buy above no_mid), zero-spread+size→exact mid boundary,
+  slippage scales w/ size; (3) no fabricated curve — insufficient_data<2 snapshots,
+  UI "not fabricated" empty state; (4) nightly_backtest_task flag OFF default
+  (config:169 BACKTEST_NIGHTLY_ENABLED=false, task early-returns skipped); (5) no
+  order-path imports (AST tests genuine), paper_trading_only hardcoded. Gate
+  937p/5s, single head 030 chained from 029, frontend green. New baseline:
+  **937p/5s**. Iteration 11: U11 (cross-platform arb hardening, dep U02 satisfied).
 
 - 2026-07-04 iter 9 VERDICT: U09 **PASS** → DONE, committed 50d66a1. Verifier
   confirmed all 6 checks incl the cross-ticket risk: (1) U06 clone tests STILL
