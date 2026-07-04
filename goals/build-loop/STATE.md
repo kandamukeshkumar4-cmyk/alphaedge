@@ -21,14 +21,30 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U05 | Assistant chat (analysis-only, no-order)| DONE   | -          | U04  | 2026-07-03 iter 5 PASS (795p/5s inline verify, §G2 safety-critical clean); committed 0caf20c |
 | U06 | Agent Builder "Clone-lite"              | DONE   | -          | -    | 2026-07-03 iter 6 verifier PASS (821p/5s, G3 3-layer, single head 029); committed 6a60df6 |
 | U07 | Clone leaderboard / arena               | DONE   | -          | U06  | 2026-07-03 iter 7 verifier PASS (845p/5s, scorer reuse, honest stub); committed dc43429 |
-| U08 | Multi-model ensemble + router (AutoLab) | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-03 iter 8: maker done 886p/5s, honest iter=0 flag OFF, verifier running |
-| U09 | Memory / learning loop (AutoLab)        | TODO   | -          | -    | 2026-07-03 queued |
+| U08 | Multi-model ensemble + router (AutoLab) | DONE   | -          | -    | 2026-07-04 iter 8 verifier PASS (886p/5s, honest iter=0 flag OFF, baseline byte-identical); committed e55237e |
+| U09 | Memory / learning loop (AutoLab)        | CLAIMED | opus-4-8 (maker agent) | - | 2026-07-04 iteration 9 |
 | U10 | Backtest replay + realistic fills       | TODO   | -          | -    | 2026-07-03 queued |
 | U11 | Cross-platform arb hardening            | TODO   | -          | U02  | 2026-07-03 queued |
 | U12 | Observability + calibration drift       | TODO   | -          | -    | 2026-07-03 queued |
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-04 iter 8 VERDICT: U08 **PASS** → DONE (committed e55237e via shared-branch
+  sweep — content correct, gate green, non-atomic history noted). Verifier confirmed
+  all 6 checks: (1) flag-off byte-identical baseline — predictor.py has ZERO imports
+  from ensemble.py/router.py, ensemble_predict(enabled=False) raises
+  EnsembleDisabledError, test_flag_off_predict_market_unchanged genuine; (2) no
+  fabricated metrics — run_autolab_measurement returns insufficient_data<30 samples,
+  /eval shows honest ensemble-not-measured, no fake bars; (3) AutoLab line truthful —
+  harness real+tested but no labeled dataset (matches T11); (4) ensemble UI flag-gated
+  (DecisionCard:348 only when ensemble.enabled===true); (5) no order-path imports
+  (forecasting/ imports stdlib only); (6) math correct — weighted variance
+  Σw(p-μ)²/Σw, identical→0 disagreement, spread→positive band. 41 tests genuine.
+  Gate 886p/5s, single head 029. AutoLab: baseline=single-model | benchmark=
+  walk-forward Brier on resolved OddsSnapshots | iterations=0 (no dataset) |
+  budget=0/8 | outcome=stalled-iterations=0-honest, flag OFF. New baseline:
+  **886p/5s**. Iteration 9: U09 (memory/learning loop — AutoLab-gated) claimed.
 
 - 2026-07-03 iter 7 VERDICT: U07 **PASS** → DONE, committed dc43429. Verifier
   confirmed all 6 integrity checks: (1) scorer genuinely reuses T08 score_claim +
