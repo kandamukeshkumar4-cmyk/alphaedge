@@ -79,6 +79,33 @@ class KalshiConnector:
         return normalize_kalshi_market(enriched_payload, captured_at=captured_at)
 
 
+# Kalshi sub-titles sometimes prepend a redundant scope ("Reg Time: Argentina")
+# that duplicates the event title ("… Regulation Time Moneyline"); strip it.
+_REDUNDANT_SUBTITLE_PREFIXES = (
+    "reg time:",
+    "regulation time:",
+    "regular time:",
+    "full time:",
+)
+
+
+def clean_outcome_label(sub_title: str) -> str:
+    s = sub_title.strip()
+    low = s.lower()
+    for prefix in _REDUNDANT_SUBTITLE_PREFIXES:
+        if low.startswith(prefix):
+            return s[len(prefix):].strip()
+    return s
+
+
+def is_distinguishing_outcome(sub_title: str, event_title: str) -> bool:
+    """Append the outcome to the title UNLESS it's empty, equals the event title,
+    or is a trivial binary label. 'Contained in the title' is NOT a skip reason —
+    'Ramp' in 'Will Ramp or Brex IPO first?' is what makes the two cards distinct."""
+    s = sub_title.strip().lower()
+    return bool(s) and s != event_title.strip().lower() and s not in {"yes", "no"}
+
+
 def normalize_kalshi_market(
     payload: dict[str, Any],
     captured_at: datetime | str | None = None,
@@ -102,8 +129,9 @@ def normalize_kalshi_market(
     # it in, the catalog shows N identical cards at different prices. Compose a
     # per-outcome title so each card is distinct and correct.
     event_title = str(market.get("title") or ticker).strip()
-    sub_title = str(market.get("yes_sub_title") or market.get("subtitle") or "").strip()
-    if sub_title and sub_title.lower() not in event_title.lower():
+    raw_sub = str(market.get("yes_sub_title") or market.get("subtitle") or "")
+    sub_title = clean_outcome_label(raw_sub)
+    if is_distinguishing_outcome(sub_title, event_title):
         display_title = f"{event_title}: {sub_title}"
     else:
         display_title = event_title

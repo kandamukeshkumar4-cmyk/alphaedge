@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.data.connectors.base import parse_timestamp
-from app.data.connectors.kalshi import KalshiConnector, implied_yes_from_kalshi_payload
+from app.data.connectors.kalshi import (
+    KalshiConnector,
+    clean_outcome_label as _clean_outcome_label,
+    implied_yes_from_kalshi_payload,
+    is_distinguishing_outcome as _is_distinguishing_outcome,
+)
 from app.db.models import Market, MarketStatus
 from app.services.live_snapshot_seed import seed_initial_snapshot_if_missing
 
@@ -194,7 +199,7 @@ class KalshiLiveIngestService:
     ) -> bool:
         ticker = str(payload["ticker"])
         slug = local_slug_for(ticker)
-        sub_title = str(payload.get("yes_sub_title") or "").strip()
+        sub_title = _clean_outcome_label(str(payload.get("yes_sub_title") or ""))
         outcome = sub_title or ticker.rsplit("-", 1)[-1]
         question = f"{outcome} — {event_title}"
         # Multi-outcome Kalshi events share one event_title across all outcomes;
@@ -202,7 +207,7 @@ class KalshiLiveIngestService:
         # N identical cards. Binary markets (no sub_title) keep the plain title.
         display_title = (
             f"{event_title}: {sub_title}"
-            if sub_title and sub_title.lower() not in event_title.lower()
+            if _is_distinguishing_outcome(sub_title, event_title)
             else event_title
         )
         end_date = parse_timestamp(payload.get("close_time") or payload.get("expiration_time"))
