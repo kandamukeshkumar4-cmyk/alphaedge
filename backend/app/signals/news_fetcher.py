@@ -15,15 +15,22 @@ from app.signals.news_signal import NewsSignal
 # Installed location from: npx skills add mvanhorn/last30days-skill -g
 _SKILL_SCRIPT = Path.home() / ".agents" / "skills" / "last30days" / "scripts" / "last30days.py"
 
-# Fallback: project-local copy if someone installs the skill repo in .agents/skills/
-_LOCAL_SCRIPT = (
-    Path(__file__).resolve().parents[4]
-    / ".agents" / "skills" / "last30days" / "scripts" / "last30days.py"
-)
+# Fallback: project-local copy if someone installs the skill repo in .agents/skills/.
+# parents[4] doesn't exist in the Docker image (/app/app/signals is only 3 deep) —
+# an unguarded lookup raised IndexError AT IMPORT TIME and silently killed the whole
+# news pipeline in containers. Guard it: no repo root -> no local script, that's all.
+def _local_script() -> Path | None:
+    parents = Path(__file__).resolve().parents
+    if len(parents) < 5:
+        return None
+    return parents[4] / ".agents" / "skills" / "last30days" / "scripts" / "last30days.py"
+
+
+_LOCAL_SCRIPT = _local_script()
 
 
 def _script_path() -> Path | None:
-    if _LOCAL_SCRIPT.exists():
+    if _LOCAL_SCRIPT is not None and _LOCAL_SCRIPT.exists():
         return _LOCAL_SCRIPT
     if _SKILL_SCRIPT.exists():
         return _SKILL_SCRIPT
