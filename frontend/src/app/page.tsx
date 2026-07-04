@@ -24,7 +24,9 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { fetchMarkets, type MarketFilterParams } from "@/lib/alphaedge-api";
 import type { LeaderboardEntry } from "@/lib/leaderboard-api";
 import { fetchLeaderboard } from "@/lib/leaderboard-api";
+import { formatCompactUSD } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
+import { SectionHeader, StatRow, StatTile } from "@/components/ui/kit";
 
 function formatPnl(pnl: number) {
   const sign = pnl >= 0 ? "+" : "";
@@ -132,6 +134,34 @@ export default function Home() {
               <HeroFeature markets={featured} />
             </MotionReveal>
 
+            <StatRow>
+              <StatTile
+                label="Live markets"
+                value={filteredMarkets.length.toLocaleString()}
+                delta="tracking"
+                deltaTone="accent"
+              />
+              <StatTile
+                label="24h volume"
+                value={formatCompactUSD(
+                  filteredMarkets.reduce((sum, m) => sum + m.volume, 0),
+                )}
+              />
+              <StatTile
+                label="Paper traders"
+                value={filteredMarkets
+                  .reduce((sum, m) => sum + m.traders, 0)
+                  .toLocaleString()}
+              />
+              <StatTile
+                label="AI signals"
+                value={filteredMarkets.length.toLocaleString()}
+                delta="on every market"
+                deltaTone="up"
+                accent
+              />
+            </StatRow>
+
             <MarketSearch onChange={handleFilterChange} loading={loading} />
 
             <Suspense fallback={null}>
@@ -149,19 +179,19 @@ export default function Home() {
 
             {displayGroups.map((group, gi) => (
               <section key={group.category}>
-                <div className="mb-3 flex items-end justify-between gap-3">
-                  <h2 className="text-lg font-black tracking-tight text-text">
-                    {group.category}
-                  </h2>
-                  {!isFiltered && (
-                    <Link
-                      href={`/markets?cat=${group.category}`}
-                      className="rounded-md border border-border px-3 py-1.5 text-xs font-black text-muted transition hover:border-border-light hover:text-text"
-                    >
-                      See all
-                    </Link>
-                  )}
-                </div>
+                <SectionHeader
+                  title={group.category}
+                  action={
+                    !isFiltered ? (
+                      <Link
+                        href={`/markets?cat=${group.category}`}
+                        className="rounded-md border border-border px-3 py-1.5 text-xs font-black text-muted transition hover:border-border-light hover:text-text"
+                      >
+                        See all
+                      </Link>
+                    ) : undefined
+                  }
+                />
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                   {group.markets.map((market, mi) => (
                     <MotionReveal key={market.slug} delay={Math.min(0.04 * mi + 0.02 * gi, 0.2)}>

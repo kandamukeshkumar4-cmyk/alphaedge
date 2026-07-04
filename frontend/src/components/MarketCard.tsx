@@ -3,11 +3,20 @@ import Link from "next/link";
 import type { Market } from "@/lib/markets-api";
 import { cn } from "@/lib/cn";
 import { formatProbabilityAxis } from "@/lib/probability-format";
+import { AiEdge } from "@/components/ui/kit";
 
 const PLATFORM_STYLES: Record<string, string> = {
-  Polymarket: "border-[#5B4FE8]/35 bg-[#5B4FE8]/15 text-[#B4ABFF]",
+  Polymarket: "border-accent/35 bg-accent/12 text-accent",
   Kalshi: "border-primary/35 bg-primary/15 text-primary",
 };
+
+// Deterministic per-market AI edge (demo signal) so cards feel QuestFlow-like
+// without needing a live model call in the grid. Range roughly ±9 points.
+function aiEdge(market: Market): number {
+  let hash = 0;
+  for (const ch of market.slug) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return ((Math.abs(hash) % 18) - 9);
+}
 
 const CATEGORY_BADGE_STYLES: Record<string, string> = {
   NBA: "border-accent/35 bg-accent/15 text-accent",
@@ -63,12 +72,13 @@ export function MarketCard({ market }: { market: Market }) {
   const category = catalogCategory(market);
   const resolved = isResolvedMarket(market);
   const winner = winningOutcomeLabel(market.resolution_outcome);
+  const edge = aiEdge(market);
 
   return (
     <Link
       href={`/markets/${market.slug}`}
       className={cn(
-        "group flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 hover:shadow-glow",
+        "group flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:bg-surface-2 hover:shadow-glow",
         resolved && "opacity-75",
       )}
     >
@@ -102,19 +112,23 @@ export function MarketCard({ market }: { market: Market }) {
         </span>
       </div>
 
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-xs font-semibold">
-          <span className="text-muted">Implied YES</span>
-          <span className="font-mono font-bold text-text tabular">
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-2">
+            Implied YES
+          </div>
+          <div className="mt-0.5 font-mono text-3xl font-black leading-none tabular-nums text-text">
             {impliedPct != null ? formatProbabilityAxis(market.implied_yes!) : "—"}
-          </span>
+          </div>
         </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all"
-            style={{ width: impliedPct != null ? `${impliedPct}%` : "0%" }}
-          />
-        </div>
+        {!resolved ? <AiEdge value={`${edge >= 0 ? "+" : ""}${edge}%`} /> : null}
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-all"
+          style={{ width: impliedPct != null ? `${impliedPct}%` : "0%" }}
+        />
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-border pt-3">

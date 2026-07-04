@@ -4,12 +4,34 @@ import { useEffect, useState } from "react";
 
 import { MarketCard, MarketCardSkeleton } from "@/components/MarketCard";
 import { API_BASE } from "@/lib/alphaedge-api";
-import { cn } from "@/lib/cn";
+import { MARKETS as MOCK_MARKETS } from "@/lib/mock-data";
 import {
   fetchMarkets,
   type Market,
   type MarketCategory,
 } from "@/lib/markets-api";
+import { Chip, PageHeader, PageShell, SegTabs, StatRow, StatTile } from "@/components/ui/kit";
+
+const CATEGORY_MAP: Record<string, string> = {
+  Sports: "NBA",
+  Politics: "Elections",
+  Crypto: "Crypto",
+  Culture: "Culture",
+  Economics: "Economics",
+};
+
+// Demo markets (markets-api shape) derived from the shared mock catalog so the
+// grid renders in demo mode, consistent with the rest of the app.
+const DEMO_MARKETS: Market[] = MOCK_MARKETS.map((m) => ({
+  id: m.id,
+  slug: m.slug,
+  title: m.title,
+  platform: m.seed % 2 === 0 ? "Polymarket" : "Kalshi",
+  status: "open",
+  implied_yes: m.outcomes[0]?.price ?? null,
+  category: CATEGORY_MAP[m.category] ?? m.category,
+  resolution_outcome: null,
+}));
 
 type StatusFilter = "all" | "open" | "resolved";
 type CategoryFilter = "all" | MarketCategory;
@@ -24,20 +46,11 @@ const CATEGORY_TABS: { label: string; value: CategoryFilter }[] = [
   { label: "Economics", value: "Economics" },
 ];
 
-const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
-  { label: "All", value: "all" },
-  { label: "Open", value: "open" },
-  { label: "Resolved", value: "resolved" },
+const STATUS_OPTIONS = [
+  { label: "All", value: "all" as const },
+  { label: "Open", value: "open" as const },
+  { label: "Resolved", value: "resolved" as const },
 ];
-
-function tabClass(active: boolean): string {
-  return cn(
-    "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition",
-    active
-      ? "border-accent bg-accent/15 text-accent"
-      : "border-border text-muted hover:border-border-light hover:text-text",
-  );
-}
 
 export default function MarketsPage() {
   const [category, setCategory] = useState<CategoryFilter>("all");
@@ -49,8 +62,15 @@ export default function MarketsPage() {
 
   useEffect(() => {
     if (!apiConfigured) {
+      const filtered = DEMO_MARKETS.filter((m) => {
+        const catOk = category === "all" || m.category === category;
+        const statusOk =
+          filter === "all" ||
+          (filter === "open" ? m.status !== "resolved" : m.status === "resolved");
+        return catOk && statusOk;
+      });
+      setMarkets(filtered);
       setLoading(false);
-      setMarkets([]);
       return;
     }
 
@@ -95,51 +115,42 @@ export default function MarketsPage() {
         ? `${category} `
         : `${category} ${filter} `;
 
+  const openCount = markets.filter((m) => m.status !== "resolved").length;
+  const avgYes =
+    markets.length > 0
+      ? Math.round(
+          (markets.reduce((sum, m) => sum + (m.implied_yes ?? 0), 0) / markets.length) * 100,
+        )
+      : 0;
+
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-8 sm:px-5">
-      <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-[0.08em] text-accent">
-          Market discovery
-        </p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-text">Markets</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Browse open and resolved prediction markets across Polymarket and Kalshi with
-          implied YES pricing at a glance.
-        </p>
-      </div>
+    <PageShell width="medium">
+      <PageHeader
+        kicker="Market discovery"
+        title="Markets"
+        subtitle="Browse open and resolved prediction markets across Polymarket and Kalshi with implied YES pricing and an AI edge on every card."
+        actions={<SegTabs value={filter} onChange={setFilter} options={STATUS_OPTIONS} size="sm" />}
+      />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <StatRow cols={3} className="mb-6">
+        <StatTile label="Markets" value={markets.length.toLocaleString()} />
+        <StatTile label="Open now" value={openCount.toLocaleString()} deltaTone="up" delta="live" accent />
+        <StatTile label="Avg implied YES" value={`${avgYes}%`} />
+      </StatRow>
+
+      <div className="no-scrollbar mb-6 flex flex-wrap gap-2">
         {CATEGORY_TABS.map((item) => (
-          <button
+          <Chip
             key={item.value}
-            type="button"
+            active={category === item.value}
             onClick={() => setCategory(item.value)}
-            className={tabClass(category === item.value)}
           >
             {item.label}
-          </button>
+          </Chip>
         ))}
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setFilter(item.value)}
-            className={tabClass(filter === item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      {!apiConfigured ? (
-        <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
-          Set <code className="font-mono text-text">NEXT_PUBLIC_API_URL</code> to load live
-          markets from the API.
-        </div>
-      ) : loading ? (
+      {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }, (_, index) => (
             <MarketCardSkeleton key={index} />
@@ -160,6 +171,6 @@ export default function MarketsPage() {
           ))}
         </div>
       )}
-    </main>
+    </PageShell>
   );
 }

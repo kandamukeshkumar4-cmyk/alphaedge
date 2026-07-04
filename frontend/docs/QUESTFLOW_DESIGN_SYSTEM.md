@@ -83,6 +83,34 @@ Prefer an Astryx primitive over a hand-rolled one when touching a component;
 keep bespoke market-specific composites (charts, order book, trade panel) as
 Tailwind components using the tokens above.
 
+## Design kit (`src/components/ui/kit.tsx`)
+
+Every tab is composed from one shared primitive set so the app reads as a
+single product — retune tokens, not these:
+
+- `PageShell` / `PageHeader` — consistent max-width + kicker/title/subtitle/actions header on every route.
+- `SectionHeader` — section title + optional action link.
+- `Panel` — bordered surface card with optional header row.
+- `StatTile` / `StatRow` — the QuestFlow stat strips (mono numerals, tone-colored deltas, accent variant).
+- `AiEdge` — the violet "AI edge +8%" badge shown on every market card.
+- `SegTabs` — segmented control (Standings sort, market status).
+- `Chip` — category filter pills.
+
+### Per-tab rebuilds (not just recolor)
+
+| Tab | What was rebuilt |
+|---|---|
+| Feed (`/`) | Hero + **stat strip** (live markets / 24h vol / traders / AI signals) + AI-edge market cards + discovery rails |
+| Markets (`/markets`) | Stat strip, category chips, status `SegTabs`, big-% AI-edge card grid, demo fallback so it renders without an API |
+| Leaderboard (`/leaderboard`) | Full **Trader Arena**: arena summary tiles, top-3 **podium**, sortable `SegTabs` standings, per-row **Copy** (mirror) CTA, demo fallback |
+| Signals (`/signals`) | Kit header + paper-P&L panel + signal feed / CLV track record |
+| Forecast · Mirror (`/forecast`, `/mirror`) | Smart-Clone kicker, stat tiles, calibration / track-record / trend panels |
+| Portfolio (`/portfolio`) | Unified-portfolio kit header (auth-gated) |
+| Market detail (`/markets/[slug]`) | Decision-stack side panel, animated chart, Astryx tabs + YES/NO badges |
+
+Cards carry a deterministic demo **AI edge** so the grid feels model-driven
+without a live call; it is clearly a demo signal, not a real forecast.
+
 ## Motion
 
 Existing framer-motion + CSS keyframes stay: `fade-up` reveals,

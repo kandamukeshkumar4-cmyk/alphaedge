@@ -8,6 +8,7 @@ import {
 } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 import { marketCountLabel } from "@/lib/market-copy";
+import { AiEdge } from "@/components/ui/kit";
 import { Sparkline } from "./Sparkline";
 
 const CATEGORY_COLOR: Record<Market["category"], string> = {
@@ -40,13 +41,16 @@ export function FeaturedMarketCard({ market }: { market: Market }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div
-            className={cn(
-              "text-[11px] font-black uppercase tracking-[0.14em]",
-              CATEGORY_COLOR[market.category],
-            )}
-          >
-            {market.category}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "text-[11px] font-black uppercase tracking-[0.14em]",
+                CATEGORY_COLOR[market.category],
+              )}
+            >
+              {market.category}
+            </div>
+            <AiEdge value={`${up ? "+" : "−"}${((Math.abs(spark[spark.length - 1] - spark[0]) * 100) | 0)}%`} />
           </div>
           <h3 className="mt-2 line-clamp-2 text-lg font-black leading-snug text-text">
             {market.title}

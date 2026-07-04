@@ -181,7 +181,11 @@ export default function ForecastMirrorPage() {
     <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-6 sm:px-5">
       <header className="grid gap-4 border-b border-border pb-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
         <div>
-          <h1 className="text-2xl font-black tracking-normal text-text sm:text-3xl">
+          <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(0,226,138,0.8)]" />
+            Smart Clone · Forecast
+          </p>
+          <h1 className="mt-2 text-2xl font-black tracking-normal text-text sm:text-3xl">
             AlphaEdge Mirror
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">

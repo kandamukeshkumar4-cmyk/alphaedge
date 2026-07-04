@@ -6,6 +6,7 @@ import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { fetchSignalsDashboard } from "@/lib/signals-dashboard-api";
 import { buildSignalsDashboardView } from "@/lib/signals-dashboard-view-model";
+import { PageHeader, PageShell } from "@/components/ui/kit";
 
 type Notice = {
   tone: "error" | "muted";
@@ -48,29 +49,22 @@ export default function SignalsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-8 sm:px-5">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-accent">
-            Phase 6
-          </p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-text">
-            Signals &amp; CLV Track Record
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Live arb, dutch, smart-money, and forecast signals with honest CLV
-            reconciliation. FanDuel remains manual capture only in the extension.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void loadDashboard()}
-          disabled={!apiConfigured || loading}
-          className="h-10 rounded-xl border border-border px-4 text-sm font-bold text-text transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
+    <PageShell width="medium">
+      <PageHeader
+        kicker="Signal intelligence"
+        title="Signals & CLV track record"
+        subtitle="Live arb, dutch, smart-money, and forecast signals with honest CLV reconciliation. FanDuel remains manual capture only in the extension."
+        actions={
+          <button
+            type="button"
+            onClick={() => void loadDashboard()}
+            disabled={!apiConfigured || loading}
+            className="h-10 rounded-xl border border-border px-4 text-sm font-bold text-text transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        }
+      />
 
       <section className="mb-6 rounded-2xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -226,6 +220,6 @@ export default function SignalsPage() {
       <footer className="mt-8 rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs font-semibold text-muted">
         {view.disclaimer}
       </footer>
-    </main>
+    </PageShell>
   );
 }

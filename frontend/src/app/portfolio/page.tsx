@@ -18,6 +18,7 @@ import {
   type PortfolioPosition,
   type PortfolioView,
 } from "@/lib/portfolio-api";
+import { PageHeader, PageShell } from "@/components/ui/kit";
 
 export default function PortfolioPage() {
   const router = useRouter();
@@ -106,26 +107,22 @@ export default function PortfolioPage() {
   const empty = !loading && portfolio !== null && portfolio.positions.length === 0;
 
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-8 sm:px-5">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-accent">
-            Paper trading
-          </p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-text">Portfolio</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Your paper balance and open positions from the AlphaEdge backend.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void loadPortfolio()}
-          disabled={loading}
-          className="h-10 rounded-xl border border-border px-4 text-sm font-bold text-text transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
+    <PageShell width="medium">
+      <PageHeader
+        kicker="Unified paper portfolio"
+        title="Portfolio"
+        subtitle="Your paper balance and open positions across every market type — one unified view."
+        actions={
+          <button
+            type="button"
+            onClick={() => void loadPortfolio()}
+            disabled={loading}
+            className="h-10 rounded-xl border border-border px-4 text-sm font-bold text-text transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        }
+      />
 
       {error ? (
         <section className="mb-6 rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
@@ -293,7 +290,7 @@ export default function PortfolioPage() {
         {portfolio?.disclaimer ??
           "Research only — not financial advice. Verify resolution terms. Paper trading only."}
       </footer>
-    </main>
+    </PageShell>
   );
 }
 
