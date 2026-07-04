@@ -16,11 +16,11 @@ import { cn } from "@/lib/cn";
 import { formatProbabilityAxis } from "@/lib/probability-format";
 
 const LINE: Record<OutcomeTone, string> = {
-  primary: "#24C66D",
-  danger: "#FF4D4F",
-  accent: "#2E7DF6",
-  gold: "#FFB020",
-  muted: "#9AA3B5",
+  primary: "#00E28A",
+  danger: "#FF4D5E",
+  accent: "#7C5CFF",
+  gold: "#F6C244",
+  muted: "#97A0B2",
 };
 
 const DOT: Record<OutcomeTone, string> = {
@@ -76,7 +76,7 @@ export function MultiLineChart({
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9AA3B5",
+        textColor: "#97A0B2",
         fontFamily: "var(--font-mono), monospace",
         attributionLogo: false,
       },
@@ -85,13 +85,13 @@ export function MultiLineChart({
         horzLines: { color: "rgba(35,40,56,0.64)" },
       },
       rightPriceScale: {
-        borderColor: "#232838",
+        borderColor: "#1D222C",
         scaleMargins: { top: 0.1, bottom: 0.1 },
       },
-      timeScale: { borderColor: "#232838", timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: "#1D222C", timeVisible: true, secondsVisible: false },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#2E7DF6", width: 1, style: 2, labelBackgroundColor: "#2E7DF6" },
+        vertLine: { color: "#7C5CFF", width: 1, style: 2, labelBackgroundColor: "#7C5CFF" },
         horzLine: { visible: false, labelVisible: false },
       },
       autoSize: true,

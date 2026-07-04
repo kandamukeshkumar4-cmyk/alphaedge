@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
+import "@astryxdesign/core/reset.css";
+import "@astryxdesign/core/astryx.css";
+import "@astryxdesign/theme-neutral/theme.css";
 import "./globals.css";
+import { Providers } from "./providers";
 import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
@@ -31,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-bg font-sans text-text">
+        <Providers>
         <ToastProvider>
           <HealthBanner />
           <SiteHeader />
@@ -42,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </p>
           </footer>
         </ToastProvider>
+        </Providers>
       </body>
     </html>
   );

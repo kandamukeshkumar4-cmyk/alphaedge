@@ -3,155 +3,157 @@
 @tailwind utilities;
 
 /*
- * vidIQ-inspired palette: cool near-black navy canvas, one bright blue brand
- * accent (#2E7DF6) + a coral secondary (#FF4D8D). Green/red are reserved strictly
- * for YES/NO + up/down trade semantics. These !important utilities override
- * Tailwind's generated classes, so retuning the hex here reskins the whole app.
+ * QuestFlow-terminal palette (see docs/QUESTFLOW_DESIGN_SYSTEM.md): true
+ * near-black canvas, neon signal green (#00E28A) for the brand + YES/long/up,
+ * agentic violet (#7C5CFF) for AI/agent surfaces, cyan (#22D3EE) secondary.
+ * Red (#FF4D5E) is reserved for NO/short/down. These !important utilities
+ * override Tailwind's generated classes, so retuning the hex here reskins
+ * the whole app.
  */
 @layer utilities {
   .bg-bg {
-    background-color: #0a0c12 !important;
+    background-color: #060709 !important;
   }
   .bg-bg\/95 {
-    background-color: rgb(10 12 18 / 0.95) !important;
+    background-color: rgb(6 7 9 / 0.95) !important;
   }
   .bg-bg\/65 {
-    background-color: rgb(10 12 18 / 0.65) !important;
+    background-color: rgb(6 7 9 / 0.65) !important;
   }
   .bg-bg\/55 {
-    background-color: rgb(10 12 18 / 0.55) !important;
+    background-color: rgb(6 7 9 / 0.55) !important;
   }
   .bg-surface {
-    background-color: #12141c !important;
+    background-color: #0C0E12 !important;
   }
   .bg-surface\/40 {
-    background-color: rgb(18 20 28 / 0.4) !important;
+    background-color: rgb(12 14 18 / 0.4) !important;
   }
   .bg-surface-2 {
-    background-color: #181b26 !important;
+    background-color: #12151B !important;
   }
   .bg-surface-3 {
-    background-color: #222636 !important;
+    background-color: #1A1E26 !important;
   }
   .bg-primary {
-    background-color: #24c66d !important;
+    background-color: #00E28A !important;
   }
   .bg-primary\/10 {
-    background-color: rgb(36 198 109 / 0.1) !important;
+    background-color: rgb(0 226 138 / 0.1) !important;
   }
   .bg-primary\/70 {
-    background-color: rgb(36 198 109 / 0.7) !important;
+    background-color: rgb(0 226 138 / 0.7) !important;
   }
   .bg-primary-dim {
-    background-color: #0c2618 !important;
+    background-color: #04281B !important;
   }
   .bg-primary-dim\/55 {
-    background-color: rgb(12 38 24 / 0.55) !important;
+    background-color: rgb(4 40 27 / 0.55) !important;
   }
   .bg-danger {
-    background-color: #ff4d4f !important;
+    background-color: #FF4D5E !important;
   }
   .bg-danger-dim {
-    background-color: #2b1012 !important;
+    background-color: #2C0F14 !important;
   }
   .bg-accent {
-    background-color: #2e7df6 !important;
+    background-color: #7C5CFF !important;
   }
   .bg-accent\/10 {
-    background-color: rgb(46 125 246 / 0.1) !important;
+    background-color: rgb(124 92 255 / 0.1) !important;
   }
   .bg-accent\/15 {
-    background-color: rgb(46 125 246 / 0.15) !important;
+    background-color: rgb(124 92 255 / 0.15) !important;
   }
   .bg-accent-dim {
-    background-color: #0e1f3d !important;
+    background-color: #191234 !important;
   }
   .bg-secondary {
-    background-color: #ff4d8d !important;
+    background-color: #22D3EE !important;
   }
   .bg-secondary-dim {
-    background-color: #2a1020 !important;
+    background-color: #0A2530 !important;
   }
   .text-bg {
-    color: #0a0c12 !important;
+    color: #060709 !important;
   }
   .text-text {
-    color: #eef1f7 !important;
+    color: #F2F4F8 !important;
   }
   .text-muted {
-    color: #9aa3b5 !important;
+    color: #97A0B2 !important;
   }
   .text-muted-2 {
-    color: #646c7e !important;
+    color: #5E6779 !important;
   }
   .text-primary {
-    color: #24c66d !important;
+    color: #00E28A !important;
   }
   .text-danger {
-    color: #ff4d4f !important;
+    color: #FF4D5E !important;
   }
   .text-accent {
-    color: #2e7df6 !important;
+    color: #7C5CFF !important;
   }
   .text-secondary {
-    color: #ff4d8d !important;
+    color: #22D3EE !important;
   }
   .border-border {
-    border-color: #232838 !important;
+    border-color: #1D222C !important;
   }
   .border-border\/60 {
-    border-color: rgb(35 40 56 / 0.6) !important;
+    border-color: rgb(29 34 44 / 0.6) !important;
   }
   .border-border\/70 {
-    border-color: rgb(35 40 56 / 0.7) !important;
+    border-color: rgb(29 34 44 / 0.7) !important;
   }
   .border-border-light {
-    border-color: #353b4f !important;
+    border-color: #2C323E !important;
   }
   .border-primary {
-    border-color: #24c66d !important;
+    border-color: #00E28A !important;
   }
   .border-primary\/55 {
-    border-color: rgb(36 198 109 / 0.55) !important;
+    border-color: rgb(0 226 138 / 0.55) !important;
   }
   .border-primary\/45 {
-    border-color: rgb(36 198 109 / 0.45) !important;
+    border-color: rgb(0 226 138 / 0.45) !important;
   }
   .border-primary\/40 {
-    border-color: rgb(36 198 109 / 0.4) !important;
+    border-color: rgb(0 226 138 / 0.4) !important;
   }
   .border-primary\/35 {
-    border-color: rgb(36 198 109 / 0.35) !important;
+    border-color: rgb(0 226 138 / 0.35) !important;
   }
   .border-primary\/25 {
-    border-color: rgb(36 198 109 / 0.25) !important;
+    border-color: rgb(0 226 138 / 0.25) !important;
   }
   .border-primary\/20 {
-    border-color: rgb(36 198 109 / 0.2) !important;
+    border-color: rgb(0 226 138 / 0.2) !important;
   }
   .border-danger {
-    border-color: #ff4d4f !important;
+    border-color: #FF4D5E !important;
   }
   .border-danger\/55 {
-    border-color: rgb(255 77 79 / 0.55) !important;
+    border-color: rgb(255 77 94 / 0.55) !important;
   }
   .border-danger\/45 {
-    border-color: rgb(255 77 79 / 0.45) !important;
+    border-color: rgb(255 77 94 / 0.45) !important;
   }
   .border-danger\/40 {
-    border-color: rgb(255 77 79 / 0.4) !important;
+    border-color: rgb(255 77 94 / 0.4) !important;
   }
   .border-accent {
-    border-color: #2e7df6 !important;
+    border-color: #7C5CFF !important;
   }
   .border-accent\/55 {
-    border-color: rgb(46 125 246 / 0.55) !important;
+    border-color: rgb(124 92 255 / 0.55) !important;
   }
   .border-accent\/45 {
-    border-color: rgb(46 125 246 / 0.45) !important;
+    border-color: rgb(124 92 255 / 0.45) !important;
   }
   .border-accent\/30 {
-    border-color: rgb(46 125 246 / 0.3) !important;
+    border-color: rgb(124 92 255 / 0.3) !important;
   }
   .shadow-card {
     box-shadow: 0 2px 8px rgb(0 0 0 / 0.35) !important;
@@ -161,46 +163,78 @@
   }
   .shadow-glow {
     box-shadow:
-      0 0 0 1px rgb(46 125 246 / 0.4),
-      0 12px 32px rgb(46 125 246 / 0.18) !important;
+      0 0 0 1px rgb(124 92 255 / 0.4),
+      0 12px 32px rgb(124 92 255 / 0.18) !important;
   }
   .hover\:bg-primary:hover {
-    background-color: #24c66d !important;
+    background-color: #00E28A !important;
   }
   .hover\:bg-accent:hover {
-    background-color: #2e7df6 !important;
+    background-color: #7C5CFF !important;
   }
   .hover\:bg-accent-dim:hover {
-    background-color: #0e1f3d !important;
+    background-color: #191234 !important;
   }
   .hover\:bg-surface:hover {
-    background-color: #12141c !important;
+    background-color: #0C0E12 !important;
   }
   .hover\:bg-surface-2:hover {
-    background-color: #181b26 !important;
+    background-color: #12151B !important;
   }
   .hover\:text-primary:hover {
-    color: #24c66d !important;
+    color: #00E28A !important;
   }
   .hover\:text-accent:hover {
-    color: #2e7df6 !important;
+    color: #7C5CFF !important;
   }
   .hover\:text-text:hover {
-    color: #eef1f7 !important;
+    color: #F2F4F8 !important;
   }
   .hover\:border-primary:hover {
-    border-color: #24c66d !important;
+    border-color: #00E28A !important;
   }
   .hover\:border-accent:hover {
-    border-color: #2e7df6 !important;
+    border-color: #7C5CFF !important;
   }
   .hover\:border-border-light:hover {
-    border-color: #353b4f !important;
+    border-color: #2C323E !important;
   }
 }
 
 :root {
   color-scheme: dark;
+}
+
+/*
+ * Astryx (Meta design system) brand overrides. theme.css defines tokens in
+ * @layer astryx-theme scoped to [data-astryx-theme]; this unlayered block
+ * wins the cascade and re-brands every Astryx component (Button, Badge,
+ * TabList, …) to the QuestFlow-terminal palette. Dark-only by design.
+ */
+[data-astryx-theme] {
+  --color-accent: #7c5cff;
+  --color-accent-muted: #191234;
+  --color-on-accent: #ffffff;
+  --color-background-body: #060709;
+  --color-background-surface: #0c0e12;
+  --color-background-card: #0c0e12;
+  --color-background-popover: #12151b;
+  --color-background-muted: #12151b;
+  --color-border: #1d222c;
+  --color-border-emphasized: #2c323e;
+  --color-text-primary: #f2f4f8;
+  --color-text-secondary: #97a0b2;
+  --color-success: #00e28a;
+  --color-on-success: #04281b;
+  --color-success-muted: #04281b;
+  --color-error: #ff4d5e;
+  --color-on-error: #ffffff;
+  --color-error-muted: #2c0f14;
+  --color-icon-primary: #f2f4f8;
+  --color-icon-secondary: #97a0b2;
+  --font-family-body: var(--font-inter), system-ui, sans-serif;
+  --font-family-heading: var(--font-inter), system-ui, sans-serif;
+  --font-family-code: var(--font-mono), ui-monospace, monospace;
 }
 
 html {
@@ -211,26 +245,26 @@ body {
   @apply bg-bg text-text antialiased;
   font-feature-settings: "tnum" 1, "ss01" 1;
   background:
-    radial-gradient(1200px 480px at 50% -120px, rgba(46, 125, 246, 0.12) 0%, rgba(46, 125, 246, 0) 70%),
-    linear-gradient(180deg, rgba(18, 22, 34, 0.7) 0%, rgba(10, 12, 18, 0) 240px),
-    #0a0c12;
+    radial-gradient(1200px 480px at 50% -120px, rgba(124, 92, 255, 0.12) 0%, rgba(124, 92, 255, 0) 70%),
+    linear-gradient(180deg, rgba(20, 15, 44, 0.7) 0%, rgba(10, 12, 18, 0) 240px),
+    #060709;
 }
 
 /* Thin dark scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3142 transparent;
+  scrollbar-color: #232936 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2a3142;
+  background: #232936;
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #353b4f;
+  background: #2C323E;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
@@ -249,10 +283,10 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    #12141c 0%,
-    #1d2230 20%,
-    #12141c 40%,
-    #12141c 100%
+    #0C0E12 0%,
+    #161B24 20%,
+    #0C0E12 40%,
+    #0C0E12 100%
   );
   background-size: 936px 100%;
   @apply animate-shimmer rounded;

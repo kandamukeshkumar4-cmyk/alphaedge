@@ -5,28 +5,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // vidIQ-inspired shell: cool near-black navy + bright blue brand accent
-        // (#2E7DF6) and coral secondary. Green/red reserved for YES/NO + up/down.
-        bg: "#0A0C12",
-        surface: "#12141C",
-        "surface-2": "#181B26",
-        "surface-3": "#222636",
-        border: "#232838",
-        "border-light": "#353B4F",
-        text: "#EEF1F7",
-        muted: "#9AA3B5",
-        "muted-2": "#646C7E",
-        primary: "#24C66D",
-        "primary-dim": "#0C2618",
-        danger: "#FF4D4F",
-        "danger-dim": "#2B1012",
-        accent: "#2E7DF6",
-        "accent-dim": "#0E1F3D",
-        secondary: "#FF4D8D",
-        "secondary-dim": "#2A1020",
-        up: "#24C66D",
-        down: "#FF4D4F",
-        gold: "#F6A524",
+        // QuestFlow-terminal shell (docs/QUESTFLOW_DESIGN_SYSTEM.md): true
+        // near-black canvas, neon signal green brand (#00E28A), agentic violet
+        // accent (#7C5CFF), cyan secondary. Green/red = YES/NO + up/down.
+        bg: "#060709",
+        surface: "#0C0E12",
+        "surface-2": "#12151B",
+        "surface-3": "#1A1E26",
+        border: "#1D222C",
+        "border-light": "#2C323E",
+        text: "#F2F4F8",
+        muted: "#97A0B2",
+        "muted-2": "#5E6779",
+        primary: "#00E28A",
+        "primary-dim": "#04281B",
+        danger: "#FF4D5E",
+        "danger-dim": "#2C0F14",
+        accent: "#7C5CFF",
+        "accent-dim": "#191234",
+        secondary: "#22D3EE",
+        "secondary-dim": "#0A2530",
+        up: "#00E28A",
+        down: "#FF4D5E",
+        gold: "#F6C244",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
@@ -35,8 +36,8 @@ const config: Config = {
       boxShadow: {
         card: "0 2px 8px rgba(0,0,0,0.35)",
         lift: "0 8px 28px rgba(0,0,0,0.55)",
-        glow: "0 0 0 1px rgba(46,125,246,0.4), 0 12px 32px rgba(46,125,246,0.18)",
-        "glow-blue": "0 0 24px rgba(46,125,246,0.28)",
+        glow: "0 0 0 1px rgba(124,92,255,0.4), 0 12px 32px rgba(124,92,255,0.18)",
+        "glow-blue": "0 0 24px rgba(124,92,255,0.28)",
       },
       keyframes: {
         "fade-up": {
@@ -44,14 +45,14 @@ const config: Config = {
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         "flash-green": {
-          "0%": { backgroundColor: "rgba(36,198,109,0.0)" },
-          "30%": { backgroundColor: "rgba(36,198,109,0.24)" },
-          "100%": { backgroundColor: "rgba(36,198,109,0.0)" },
+          "0%": { backgroundColor: "rgba(0,226,138,0.0)" },
+          "30%": { backgroundColor: "rgba(0,226,138,0.24)" },
+          "100%": { backgroundColor: "rgba(0,226,138,0.0)" },
         },
         "flash-red": {
-          "0%": { backgroundColor: "rgba(255,59,71,0.0)" },
-          "30%": { backgroundColor: "rgba(255,59,71,0.24)" },
-          "100%": { backgroundColor: "rgba(255,59,71,0.0)" },
+          "0%": { backgroundColor: "rgba(255,77,94,0.0)" },
+          "30%": { backgroundColor: "rgba(255,77,94,0.24)" },
+          "100%": { backgroundColor: "rgba(255,77,94,0.0)" },
         },
         shimmer: {
           "0%": { backgroundPosition: "-468px 0" },

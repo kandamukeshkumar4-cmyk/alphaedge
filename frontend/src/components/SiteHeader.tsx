@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
@@ -11,15 +12,17 @@ import { useSignalAlerts } from "@/hooks/useSignalAlerts";
 import { cn } from "@/lib/cn";
 import { MARKETS } from "@/lib/mock-data";
 
+/*
+ * QuestFlow-app nav model: a flat product-level tab row (Feed | Markets |
+ * Signals | Forecast | Mirror | Leaderboard | Portfolio) with an active
+ * underline indicator, plus a category chip bar on discovery pages.
+ */
 const NAV = [
+  { label: "Feed", href: "/" },
   { label: "Markets", href: "/markets" },
-  { label: "Sports", href: "/markets?cat=Sports" },
-  { label: "Politics", href: "/markets?cat=Politics" },
-  { label: "Crypto", href: "/markets?cat=Crypto" },
-  { label: "Culture", href: "/markets?cat=Culture" },
+  { label: "Signals", href: "/signals" },
   { label: "Forecast", href: "/forecast" },
   { label: "Mirror", href: "/mirror" },
-  { label: "Signals", href: "/signals" },
   { label: "Leaderboard", href: "/leaderboard" },
   { label: "Portfolio", href: "/portfolio" },
 ];
@@ -67,6 +70,7 @@ function NavLabel({ label, unreadCount }: { label: string; unreadCount?: number 
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const { token, email, paperBalance, logout, isReady } = useAuth();
   const [open, setOpen] = useState(false);
   const { alerts, unreadCount, markRead } = useSignalAlerts();
@@ -80,22 +84,24 @@ export function SiteHeader() {
       <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
         <div className="mx-auto flex h-[60px] max-w-[1440px] items-center gap-4 px-4 sm:px-5">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="AlphaEdge home">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-accent to-[#1B5FD0] font-mono text-sm font-black text-white shadow-glow">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent font-mono text-sm font-black text-bg shadow-glow">
               AE
             </span>
-            <span className="text-lg font-black tracking-tight text-text">
-              AlphaEdge
+            <span className="flex items-center gap-2">
+              <span className="text-lg font-black tracking-tight text-text">AlphaEdge</span>
+              <span className="hidden rounded border border-primary/25 bg-primary-dim/55 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-primary xl:inline">
+                Sim
+              </span>
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden h-full items-stretch gap-0.5 self-stretch lg:flex">
             {NAV.map((item) => {
               const base = item.href.split("?")[0];
-              const isCategoryNav = item.href.includes("?cat=");
               const active =
-                item.href === "/markets"
-                  ? pathname.startsWith("/markets")
-                  : !isCategoryNav && (pathname === base || pathname.startsWith(`${base}/`));
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname === base || pathname.startsWith(`${base}/`);
               return (
                 <Link
                   key={item.label}
@@ -103,28 +109,29 @@ export function SiteHeader() {
                   aria-current={active ? "page" : undefined}
                   onClick={item.label === "Signals" ? () => markRead() : undefined}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-[12px] font-bold uppercase tracking-[0.06em] transition",
-                    active
-                      ? "bg-accent/15 text-accent"
-                      : "text-muted hover:bg-surface-2 hover:text-text",
+                    "relative flex items-center px-3 text-[12px] font-bold uppercase tracking-[0.08em] transition",
+                    active ? "text-text" : "text-muted hover:text-text",
                   )}
                 >
                   <NavLabel
                     label={item.label}
                     unreadCount={item.label === "Signals" ? unreadCount : undefined}
                   />
+                  {active && (
+                    <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-primary shadow-[0_0_12px_rgba(0,226,138,0.75)]" />
+                  )}
                 </Link>
               );
             })}
           </nav>
 
           <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[430px]">
-            <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-accent focus-within:bg-surface-2">
+            <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-primary/45 focus-within:bg-surface-2">
               <SearchIcon />
               <input
                 className="w-full bg-transparent text-sm font-medium text-text placeholder:text-muted-2 focus:outline-none"
-                placeholder="Search markets"
-                aria-label="Search markets"
+                placeholder="Search markets or signals"
+                aria-label="Search markets or signals"
               />
               <span className="hidden rounded border border-border-light px-1.5 py-0.5 font-mono text-[10px] text-muted-2 xl:inline">
                 /
@@ -136,7 +143,10 @@ export function SiteHeader() {
             {isLoggedIn ? (
               <>
                 {paperBalance !== null ? (
-                  <span className="hidden font-mono text-sm font-bold text-primary sm:inline">
+                  <span
+                    className="hidden items-center gap-1.5 rounded-lg border border-primary/25 bg-primary-dim/55 px-2.5 py-1.5 font-mono text-sm font-bold text-primary sm:inline-flex"
+                    title="Unified paper portfolio balance"
+                  >
                     {formatPaperBalance(paperBalance)}
                   </span>
                 ) : null}
@@ -146,21 +156,17 @@ export function SiteHeader() {
                 >
                   {email ? truncateEmail(email) : "Account"}
                 </span>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="inline-flex h-10 items-center rounded-xl border border-border px-5 text-sm font-bold text-text transition hover:border-border-light hover:bg-surface"
-                >
-                  Logout
-                </button>
+                <Button label="Log out" variant="ghost" onClick={logout} />
               </>
             ) : (
-              <Link
-                href="/auth/login"
-                className="inline-flex h-10 items-center rounded-xl border border-border px-5 text-sm font-bold text-text transition hover:border-border-light hover:bg-surface"
-              >
-                Log In
-              </Link>
+              <>
+                <Button label="Log in" variant="ghost" onClick={() => router.push("/auth/login")} />
+                <Button
+                  label="Sign up"
+                  variant="primary"
+                  onClick={() => router.push("/auth/signup")}
+                />
+              </>
             )}
             <NotificationBell slugs={catalogSlugs} />
             <button
@@ -183,7 +189,7 @@ export function SiteHeader() {
                   className={cn(
                     "flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition",
                     i === 0
-                      ? "bg-accent text-white shadow-glow"
+                      ? "bg-primary text-bg"
                       : "border border-border bg-surface text-muted hover:border-border-light hover:text-text",
                   )}
                 >
@@ -192,7 +198,7 @@ export function SiteHeader() {
               ))}
               <Link
                 href="/markets"
-                className="ml-auto hidden shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-black text-text transition hover:border-accent hover:text-accent xl:block"
+                className="ml-auto hidden shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-black text-text transition hover:border-primary hover:text-primary xl:block"
               >
                 View all
               </Link>
