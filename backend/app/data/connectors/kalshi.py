@@ -65,6 +65,21 @@ class KalshiConnector:
                 out.extend(m for m in payload["markets"] if isinstance(m, dict))
         return out
 
+    def list_series_markets(self, series_ticker: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Open markets for a whole series (e.g. KXHIGHNY daily-high ladders)."""
+        payload = self.http.get_json(
+            "/markets",
+            params={
+                "series_ticker": series_ticker.upper(),
+                "status": "open",
+                "limit": str(min(limit, 1000)),
+            },
+        )
+        if not isinstance(payload, dict):
+            return []
+        markets = payload.get("markets")
+        return [m for m in markets if isinstance(m, dict)] if isinstance(markets, list) else []
+
     def list_event_markets(self, event_ticker: str) -> list[dict[str, Any]]:
         payload = self.http.get_json(
             "/markets",
