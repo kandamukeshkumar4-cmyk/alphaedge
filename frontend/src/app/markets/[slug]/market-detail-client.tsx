@@ -33,6 +33,7 @@ import {
 import { SimilarMarkets } from "@/components/SimilarMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
 import { QuestMarketActivity } from "@/components/quest/QuestMarketActivity";
+import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
 const PAPER_DISCLAIMER =
@@ -221,6 +222,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <QuestMarketActivity slug={slug} />
           <DecisionSignalPanel market={market} />
           <DecisionCard slug={slug} />
+          <AnalystChatDrawer marketSlug={slug} context="market" />
           <MarketTradingPanel
             slug={slug}
             title={market.title}

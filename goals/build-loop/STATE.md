@@ -17,8 +17,8 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U01 | Unified market search (PM+Kalshi)       | DONE   | -          | -    | 2026-07-03 verifier PASS (701p/5s, §G clean, UI reachable) |
 | U02 | Unified activity feed                   | DONE   | -          | -    | 2026-07-03 iter 2 PASS (732p/5s, §G clean, feed page + nav reachable) |
 | U03 | Decision dashboard (Bet/Pass card)      | DONE   | -          | U01  | 2026-07-03 iter 3 verifier PASS (749p/5s, §G clean, both deviations OK) |
-| U04 | Portfolio exposure analysis             | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-03 iter 4: maker done 774p/5s, verifier running |
-| U05 | Assistant chat (analysis-only, no-order)| TODO   | -          | U04  | 2026-07-03 queued |
+| U04 | Portfolio exposure analysis             | DONE   | -          | -    | 2026-07-03 iter 4 PASS (774p/5s inline verify, §G clean, 40% boundary OK); committed b0ff6c0 |
+| U05 | Assistant chat (analysis-only, no-order)| IN-REVIEW | opus-4-8 maker → verifier | U04 | 2026-07-03 iter 5: maker done 795p/5s, verifier running |
 | U06 | Agent Builder "Clone-lite"              | TODO   | -          | -    | 2026-07-03 queued |
 | U07 | Clone leaderboard / arena               | TODO   | -          | U06  | 2026-07-03 queued |
 | U08 | Multi-model ensemble + router (AutoLab) | TODO   | -          | -    | 2026-07-03 queued |
@@ -29,6 +29,20 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-03 iter 4 VERDICT: U04 **PASS** → DONE, committed b0ff6c0 (first clean
+  atomic per-ticket commit). Verifier agent hit transient 529 (0 tool uses) →
+  orchestrator verified INLINE: full backend gate 774p/5s exit 0, ruff clean,
+  frontend lint/typecheck/build green. §G clean: exposure_service.py + portfolio.py
+  no OrderBookService/RiskService imports (docstring guardrail note only),
+  read-only aggregation, PAPER_TRADING_ONLY untouched, EXPOSURE_DISCLAIMER in
+  response. CRITICAL BOUNDARY confirmed: exposure_service.py:199 `concentrated=
+  pct > 40.0` (strict) matches test_concentration_exactly_at_threshold_not_
+  concentrated — exactly 40% is NOT concentrated. 25 tests genuine (underlier
+  derivation across NBA/FIFA/crypto/elections + aggregation + boundary + empty).
+  UI mounted portfolio/page.tsx:171. New baseline: **774p/5s**. Iteration 5: U05
+  (analysis-only assistant chat, dep U04 satisfied) claimed. NOTE: U04+U05 both
+  DONE will unblock U13 (personalization).
 
 - 2026-07-03 iter 3 VERDICT: U03 **PASS** → DONE. Verifier independent gate:
   749 passed, 5 skipped (baseline 732), ruff clean, frontend all green. §G clean:

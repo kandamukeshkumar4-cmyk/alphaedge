@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 
 import { useAuth } from "@/hooks/useAuth";
+import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
 import { ExposurePanel } from "@/components/ExposurePanel";
 import { PortfolioRiskPanel } from "@/components/PortfolioRiskPanel";
 import { API_BASE } from "@/lib/alphaedge-api";
@@ -171,6 +172,8 @@ export default function PortfolioPage() {
           {token ? <ExposurePanel token={token} /> : null}
 
           {token ? <PortfolioRiskPanel token={token} /> : null}
+
+          <AnalystChatDrawer context="portfolio" />
 
           <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
