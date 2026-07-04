@@ -541,3 +541,22 @@ def test_onchain_connector_is_read_only_and_cannot_sign_or_submit_transactions()
     assert position.total_pnl == Decimal("17.8000")
     assert position.roi == Decimal("0.4450")
     assert position.hit_rate == Decimal("1.0000")
+
+
+def test_kalshi_list_markets_by_tickers_chunks_requests():
+    from app.data.connectors.kalshi import KalshiConnector
+
+    connector = KalshiConnector()
+    calls: list[dict] = []
+
+    class FakeHttp:
+        def get_json(self, path, params=None):
+            calls.append(params)
+            tickers = params["tickers"].split(",")
+            return {"markets": [{"ticker": t} for t in tickers]}
+
+    connector.http = FakeHttp()
+    out = connector.list_markets_by_tickers([f"KX-{i}" for i in range(90)])
+    assert len(out) == 90
+    assert len(calls) == 3  # 40 + 40 + 10
+    assert all(len(c["tickers"].split(",")) <= 40 for c in calls)

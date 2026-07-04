@@ -135,18 +135,22 @@ async def run_live_tick_once(db: AsyncSession) -> dict[str, str]:
             except Exception as error:  # noqa: BLE001 - per-market isolation
                 return slug, None, error
 
-    async def fetch_kalshi_event(
-        event_id: str,
-        members: list[tuple[str, str, str]],
+    async def fetch_kalshi_board(
+        members: list[tuple[str, str]],
     ) -> list[tuple[str, object | None, Exception | None]]:
-        async with kalshi_semaphore:
-            try:
+        """One batched /markets?tickers=... sweep for the whole Kalshi board.
+
+        The old one-call-per-event fan-out (~100 calls/tick) tripped Kalshi's
+        rate limit and left most mirrored prices stale behind 429s."""
+        tickers = [external_slug for _, external_slug in members]
+        try:
+            async with kalshi_semaphore:
                 payloads = await asyncio.to_thread(
-                    kalshi_connector.list_event_markets,
-                    event_id,
+                    kalshi_connector.list_markets_by_tickers,
+                    tickers,
                 )
-            except Exception as error:  # noqa: BLE001
-                return [(slug, None, error) for slug, _, _ in members]
+        except Exception as error:  # noqa: BLE001
+            return [(slug, None, error) for slug, _ in members]
 
         by_ticker = {
             str(payload.get("ticker") or ""): payload
@@ -154,10 +158,12 @@ async def run_live_tick_once(db: AsyncSession) -> dict[str, str]:
             if isinstance(payload, dict)
         }
         out: list[tuple[str, object | None, Exception | None]] = []
-        for slug, external_slug, _ in members:
+        for slug, external_slug in members:
             payload = by_ticker.get(external_slug)
             if payload is None:
-                out.append((slug, None, ValueError(f"missing ticker {external_slug}")))
+                # Absent from the open-markets response → closed/settled upstream;
+                # handled by the lapse sweep, not an error worth logging every tick.
+                out.append((slug, None, None))
                 continue
             try:
                 snapshot = normalize_kalshi_market(payload)
@@ -166,27 +172,23 @@ async def run_live_tick_once(db: AsyncSession) -> dict[str, str]:
                 out.append((slug, None, error))
         return out
 
-    kalshi_by_event: dict[str, list[tuple[str, str, str]]] = {}
-    for market_id, slug, external_slug, _, event_id in kalshi_rows:
-        key = event_id or external_slug.rsplit("-", 1)[0]
-        kalshi_by_event.setdefault(key, []).append((slug, external_slug, market_id))
-
     fetched: list[tuple[str, object | None, Exception | None]] = []
     fetched.extend(
         await asyncio.gather(
             *(fetch_poly(slug, external) for _, slug, external, _, _ in poly_rows)
         )
     )
-    kalshi_batches = await asyncio.gather(
-        *(fetch_kalshi_event(event_id, members) for event_id, members in kalshi_by_event.items())
+    fetched.extend(
+        await fetch_kalshi_board([(slug, external) for _, slug, external, _, _ in kalshi_rows])
     )
-    for batch in kalshi_batches:
-        fetched.extend(batch)
 
     for slug, snapshot, error in fetched:
-        if error is not None or snapshot is None:
-            logger.warning("Live tick fetch failed for %s: %s", slug, error)
-            results[slug] = "error"
+        if snapshot is None:
+            if error is not None:
+                logger.warning("Live tick fetch failed for %s: %s", slug, error)
+                results[slug] = "error"
+            else:
+                results[slug] = "missing-upstream"
             continue
 
         moved = await persist_and_publish_tick(
@@ -247,6 +249,36 @@ async def _apply_terminal_state(
             logger.info("Live market %s locked (closed upstream)", slug)
     except ValueError as error:
         logger.warning("Terminal state for %s skipped: %s", slug, error)
+
+
+async def lapse_expired_markets(db: AsyncSession) -> int:
+    """Lock any open market whose lock_at has passed.
+
+    Closure used to depend on a successful upstream fetch, so markets that
+    429ed/404ed (or seed markets with no upstream at all) stayed 'open' months
+    past their lock date — the single biggest 'data is not reliable' signal a
+    user sees. This local sweep needs no network."""
+    now = datetime.now(UTC)
+    rows = (
+        await db.execute(
+            select(Market.id, Market.slug).where(
+                Market.status == MarketStatus.OPEN,
+                Market.lock_at.is_not(None),
+                Market.lock_at < now,
+            )
+        )
+    ).all()
+    service = MarketService(db)
+    lapsed = 0
+    for market_id, slug in rows:
+        try:
+            await service.lock_market(market_id)
+            lapsed += 1
+        except ValueError as error:  # raced by resolve/lock elsewhere
+            logger.warning("Lapse skipped for %s: %s", slug, error)
+    if lapsed:
+        logger.info("Lapsed %d expired markets", lapsed)
+    return lapsed
 
 
 async def run_price_feed_once(db: AsyncSession) -> dict[str, str]:

@@ -294,3 +294,94 @@ async def test_live_tick_locks_market_when_upstream_closed(db_session, monkeypat
     assert results[market.slug] == "live-closed"
     await db_session.refresh(market)
     assert market.status == MarketStatus.LOCKED
+
+
+# ── kalshi batch tick + lapse sweep ──────────────────────────────────────────
+
+
+def _kalshi_market_row(slug: str, ticker: str, lock_at=None) -> Market:
+    return Market(
+        slug=slug,
+        title=f"Kalshi {ticker}",
+        question=f"{ticker}?",
+        category="Politics",
+        icon="🗳️",
+        volume=1000,
+        traders=0,
+        market_count=1,
+        description="test",
+        resolution="test",
+        status=MarketStatus.OPEN,
+        lock_at=lock_at,
+        source="kalshi",
+        external_slug=ticker,
+        external_id=ticker.rsplit("-", 1)[0],
+    )
+
+
+class FakeKalshiConnector:
+    def __init__(self, markets: list[dict]):
+        self.markets = markets
+        self.calls: list[list[str]] = []
+
+    def list_markets_by_tickers(self, tickers: list[str]) -> list[dict]:
+        self.calls.append(list(tickers))
+        wanted = {t.upper() for t in tickers}
+        return [m for m in self.markets if m["ticker"].upper() in wanted]
+
+
+@pytest.mark.asyncio
+async def test_live_tick_kalshi_uses_one_batched_call(db_session, monkeypatch):
+    """The whole Kalshi board is fetched in ONE tickers-batched call, not one
+    call per event (which tripped Kalshi's rate limit and left prices stale)."""
+    db_session.add(_kalshi_market_row("ks-kxaaa-1-yes", "KXAAA-1-YES"))
+    db_session.add(_kalshi_market_row("ks-kxbbb-2-yes", "KXBBB-2-YES"))
+    await db_session.flush()
+
+    fake = FakeKalshiConnector(
+        markets=[
+            {"ticker": "KXAAA-1-YES", "title": "A", "last_price_dollars": "0.42",
+             "status": "active"},
+            # KXBBB absent → closed upstream, must NOT be an error
+        ]
+    )
+    monkeypatch.setattr(
+        "app.workers.price_feed_worker.KalshiConnector", lambda base_url: fake
+    )
+
+    async def fake_publish(slug, payload):
+        return None
+
+    monkeypatch.setattr("app.workers.price_feed_worker.hub.publish", fake_publish)
+
+    results = await run_live_tick_once(db_session)
+
+    assert len(fake.calls) == 1  # one batch, both tickers in it
+    assert set(fake.calls[0]) == {"KXAAA-1-YES", "KXBBB-2-YES"}
+    assert results["ks-kxaaa-1-yes"] == "ok"
+    assert results["ks-kxbbb-2-yes"] == "missing-upstream"
+    row = await db_session.scalar(
+        select(OddsSnapshot).where(OddsSnapshot.market_slug == "ks-kxaaa-1-yes").limit(1)
+    )
+    assert row is not None and float(row.implied_yes) == 0.42
+
+
+@pytest.mark.asyncio
+async def test_lapse_expired_markets_locks_past_lock_at(db_session):
+    from datetime import timedelta
+
+    from app.workers.price_feed_worker import lapse_expired_markets
+
+    now = datetime.now(UTC)
+    expired = _kalshi_market_row("ks-expired-yes", "KXEXP-1-YES", lock_at=now - timedelta(days=3))
+    future = _kalshi_market_row("ks-future-yes", "KXFUT-1-YES", lock_at=now + timedelta(days=3))
+    db_session.add_all([expired, future])
+    await db_session.flush()
+
+    lapsed = await lapse_expired_markets(db_session)
+
+    assert lapsed >= 1
+    await db_session.refresh(expired)
+    await db_session.refresh(future)
+    assert expired.status == MarketStatus.LOCKED
+    assert future.status == MarketStatus.OPEN

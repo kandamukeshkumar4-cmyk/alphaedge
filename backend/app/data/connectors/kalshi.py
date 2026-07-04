@@ -47,6 +47,24 @@ class KalshiConnector:
         events = payload.get("events")
         return events if isinstance(events, list) else []
 
+    # Kalshi rate-limits aggressively; one /markets call per event (~100/tick)
+    # gets 429ed and leaves most mirrored prices stale. /markets accepts a
+    # comma-separated `tickers` param, so the whole board fits in 2-3 calls.
+    _TICKER_BATCH_SIZE = 40
+
+    def list_markets_by_tickers(self, tickers: list[str]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        cleaned = [t.upper() for t in tickers if t]
+        for start in range(0, len(cleaned), self._TICKER_BATCH_SIZE):
+            chunk = cleaned[start : start + self._TICKER_BATCH_SIZE]
+            payload = self.http.get_json(
+                "/markets",
+                params={"tickers": ",".join(chunk), "limit": str(len(chunk))},
+            )
+            if isinstance(payload, dict) and isinstance(payload.get("markets"), list):
+                out.extend(m for m in payload["markets"] if isinstance(m, dict))
+        return out
+
     def list_event_markets(self, event_ticker: str) -> list[dict[str, Any]]:
         payload = self.http.get_json(
             "/markets",

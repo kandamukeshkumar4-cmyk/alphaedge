@@ -86,11 +86,13 @@ async def _live_tick_loop() -> None:
 async def _live_ingest_loop() -> None:
     from app.services.kalshi_live_ingest import KalshiLiveIngestService
     from app.services.live_market_ingest import LiveMarketIngestService
+    from app.workers.price_feed_worker import lapse_expired_markets
 
     interval = max(300, settings.live_ingest_interval_sec)
     while True:
         async with AsyncSessionLocal() as session:
             try:
+                await lapse_expired_markets(session)
                 kalshi = KalshiLiveIngestService(session)
                 kalshi_summary = await kalshi.sync_world_cup_matches()
                 kalshi_board = await kalshi.sync_open_events()
@@ -149,6 +151,9 @@ async def lifespan(app: FastAPI):
                 from app.services.kalshi_live_ingest import KalshiLiveIngestService
                 from app.services.live_market_ingest import LiveMarketIngestService
 
+                from app.workers.price_feed_worker import lapse_expired_markets
+
+                await lapse_expired_markets(session)
                 kalshi_ingest = KalshiLiveIngestService(session)
                 await kalshi_ingest.sync_world_cup_matches()
                 await kalshi_ingest.sync_open_events()
