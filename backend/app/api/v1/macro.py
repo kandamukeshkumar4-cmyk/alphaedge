@@ -72,6 +72,10 @@ async def macro_dashboard() -> MacroOut:
         connector = FredConnector(api_key=settings.fred_api_key)
         # The connector uses blocking httpx; run off the event loop.
         result = await asyncio.to_thread(_build, connector)
-        _cache["data"] = result
-        _cache["at"] = time.time()
+        # Never cache an empty/failed fetch for the full TTL — a transient
+        # upstream blip would otherwise blank the dashboard for 6h. Only a
+        # successful, non-empty result is cached; empties are retried next call.
+        if result.indicators:
+            _cache["data"] = result
+            _cache["at"] = time.time()
         return result

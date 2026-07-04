@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { wsBase } from "@/lib/live-price";
+import { API_BASE } from "@/lib/alphaedge-api";
 
 export type BriefFrame = {
   channel: "briefs";
@@ -36,6 +37,11 @@ export function useActivityFeed(handlers: Handlers): void {
   }, [handlers]);
 
   useEffect(() => {
+    // No backend configured (demo/static deploy) → don't open a socket that
+    // can never connect and would reconnect forever. REST clients guard the
+    // same way on empty API_BASE.
+    if (!API_BASE) return;
+
     let dead = false;
     let ws: WebSocket | null = null;
     let retry = 0;

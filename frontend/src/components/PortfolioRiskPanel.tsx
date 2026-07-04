@@ -55,7 +55,9 @@ export function PortfolioRiskPanel({ token }: { token: string }) {
 
   if (!loaded || risk === null) return null;
 
-  const exposures = Object.entries(risk.exposure_pct_by_category).sort((a, b) => b[1] - a[1]);
+  const exposures = Object.entries(risk.exposure_pct_by_category)
+    .map(([cat, pct]) => [cat, Number.isFinite(Number(pct)) ? Number(pct) : 0] as const)
+    .sort((a, b) => b[1] - a[1]);
 
   return (
     <section className="mb-6 rounded-2xl border border-border bg-surface p-4 sm:p-5">
@@ -103,7 +105,7 @@ export function PortfolioRiskPanel({ token }: { token: string }) {
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
                       <div
                         className="h-full rounded-full bg-accent"
-                        style={{ width: `${Math.min(100, pct)}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                       />
                     </div>
                     <span className="w-20 text-right font-mono text-[11px] tabular-nums text-text">

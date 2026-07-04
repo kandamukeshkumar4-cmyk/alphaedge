@@ -195,10 +195,15 @@ async def get_portfolio_risk(
     except (OperationalError, ProgrammingError):
         positions = []
 
+    # Only settled trades with a positive cost basis are usable: a fully
+    # round-tripped-to-flat position has its net cost clamped to 0 upstream and
+    # cannot yield a per-trade return, so it must be excluded from ALL closed
+    # metrics (win_rate, drawdown, Sharpe) — not just Sharpe — to keep every
+    # metric describing the same trade population.
     closed = [
         ClosedTrade(cost=p.cost, realized_pnl=p.realized_pnl or 0.0)
         for p in positions
-        if p.settled
+        if p.settled and p.cost > 0
     ]
     open_positions = [p for p in positions if not p.settled]
 

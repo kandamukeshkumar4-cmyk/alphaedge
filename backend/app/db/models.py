@@ -83,6 +83,15 @@ class User(Base):
 
 
 class PaperOrder(Base):
+    """A JWT-user's paper-trade ledger entry (slug/side/cost/realized_pnl/settled).
+
+    NOT a duplicate of ``Order``: that models the CLOB matching-engine order
+    (account-based, order_type, price/quantity, filled_quantity, fills). They
+    are distinct domain concepts with different lifecycles and consumers, so the
+    long-standing "PaperOrder/Order consolidation" (C1/E09) is deliberately NOT
+    done — merging them would be an architectural error, not a cleanup.
+    """
+
     __tablename__ = "paper_orders"
     __table_args__ = (Index("ix_paper_orders_user_id", "user_id"),)
 
@@ -189,6 +198,14 @@ class Order(Base):
 
 
 class PaperSignal(Base):
+    """A per-account market signal/watchlist marker (unique per account+market).
+
+    NOT a duplicate of ``signal_events``: that stores pipeline-generated diff/
+    whale/news DeltaEvents (signal_type/platform/payload). Different producers,
+    different schema, different consumers — so the "PaperSignal → signal_events
+    fold" (C2/E09) is deliberately NOT done.
+    """
+
     __tablename__ = "paper_signals"
     __table_args__ = (
         Index("ix_paper_signals_account_market", "account_id", "market_id", unique=True),
@@ -797,6 +814,73 @@ class ForecastLog(Base):
     market_snapshot: Mapped[Optional["MarketSnapshot"]] = relationship()
     score: Mapped[Optional["ForecastScore"]] = relationship(
         back_populates="forecast", uselist=False
+    )
+
+
+class AgentClone(Base):
+    """U06 — User-composed agent clone: a saved configuration of a SUBSET of
+    the vetted GRAPH_NODES plus execution params.  Editing creates a new version
+    (version increments); old versions are retained as separate rows with the
+    same clone_id but a higher version number."""
+
+    __tablename__ = "agent_clones"
+    __table_args__ = (
+        Index("ix_agent_clones_clone_id_version", "clone_id", "version", unique=True),
+        Index("ix_agent_clones_user_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Stable identifier across versions — all versions share the same clone_id.
+    clone_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # JSON-serialised list[str] of vetted GRAPH_NODE names (server-validated on write).
+    nodes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    # Watched market slugs / category strings (JSON list[str]).
+    markets: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    # Edge threshold: 0.0–0.50, clamped on write.
+    edge_threshold: Mapped[float] = mapped_column(Numeric(5, 4), default=0.05)
+    # Cooldown between runs in minutes: 60–10080 (1h–7d), clamped on write.
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    # is_latest flag — only the newest version per clone_id is True.
+    is_latest: Mapped[bool] = mapped_column(Boolean, default=True)
+    # paper-only enforcement annotation (non-functional; checked in runner).
+    paper_trading_only: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    runs: Mapped[list["AgentCloneRun"]] = relationship(
+        back_populates="clone", foreign_keys="AgentCloneRun.clone_version_id"
+    )
+
+
+class AgentCloneRun(Base):
+    """U06 — A single paper-mode execution of an AgentClone on a specific market."""
+
+    __tablename__ = "agent_clone_runs"
+    __table_args__ = (
+        Index("ix_agent_clone_runs_clone_id_created", "clone_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # The specific clone version row that was executed.
+    clone_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_clones.id"), nullable=False
+    )
+    # Stable clone_id for querying all runs across versions.
+    clone_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending")  # pending|running|done|error
+    # Serialised list of AgentTraceStep dicts.
+    trace: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    # Subset of AgentState snapshot at end of run.
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    clone: Mapped["AgentClone"] = relationship(
+        back_populates="runs", foreign_keys=[clone_version_id]
     )
 
 

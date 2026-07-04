@@ -15,6 +15,11 @@ type RegionScore = {
   at: string;
 };
 
+function num(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0; // guard non-numeric payload → never NaN in UI
+}
+
 function latestPerRegion(
   events: Array<{ payload: Record<string, unknown>; created_at: string }>,
 ): RegionScore[] {
@@ -24,8 +29,8 @@ function latestPerRegion(
     if (!region || seen.has(region)) continue; // events arrive newest-first
     seen.set(region, {
       region,
-      score: Number(e.payload.score ?? 0),
-      prev: Number(e.payload.prev ?? 0),
+      score: num(e.payload.score),
+      prev: num(e.payload.prev),
       at: e.created_at,
     });
   }
