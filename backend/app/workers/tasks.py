@@ -373,6 +373,100 @@ async def _attach_distribution_metadata(session, now, distribution: dict) -> Non
         digest.citations = citations
 
 
+NIGHTLY_BACKTEST_JOB_NAME = "nightly_backtest_task"
+
+
+async def nightly_backtest_task(ctx: dict) -> dict:
+    """Nightly: run replay on configured market slugs and publish to backtest_runs.
+
+    Flag-gated: BACKTEST_NIGHTLY_ENABLED must be true.  OFF by default.
+    Paper-only — does not route through OrderBookService or RiskService.
+    """
+    from datetime import timedelta
+
+    from app.backtesting.snapshot_replay import run_snapshot_replay
+    from app.db.models import BacktestRun
+    from app.db.session import AsyncSessionLocal
+
+    settings = ctx.get("settings") or get_settings()
+    if not settings.backtest_nightly_enabled:
+        return {"skipped": True, "reason": "BACKTEST_NIGHTLY_ENABLED=false"}
+
+    slugs = [s.strip() for s in settings.backtest_nightly_slugs.split(",") if s.strip()]
+    if not slugs:
+        return {"skipped": True, "reason": "no slugs configured"}
+
+    import uuid
+    from decimal import Decimal
+
+    now = datetime.now(UTC)
+    end_date = now
+    start_date = now - timedelta(days=7)
+    results: dict[str, str] = {}
+
+    for slug in slugs:
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await run_snapshot_replay(session, slug, start_date, end_date)
+                equity_curve_json = [
+                    {"timestamp": pt.timestamp.isoformat(), "equity": pt.equity}
+                    for pt in result.equity_curve
+                ]
+                brier_json = [
+                    {
+                        "timestamp": pt.timestamp.isoformat(),
+                        "brier": pt.brier,
+                        "sample_count": pt.sample_count,
+                    }
+                    for pt in result.brier_over_time
+                ]
+                fill_quality_json = None
+                if result.fill_quality is not None:
+                    fq = result.fill_quality
+                    fill_quality_json = {
+                        "trade_count": fq.trade_count,
+                        "mean_slippage": fq.mean_slippage,
+                        "max_slippage": fq.max_slippage,
+                        "total_realized_pnl": fq.total_realized_pnl,
+                        "mean_realized_pnl": fq.mean_realized_pnl,
+                    }
+                run_row = BacktestRun(
+                    id=uuid.uuid4(),
+                    market_slug=slug,
+                    start_date=start_date,
+                    end_date=end_date,
+                    initial_equity=Decimal("10000"),
+                    final_equity=Decimal(str(result.final_equity)),
+                    snapshot_count=result.snapshot_count,
+                    trade_count=len([t for t in result.trades if t.side in ("yes_buy", "no_buy")]),
+                    brier_final=Decimal(str(round(result.brier_final, 6))) if result.brier_final else None,
+                    no_lookahead_verified=result.no_lookahead_verified,
+                    insufficient_data=result.insufficient_data,
+                    equity_curve=equity_curve_json,
+                    fill_quality=fill_quality_json,
+                    brier_over_time=brier_json,
+                    status="completed",
+                    paper_trading_only=True,
+                )
+                session.add(run_row)
+                session.add(
+                    JobRun(
+                        job_name=NIGHTLY_BACKTEST_JOB_NAME,
+                        status="success",
+                        started_at=now,
+                        finished_at=datetime.now(UTC),
+                        summary={"slug": slug, "snapshots": result.snapshot_count},
+                    )
+                )
+                await session.commit()
+            results[slug] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Nightly backtest failed for %s: %s", slug, exc)
+            results[slug] = f"error: {exc}"
+
+    return {"results": results}
+
+
 async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str) -> None:
     from app.db.models import FailedJob
     from app.db.session import AsyncSessionLocal
@@ -402,6 +496,7 @@ class WorkerSettings:
         score_claims_task,
         analyst_aggregates_task,
         morning_research_task,
+        nightly_backtest_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -416,4 +511,6 @@ class WorkerSettings:
         cron(analyst_aggregates_task, minute={50}),
         # daily research digest at 06:00 — "the desk runs while you sleep"
         cron(morning_research_task, hour={6}, minute={0}),
+        # nightly backtest replay at 02:00 — flag-gated (BACKTEST_NIGHTLY_ENABLED=false)
+        cron(nightly_backtest_task, hour={2}, minute={0}),
     ]

@@ -22,13 +22,28 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U06 | Agent Builder "Clone-lite"              | DONE   | -          | -    | 2026-07-03 iter 6 verifier PASS (821p/5s, G3 3-layer, single head 029); committed 6a60df6 |
 | U07 | Clone leaderboard / arena               | DONE   | -          | U06  | 2026-07-03 iter 7 verifier PASS (845p/5s, scorer reuse, honest stub); committed dc43429 |
 | U08 | Multi-model ensemble + router (AutoLab) | DONE   | -          | -    | 2026-07-04 iter 8 verifier PASS (886p/5s, honest iter=0 flag OFF, baseline byte-identical); committed e55237e |
-| U09 | Memory / learning loop (AutoLab)        | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-04 iter 9: maker done 911p/5s honest iter=0; verifier checking GRAPH_NODES change vs U06 |
-| U10 | Backtest replay + realistic fills       | TODO   | -          | -    | 2026-07-03 queued |
+| U09 | Memory / learning loop (AutoLab)        | DONE   | -          | -    | 2026-07-04 iter 9 verifier PASS (911p/5s, cross-ticket U06 safe, honest iter=0); committed 50d66a1 |
+| U10 | Backtest replay + realistic fills       | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-04 iter 10: maker done 937p/5s, mig 030; verifier running |
 | U11 | Cross-platform arb hardening            | TODO   | -          | U02  | 2026-07-03 queued |
 | U12 | Observability + calibration drift       | TODO   | -          | -    | 2026-07-03 queued |
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-04 iter 9 VERDICT: U09 **PASS** → DONE, committed 50d66a1. Verifier
+  confirmed all 6 checks incl the cross-ticket risk: (1) U06 clone tests STILL
+  PASS with new "retrieval" node (VETTED_NODE_NAMES auto-derives; 7-node seq
+  data→retrieval→news→prediction→risk→reasoning→execute; all 26 clone tests green);
+  (2) flag-off reasoning byte-identical, retrieval_node early-return no-op with
+  zero app.memory imports when OFF (graph.py:111); (3) NO fabricated precedents —
+  _RESOLVED_SEED = exactly 1 real resolved market (nba-2025-01-15-lal-bos YES),
+  other 15 catalog slugs never returned; (4) deterministic similarity
+  0.5cat+0.3tag+0.2jaccard, tie-break by slug; (5) AutoLab honest iterations=0;
+  (6) no order-path imports in app/memory/. Minor cosmetic: retrieval.py docstring
+  says "returns []" but code raises RetrievalDisabledError (non-blocking, behavior
+  correct+tested). pgvector NOT in env → deterministic feature-overlap fallback
+  (honest). Gate 911p/5s, single head 029. New baseline: **911p/5s**.
+  Iteration 10: U10 (backtest replay + realistic fills) claimed.
 
 - 2026-07-04 iter 8 VERDICT: U08 **PASS** → DONE (committed e55237e via shared-branch
   sweep — content correct, gate green, non-atomic history noted). Verifier confirmed

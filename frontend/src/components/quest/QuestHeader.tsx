@@ -86,6 +86,7 @@ const NAV_LINKS: Array<{ href: string; label: string; tour: string }> = [
   { href: "/clones", label: "Clones", tour: "nav-clones" },
   { href: "/leaderboard", label: "Leaderboard", tour: "nav-leaderboard" },
   { href: "/research", label: "Research", tour: "nav-research" },
+  { href: "/backtest", label: "Backtest", tour: "nav-backtest" },
   { href: "/signals", label: "Signals", tour: "nav-signals" },
   { href: "/track-record", label: "Track record", tour: "nav-track-record" },
   { href: "/forecast", label: "Forecast", tour: "nav-forecast" },

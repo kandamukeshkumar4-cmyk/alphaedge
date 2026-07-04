@@ -125,6 +125,102 @@ export async function fetchMarketCandlesMeta(
   }
 }
 
+// ---------------------------------------------------------------------------
+// U10 — Backtest replay API
+// ---------------------------------------------------------------------------
+
+export type EquityPoint = { timestamp: string; equity: number };
+export type FillQualityStats = {
+  trade_count: number;
+  mean_slippage: number;
+  max_slippage: number;
+  total_realized_pnl: number;
+  mean_realized_pnl: number;
+};
+export type BrierPoint = { timestamp: string; brier: number; sample_count: number };
+
+export type BacktestRunResult = {
+  id: string;
+  market_slug: string;
+  clone_id: string | null;
+  start_date: string;
+  end_date: string;
+  initial_equity: number;
+  final_equity: number | null;
+  equity_curve: EquityPoint[];
+  fill_quality: FillQualityStats | null;
+  brier_over_time: BrierPoint[];
+  brier_final: number | null;
+  snapshot_count: number;
+  trade_count: number;
+  no_lookahead_verified: boolean;
+  insufficient_data: boolean;
+  status: string;
+  paper_trading_only: boolean;
+  created_at: string;
+};
+
+export type BacktestRunRequest = {
+  market_slug: string;
+  start_date: string;
+  end_date: string;
+  initial_equity?: number;
+  stake?: number;
+  spread?: number;
+  slippage_per_unit?: number;
+  edge_threshold?: number;
+  clone_id?: string;
+};
+
+export async function triggerBacktestRun(
+  req: BacktestRunRequest,
+): Promise<BacktestRunResult | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/backtest/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as BacktestRunResult;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchBacktestRuns(
+  market_slug?: string,
+  limit = 20,
+): Promise<BacktestRunResult[]> {
+  if (!API_BASE) return [];
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (market_slug) params.set("market_slug", market_slug);
+    const response = await fetch(`${API_BASE}/api/v1/backtest/runs?${params}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return [];
+    return (await response.json()) as BacktestRunResult[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchBacktestRun(runId: string): Promise<BacktestRunResult | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/backtest/runs/${encodeURIComponent(runId)}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as BacktestRunResult;
+  } catch {
+    return null;
+  }
+}
+
 export const canonicalMarket: Market = {
   id: "00000000-0000-0000-0000-000000000101",
   slug: CANONICAL_SLUG,

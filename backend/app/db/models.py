@@ -903,3 +903,38 @@ class ForecastScore(Base):
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     forecast: Mapped["ForecastLog"] = relationship(back_populates="score")
+
+
+class BacktestRun(Base):
+    """U10 — Stored result of a backtest replay over historical odds_snapshots.
+
+    No order-path imports; paper-only simulation.  paper_trading_only is always True.
+    """
+
+    __tablename__ = "backtest_runs"
+    __table_args__ = (
+        Index("ix_backtest_runs_market_slug", "market_slug"),
+        Index("ix_backtest_runs_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    clone_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    initial_equity: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("10000"))
+    final_equity: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
+    spread: Mapped[Decimal] = mapped_column(Numeric(8, 6), default=Decimal("0.02"))
+    slippage_per_unit: Mapped[Decimal] = mapped_column(Numeric(10, 8), default=Decimal("0.001"))
+    edge_threshold: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0.05"))
+    snapshot_count: Mapped[int] = mapped_column(Integer, default=0)
+    trade_count: Mapped[int] = mapped_column(Integer, default=0)
+    brier_final: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6), nullable=True)
+    no_lookahead_verified: Mapped[bool] = mapped_column(Boolean, default=True)
+    insufficient_data: Mapped[bool] = mapped_column(Boolean, default=False)
+    equity_curve: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    fill_quality: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    brier_over_time: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="completed")
+    paper_trading_only: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

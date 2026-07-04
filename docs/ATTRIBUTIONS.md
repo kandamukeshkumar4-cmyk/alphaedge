@@ -25,3 +25,16 @@ This file records source-code attributions per the Loop C §G4 license policy.
   typed params). No code was copied verbatim; the clone service is an original
   implementation building on AlphaEdge's existing `GRAPH_NODES` / `run_agent_graph_with_trace`.
 - **Ticket**: U06 — Agent Builder (Clone-lite)
+
+## Jon-Becker/prediction-market-analysis (MIT)
+
+- **Repo**: https://github.com/Jon-Becker/prediction-market-analysis
+- **License**: MIT
+- **Used in**: `backend/app/backtesting/snapshot_replay.py`
+- **What was adapted**: The conceptual pattern of replaying over a dated price
+  series to produce an equity curve (§G4: "Jon-Becker MIT is adaptable for data
+  handling with attribution"). No code was copied verbatim; the replay engine is
+  an original implementation using AlphaEdge's OddsSnapshot store with the
+  no-lookahead enforcement from T08's ClaimScorerService pattern and a bespoke
+  realistic fill model in `fill_model.py`.
+- **Ticket**: U10 — Backtest replay + realistic fills
