@@ -143,6 +143,21 @@ Data-quality follow-ups found (new tickets, not blockers):
 - E16: France market price oscillates 0.15↔0.995 across polls (two sources /
   seed-vs-live), producing a bogus 8450bps "jump". Dedup price source per market.
 
+## Code-review pass + live verification — 2026-07-04
+
+Ran a high-effort code review (3 finder angles + verify) over the E11–E16 work.
+Fixed 5 real edge cases in MY code (macro empty-cache-for-6h, portfolio risk
+inconsistent trade population, useActivityFeed WS-in-demo, InstabilityPanel NaN,
+PortfolioRiskPanel width/toFixed). 2 findings are in loop-c's uncommitted
+`assistant.py` (no auth on the LLM chat endpoint; banner substring guard) —
+FLAGGED to owner, NOT edited (respecting the cross-session boundary that caused
+the stash disaster; the structural no-order guardrail there is solid and default
+config has no LLM key, so it's a latent-not-live issue). E09 RESOLVED (models are
+not duplicates — see row). Live-verified on real data: 158 Polymarket + 135
+Kalshi markets, real ticks from both, 310 delta signals, graded claims
+(void/incorrect/pending — T08 live), personas (macro/news briefs), macro desk
+on real FRED. Commit 6f83334.
+
 ## LOOP COMPLETE — 2026-07-03
 
 Every ticket is DONE, RETIRED (user decision / mandate conflict), or DEFERRED
