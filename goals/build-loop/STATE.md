@@ -19,8 +19,8 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U03 | Decision dashboard (Bet/Pass card)      | DONE   | -          | U01  | 2026-07-03 iter 3 verifier PASS (749p/5s, §G clean, both deviations OK) |
 | U04 | Portfolio exposure analysis             | DONE   | -          | -    | 2026-07-03 iter 4 PASS (774p/5s inline verify, §G clean, 40% boundary OK); committed b0ff6c0 |
 | U05 | Assistant chat (analysis-only, no-order)| DONE   | -          | U04  | 2026-07-03 iter 5 PASS (795p/5s inline verify, §G2 safety-critical clean); committed 0caf20c |
-| U06 | Agent Builder "Clone-lite"              | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-03 iter 6: maker done 821p/5s, verifier running |
-| U07 | Clone leaderboard / arena               | TODO   | -          | U06  | 2026-07-03 queued |
+| U06 | Agent Builder "Clone-lite"              | DONE   | -          | -    | 2026-07-03 iter 6 verifier PASS (821p/5s, G3 3-layer, single head 029); committed 6a60df6 |
+| U07 | Clone leaderboard / arena               | IN-REVIEW | opus-4-8 maker → verifier | U06 | 2026-07-03 iter 7: maker done 845p/5s, verifier running |
 | U08 | Multi-model ensemble + router (AutoLab) | TODO   | -          | -    | 2026-07-03 queued |
 | U09 | Memory / learning loop (AutoLab)        | TODO   | -          | -    | 2026-07-03 queued |
 | U10 | Backtest replay + realistic fills       | TODO   | -          | -    | 2026-07-03 queued |
@@ -29,6 +29,18 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-03 iter 6 VERDICT: U06 **PASS** → DONE, committed 6a60df6. Verifier agent
+  (recovered — no 529/limit this round) confirmed all 6 G3 checks: (1)
+  VETTED_NODE_NAMES = frozenset(name for name,_ in GRAPH_NODES) derived not copied
+  (clone_service.py:32); (2) unknown node rejected at Pydantic 422 + service
+  UnknownNodeError + runtime guard _run_clone_graph:258; (3) zero order-path
+  imports, AST tests genuinely parse+walk; (4) params clamped edge[0,0.50]
+  cooldown[60,10080]; (5) versioning retains old (is_latest=False, not
+  overwritten); (6) UI fetches vetted nodes from GET /api/v1/clones/nodes.
+  paper_trading_only hardcoded True not user-settable. Full gate 821p/5s, ruff
+  clean, single alembic head 029, frontend green. New baseline: **821p/5s**.
+  Iteration 7: U07 (clone leaderboard/arena, dep U06 satisfied) claimed.
 
 - 2026-07-03 iter 5 VERDICT: U05 **PASS** → DONE, committed 0caf20c. Verifier agent
   cut off by session limit (10pm reset) → orchestrator verified INLINE (this is the
