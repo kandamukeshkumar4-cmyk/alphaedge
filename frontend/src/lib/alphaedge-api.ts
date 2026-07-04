@@ -426,6 +426,121 @@ function mergeApiDetailForCards(
   };
 }
 
+// ── U06 Clone API ────────────────────────────────────────────────────────────
+
+export type CloneConfig = {
+  id: string;
+  clone_id: string;
+  version: number;
+  name: string;
+  nodes: string[];
+  markets: string[];
+  edge_threshold: number;
+  cooldown_minutes: number;
+  is_latest: boolean;
+  paper_trading_only: boolean;
+  created_at: string;
+};
+
+export type CloneRun = {
+  id: string;
+  clone_id: string;
+  clone_version_id: string;
+  market_slug: string;
+  status: "pending" | "running" | "done" | "error";
+  trace: Array<{ step_name: string; input_data: Record<string, unknown>; output_data: Record<string, unknown> }>;
+  result: Record<string, unknown>;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export async function fetchVettedNodes(token?: string): Promise<string[]> {
+  if (!API_BASE) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones/nodes`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { nodes?: string[] };
+    return data.nodes ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchClones(token: string): Promise<CloneConfig[]> {
+  if (!API_BASE || !token) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { clones?: CloneConfig[] };
+    return data.clones ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createClone(
+  token: string,
+  payload: { name: string; nodes: string[]; markets: string[]; edge_threshold: number; cooldown_minutes: number },
+): Promise<CloneConfig | null> {
+  if (!API_BASE || !token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CloneConfig;
+  } catch {
+    return null;
+  }
+}
+
+export async function runClone(
+  token: string,
+  cloneId: string,
+  marketSlug: string,
+): Promise<CloneRun | null> {
+  if (!API_BASE || !token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones/${cloneId}/run`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ market_slug: marketSlug }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CloneRun;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCloneRuns(
+  token: string,
+  cloneId: string,
+  limit = 20,
+): Promise<CloneRun[]> {
+  if (!API_BASE || !token) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones/${cloneId}/runs?limit=${limit}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { runs?: CloneRun[] };
+    return data.runs ?? [];
+  } catch {
+    return [];
+  }
+}
+
 function fallbackForSlug(slug: string): MarketSnapshot {
   if (slug === CANONICAL_SLUG) {
     return fallbackSnapshot;

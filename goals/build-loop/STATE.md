@@ -18,8 +18,8 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U02 | Unified activity feed                   | DONE   | -          | -    | 2026-07-03 iter 2 PASS (732p/5s, §G clean, feed page + nav reachable) |
 | U03 | Decision dashboard (Bet/Pass card)      | DONE   | -          | U01  | 2026-07-03 iter 3 verifier PASS (749p/5s, §G clean, both deviations OK) |
 | U04 | Portfolio exposure analysis             | DONE   | -          | -    | 2026-07-03 iter 4 PASS (774p/5s inline verify, §G clean, 40% boundary OK); committed b0ff6c0 |
-| U05 | Assistant chat (analysis-only, no-order)| IN-REVIEW | opus-4-8 maker → verifier | U04 | 2026-07-03 iter 5: maker done 795p/5s, verifier running |
-| U06 | Agent Builder "Clone-lite"              | TODO   | -          | -    | 2026-07-03 queued |
+| U05 | Assistant chat (analysis-only, no-order)| DONE   | -          | U04  | 2026-07-03 iter 5 PASS (795p/5s inline verify, §G2 safety-critical clean); committed 0caf20c |
+| U06 | Agent Builder "Clone-lite"              | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-03 iter 6: maker done 821p/5s, verifier running |
 | U07 | Clone leaderboard / arena               | TODO   | -          | U06  | 2026-07-03 queued |
 | U08 | Multi-model ensemble + router (AutoLab) | TODO   | -          | -    | 2026-07-03 queued |
 | U09 | Memory / learning loop (AutoLab)        | TODO   | -          | -    | 2026-07-03 queued |
@@ -29,6 +29,19 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-03 iter 5 VERDICT: U05 **PASS** → DONE, committed 0caf20c. Verifier agent
+  cut off by session limit (10pm reset) → orchestrator verified INLINE (this is the
+  safety-critical ticket, done carefully). §G2 CONFIRMED: assistant.py zero
+  order-path import lines (grep of import statements), ASSISTANT_ALLOWED_TOOLS =
+  {get_odds,get_features,get_exposure,get_briefs,get_agent_trace} — no
+  submit_order_intent; AST guardrail test genuinely ast.parse+walk ImportFrom (not
+  assert True), 5 guardrail tests pass. Full gate: 795p/5s, ruff clean, frontend
+  lint/typecheck/build green. UI: AnalystChatDrawer mounted market-detail:225 +
+  portfolio:176, analysis-only banner unconditional static div (testid line 264),
+  zero order controls in drawer. New baseline: **795p/5s**. U04+U05 both DONE →
+  U13 (personalization) now UNBLOCKED. Iteration 6: U06 (Agent Builder Clone-lite)
+  claimed per build order (U06→U07, then U08-U12, U13).
 
 - 2026-07-03 iter 4 VERDICT: U04 **PASS** → DONE, committed b0ff6c0 (first clean
   atomic per-ticket commit). Verifier agent hit transient 529 (0 tool uses) →
