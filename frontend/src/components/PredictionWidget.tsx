@@ -70,7 +70,7 @@ export function PredictionWidget({ slug, className }: PredictionWidgetProps) {
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#5B3DF5] font-mono text-[11px] font-black text-white">
+        <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#0D9488] font-mono text-[11px] font-black text-white">
           AI
         </span>
         <h3 className="text-sm font-black text-text">Market prediction</h3>
@@ -88,7 +88,7 @@ export function PredictionWidget({ slug, className }: PredictionWidgetProps) {
         </div>
         <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-border/80">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-accent to-[#5B3DF5] transition-[width] duration-300"
+            className="h-full rounded-full bg-gradient-to-r from-accent to-[#0D9488] transition-[width] duration-300"
             style={{ width: `${confidencePct}%` }}
             role="progressbar"
             aria-valuenow={confidencePct}

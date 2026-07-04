@@ -8,7 +8,21 @@
 > of `FRONTEND_DESIGN_SPEC.md` (the Kalshi × Polymarket layout guidance there
 > still applies to page structure).
 
-## Provenance & honesty note
+## Provenance (v2 — real screenshots)
+
+**2026-07 update:** the owner supplied 9 screenshots of the live
+`next.questflow.ai` app; the token set and component anatomy below were
+re-extracted from them directly (v1 values were derived from written
+descriptions and are superseded). Verified elements: green-tinted
+near-black canvas, teal/mint brand, cents pricing in teal, per-outcome
+rows with tinted Yes/No buttons, outlined "AI Analyze" card CTA,
+TradingView-classic candles (#26A69A/#EF5350) with volume bars and a teal
+last-price axis chip, LONG/SHORT signal badges, red→orange rank numbers,
+platform chips, wallet pill + filled-teal deposit button, and a 3-item
+bottom nav (Feed | Discover | Chat → mapped to Feed | Discover |
+Portfolio). Branding, assets, and copy remain AlphaEdge's own.
+
+## Provenance & honesty note (v1, superseded)
 
 `questflow.ai` / `next.questflow.ai` are not reachable from the CI/agent
 environment (network policy), so this system was **derived from published
@@ -44,14 +58,14 @@ Defined in `tailwind.config.ts` and mirrored as `!important` utilities in
 
 | Token | Hex | Use |
 |---|---|---|
-| `bg` | `#060709` | App canvas (true near-black) |
+| `bg` | `#0C1210` | Green-tinted near-black canvas |
 | `surface` / `surface-2` / `surface-3` | `#0C0E12` / `#12151B` / `#1A1E26` | Cards → raised → hover |
 | `border` / `border-light` | `#1D222C` / `#2C323E` | Hairline dividers |
 | `text` / `muted` / `muted-2` | `#F2F4F8` / `#97A0B2` / `#5E6779` | Text hierarchy |
-| `primary` / `up` | `#00E28A` | Brand, YES, long, gains — neon signal green |
+| `primary` / `up` | `#2DD4BF` | Brand teal — prices, YES, active, gains |
 | `primary-dim` | `#04281B` | Green tint surfaces |
-| `danger` / `down` | `#FF4D5E` | NO, short, losses |
-| `accent` | `#7C5CFF` | Agentic violet — AI/agent surfaces, links, focus |
+| `danger` / `down` | `#F1585C` | NO, losses; chart candles use #EF5350 |
+| `accent` | `#14B8A6` | Deep teal — filled CTAs (deposit, hero trade) |
 | `secondary` | `#22D3EE` | Cyan — informational secondary accents |
 | `gold` | `#F6C244` | Leaderboard / trophies |
 

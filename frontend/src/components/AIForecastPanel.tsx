@@ -7,7 +7,7 @@ export function AIForecastPanel({ market }: { market: Market }) {
   return (
     <div className="rounded-2xl border border-accent/30 bg-accent-dim p-4 shadow-glow">
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#5B3DF5] font-mono text-[11px] font-black text-white">
+        <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#0D9488] font-mono text-[11px] font-black text-white">
           AI
         </span>
         <h3 className="text-sm font-black text-text">AI forecast</h3>

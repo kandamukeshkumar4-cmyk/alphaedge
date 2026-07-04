@@ -20,6 +20,7 @@ import { MARKETS } from "@/lib/mock-data";
 const NAV = [
   { label: "Feed", href: "/" },
   { label: "Markets", href: "/markets" },
+  { label: "Discover", href: "/discover" },
   { label: "Signals", href: "/signals" },
   { label: "Forecast", href: "/forecast" },
   { label: "Mirror", href: "/mirror" },
@@ -118,7 +119,7 @@ export function SiteHeader() {
                     unreadCount={item.label === "Signals" ? unreadCount : undefined}
                   />
                   {active && (
-                    <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-primary shadow-[0_0_12px_rgba(0,226,138,0.75)]" />
+                    <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-primary shadow-[0_0_12px_rgba(45,212,191,0.75)]" />
                   )}
                 </Link>
               );
@@ -140,13 +141,22 @@ export function SiteHeader() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href="/portfolio"
+              className="grid h-10 w-11 place-items-center rounded-xl bg-accent text-bg transition hover:bg-primary"
+              aria-label="Add paper funds"
+              title="Add paper funds (simulated)"
+            >
+              <DepositIcon />
+            </Link>
             {isLoggedIn ? (
               <>
                 {paperBalance !== null ? (
                   <span
-                    className="hidden items-center gap-1.5 rounded-lg border border-primary/25 bg-primary-dim/55 px-2.5 py-1.5 font-mono text-sm font-bold text-primary sm:inline-flex"
+                    className="hidden items-center gap-1.5 rounded-xl border border-primary/35 px-3 py-2 font-mono text-sm font-bold text-primary sm:inline-flex"
                     title="Unified paper portfolio balance"
                   >
+                    <WalletSparkIcon />
                     {formatPaperBalance(paperBalance)}
                   </span>
                 ) : null}
@@ -187,10 +197,10 @@ export function SiteHeader() {
                   key={tab.label}
                   href={tab.href}
                   className={cn(
-                    "flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition",
+                    "flex shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
                     i === 0
-                      ? "bg-primary text-bg"
-                      : "border border-border bg-surface text-muted hover:border-border-light hover:text-text",
+                      ? "border-primary/60 text-primary"
+                      : "border-border bg-surface text-muted hover:border-border-light hover:text-text",
                   )}
                 >
                   {tab.label}
@@ -249,6 +259,23 @@ function MenuIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DepositIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+      <path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function WalletSparkIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
+      <path d="M19.5 3l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5L17.5 5l1.5-.5.5-1.5z" />
     </svg>
   );
 }

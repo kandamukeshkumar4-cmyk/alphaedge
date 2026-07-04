@@ -74,7 +74,7 @@ export function PriceChart({
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#97A0B2",
+        textColor: "#9BB0A9",
         fontFamily: "var(--font-mono), monospace",
         attributionLogo: false,
       },
@@ -82,12 +82,12 @@ export function PriceChart({
         vertLines: { color: "rgba(35,40,56,0.6)" },
         horzLines: { color: "rgba(35,40,56,0.6)" },
       },
-      rightPriceScale: { borderColor: "#1D222C" },
-      timeScale: { borderColor: "#1D222C", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "#243430" },
+      timeScale: { borderColor: "#243430", timeVisible: true, secondsVisible: false },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#7C5CFF", width: 1, style: 2, labelBackgroundColor: "#7C5CFF" },
-        horzLine: { color: "#7C5CFF", width: 1, style: 2, labelBackgroundColor: "#7C5CFF" },
+        vertLine: { color: "#14B8A6", width: 1, style: 2, labelBackgroundColor: "#14B8A6" },
+        horzLine: { color: "#14B8A6", width: 1, style: 2, labelBackgroundColor: "#14B8A6" },
       },
       handleScale: { mouseWheel: true, pinch: true },
       handleScroll: true,
@@ -96,9 +96,9 @@ export function PriceChart({
     chartRef.current = chart;
 
     const area = chart.addSeries(AreaSeries, {
-      lineColor: "#7C5CFF",
-      topColor: "rgba(124,92,255,0.28)",
-      bottomColor: "rgba(124,92,255,0.0)",
+      lineColor: "#14B8A6",
+      topColor: "rgba(20,184,166,0.28)",
+      bottomColor: "rgba(20,184,166,0.0)",
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -106,12 +106,13 @@ export function PriceChart({
     areaRef.current = area;
 
     const candle = chart.addSeries(CandlestickSeries, {
-      upColor: "#00E28A",
-      downColor: "#FF4D5E",
-      borderUpColor: "#00E28A",
-      borderDownColor: "#FF4D5E",
-      wickUpColor: "#00E28A",
-      wickDownColor: "#FF4D5E",
+      // TradingView-classic candle pair, as used by the QuestFlow trade view.
+      upColor: "#26A69A",
+      downColor: "#EF5350",
+      borderUpColor: "#26A69A",
+      borderDownColor: "#EF5350",
+      wickUpColor: "#26A69A",
+      wickDownColor: "#EF5350",
       priceLineVisible: false,
       visible: false,
     });
@@ -121,7 +122,7 @@ export function PriceChart({
       const vol = chart.addSeries(HistogramSeries, {
         priceFormat: { type: "volume" },
         priceScaleId: "vol",
-        color: "rgba(124,92,255,0.28)",
+        color: "rgba(20,184,166,0.28)",
       });
       vol.priceScale().applyOptions({
         scaleMargins: { top: 0.82, bottom: 0 },
@@ -179,7 +180,7 @@ export function PriceChart({
       time: c.time as UTCTimestamp,
       value: Math.abs(c.close - c.open) * 90000 + 2000,
       color:
-        c.close >= c.open ? "rgba(0,226,138,0.45)" : "rgba(255,77,79,0.45)",
+        c.close >= c.open ? "rgba(45,212,191,0.45)" : "rgba(255,77,79,0.45)",
     }));
     areaRef.current?.setData(areaData);
     candleRef.current?.setData(candleData);
@@ -206,7 +207,7 @@ export function PriceChart({
     if (typeof modelProb === "number") {
       modelLineRef.current = area.createPriceLine({
         price: modelProb,
-        color: "#22D3EE",
+        color: "#4B9EFF",
         lineWidth: 2,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,

@@ -182,7 +182,7 @@ export default function ForecastMirrorPage() {
       <header className="grid gap-4 border-b border-border pb-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
         <div>
           <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(0,226,138,0.8)]" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(45,212,191,0.8)]" />
             Smart Clone · Forecast
           </p>
           <h1 className="mt-2 text-2xl font-black tracking-normal text-text sm:text-3xl">

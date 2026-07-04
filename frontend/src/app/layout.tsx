@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { Figtree, IBM_Plex_Mono } from "next/font/google";
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
 import "@astryxdesign/theme-neutral/theme.css";
 import "./globals.css";
 import { Providers } from "./providers";
+import { BottomNav } from "@/components/BottomNav";
 import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
 import { PortfolioBanner } from "@/components/PortfolioBanner";
 
-const inter = Inter({
+// QuestFlow uses a rounded geometric sans; Figtree is the closest match.
+// Kept on the --font-inter variable so tailwind config stays unchanged.
+const inter = Figtree({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
@@ -40,8 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <HealthBanner />
           <SiteHeader />
           <PortfolioBanner />
-          <div className="min-h-[calc(100vh-7rem)]">{children}</div>
-          <footer className="border-t border-border bg-surface/40 px-4 py-6 text-center">
+          <div className="min-h-[calc(100vh-7rem)] pb-20 lg:pb-0">{children}</div>
+          <BottomNav />
+          <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
             <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
               {DISCLAIMER}
             </p>

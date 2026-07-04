@@ -40,7 +40,7 @@ export function PageHeader({
       <div className="min-w-0">
         {kicker ? (
           <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(0,226,138,0.8)]" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(45,212,191,0.8)]" />
             {kicker}
           </p>
         ) : null}
@@ -215,7 +215,7 @@ export function SegTabs<T extends string>({
               "rounded-lg font-bold transition",
               size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-sm",
               active
-                ? "bg-primary text-bg shadow-[0_0_16px_rgba(0,226,138,0.25)]"
+                ? "bg-primary text-bg shadow-[0_0_16px_rgba(45,212,191,0.25)]"
                 : "text-muted hover:bg-surface-2 hover:text-text",
             )}
           >
