@@ -22,7 +22,7 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U06 | Agent Builder "Clone-lite"              | DONE   | -          | -    | 2026-07-03 iter 6 verifier PASS (821p/5s, G3 3-layer, single head 029); committed 6a60df6 |
 | U07 | Clone leaderboard / arena               | DONE   | -          | U06  | 2026-07-03 iter 7 verifier PASS (845p/5s, scorer reuse, honest stub); committed dc43429 |
 | U08 | Multi-model ensemble + router (AutoLab) | DONE   | -          | -    | 2026-07-04 iter 8 verifier PASS (886p/5s, honest iter=0 flag OFF, baseline byte-identical); committed e55237e |
-| U09 | Memory / learning loop (AutoLab)        | CLAIMED | opus-4-8 (maker agent) | - | 2026-07-04 iteration 9 |
+| U09 | Memory / learning loop (AutoLab)        | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-04 iter 9: maker done 911p/5s honest iter=0; verifier checking GRAPH_NODES change vs U06 |
 | U10 | Backtest replay + realistic fills       | TODO   | -          | -    | 2026-07-03 queued |
 | U11 | Cross-platform arb hardening            | TODO   | -          | U02  | 2026-07-03 queued |
 | U12 | Observability + calibration drift       | TODO   | -          | -    | 2026-07-03 queued |

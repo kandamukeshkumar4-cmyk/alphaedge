@@ -130,7 +130,8 @@ async def test_agent_trace_steps_have_correct_node_names():
         response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     steps = response.json()["steps"]
     names = [s["step_name"] for s in steps]
-    assert names == ["data", "news", "prediction", "risk", "reasoning", "execute"]
+    # U09 adds "retrieval" between "data" and "news" (flag-gated, no-op when OFF)
+    assert names == ["data", "retrieval", "news", "prediction", "risk", "reasoning", "execute"]
 
 
 @pytest.mark.asyncio

@@ -18,12 +18,19 @@
  *  - All models labelled "provisional" until CLV gate passes
  *  - When flag OFF: single-model view is unchanged (no ensemble UI rendered)
  *
+ * U09 memory / learning loop extension:
+ *  - Rationale trace now includes a "Similar past events" section (from /agent-trace)
+ *  - Rendered ONLY when RETRIEVAL_ENABLED=true AND backend returns above-threshold matches
+ *  - Each precedent links to a real resolved market page (/markets/{slug})
+ *  - When retrieval flag is OFF or no matches: section is absent (no fabricated entries)
+ *
  * Data sources:
  *   GET /api/v1/markets/{slug}/explain    → model_prob, market_implied, edge,
  *                                           confidence_label, news_signals,
  *                                           trade_rationale, provisional,
  *                                           ensemble? (when flag ON)
- *   GET /api/v1/markets/{slug}/agent-trace → verdict, steps (rationale trace)
+ *   GET /api/v1/markets/{slug}/agent-trace → verdict, steps (rationale trace),
+ *                                           similar_events (U09, [] when flag OFF)
  *
  * GUARDRAIL: This component is advisory only. It has no order-submission
  * controls. The existing MarketTradingPanel keeps its own separate paper-order
@@ -84,6 +91,19 @@ type ExplainData = {
   ensemble?: EnsembleData;
 };
 
+// U09 — similar resolved market precedent (only when retrieval flag is ON)
+type SimilarEvent = {
+  slug: string;
+  title: string;
+  category: string;
+  outcome: string; // "YES" | "NO" | "unknown"
+  similarity_score: number;
+  model_error_pts: number | null;
+  model_note: string;
+  resolved_at_iso: string;
+  market_url_path: string; // "/markets/{slug}" — always a real resolved market
+};
+
 type TraceData = {
   slug: string;
   verdict: "BET" | "PASS" | "NO-EDGE";
@@ -92,6 +112,8 @@ type TraceData = {
   reasoning: string;
   steps: AgentTraceStep[];
   paper_trading_only: boolean;
+  // U09: only populated when RETRIEVAL_ENABLED=true AND above-threshold matches exist
+  similar_events: SimilarEvent[];
 };
 
 // ---------------------------------------------------------------------------
@@ -198,6 +220,75 @@ function EnsembleModelsSection({ data }: { data: EnsembleData }) {
           Flag ON · CLV gate not yet evaluated · all models provisional
         </p>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// U09 — Similar past events section
+// ---------------------------------------------------------------------------
+
+/**
+ * SimilarEventsSection renders 2–3 retrieved resolved-market precedents.
+ *
+ * CONTRACT (enforced here and by the backend):
+ *  - Only renders when retrieval flag is ON AND backend returns matches.
+ *  - An empty array → component returns null (no fabricated entries).
+ *  - Each precedent links to a REAL resolved market page.
+ *  - The "provisional" disclaimer in the backend schema (not shown here)
+ *    ensures no model improvement is implied until CLV gate passes.
+ */
+function SimilarEventsSection({ events }: { events: SimilarEvent[] }) {
+  if (!events || events.length === 0) return null;
+
+  return (
+    <div
+      data-testid="similar-events-section"
+      className="rounded-xl border border-border/60 bg-surface-2/40 px-3 py-3 space-y-2"
+    >
+      <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+        Similar past events
+      </p>
+      <ul className="space-y-2">
+        {events.map((ev) => (
+          <li key={ev.slug} className="text-xs">
+            <a
+              href={ev.market_url_path}
+              className="group flex flex-col gap-0.5 rounded-lg border border-border/40 bg-surface p-2 hover:border-accent/40 transition-colors"
+              data-testid={`similar-event-link-${ev.slug}`}
+            >
+              <span className="font-medium text-text group-hover:text-accent truncate">
+                {ev.title}
+              </span>
+              <div className="flex items-center gap-2 text-muted-2">
+                <span
+                  className={cn(
+                    "rounded-sm px-1 py-0.5 text-[10px] font-bold uppercase",
+                    ev.outcome === "YES"
+                      ? "bg-primary/15 text-primary"
+                      : ev.outcome === "NO"
+                      ? "bg-danger/15 text-danger"
+                      : "bg-surface-2 text-muted",
+                  )}
+                >
+                  {ev.outcome}
+                </span>
+                {ev.resolved_at_iso && (
+                  <span className="text-[10px]">{ev.resolved_at_iso}</span>
+                )}
+                <span className="text-[10px]">
+                  {Math.round(ev.similarity_score * 100)}% similar
+                </span>
+                {ev.model_note && (
+                  <span className="text-[10px] italic truncate" title={ev.model_note}>
+                    {ev.model_note}
+                  </span>
+                )}
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -413,12 +504,16 @@ export function DecisionCard({ slug, className }: Props) {
           </button>
 
           {traceOpen && (
-            <div className="border-t border-border px-3 py-3">
+            <div className="border-t border-border px-3 py-3 space-y-3">
               {traceLoading && (
                 <p className="text-[11px] text-muted">Loading trace…</p>
               )}
               {!traceLoading && traceData && (
-                <RationaleTrace steps={traceData.steps} />
+                <>
+                  <RationaleTrace steps={traceData.steps} />
+                  {/* U09: Similar past events — only when retrieval flag ON and matches exist */}
+                  <SimilarEventsSection events={traceData.similar_events} />
+                </>
               )}
               {!traceLoading && !traceData && (
                 <p className="text-[11px] text-muted">
