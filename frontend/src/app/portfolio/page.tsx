@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
 import { ExposurePanel } from "@/components/ExposurePanel";
 import { PortfolioRiskPanel } from "@/components/PortfolioRiskPanel";
+import { TraderProfileCard } from "@/components/TraderProfileCard";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatUSD } from "@/lib/mock-data";
@@ -170,6 +171,8 @@ export default function PortfolioPage() {
           </section>
 
           {token ? <ExposurePanel token={token} /> : null}
+
+          {token ? <TraderProfileCard token={token} /> : null}
 
           {token ? <PortfolioRiskPanel token={token} /> : null}
 

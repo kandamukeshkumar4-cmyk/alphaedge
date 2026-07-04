@@ -182,6 +182,9 @@ class Settings(BaseSettings):
     backtest_nightly_slugs: str = Field(
         default="nba-2025-01-15-lal-bos", alias="BACKTEST_NIGHTLY_SLUGS"
     )
+    # U13 Trader profile (personalization) — ON by default (purely read/derive).
+    # Set TRADER_PROFILE_ENABLED=false to return empty-state without a DB hit.
+    trader_profile_enabled: bool = Field(default=True, alias="TRADER_PROFILE_ENABLED")
     kalshi_api_key_id: str = Field(default="", alias="KALSHI_API_KEY_ID")
     kalshi_signing_pem: str = Field(default="", alias="KALSHI_SIGNING_PEM")
     polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")

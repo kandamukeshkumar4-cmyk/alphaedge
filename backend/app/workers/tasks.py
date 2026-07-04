@@ -467,6 +467,77 @@ async def nightly_backtest_task(ctx: dict) -> dict:
     return {"results": results}
 
 
+NIGHTLY_PROFILE_REFRESH_JOB_NAME = "nightly_profile_refresh_task"
+
+
+async def nightly_profile_refresh_task(ctx: dict) -> dict:
+    """Nightly: recompute trader profiles for all users who have placed paper trades.
+
+    Flag-gated: TRADER_PROFILE_ENABLED must be true.  ON by default but will
+    simply skip when there are no users with paper trades.
+
+    Privacy: reads ONLY paper_orders (in-app paper activity).  No external data.
+    Paper-only — does NOT import OrderBookService or RiskService.
+    """
+    settings = ctx.get("settings") or get_settings()
+    if not settings.trader_profile_enabled:
+        return {"skipped": True, "reason": "TRADER_PROFILE_ENABLED=false"}
+
+    from app.db.models import PaperOrder, User
+    from app.db.session import AsyncSessionLocal
+    from app.services.trader_profile_service import TradeRecord, compute_trader_profile
+    from sqlalchemy import select
+
+    refreshed = 0
+    async with AsyncSessionLocal() as session:
+        # Identify users who have at least one paper trade
+        user_ids_result = await session.execute(
+            select(PaperOrder.user_id).distinct()
+        )
+        user_ids = [row[0] for row in user_ids_result.fetchall()]
+
+    for user_id in user_ids:
+        try:
+            async with AsyncSessionLocal() as session:
+                user_result = await session.execute(
+                    select(User).where(User.id == user_id)
+                )
+                db_user = user_result.scalar_one_or_none()
+                if db_user is None:
+                    continue
+                bankroll = float(db_user.paper_balance)
+
+                orders_result = await session.execute(
+                    select(PaperOrder).where(PaperOrder.user_id == user_id)
+                )
+                db_orders = orders_result.scalars().all()
+
+            trades: list[TradeRecord] = [
+                TradeRecord(
+                    slug=o.slug,
+                    side=o.side,
+                    shares=o.shares,
+                    price=o.price,
+                    cost=o.cost,
+                    action=o.action,
+                    realized_pnl=o.realized_pnl,
+                    settled=o.settled,
+                    created_at=o.created_at,
+                )
+                for o in db_orders
+            ]
+            # Recompute is a pure function — result not stored separately
+            # (profile is always recomputed on-demand from paper_orders).
+            # This task warms any future cached-profile layer and validates
+            # that the computation does not error for any live user.
+            _ = compute_trader_profile(trades, bankroll_usd=bankroll)
+            refreshed += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Profile refresh failed for user %s: %s", user_id, exc)
+
+    return {"refreshed": refreshed, "total_users": len(user_ids)}
+
+
 async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str) -> None:
     from app.db.models import FailedJob
     from app.db.session import AsyncSessionLocal
@@ -497,6 +568,7 @@ class WorkerSettings:
         analyst_aggregates_task,
         morning_research_task,
         nightly_backtest_task,
+        nightly_profile_refresh_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -513,4 +585,6 @@ class WorkerSettings:
         cron(morning_research_task, hour={6}, minute={0}),
         # nightly backtest replay at 02:00 — flag-gated (BACKTEST_NIGHTLY_ENABLED=false)
         cron(nightly_backtest_task, hour={2}, minute={0}),
+        # nightly trader profile refresh at 03:30 — flag-gated (TRADER_PROFILE_ENABLED=true)
+        cron(nightly_profile_refresh_task, hour={3}, minute={30}),
     ]

@@ -42,6 +42,7 @@ ASSISTANT_ALLOWED_TOOLS: frozenset[str] = frozenset(
         "get_exposure",
         "get_briefs",
         "get_agent_trace",
+        "get_trader_profile",
     }
 )
 
@@ -64,6 +65,14 @@ class AssistantChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     market_slug: str | None = Field(default=None, description="Scope to a specific market")
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+    # U13: optional serialised profile context injected by the caller.
+    # The profile NUMBERS come from the deterministic trader_profile_service;
+    # the assistant NARRATES them — it never invents stats.
+    trader_profile_context: dict | None = Field(
+        default=None,
+        description="Pre-fetched trader profile dict (from /api/v1/profile). "
+        "When provided, the assistant may reference the user's trading patterns.",
+    )
 
 
 class CitationChip(BaseModel):
@@ -118,10 +127,35 @@ def _gather_market_context(slug: str) -> dict[str, Any]:
     return ctx
 
 
+def _build_profile_snippet(profile: dict[str, Any] | None) -> str:
+    """Return a short context snippet for the profile (used in deterministic fallback).
+
+    Returns empty string if no profile or has_data is False.
+    The NUMBERS come from the deterministic service; this function only formats them.
+    """
+    if not profile or not profile.get("has_data"):
+        return ""
+    parts: list[str] = []
+    cats = profile.get("favorite_categories", [])
+    if cats:
+        parts.append(f"Your top categories: {', '.join(cats[:2])}.")
+    avg_size_pct = profile.get("avg_size_pct_bankroll", 0.0)
+    if avg_size_pct > 0:
+        parts.append(f"Typical position: {avg_size_pct:.1f}% of bankroll.")
+    streak = profile.get("current_streak", 0)
+    if streak <= -2:
+        parts.append(f"You are on a {abs(streak)}-trade losing streak.")
+    if profile.get("sizes_up_after_losses"):
+        mult = profile.get("tilt_multiplier", 1.0)
+        parts.append(f"You tend to size up {mult:.1f}x after losses (tilt detected).")
+    return " ".join(parts)
+
+
 def _build_deterministic_reply(
     message: str,
     ctx: dict[str, Any],
     market_slug: str | None,
+    trader_profile: dict[str, Any] | None = None,
 ) -> tuple[str, list[CitationChip], list[str]]:
     """Deterministic fallback answer when no LLM key is configured.
 
@@ -176,12 +210,19 @@ def _build_deterministic_reply(
     # ── exposure / portfolio ─────────────────────────────────────────────────
     if any(kw in msg_lower for kw in ("exposure", "position", "portfolio", "risk")):
         tools_used.append("get_exposure")
-        reply = (
+        profile_snippet = _build_profile_snippet(trader_profile)
+        base_reply = (
             "Your portfolio exposure is summarised in the Exposure panel above. "
             "Concentration risk appears when >40 % of your open notional is in "
             "one correlated underlier (e.g. the same team across multiple markets). "
             "This is a paper-trading simulation — no real funds are at risk."
         )
+        if profile_snippet:
+            tools_used.append("get_trader_profile")
+            reply = base_reply + " " + profile_snippet
+            citations.append(CitationChip(source="trader_profile", label="Your trading profile"))
+        else:
+            reply = base_reply
         citations.append(CitationChip(source="exposure", label="Portfolio exposure"))
         return reply, citations, tools_used
 
@@ -240,13 +281,19 @@ def _build_deterministic_reply(
 
     # ── fallback ─────────────────────────────────────────────────────────────
     tools_used.append("get_features")
-    reply = (
+    profile_snippet = _build_profile_snippet(trader_profile)
+    base_fallback = (
         "I can help with: odds movement analysis, portfolio exposure, bear-case "
         "risk factors, analyst briefs, and agent-reasoning traces. "
         "Try asking: 'Why did odds move today?', 'What's my overall exposure?', "
         "or 'What's the bear case?'. "
         f"{ANALYSIS_ONLY_BANNER}"
     )
+    if profile_snippet:
+        tools_used.append("get_trader_profile")
+        reply = base_fallback + " " + profile_snippet
+    else:
+        reply = base_fallback
     return reply, citations, tools_used
 
 
@@ -255,11 +302,12 @@ async def _llm_reply(
     ctx: dict[str, Any],
     history: list[ChatMessage],
     market_slug: str | None,
+    trader_profile: dict[str, Any] | None = None,
 ) -> tuple[str, list[CitationChip], list[str]]:
     """Attempt an LLM reply; fall back to deterministic on any error."""
     settings = get_settings()
     if not settings.llm_api_key:
-        return _build_deterministic_reply(message, ctx, market_slug)
+        return _build_deterministic_reply(message, ctx, market_slug, trader_profile)
 
     try:
         from app.llm.provider import get_llm_client
@@ -272,9 +320,17 @@ async def _llm_reply(
             "You CANNOT place trades, submit orders, or reference any order-execution tool.",
             "You answer using only the context provided below.",
             "Keep answers concise (≤300 words). Cite evidence from the context.",
+            "IMPORTANT: The user's trading profile numbers come from deterministic math "
+            "over their paper-trade history. You may narrate these numbers but MUST NOT "
+            "invent or modify any statistics.",
         ]
         if ctx:
             system_parts.append(f"Market context: {ctx}")
+        # U13 — inject profile as read-only context (narrate, never fabricate)
+        if trader_profile and trader_profile.get("has_data"):
+            profile_snippet = _build_profile_snippet(trader_profile)
+            if profile_snippet:
+                system_parts.append(f"User trading profile (derived from paper history): {profile_snippet}")
 
         system_prompt = "\n".join(system_parts)
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
@@ -304,7 +360,7 @@ async def _llm_reply(
 
     except Exception as exc:
         logger.warning("LLM call failed, using deterministic fallback: %s", exc)
-        return _build_deterministic_reply(message, ctx, market_slug)
+        return _build_deterministic_reply(message, ctx, market_slug, trader_profile)
 
 
 # ── Endpoint ─────────────────────────────────────────────────────────────────
@@ -329,7 +385,8 @@ async def assistant_chat(body: AssistantChatRequest) -> AssistantChatResponse:
             ctx = {}
 
     reply, citations, tools_used = await _llm_reply(
-        body.message, ctx, body.history, market_slug
+        body.message, ctx, body.history, market_slug,
+        trader_profile=body.trader_profile_context,
     )
 
     return AssistantChatResponse(

@@ -43,6 +43,7 @@ import { pct } from "@/lib/mock-data";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { CalibrationSparkline } from "./CalibrationSparkline";
 import { RationaleTrace, type AgentTraceStep } from "./RationaleTrace";
+import { PersonalContextChip } from "./PersonalContextChip";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -300,9 +301,16 @@ function SimilarEventsSection({ events }: { events: SimilarEvent[] }) {
 type Props = {
   slug: string;
   className?: string;
+  /**
+   * U13 — optional personal-context deviation message.
+   * Computed server-side from the user's trader profile. When provided and
+   * non-null, the PersonalContextChip renders above the provisional banner.
+   * When null/undefined (new user or no deviation): chip is absent.
+   */
+  deviationMessage?: string | null;
 };
 
-export function DecisionCard({ slug, className }: Props) {
+export function DecisionCard({ slug, className, deviationMessage }: Props) {
   const [explainData, setExplainData] = useState<ExplainData | null>(null);
   const [traceData, setTraceData] = useState<TraceData | null>(null);
   const [explainError, setExplainError] = useState(false);
@@ -396,6 +404,11 @@ export function DecisionCard({ slug, className }: Props) {
       </div>
 
       <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">
+        {/* ── U13 Personal context chip (size deviation from user's pattern) ── */}
+        {deviationMessage && (
+          <PersonalContextChip deviationMessage={deviationMessage} />
+        )}
+
         {/* ── Provisional amber banner ── */}
         {explainData.provisional && (
           <p

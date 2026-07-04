@@ -56,10 +56,22 @@ def test_assistant_allowed_tools_excludes_order_book_service() -> None:
 
 
 def test_assistant_allowed_tools_are_read_only() -> None:
-    """Every tool in ASSISTANT_ALLOWED_TOOLS must be a read-only tool name."""
+    """Every tool in ASSISTANT_ALLOWED_TOOLS must be a read-only tool name.
+
+    U13 adds get_trader_profile — a read-only profile-derivation tool that
+    narrates deterministic stats from paper history.  It is explicitly
+    read-only and does not admit any order-execution path.
+    """
     from app.api.v1.assistant import ASSISTANT_ALLOWED_TOOLS
 
-    expected_read_only = {"get_odds", "get_features", "get_exposure", "get_briefs", "get_agent_trace"}
+    expected_read_only = {
+        "get_odds",
+        "get_features",
+        "get_exposure",
+        "get_briefs",
+        "get_agent_trace",
+        "get_trader_profile",   # U13 — reads paper-history profile, read-only
+    }
     assert ASSISTANT_ALLOWED_TOOLS == expected_read_only, (
         f"Tool allowlist mismatch: {ASSISTANT_ALLOWED_TOOLS!r}"
     )

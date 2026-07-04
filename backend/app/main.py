@@ -39,6 +39,7 @@ from app.api.v1.clones import router as clones_router
 from app.api.v1.backtest import router as backtest_router
 from app.api.v1.arb import router as arb_router
 from app.api.v1.observability import router as observability_router
+from app.api.v1.profile import router as profile_router
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
 from app.core.middleware import RequestIdMiddleware
@@ -265,6 +266,7 @@ app.include_router(clones_router)
 app.include_router(backtest_router)
 app.include_router(arb_router)
 app.include_router(observability_router)
+app.include_router(profile_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)

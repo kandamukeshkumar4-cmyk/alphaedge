@@ -268,3 +268,51 @@ export async function fetchOrderHistory(
 
   return (await response.json()) as OrderHistoryItem[];
 }
+
+// ── U13 Trader profile ────────────────────────────────────────────────────────
+
+export type CategoryStats = {
+  category: string;
+  trade_count: number;
+  win_count: number;
+  loss_count: number;
+  win_rate: number;  // 0.0–1.0; -1.0 = no settled trades yet
+};
+
+export type TraderProfile = {
+  has_data: boolean;
+  favorite_categories: string[];
+  category_stats: CategoryStats[];
+  avg_cost_usd: number;
+  bankroll_usd: number;
+  avg_size_pct_bankroll: number;
+  avg_hold_hours: number;
+  entry_style: string | null;
+  current_streak: number;
+  sizes_up_after_losses: boolean;
+  tilt_multiplier: number;
+  overall_win_rate: number;
+  source_note: string;
+  paper_trading_only: boolean;
+  min_trades_required: number;
+  empty_state_message: string;
+};
+
+export async function fetchTraderProfile(
+  token: string,
+  input?: { apiBase?: string; fetcher?: Fetcher },
+): Promise<TraderProfile | null> {
+  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
+  if (!apiBase) return null;
+  const fetcher = input?.fetcher ?? fetch;
+  try {
+    const response = await fetcher(`${apiBase}/api/v1/profile`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as TraderProfile;
+  } catch {
+    return null;
+  }
+}
