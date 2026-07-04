@@ -24,3 +24,16 @@ AutoLab: baseline = all features exist server-side, gates green | benchmark =
 user-visible surface count + prod URLs | outcome = tracked per ticket.
 
 Follow-up ticket: /markets polling flood — hundreds of requests/min from the homepage rails self-trip the SlowAPI limiter (intermittent 429s seen in preview). Add client-side request dedup/central store.
+
+## Keys received (2026-07-04)
+- NIM (LLM_PROVIDER=nim) + EXA_API_KEY delivered by owner; stored ONLY in
+  gitignored backend/.env; compose passes via env_file. Never committed.
+- Model choice (measured): qwen/qwen3-next-80b-a3b-instruct (0.4s, 80B-class)
+  for analyst+assistant; llama-3.1-8b-instruct fast fallback (0.7s);
+  llama-3.3-70b endpoint hangs (>120s) — avoid; nemotron-49b ~19s (reasoning,
+  candidate for deep digest later).
+- LIVE-VERIFIED: analyst generator=llm (real prose grounded in price jumps);
+  Exa in-container: 8 real WC2026 news sources, sentiment computed.
+- BUG FIXED en route: news_fetcher parents[4] IndexError killed the news
+  pipeline at import time in Docker since it shipped — news was empty in
+  containers regardless of keys.
