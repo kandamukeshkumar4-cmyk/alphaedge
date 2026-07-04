@@ -32,6 +32,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env
     environment:
       PAPER_TRADING_ONLY: "true"
       DATABASE_URL: postgresql+asyncpg://alphaedge:alphaedge@db:5432/alphaedge
@@ -59,6 +61,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
     environment:
       PAPER_TRADING_ONLY: "true"
       DATABASE_URL: postgresql+asyncpg://alphaedge:alphaedge@db:5432/alphaedge

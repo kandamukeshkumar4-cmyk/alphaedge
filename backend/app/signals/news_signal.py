@@ -54,10 +54,17 @@ async def fetch_news_signal(
 
 
 async def _fetch_uncached(topic: str) -> NewsSignal | None:
-    from app.signals.news_fetcher import run_last30days_brief, polymarket_fallback_brief
+    from app.signals.news_fetcher import (
+        exa_news_brief,
+        polymarket_fallback_brief,
+        run_last30days_brief,
+    )
 
-    # Try full last30days research; fall back to Polymarket-only
-    signal = await run_last30days_brief(topic)
+    # Source order: Exa semantic news (when EXA_API_KEY set) → last30days
+    # research script → Polymarket-only fallback.
+    signal = await exa_news_brief(topic)
+    if signal is None:
+        signal = await run_last30days_brief(topic)
     if signal is None:
         signal = await polymarket_fallback_brief(topic)
     return signal
