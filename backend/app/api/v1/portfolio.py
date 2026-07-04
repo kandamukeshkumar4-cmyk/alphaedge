@@ -18,6 +18,10 @@ from app.schemas.portfolio import (
 from app.services.exposure_service import PositionInput, compute_exposure
 from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_metrics
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v1", tags=["portfolio"])
 
 
@@ -92,7 +96,10 @@ async def _load_paper_orders(
         text(
             """
             SELECT po.slug, po.side, po.outcome,
-                   COALESCE(m.title, po.slug) AS market_title,
+                   -- MAX() because m.title is not in GROUP BY: SQLite tolerates the
+                   -- bare column but PostgreSQL raises GroupingError, which the
+                   -- caller's except used to swallow into "0 positions" (real bug).
+                   COALESCE(MAX(m.title), po.slug) AS market_title,
                    SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS shares,
                    CASE WHEN SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) > 0
                         THEN CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
@@ -162,6 +169,7 @@ async def get_portfolio_summary(
     try:
         positions = await _load_paper_orders(db, current_user.id.hex)
     except (OperationalError, ProgrammingError):
+        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
         positions = []
 
     paper_balance = float(current_user.paper_balance)
@@ -193,6 +201,7 @@ async def get_portfolio_risk(
     try:
         positions = await _load_paper_orders(db, current_user.id.hex)
     except (OperationalError, ProgrammingError):
+        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
         positions = []
 
     # Only settled trades with a positive cost basis are usable: a fully
@@ -249,6 +258,7 @@ async def get_portfolio_exposure(
     try:
         all_positions = await _load_paper_orders(db, current_user.id.hex)
     except (OperationalError, ProgrammingError):
+        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
         all_positions = []
 
     open_positions = [p for p in all_positions if not p.settled]
@@ -310,6 +320,7 @@ async def get_portfolio(
         positions = await _load_paper_orders(db, current_user.id.hex)
         total_trades = len(positions)
     except (OperationalError, ProgrammingError):
+        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
         positions = []
         total_trades = 0
 
