@@ -4,7 +4,69 @@ Spec: docs/project/BUILD_LOOP_BACKEND.md (read it before touching this file)
 
 ---
 
-# Loop C — Unified Intelligence (ACTIVE, initialized 2026-07-03)
+# Loop C — Unified Intelligence (✅ COMPLETE, 2026-07-04)
+
+## ✅ LOOP C COMPLETE — all 13 tickets DONE, exit ritual PASS (2026-07-04)
+
+Final gate: **backend 1030 passed, 5 skipped, ruff clean; frontend lint+typecheck
++build green; single alembic head 030_backtest_runs.** Baseline at loop start was
+669p/5s → **+361 tests across 13 tickets** (all maker/checker verified, each ticket
+its own atomic commit U04→U13; U01–U03 swept into shared-branch e2e commits but
+verified green).
+
+EXIT RITUAL (§5):
+- Full gate GREEN (1030p/5s backend, frontend all green).
+- Guardrail grep sweep: ZERO OrderBookService/RiskService imports across all 14
+  Loop C modules (feed, agent_trace, assistant, clones, clone_service, arb_service,
+  observability, profile, backtest, exposure_service, clone_leaderboard_service,
+  trader_profile_service, memory/retrieval, forecasting/ensemble+router,
+  backtesting/fill_model+snapshot_replay, observability/drift) — docstring notes
+  only. PAPER_TRADING_ONLY validator intact (config.py:194-198).
+- License audit: docs/ATTRIBUTIONS.md has pmxt (MIT, U01), TradingAgents (Apache,
+  U06), Jon-Becker (MIT, U10), arb repos (ideas-only §G4, U11). No vendored
+  AGPL/unlicensed code; unlicensed arb repos reimplemented clean-room.
+- Single alembic head 030 (migrations 028 persona pre-loop, 029 clones U06,
+  030 backtest U10).
+
+TICKET SUMMARY (all verifier-PASS):
+- U01 Unified search (cmd-k, PM+Kalshi) — 701p
+- U02 Unified activity feed (/feed + WS) — 732p
+- U03 Decision dashboard (BET/PASS card, calibration, rationale trace) — 749p
+- U04 Portfolio exposure (concentration warnings, 40% strict boundary) — 774p
+- U05 Assistant chat (analysis-only, structurally cannot trade) — 795p
+- U06 Agent Builder Clone-lite (G3 3-layer node allowlist) — 821p, mig 029
+- U07 Clone leaderboard/arena (reuses T08 scorer, honest stub) — 845p
+- U08 Multi-model ensemble+router (AutoLab iter=0 honest, flag OFF) — 886p
+- U09 Memory/learning loop (deterministic sim, real precedents only) — 911p
+- U10 Backtest replay (no-lookahead negative-control, realistic fills) — 937p, mig 030
+- U11 Cross-platform arb hardening (signal-only, false-positive guard) — 976p
+- U12 Observability+drift (alarm via T09, inducible, honest unavailable) — 996p
+- U13 Personalization (deterministic profile, paper-only privacy, LLM narrates) — 1030p
+
+AUTOLAB SUMMARY LINES:
+- U08: baseline=single-model | benchmark=walk-forward Brier vs ensemble |
+  iterations=0 (no labeled dataset in env) | budget=0/8 | outcome=stalled-honest,
+  flag OFF, baseline byte-identical.
+- U09: baseline=single-model reasoning | benchmark=walk-forward Brier w/ retrieval |
+  iterations=0 (no labeled dataset) | budget=0/8 | outcome=stalled-honest,
+  RETRIEVAL_ENABLED OFF.
+- U01-U07, U10-U13: AutoLab not applicable (new features, no iterative measure) —
+  except U10/U13 recorded iterations=1 (single green build, no reopt needed).
+
+FOLLOW-UPS (non-blocking, logged for a future loop):
+- U03: AITakePanel orphaned (dead code cleanup); CalibrationSparkline approximate
+  curve → wire binned reliability data when T12 exposes it.
+- U07: clone runs derive claims at compute-time — wire BriefClaim persistence
+  (T07→T08 pattern) so the arena grades persisted claims.
+- U11: make ArbOpportunity.signal_only a frozen/validated invariant.
+- U08/U09: re-run AutoLab when a labeled walk-forward dataset exists (flip flags
+  ON only if measurably better).
+
+Loop STOPPED per §5 stop-condition #1 (queue empty). Heartbeat not re-armed.
+
+---
+
+# Loop C — Unified Intelligence (initialized 2026-07-03)
 
 Spec: docs/project/BUILD_LOOP_UNIFIED.md (READ IT FIRST — guardrails §G, license
 policy G4 from verified GitHub API data, stop conditions §5). Baseline gate at
@@ -26,7 +88,7 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U10 | Backtest replay + realistic fills       | DONE   | -          | -    | 2026-07-04 iter 10 verifier PASS (937p/5s, no-lookahead genuine, mig 030); committed 7c82fa6 |
 | U11 | Cross-platform arb hardening            | DONE   | -          | U02  | 2026-07-04 iter 11 verifier PASS (976p/5s, signal-only, false-positive guard); committed 394ae99 |
 | U12 | Observability + calibration drift       | DONE   | -          | -    | 2026-07-04 iter 12 verifier PASS (996p/5s, drift via T09, inducible alarm); committed 0dac413 |
-| U13 | Personalization (AI learns the user)    | IN-REVIEW | opus-4-8 maker → verifier | U04,U05 | 2026-07-04 iter 13 FINAL: maker done 1030p/5s; verifier checking U05 allowlist change |
+| U13 | Personalization (AI learns the user)    | DONE   | -          | U04,U05 | 2026-07-04 iter 13 verifier PASS (1030p/5s, U05 allowlist intact, privacy paper-only); committed 201940f |
 
 ## Loop C Decisions log
 
