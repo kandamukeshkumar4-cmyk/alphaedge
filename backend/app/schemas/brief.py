@@ -17,6 +17,7 @@ class CitationKind(str, Enum):
     WALLET = "wallet"
     MODEL = "model"
     ORDERBOOK = "orderbook"
+    PRICE = "price"  # diff-engine price trend / jump evidence
 
 
 class ClaimDirection(str, Enum):

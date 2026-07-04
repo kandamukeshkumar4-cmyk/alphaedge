@@ -194,15 +194,24 @@ class KalshiLiveIngestService:
     ) -> bool:
         ticker = str(payload["ticker"])
         slug = local_slug_for(ticker)
-        outcome = str(payload.get("yes_sub_title") or ticker.rsplit("-", 1)[-1])
+        sub_title = str(payload.get("yes_sub_title") or "").strip()
+        outcome = sub_title or ticker.rsplit("-", 1)[-1]
         question = f"{outcome} — {event_title}"
+        # Multi-outcome Kalshi events share one event_title across all outcomes;
+        # fold the outcome (yes_sub_title) into the card title so we don't show
+        # N identical cards. Binary markets (no sub_title) keep the plain title.
+        display_title = (
+            f"{event_title}: {sub_title}"
+            if sub_title and sub_title.lower() not in event_title.lower()
+            else event_title
+        )
         end_date = parse_timestamp(payload.get("close_time") or payload.get("expiration_time"))
         now = datetime.now(UTC)
         existing = await self.session.scalar(select(Market).where(Market.slug == slug).limit(1))
         if existing is not None:
             if existing.status == MarketStatus.OPEN:
                 existing.volume = event_volume
-                existing.title = event_title
+                existing.title = display_title
                 existing.question = question
                 existing.category = category
                 existing.icon = icon
@@ -215,7 +224,7 @@ class KalshiLiveIngestService:
         self.session.add(
             Market(
                 slug=slug,
-                title=event_title,
+                title=display_title,
                 question=question,
                 category=category,
                 icon=icon,

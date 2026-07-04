@@ -36,6 +36,9 @@ class AnalystState:
     market_slug: str
     trigger_event_id: Optional[str] = None
     direction: str = "up"
+    # True when the caller (an alignment trigger) supplied a real direction;
+    # False for on-demand runs, which derive direction from live price evidence.
+    direction_forced: bool = False
     persona: Optional[str] = None  # E13: macro | whale-flow | news | None
     market_state: dict[str, Any] = field(default_factory=dict)
     evidence: dict[str, Any] = field(default_factory=dict)
@@ -129,6 +132,20 @@ async def gather_evidence(session: AsyncSession, state: AnalystState) -> Analyst
             .limit(3)
         )
     ).scalars().all()
+    # Real price-action evidence the analyst already has: the diff engine's
+    # price_jump deltas for THIS market. Without this the brief was hollow
+    # ("0 news, 0 whales") whenever external news/whale sources were unconfigured.
+    price_jump_rows = (
+        await session.execute(
+            select(SignalEvent.payload)
+            .where(
+                SignalEvent.market_id == state.market_slug,
+                SignalEvent.signal_type == "delta:price_jump",
+            )
+            .order_by(SignalEvent.created_at.desc())
+            .limit(3)
+        )
+    ).scalars().all()
 
     implied = state.market_state.get("implied_yes")
     model: dict[str, Any] = {}
@@ -144,11 +161,37 @@ async def gather_evidence(session: AsyncSession, state: AnalystState) -> Analyst
         except Exception:  # noqa: BLE001 - predictor must not break brief generation
             logger.debug("predict_market failed in analyst evidence", exc_info=True)
 
+    # Trend over the last few snapshots (recent[0] newest .. recent[-1] oldest).
+    recent = [p for p in state.market_state.get("recent", []) if isinstance(p, (int, float))]
+    trend: dict[str, Any] = {}
+    if len(recent) >= 2:
+        move = recent[0] - recent[-1]
+        if abs(move) >= 0.005:  # ignore float noise below half a cent
+            trend = {
+                "from": round(recent[-1], 4),
+                "to": round(recent[0], 4),
+                "move_pts": round(move * 100, 1),
+                "direction": "up" if move > 0 else "down",
+                "n_points": len(recent),
+            }
+
     state.evidence = {
         "news": [dict(p) for p in news_rows if isinstance(p, dict)],
         "whales": [dict(p) for p in whale_rows if isinstance(p, dict)],
+        "price_jumps": [dict(p) for p in price_jump_rows if isinstance(p, dict)],
+        "trend": trend,
         "model": model,
     }
+
+    # Lean the brief on the REAL signal: an unforced analysis follows the price
+    # trend / latest jump rather than the hardcoded "up" default.
+    if not state.direction_forced:
+        if trend.get("direction"):
+            state.direction = trend["direction"]
+        elif price_jump_rows:
+            jump = price_jump_rows[0]
+            if isinstance(jump, dict) and jump.get("direction") in ("up", "down"):
+                state.direction = jump["direction"]
     return state
 
 
@@ -178,6 +221,29 @@ def build_citations(state: AnalystState) -> list[dict[str, Any]]:
             {"kind": "wallet", "ref": f"whale {w.get('direction', '')} "
              f"{w.get('detail', {}).get('action', '')}", "url": None}
         )
+    # Real price-action evidence (T03 diff engine) — always available even when
+    # external news/whale sources are unconfigured, so briefs cite a genuine fact.
+    trend = state.evidence.get("trend") or {}
+    if trend:
+        citations.append(
+            {
+                "kind": "price",
+                "ref": (
+                    f"trend {trend['direction']} {trend['move_pts']:+.1f}pts "
+                    f"({trend['from']:.2f}->{trend['to']:.2f}, {trend['n_points']} pts)"
+                ),
+                "url": None,
+            }
+        )
+    for j in state.evidence.get("price_jumps", []):
+        detail = j.get("detail", {}) if isinstance(j, dict) else {}
+        citations.append(
+            {
+                "kind": "price",
+                "ref": f"price_jump {j.get('direction', '')} {detail.get('bps', '')}bps",
+                "url": None,
+            }
+        )
     # Fall back to an orderbook/price citation if evidence was otherwise empty.
     if not citations and state.market_state.get("implied_yes") is not None:
         citations.append(
@@ -200,8 +266,10 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
     model = state.evidence.get("model") or {}
     n_news = len(state.evidence.get("news", []))
     n_whales = len(state.evidence.get("whales", []))
+    n_jumps = len(state.evidence.get("price_jumps", []))
+    trend = state.evidence.get("trend") or {}
     price_txt = f"{implied:.0%}" if isinstance(implied, (int, float)) else "n/a"
-    n_signals = n_news + n_whales
+    n_signals = n_news + n_whales + n_jumps
     persona = PERSONAS.get(state.persona or "")
     framing = persona["framing"] if persona else ""
     if state.trigger_event_id is None:
@@ -211,13 +279,37 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
     else:
         headline = f"{title[:80]} moved {state.direction} — {n_signals} signals aligned"
         opener = f"{framing}Alignment fired **{state.direction}** on {title}. "
+
+    # Describe the REAL price action — the concrete fact the lean rests on.
+    if trend:
+        price_action = (
+            f"Price has moved **{trend['move_pts']:+.1f} pts {trend['direction']}** "
+            f"({trend['from']:.0%}→{trend['to']:.0%}) over the last {trend['n_points']} readings. "
+        )
+    elif n_jumps:
+        jump = state.evidence["price_jumps"][0]
+        bps = jump.get("detail", {}).get("bps") if isinstance(jump, dict) else None
+        price_action = (
+            f"Latest signal: a {jump.get('direction', '')} price jump"
+            + (f" of {bps}bps. " if bps else ". ")
+        )
+    else:
+        price_action = "Price has been flat — no material move detected. "
+
+    edge = model.get("edge", 0)
+    edge_read = (
+        "the model sees no edge versus the market (fairly priced)"
+        if abs(edge) < 0.01
+        else f"the model reads a {edge:+.1%} edge versus the current line"
+    )
+    ext = f"{n_news} news, {n_whales} whale move(s)"
     body = (
         opener
         + f"Current price {price_txt}. "
-        f"Model probability {model.get('predicted_prob', 0):.1%} "
-        f"(edge {model.get('edge', 0):+.1%}). "
-        f"Evidence: {n_news} news signal(s), {n_whales} whale move(s). "
-        "(Heuristic brief — no LLM key or call failed.)"
+        + price_action
+        + f"Model probability {model.get('predicted_prob', 0):.0%} — {edge_read}. "
+        f"External evidence: {ext}. "
+        "(Deterministic brief — no LLM key configured; add LLM_API_KEY for prose reasoning.)"
     )
     return headline[:120], body[:1200]
 
@@ -238,10 +330,13 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
         f"Current price: {state.market_state.get('implied_yes')}\n"
         f"Model probability: {model.get('predicted_prob')}\n"
         f"Model edge: {model.get('edge')}\n"
+        f"Price trend: {state.evidence.get('trend')}\n"
+        f"Recent price jumps: {state.evidence.get('price_jumps')}\n"
         f"News signals: {state.evidence.get('news')}\n"
         f"Whale moves: {state.evidence.get('whales')}\n"
         "Write a one-line headline (<=110 chars) then a short evidence-cited brief "
-        "(<=1000 chars) explaining WHY the market moved. Do not recommend bet size."
+        "(<=1000 chars) explaining WHY the market moved, grounded in the price trend/"
+        "jumps and any news/whale evidence. Do not recommend bet size."
     )
     persona = PERSONAS.get(state.persona or "")
     system_prompt = _SYSTEM_PROMPT + (f" {persona['emphasis']}" if persona else "")
@@ -370,11 +465,16 @@ async def run_analyst(
     market_slug: str,
     *,
     trigger_event_id: str | None = None,
-    direction: str = "up",
+    direction: str | None = None,
     persona: str | None = None,
     settings=None,
 ) -> Any:
-    """Run the full analyst pipeline once and return the validated brief model."""
+    """Run the full analyst pipeline once and return the validated brief model.
+
+    ``direction`` is optional: when None (on-demand runs) the analyst derives the
+    lean from live price evidence in ``gather_evidence``; when supplied (alignment
+    triggers) it is honored as the aligned direction.
+    """
     if settings is None:
         from app.core.config import get_settings
 
@@ -383,7 +483,8 @@ async def run_analyst(
     state = AnalystState(
         market_slug=market_slug,
         trigger_event_id=trigger_event_id,
-        direction=direction,
+        direction=direction or "up",
+        direction_forced=direction is not None,
         persona=persona if persona in PERSONAS else None,
         started_perf=time.perf_counter(),
     )

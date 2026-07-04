@@ -96,6 +96,18 @@ def normalize_kalshi_market(
     if implied is None:
         raise ValueError("Kalshi market payload does not include a usable YES price")
 
+    # Kalshi multi-outcome events (e.g. "Who will the next Pope be?") return one
+    # market per outcome, ALL sharing the same `title`; the distinguishing label
+    # lives in `yes_sub_title` ("Pietro Parolin", "Argentina", …). Without folding
+    # it in, the catalog shows N identical cards at different prices. Compose a
+    # per-outcome title so each card is distinct and correct.
+    event_title = str(market.get("title") or ticker).strip()
+    sub_title = str(market.get("yes_sub_title") or market.get("subtitle") or "").strip()
+    if sub_title and sub_title.lower() not in event_title.lower():
+        display_title = f"{event_title}: {sub_title}"
+    else:
+        display_title = event_title
+
     captured = parse_timestamp(captured_at or market.get("last_update_time"))
     raw_status = str(market.get("status") or "").lower()
     metadata = {
@@ -121,7 +133,7 @@ def normalize_kalshi_market(
         book=SOURCE,
         event_id=market.get("event_ticker"),
         platform_market_id=ticker,
-        title=market.get("title") or ticker,
+        title=display_title,
         market_type="binary",
         outcome_name="Yes",
         close_at=parse_timestamp(

@@ -176,3 +176,54 @@ def test_persona_foregrounds_evidence_kind():
     }
     citations = build_citations(state)
     assert citations[0]["kind"] == "wallet"  # whale evidence foregrounded
+
+
+# ── real price-action evidence (analyst quality fix) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_analyst_sources_price_trend_and_derives_direction(db_session):
+    """On-demand runs must derive the lean from real price movement and cite it,
+    instead of a hardcoded 'up' with '0 news, 0 whales'."""
+    from app.db.models import SignalEvent
+
+    slug = "pm-trend-market"
+    db_session.add(
+        Market(
+            id=uuid4(), slug=slug, title="Trend market?", question="q?",
+            status=MarketStatus.OPEN, source="polymarket",
+        )
+    )
+    # Two snapshots: older 0.30 (recorded earlier), newer 0.42 (recorded later)
+    # → rising trend of +12 pts. gather_market_state orders by captured_at desc.
+    for price, minutes_ago in ((0.30, 60), (0.42, 1)):
+        db_session.add(
+            OddsSnapshot(
+                id=uuid4(), market_slug=slug, implied_yes=Decimal(str(price)),
+                source="polymarket-live",
+                captured_at=datetime(2026, 7, 4, 12, 0, tzinfo=UTC).replace(
+                    minute=60 - minutes_ago if minutes_ago < 60 else 0
+                ),
+                book="polymarket", market_type="binary", outcome_name="Yes",
+                price=Decimal(str(price)),
+            )
+        )
+    db_session.add(
+        SignalEvent(
+            signal_type="delta:price_jump", platform="polymarket",
+            market_id=slug, headline_eligible=True,
+            payload={"kind": "price_jump", "direction": "up",
+                     "detail": {"bps": 1200.0}},
+        )
+    )
+    await db_session.flush()
+
+    model = await run_analyst(db_session, slug, settings=_no_llm_settings())
+
+    # Direction derived from the rising trend, not the hardcoded default.
+    assert model.claim.direction.value == "up"
+    # A real price citation is present (kind "price").
+    kinds = {c.kind for c in model.citations}
+    assert "price" in kinds
+    # Body names the concrete move, not just "0 news, 0 whales".
+    assert "pts" in model.body_markdown.lower() or "jump" in model.body_markdown.lower()
