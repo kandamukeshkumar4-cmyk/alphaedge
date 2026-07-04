@@ -91,6 +91,7 @@ const NAV_LINKS: Array<{ href: string; label: string; tour: string }> = [
   { href: "/track-record", label: "Track record", tour: "nav-track-record" },
   { href: "/forecast", label: "Forecast", tour: "nav-forecast" },
   { href: "/macro", label: "Macro", tour: "nav-macro" },
+  { href: "/weather", label: "Weather", tour: "nav-weather" },
 ];
 
 // Secondary destinations — desktop "More" dropdown + mobile menu.
