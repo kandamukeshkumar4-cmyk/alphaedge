@@ -155,6 +155,14 @@ class Settings(BaseSettings):
     digest_distribution_enabled: bool = Field(
         default=False, alias="DIGEST_DISTRIBUTION_ENABLED"
     )
+    # Multi-model ensemble + router (U08) — OFF by default (AutoLab-gated).
+    # Flag stays OFF until walk-forward Brier of ensemble < single-model baseline.
+    ensemble_enabled: bool = Field(default=False, alias="ENSEMBLE_ENABLED")
+    # JSON string: {"NBA": "single", "Elections": "single", "default": "single"}
+    # All categories default to "single" until the CLV gate passes.
+    ensemble_router_config: str = Field(
+        default="", alias="ENSEMBLE_ROUTER_CONFIG"
+    )
     kalshi_api_key_id: str = Field(default="", alias="KALSHI_API_KEY_ID")
     kalshi_signing_pem: str = Field(default="", alias="KALSHI_SIGNING_PEM")
     polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")

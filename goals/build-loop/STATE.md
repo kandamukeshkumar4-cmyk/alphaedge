@@ -20,8 +20,8 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U04 | Portfolio exposure analysis             | DONE   | -          | -    | 2026-07-03 iter 4 PASS (774p/5s inline verify, §G clean, 40% boundary OK); committed b0ff6c0 |
 | U05 | Assistant chat (analysis-only, no-order)| DONE   | -          | U04  | 2026-07-03 iter 5 PASS (795p/5s inline verify, §G2 safety-critical clean); committed 0caf20c |
 | U06 | Agent Builder "Clone-lite"              | DONE   | -          | -    | 2026-07-03 iter 6 verifier PASS (821p/5s, G3 3-layer, single head 029); committed 6a60df6 |
-| U07 | Clone leaderboard / arena               | IN-REVIEW | opus-4-8 maker → verifier | U06 | 2026-07-03 iter 7: maker done 845p/5s, verifier running |
-| U08 | Multi-model ensemble + router (AutoLab) | TODO   | -          | -    | 2026-07-03 queued |
+| U07 | Clone leaderboard / arena               | DONE   | -          | U06  | 2026-07-03 iter 7 verifier PASS (845p/5s, scorer reuse, honest stub); committed dc43429 |
+| U08 | Multi-model ensemble + router (AutoLab) | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-03 iter 8: maker done 886p/5s, honest iter=0 flag OFF, verifier running |
 | U09 | Memory / learning loop (AutoLab)        | TODO   | -          | -    | 2026-07-03 queued |
 | U10 | Backtest replay + realistic fills       | TODO   | -          | -    | 2026-07-03 queued |
 | U11 | Cross-platform arb hardening            | TODO   | -          | U02  | 2026-07-03 queued |
@@ -29,6 +29,20 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-03 iter 7 VERDICT: U07 **PASS** → DONE, committed dc43429. Verifier
+  confirmed all 6 integrity checks: (1) scorer genuinely reuses T08 score_claim +
+  aggregate_claims (service:41-42,229), Brier/accuracy from overall.*, no
+  divergent formula; (2) no fabricated metrics, honest empty (n_graded=0,
+  brier=None); (3) PROVISIONAL_MIN=30 imported from analyst_metrics, consistent;
+  (4) /leaderboard + /{id}/scorecard registered before /{clone_id} catch-all
+  (clones.py:142,234,286); (5) live-vs-stubbed statement accurate — claims derived
+  compute-time from predicted_prob vs OddsSnapshot via real scorer, no BriefClaim
+  persistence (future ticket); (6) no order-path imports. Minor notes (non-blocking):
+  scorer-import test is text-scan not AST; no HTTP integration test on /leaderboard
+  (route order verified by declaration). Full gate 845p/5s, single head 029.
+  New baseline: **845p/5s**. Clones pillar (U06 build + U07 arena) COMPLETE.
+  Iteration 8: U08 (multi-model ensemble + router — AutoLab-gated) claimed.
 
 - 2026-07-03 iter 6 VERDICT: U06 **PASS** → DONE, committed 6a60df6. Verifier agent
   (recovered — no 529/limit this round) confirmed all 6 G3 checks: (1)

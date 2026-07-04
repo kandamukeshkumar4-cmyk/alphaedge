@@ -12,10 +12,17 @@
  *  - News + whale context chips
  *  - "Paper trading only" footer
  *
+ * U08 ensemble extension (when ensemble flag ON):
+ *  - "Models" row: per-model probability dots + labels
+ *  - Disagreement/uncertainty band shown under model bars
+ *  - All models labelled "provisional" until CLV gate passes
+ *  - When flag OFF: single-model view is unchanged (no ensemble UI rendered)
+ *
  * Data sources:
  *   GET /api/v1/markets/{slug}/explain    → model_prob, market_implied, edge,
  *                                           confidence_label, news_signals,
- *                                           trade_rationale, provisional
+ *                                           trade_rationale, provisional,
+ *                                           ensemble? (when flag ON)
  *   GET /api/v1/markets/{slug}/agent-trace → verdict, steps (rationale trace)
  *
  * GUARDRAIL: This component is advisory only. It has no order-submission
@@ -41,6 +48,27 @@ type NewsSignal = {
   sources_count: number;
 };
 
+// U08 — ensemble model estimate (present only when ensemble flag is ON)
+type ModelEstimate = {
+  model_id: string;
+  probability: number;
+  weight: number;
+  source: string;
+  provisional: boolean; // always true until CLV gate passes
+};
+
+type EnsembleData = {
+  enabled: boolean;
+  ensemble_prob: number;
+  uncertainty_low: number;
+  uncertainty_high: number;
+  disagreement: number;
+  model_estimates: ModelEstimate[];
+  provisional: boolean;
+  clv_gate_passed: boolean;
+  notes: string;
+};
+
 type ExplainData = {
   slug: string;
   model_prob: number;
@@ -52,6 +80,8 @@ type ExplainData = {
   trade_rationale: string;
   provisional: boolean;
   paper_trading_only: boolean;
+  // U08 — only present when ENSEMBLE_ENABLED=true
+  ensemble?: EnsembleData;
 };
 
 type TraceData = {
@@ -86,6 +116,90 @@ function verdictLabel(verdict: string): string {
     case "PASS":   return "PASS";
     default:       return "NO EDGE";
   }
+}
+
+// ---------------------------------------------------------------------------
+// U08 — Ensemble models area (rendered only when ensemble flag is ON)
+// ---------------------------------------------------------------------------
+
+function EnsembleModelsSection({ data }: { data: EnsembleData }) {
+  if (!data.enabled || data.model_estimates.length === 0) return null;
+
+  const bandWidth = Math.round((data.uncertainty_high - data.uncertainty_low) * 100);
+  const bandLeft = Math.round(data.uncertainty_low * 100);
+
+  return (
+    <div
+      data-testid="ensemble-models-section"
+      className="space-y-3 rounded-xl border border-border/60 bg-surface-2/50 px-3 py-3"
+    >
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-muted">
+          Models ({data.model_estimates.length})
+        </span>
+        {data.provisional && (
+          <span
+            data-testid="ensemble-provisional-label"
+            className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300"
+          >
+            provisional
+          </span>
+        )}
+      </div>
+
+      {/* Per-model probability dots + labels */}
+      <div className="space-y-1.5">
+        {data.model_estimates.map((est) => (
+          <div key={est.model_id} className="flex items-center gap-2">
+            {/* probability dot on a 0-100% track */}
+            <div className="relative h-1.5 flex-1 overflow-visible rounded-full bg-surface-2">
+              <div
+                className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-accent bg-surface shadow"
+                style={{ left: `${Math.round(est.probability * 100)}%` }}
+                title={`${est.model_id}: ${(est.probability * 100).toFixed(1)}%`}
+              />
+            </div>
+            <span className="w-14 text-right font-mono text-[11px] text-muted">
+              {(est.probability * 100).toFixed(1)}%
+            </span>
+            <span className="w-20 truncate text-[10px] text-muted-2" title={est.model_id}>
+              {est.model_id}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Disagreement / uncertainty band */}
+      <div>
+        <div className="mb-1 flex items-baseline justify-between">
+          <span className="text-[10px] text-muted">Uncertainty band</span>
+          <span className="font-mono text-[10px] text-muted">
+            {(data.uncertainty_low * 100).toFixed(1)}%–{(data.uncertainty_high * 100).toFixed(1)}%
+            {" "}(±{(data.disagreement * 100).toFixed(1)}% disagreement)
+          </span>
+        </div>
+        <div className="relative h-2 overflow-hidden rounded-full bg-surface-2">
+          {/* ensemble mean dot */}
+          <div
+            className="absolute top-0 h-full w-0.5 rounded-full bg-accent"
+            style={{ left: `${Math.round(data.ensemble_prob * 100)}%` }}
+          />
+          {/* uncertainty band fill */}
+          <div
+            className="absolute top-0 h-full rounded-full bg-accent/25"
+            style={{ left: `${bandLeft}%`, width: `${bandWidth}%` }}
+          />
+        </div>
+      </div>
+
+      {!data.clv_gate_passed && (
+        <p className="text-[10px] text-muted-2">
+          Flag ON · CLV gate not yet evaluated · all models provisional
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +343,11 @@ export function DecisionCard({ slug, className }: Props) {
             </div>
           </div>
         </div>
+
+        {/* ── U08 Ensemble models area (only when flag is ON) ── */}
+        {explainData.ensemble?.enabled && (
+          <EnsembleModelsSection data={explainData.ensemble} />
+        )}
 
         {/* ── Edge + confidence + CLV label ── */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
