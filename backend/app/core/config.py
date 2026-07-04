@@ -163,6 +163,18 @@ class Settings(BaseSettings):
     ensemble_router_config: str = Field(
         default="", alias="ENSEMBLE_ROUTER_CONFIG"
     )
+    # U12 Calibration drift alarm — OFF by default.
+    # When enabled, the drift service fires through the EXISTING T09 AlertDispatchService.
+    # Zero external calls when both drift_alarm_enabled=false AND the T09 external channels
+    # are also disabled (default state).
+    drift_alarm_enabled: bool = Field(default=False, alias="DRIFT_ALARM_ENABLED")
+    drift_alarm_threshold: float = Field(
+        default=0.05,
+        alias="DRIFT_ALARM_THRESHOLD",
+        description="Absolute Brier drift above baseline that triggers the alarm.",
+    )
+    # Number of most-recent graded claims to include in the rolling Brier window.
+    drift_rolling_window: int = Field(default=30, alias="DRIFT_ROLLING_WINDOW")
     # Backtest replay nightly job (U10) — OFF by default.
     # When enabled, runs a nightly replay on configured market slugs and publishes
     # results to backtest_runs for the track record.

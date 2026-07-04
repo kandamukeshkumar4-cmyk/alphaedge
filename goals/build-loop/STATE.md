@@ -24,11 +24,25 @@ init: backend 669p/5s ruff clean (2026-07-02); frontend lint/typecheck/build gre
 | U08 | Multi-model ensemble + router (AutoLab) | DONE   | -          | -    | 2026-07-04 iter 8 verifier PASS (886p/5s, honest iter=0 flag OFF, baseline byte-identical); committed e55237e |
 | U09 | Memory / learning loop (AutoLab)        | DONE   | -          | -    | 2026-07-04 iter 9 verifier PASS (911p/5s, cross-ticket U06 safe, honest iter=0); committed 50d66a1 |
 | U10 | Backtest replay + realistic fills       | DONE   | -          | -    | 2026-07-04 iter 10 verifier PASS (937p/5s, no-lookahead genuine, mig 030); committed 7c82fa6 |
-| U11 | Cross-platform arb hardening            | IN-REVIEW | opus-4-8 maker → verifier | U02 | 2026-07-04 iter 11: maker done 976p/5s; verifier running |
-| U12 | Observability + calibration drift       | TODO   | -          | -    | 2026-07-03 queued |
+| U11 | Cross-platform arb hardening            | DONE   | -          | U02  | 2026-07-04 iter 11 verifier PASS (976p/5s, signal-only, false-positive guard); committed 394ae99 |
+| U12 | Observability + calibration drift       | IN-REVIEW | opus-4-8 maker → verifier | - | 2026-07-04 iter 12: maker done 996p/5s; verifier running |
 | U13 | Personalization (AI learns the user)    | TODO   | -          | U04,U05 | 2026-07-03 queued (owner request) |
 
 ## Loop C Decisions log
+
+- 2026-07-04 iter 11 VERDICT: U11 **PASS** → DONE, committed 394ae99. Verifier
+  confirmed all 6: (1) signal-only — arb path detect→ingest→emit_to_feed only
+  publishes feed item, zero order-path imports (AST tests genuine), no
+  submit/place/execute/trade methods; (2) signal_only=True always in API
+  (arb.py:113,140); (3) false-positive guard — differently-resolving markets
+  (Lakers champ vs LeBron points) score 0.50<0.75 unconfirmed, event_id_mismatch
+  blocks; (4) staleness ts>=expires_at boundary correct, list_fresh excludes;
+  (5) no fabricated arb, honest empty state; (6) existing 24 matching tests pass
+  (hardening additive). Gate 976p/5s, single head 030. DEFENSE-IN-DEPTH GAP
+  (non-blocking, logged as follow-up): ArbOpportunity.signal_only is mutable
+  default not frozen/validated — production always True, structural guarantee is
+  the import check. New baseline: **976p/5s**. Iteration 12: U12 (observability +
+  calibration drift) claimed. Only U12, U13 remain before exit ritual.
 
 - 2026-07-04 iter 10 VERDICT: U10 **PASS** → DONE, committed 7c82fa6. Verifier
   confirmed all 5: (1) no-lookahead negative-control GENUINE (test:262 injects
