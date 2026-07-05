@@ -177,6 +177,21 @@ async def news_scan_task(ctx: dict) -> dict:
     news evidence layer was structurally empty no matter which API keys were
     configured. Skips markets without a news signal; never raises per-market.
     """
+    from app.db.session import AsyncSessionLocal
+
+    settings = ctx.get("settings") or get_settings()
+    if not settings.news_signals_enabled:
+        return {"skipped": True, "reason": "NEWS_SIGNALS_ENABLED=false"}
+
+    async with AsyncSessionLocal() as session:
+        results = await run_news_scan(session)
+        await session.commit()
+    return {"scanned": len(results), "results": results}
+
+
+async def run_news_scan(session) -> dict[str, str]:
+    """Core of news_scan_task on a caller-provided session (testable without
+    the app engine)."""
     from datetime import UTC as _UTC
     from datetime import datetime as _dt
 
@@ -184,45 +199,38 @@ async def news_scan_task(ctx: dict) -> dict:
 
     from app.db.models import Market as _Market
     from app.db.models import MarketStatus as _MarketStatus
-    from app.db.session import AsyncSessionLocal
     from app.signals.news_lag import NewsLagService
     from app.signals.news_signal import fetch_news_signal
 
-    settings = ctx.get("settings") or get_settings()
-    if not settings.news_signals_enabled:
-        return {"skipped": True, "reason": "NEWS_SIGNALS_ENABLED=false"}
-
     results: dict[str, str] = {}
-    async with AsyncSessionLocal() as session:
-        rows = (
-            await session.execute(
-                _select(_Market.slug, _Market.title)
-                .where(
-                    _Market.status == _MarketStatus.OPEN,
-                    _Market.source.in_(("polymarket", "kalshi")),
-                )
-                .order_by(_Market.volume.desc())
-                .limit(_NEWS_SCAN_TOP_N)
+    rows = (
+        await session.execute(
+            _select(_Market.slug, _Market.title)
+            .where(
+                _Market.status == _MarketStatus.OPEN,
+                _Market.source.in_(("polymarket", "kalshi")),
             )
-        ).all()
-        service = NewsLagService(session)
-        for slug, title in rows:
-            try:
-                signal = await fetch_news_signal(title)
-                if signal is None or signal.sentiment_score == 0.0:
-                    results[slug] = "no-news"
-                    continue
-                outcome = await service.detect(
-                    slug,
-                    relevance=max(0.0, min(1.0, signal.volume_score)),
-                    sentiment=signal.sentiment_score,
-                    news_ts=_dt.now(_UTC),
-                )
-                results[slug] = outcome.reason
-            except Exception as exc:  # noqa: BLE001 - per-market isolation
-                results[slug] = f"error: {exc}"
-        await session.commit()
-    return {"scanned": len(results), "results": results}
+            .order_by(_Market.volume.desc())
+            .limit(_NEWS_SCAN_TOP_N)
+        )
+    ).all()
+    service = NewsLagService(session)
+    for slug, title in rows:
+        try:
+            signal = await fetch_news_signal(title)
+            if signal is None or signal.sentiment_score == 0.0:
+                results[slug] = "no-news"
+                continue
+            outcome = await service.detect(
+                slug,
+                relevance=max(0.0, min(1.0, signal.volume_score)),
+                sentiment=signal.sentiment_score,
+                news_ts=_dt.now(_UTC),
+            )
+            results[slug] = outcome.reason
+        except Exception as exc:  # noqa: BLE001 - per-market isolation
+            results[slug] = f"error: {exc}"
+    return results
 
 
 async def run_eval_on_resolve_task(ctx: dict, market_id: str) -> dict:

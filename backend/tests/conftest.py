@@ -60,8 +60,8 @@ def lakers_celtics_slug():
 @pytest.fixture(autouse=True)
 def _clear_markets_cache():
     """B01 micro-cache on /markets must not leak state between tests."""
-    from app.api.v1 import routes
+    from app.core import markets_cache
 
-    routes._markets_cache.clear()
+    markets_cache.invalidate()
     yield
-    routes._markets_cache.clear()
+    markets_cache.invalidate()

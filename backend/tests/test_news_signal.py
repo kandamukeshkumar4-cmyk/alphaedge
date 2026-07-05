@@ -104,23 +104,19 @@ async def test_news_scan_task_emits_news_arrival_events(db_session, monkeypatch)
             polymarket_consensus=None, headline="Big development", sources_count=6,
         )
 
+    from app.signals import news_signal as news_signal_module
+
+    news_signal_module._CACHE.clear()  # other tests may have cached real signals
     monkeypatch.setattr("app.signals.news_signal.fetch_news_signal", fake_fetch)
     # the task imports it locally from news_signal, so patch at source module
 
-    summary = await worker_tasks.news_scan_task({})
+    results = await worker_tasks.run_news_scan(db_session)
 
-    # The task runs on the app-level AsyncSessionLocal (its own DB view), so
-    # assert the mechanism: markets scanned, at least one directional news
-    # classified as unpriced, and news_arrival SignalEvents persisted.
-    assert summary["scanned"] >= 1
-    assert any(v == "unpriced" for v in summary["results"].values())
-    unpriced_slugs = [s for s, v in summary["results"].items() if v == "unpriced"]
-    from app.db.session import AsyncSessionLocal
-    async with AsyncSessionLocal() as check:
-        n = len((await check.execute(
-            select(SignalEvent).where(
-                SignalEvent.market_id.in_(unpriced_slugs),
-                SignalEvent.signal_type == "delta:news_arrival",
-            )
-        )).scalars().all())
-    assert n >= 1
+    assert results.get("pm-news-scan-test") == "unpriced"
+    events = (await db_session.execute(
+        select(SignalEvent).where(
+            SignalEvent.market_id == "pm-news-scan-test",
+            SignalEvent.signal_type == "delta:news_arrival",
+        )
+    )).scalars().all()
+    assert len(events) >= 1

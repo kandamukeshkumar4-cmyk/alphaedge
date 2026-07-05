@@ -98,6 +98,7 @@ class MarketService:
         if market.status != MarketStatus.OPEN:
             raise ValueError("Market is not open")
         market.status = MarketStatus.LOCKED
+        _invalidate_public_list_cache()
         await self.session.flush()
         await self.events.emit(
             "market_locked",
@@ -111,6 +112,7 @@ class MarketService:
         if market.status == MarketStatus.RESOLVED:
             raise ValueError("Market already resolved")
         market.status = MarketStatus.RESOLVED
+        _invalidate_public_list_cache()
         market.winning_outcome = winning_outcome
         market.resolved_at = datetime.now(timezone.utc)
         await self.session.flush()
@@ -693,3 +695,10 @@ class MarketService:
             "System paper bankroll seed",
         )
         return account
+
+
+def _invalidate_public_list_cache() -> None:
+    """B01: any market state change must be visible on /markets immediately."""
+    from app.core import markets_cache
+
+    markets_cache.invalidate()

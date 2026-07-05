@@ -155,6 +155,10 @@ async def resolve_market(
     db.add(resolution)
     await db.flush()
 
+    from app.core import markets_cache
+
+    markets_cache.invalidate()  # B01: resolution must be visible on /markets now
+
     ts = datetime.now(timezone.utc).isoformat()
     await hub.publish(
         slug,

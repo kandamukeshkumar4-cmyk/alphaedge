@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -8,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
+from app.core import markets_cache
 from app.core.config import get_settings
 from app.db.models import (
     Account,
@@ -70,10 +70,8 @@ _VALID_SORTS = {"volume", "traders", "newest"}
 
 # B01: the homepage rails poll /markets dozens of times per second per client,
 # which self-tripped the global rate limiter (users saw intermittent 429s).
-# A tiny in-process TTL cache makes the flood cheap; 3s staleness is invisible
-# next to the 15s live-tick cadence that actually moves the data.
-_MARKETS_CACHE_TTL_SEC = 3.0
-_markets_cache: dict[tuple[str | None, str, str | None], tuple[float, list]] = {}
+# The 3s TTL cache lives in app.core.markets_cache so MarketService can
+# invalidate it on any market mutation (resolve/lock/create are instant).
 
 
 @router.get("/markets", response_model=list[MarketResponse])
@@ -88,15 +86,12 @@ async def list_markets(
     if sort not in _VALID_SORTS:
         raise HTTPException(status_code=400, detail="Invalid sort parameter")
     key = (category, sort, q)
-    cached = _markets_cache.get(key)
-    now = time.monotonic()
-    if cached is not None and now - cached[0] < _MARKETS_CACHE_TTL_SEC:
-        return cached[1]
+    cached = markets_cache.get(key)
+    if cached is not None:
+        return cached
     svc = MarketService(db)
     result = await svc.list_public_markets(category=category, sort=sort, q=q)
-    if len(_markets_cache) > 256:  # bound weird q-permutation growth
-        _markets_cache.clear()
-    _markets_cache[key] = (now, result)
+    markets_cache.put(key, result)
     return result
 
 
