@@ -291,3 +291,68 @@ def test_assistant_chat_with_history(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     assert resp.json()["paper_trading_only"] is True
+
+
+# ── 7. LLM gate honours the configured provider (NIM regression) ─────────────
+
+
+@pytest.mark.asyncio
+async def test_llm_reply_uses_llm_when_nim_key_configured(monkeypatch) -> None:
+    """With LLM_PROVIDER=nim + NIM_API_KEY set, _llm_reply must call the LLM —
+    it previously checked only LLM_API_KEY and silently fell back to the
+    deterministic reply, which made deployed NIM configs look 'not analyzing'."""
+    import app.api.v1.assistant as assistant_mod
+    import app.llm.provider as provider_mod
+    from app.core.config import Settings
+
+    settings = Settings(
+        _env_file=None,
+        PAPER_TRADING_ONLY=True,
+        LLM_PROVIDER="nim",
+        NIM_API_KEY="test-nim-key",
+    )
+    monkeypatch.setattr(assistant_mod, "get_settings", lambda: settings)
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            class _Msg:
+                content = "NIM analysis: odds moved on volume."
+
+            class _Choice:
+                message = _Msg()
+
+            class _Resp:
+                choices = [_Choice()]
+
+            return _Resp()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setattr(provider_mod, "get_llm_client", lambda s: _FakeClient())
+
+    reply, _citations, _tools = await assistant_mod._llm_reply(
+        "Why did odds move?", {}, [], None
+    )
+    assert "NIM analysis" in reply, (
+        "assistant took the deterministic-fallback shortcut despite a configured "
+        "NIM key — the provider-aware gate regressed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_reply_falls_back_without_any_key(monkeypatch) -> None:
+    import app.api.v1.assistant as assistant_mod
+    from app.core.config import Settings
+
+    settings = Settings(_env_file=None, PAPER_TRADING_ONLY=True)
+    monkeypatch.setattr(assistant_mod, "get_settings", lambda: settings)
+
+    reply, _citations, tools = await assistant_mod._llm_reply(
+        "Why did odds move?", {}, [], None
+    )
+    assert reply
+    assert tools, "deterministic fallback should report the tools it used"

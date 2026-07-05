@@ -1,0 +1,105 @@
+name: Demo Uptime Watch
+
+# Keeps the deployed demo warm and alerts (via workflow failure email) when it
+# is down. Free-tier HF Spaces sleep after inactivity and Neon suspends idle
+# compute — this cron both wakes them and proves the API answers before anyone
+# opens the demo in front of an audience.
+#
+# Read-only by design: no orders, no briefs, no DB writes.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_URL: https://mukeshkumarkanda-alphaedge-api.hf.space
+  FRONTEND_URL: https://proud-meadow-01b42b810.7.azurestaticapps.net
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake and verify /health (up to 5 min for cold start)
+        run: |
+          for i in $(seq 1 20); do
+            body="$(mktemp)"
+            status=$(curl --silent --show-error --location --max-time 30 \
+              --output "$body" --write-out "%{http_code}" \
+              "$BASE_URL/health" || echo 000)
+            if [ "$status" = "200" ]; then
+              echo "API healthy after attempt $i"
+              python3 - "$body" << 'PY'
+          import json, sys
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert payload.get("status") == "ok", payload
+          assert payload.get("paper_trading_only") is True, payload
+          print(json.dumps(payload, indent=2))
+          PY
+              exit 0
+            fi
+            echo "Attempt $i/20: HTTP $status — retrying in 15s (Space may be waking)"
+            sleep 15
+          done
+          echo "ERROR: demo API did not answer /health within 5 minutes."
+          exit 1
+
+      - name: Verify markets endpoint serves data
+        run: |
+          body="$(mktemp)"
+          status=$(curl --silent --show-error --location --max-time 30 \
+            --output "$body" --write-out "%{http_code}" \
+            "$BASE_URL/api/v1/markets" || echo 000)
+          if [ "$status" != "200" ]; then
+            echo "ERROR: /api/v1/markets returned HTTP $status"
+            cat "$body"
+            exit 1
+          fi
+          python3 - "$body" << 'PY'
+          import json, sys
+          markets = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert isinstance(markets, list) and markets, "no markets returned"
+          print(f"/api/v1/markets OK — {len(markets)} markets")
+          PY
+
+      - name: Check AI analysis mode (warn-only)
+        run: |
+          body="$(mktemp)"
+          status=$(curl --silent --show-error --location --max-time 30 \
+            --output "$body" --write-out "%{http_code}" \
+            "$BASE_URL/api/v1/briefs?limit=1" || echo 000)
+          if [ "$status" != "200" ]; then
+            echo "::warning::/api/v1/briefs returned HTTP $status — cannot check AI mode"
+            exit 0
+          fi
+          python3 - "$body" << 'PY'
+          import json, sys
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          items = payload.get("items") or []
+          if not items:
+              print("::warning::No analyst briefs yet on the deployed demo")
+          elif items[0].get("generator") != "llm":
+              print(
+                  "::warning::Latest analyst brief is generator="
+                  f"{items[0].get('generator')!r} — the deployed backend has no "
+                  "working LLM key. Run 'Deploy Backend to HF Space' with "
+                  "sync_runtime_secrets=true after setting the LLM_* / NIM_API_KEY "
+                  "GitHub secrets."
+              )
+          else:
+              print("AI analysis is live (generator=llm)")
+          PY
+
+      - name: Verify frontend is reachable
+        run: |
+          status=$(curl --silent --show-error --location --max-time 30 \
+            --output /dev/null --write-out "%{http_code}" \
+            "$FRONTEND_URL" || echo 000)
+          if [ "$status" != "200" ]; then
+            echo "ERROR: frontend returned HTTP $status"
+            exit 1
+          fi
+          echo "Frontend OK"
