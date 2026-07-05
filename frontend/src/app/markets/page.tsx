@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { MarketCard, MarketCardSkeleton } from "@/components/MarketCard";
 import { API_BASE } from "@/lib/alphaedge-api";
+import { cn } from "@/lib/cn";
 import { MARKETS as MOCK_MARKETS } from "@/lib/mock-data";
 import {
   fetchMarkets,
@@ -52,9 +53,13 @@ const STATUS_OPTIONS = [
   { label: "Resolved", value: "resolved" as const },
 ];
 
+const PLATFORMS = ["all", "Polymarket", "Kalshi"] as const;
+type PlatformFilter = (typeof PLATFORMS)[number];
+
 export default function MarketsPage() {
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,11 +120,13 @@ export default function MarketsPage() {
         ? `${category} `
         : `${category} ${filter} `;
 
-  const openCount = markets.filter((m) => m.status !== "resolved").length;
+  const visible =
+    platform === "all" ? markets : markets.filter((m) => m.platform === platform);
+  const openCount = visible.filter((m) => m.status !== "resolved").length;
   const avgYes =
-    markets.length > 0
+    visible.length > 0
       ? Math.round(
-          (markets.reduce((sum, m) => sum + (m.implied_yes ?? 0), 0) / markets.length) * 100,
+          (visible.reduce((sum, m) => sum + (m.implied_yes ?? 0), 0) / visible.length) * 100,
         )
       : 0;
 
@@ -132,8 +139,26 @@ export default function MarketsPage() {
         actions={<SegTabs value={filter} onChange={setFilter} options={STATUS_OPTIONS} size="sm" />}
       />
 
+      <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto">
+        {PLATFORMS.map((p) => (
+          <Chip key={p} active={platform === p} onClick={() => setPlatform(p)}>
+            <span className="inline-flex items-center gap-1.5">
+              {p !== "all" ? (
+                <span
+                  className={cn(
+                    "inline-block h-2 w-2 rounded-full",
+                    p === "Polymarket" ? "bg-secondary" : "bg-primary",
+                  )}
+                />
+              ) : null}
+              {p === "all" ? "All platforms" : p}
+            </span>
+          </Chip>
+        ))}
+      </div>
+
       <StatRow cols={3} className="mb-6">
-        <StatTile label="Markets" value={markets.length.toLocaleString()} />
+        <StatTile label="Markets" value={visible.length.toLocaleString()} />
         <StatTile label="Open now" value={openCount.toLocaleString()} deltaTone="up" delta="live" accent />
         <StatTile label="Avg implied YES" value={`${avgYes}%`} />
       </StatRow>
@@ -160,13 +185,13 @@ export default function MarketsPage() {
         <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-10 text-center text-sm text-danger">
           {error}
         </div>
-      ) : markets.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
           No {emptyLabel}markets found.
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {markets.map((market) => (
+          {visible.map((market) => (
             <MarketCard key={market.id} market={market} />
           ))}
         </div>
