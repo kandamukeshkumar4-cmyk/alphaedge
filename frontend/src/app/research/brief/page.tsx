@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { fetchBrief, type AnalystBrief } from "@/lib/polyscout-api";
 import { QuestWhyBrief } from "@/components/quest/QuestWhyBrief";
+import BriefBySlugClient from "./[slug]/brief-client";
 import { ClaimBadge } from "@/components/ClaimBadge";
 
 function renderMarkdownish(md: string): React.ReactNode[] {
@@ -48,6 +49,7 @@ function renderMarkdownish(md: string): React.ReactNode[] {
 function BriefDetailInner() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
+  const slug = searchParams.get("slug");
   const [brief, setBrief] = useState<AnalystBrief | null | undefined>(undefined);
 
   useEffect(() => {
@@ -57,6 +59,12 @@ function BriefDetailInner() {
     }
     void fetchBrief(id).then(setBrief);
   }, [id]);
+
+  // Live-market entry point (?slug=pm-…): dynamic slugs can't be prerendered
+  // under the static export, so resolve-or-run the analyst here instead.
+  if (!id && slug) {
+    return <BriefBySlugClient slug={slug} />;
+  }
 
   if (brief === undefined) {
     return (
