@@ -14,6 +14,13 @@ class FakeKalshiConnector:
             }
         ]
 
+    def list_series_markets(self, series: str, *, limit: int = 100):
+        # B07: ingest now takes one series-wide markets call, grouped by event.
+        return [
+            {**m, "event_ticker": "KXWCGAME-26JUN12CANBIH"}
+            for m in self.list_event_markets("KXWCGAME-26JUN12CANBIH")
+        ]
+
     def list_event_markets(self, event_ticker: str):
         return [
             {

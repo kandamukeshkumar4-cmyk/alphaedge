@@ -65,6 +65,33 @@ class KalshiConnector:
                 out.extend(m for m in payload["markets"] if isinstance(m, dict))
         return out
 
+    def list_open_markets(
+        self,
+        *,
+        page_limit: int = 1000,
+        max_pages: int = 8,
+    ) -> list[dict[str, Any]]:
+        """The whole open board via cursor pagination (≤max_pages calls).
+
+        Feeds the catalog ingest: grouping these locally by event_ticker
+        replaces the one-/markets-call-per-event fan-out that 429ed."""
+        out: list[dict[str, Any]] = []
+        cursor: str | None = None
+        for _ in range(max_pages):
+            params: dict[str, str] = {"status": "open", "limit": str(page_limit)}
+            if cursor:
+                params["cursor"] = cursor
+            payload = self.http.get_json("/markets", params=params)
+            if not isinstance(payload, dict):
+                break
+            markets = payload.get("markets")
+            if isinstance(markets, list):
+                out.extend(m for m in markets if isinstance(m, dict))
+            cursor = payload.get("cursor") or None
+            if not cursor or not markets:
+                break
+        return out
+
     def list_series_markets(self, series_ticker: str, *, limit: int = 100) -> list[dict[str, Any]]:
         """Open markets for a whole series (e.g. KXHIGHNY daily-high ladders)."""
         payload = self.http.get_json(

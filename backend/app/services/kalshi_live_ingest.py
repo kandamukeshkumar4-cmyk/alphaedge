@@ -66,6 +66,18 @@ class KalshiLiveIngestService:
             logger.warning("Kalshi open-events list failed: %s", error)
             return {"imported": 0, "updated": 0, "skipped": 0}
 
+        # ONE paginated board sweep instead of one /markets call per event —
+        # the per-event fan-out (~100 calls/cycle) tripped Kalshi's rate limit
+        # and left most catalog syncs half-finished behind 429s.
+        try:
+            board = await asyncio.to_thread(self.connector.list_open_markets)
+        except Exception as error:
+            logger.warning("Kalshi open-markets board failed: %s", error)
+            return {"imported": 0, "updated": 0, "skipped": 0}
+        markets_by_event: dict[str, list[dict[str, Any]]] = {}
+        for market in board:
+            markets_by_event.setdefault(str(market.get("event_ticker") or ""), []).append(market)
+
         picked: dict[str, int] = {}
         n_categories = len({c for c, _ in _KALSHI_CATEGORY_MAP.values()})
         for event in events:
@@ -82,23 +94,11 @@ class KalshiLiveIngestService:
                 continue
             event_title = str(event.get("title") or event_ticker)
 
-            markets = None
-            for attempt in range(2):
-                try:
-                    markets = await asyncio.to_thread(
-                        self.connector.list_event_markets, event_ticker
-                    )
-                    break
-                except Exception as error:
-                    if attempt == 0:
-                        await asyncio.sleep(2.0)  # rate-limit backoff, retry once
-                        continue
-                    logger.warning("Kalshi markets failed for %s: %s", event_ticker, error)
+            markets = markets_by_event.get(event_ticker)
             if markets is None:
                 skipped += 1
                 continue
-            await asyncio.sleep(0.15)  # stay under the Kalshi rate limit
-            markets = [m for m in markets if isinstance(m, dict)][:max_markets_per_event]
+            markets = markets[:max_markets_per_event]
             if not markets:
                 skipped += 1
                 continue
@@ -140,6 +140,22 @@ class KalshiLiveIngestService:
 
         events = _prioritize_near_term_events(events, limit=event_limit)
 
+        # One series-wide /markets call, grouped locally — replaces the
+        # per-event fan-out that 429ed against Kalshi's rate limit.
+        try:
+            series_markets = await asyncio.to_thread(
+                self.connector.list_series_markets, self.series, limit=1000
+            )
+        except Exception as error:
+            logger.warning("Kalshi series markets failed for %s: %s", self.series, error)
+            return {"imported": 0, "updated": 0, "skipped": 0}
+        markets_by_event: dict[str, list[dict[str, Any]]] = {}
+        for market in series_markets:
+            if isinstance(market, dict):
+                markets_by_event.setdefault(
+                    str(market.get("event_ticker") or ""), []
+                ).append(market)
+
         for event in events:
             if not isinstance(event, dict):
                 continue
@@ -148,16 +164,7 @@ class KalshiLiveIngestService:
             if not event_ticker:
                 continue
 
-            try:
-                markets = await asyncio.to_thread(
-                    self.connector.list_event_markets,
-                    event_ticker,
-                )
-            except Exception as error:
-                logger.warning("Kalshi markets failed for %s: %s", event_ticker, error)
-                skipped += 1
-                continue
-
+            markets = markets_by_event.get(event_ticker)
             if not markets:
                 skipped += 1
                 continue

@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -67,6 +68,14 @@ _VALID_CATEGORIES = {
 _VALID_SORTS = {"volume", "traders", "newest"}
 
 
+# B01: the homepage rails poll /markets dozens of times per second per client,
+# which self-tripped the global rate limiter (users saw intermittent 429s).
+# A tiny in-process TTL cache makes the flood cheap; 3s staleness is invisible
+# next to the 15s live-tick cadence that actually moves the data.
+_MARKETS_CACHE_TTL_SEC = 3.0
+_markets_cache: dict[tuple[str | None, str, str | None], tuple[float, list]] = {}
+
+
 @router.get("/markets", response_model=list[MarketResponse])
 async def list_markets(
     category: str | None = None,
@@ -78,8 +87,17 @@ async def list_markets(
         raise HTTPException(status_code=400, detail="Invalid category filter")
     if sort not in _VALID_SORTS:
         raise HTTPException(status_code=400, detail="Invalid sort parameter")
+    key = (category, sort, q)
+    cached = _markets_cache.get(key)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < _MARKETS_CACHE_TTL_SEC:
+        return cached[1]
     svc = MarketService(db)
-    return await svc.list_public_markets(category=category, sort=sort, q=q)
+    result = await svc.list_public_markets(category=category, sort=sort, q=q)
+    if len(_markets_cache) > 256:  # bound weird q-permutation growth
+        _markets_cache.clear()
+    _markets_cache[key] = (now, result)
+    return result
 
 
 @router.get("/search", response_model=list[UnifiedMarketSearchResult])
