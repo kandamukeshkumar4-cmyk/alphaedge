@@ -1,3 +1,4 @@
+import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 import type { RankRow } from "@/lib/mock-data";
 import { Delta } from "./Delta";
@@ -26,7 +27,7 @@ export function DiscoveryRail({
         {rows.map((row, i) => (
           <li key={`${title}-${row.slug}`}>
             <Link
-              href={`/markets/${row.slug}`}
+              href={marketHref(row.slug)}
               className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2.5 px-4 py-3 text-sm transition hover:bg-surface-2"
             >
               <span className="font-mono text-xs font-black text-muted-2">{i + 1}</span>

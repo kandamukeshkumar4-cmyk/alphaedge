@@ -83,6 +83,15 @@ class User(Base):
 
 
 class PaperOrder(Base):
+    """A JWT-user's paper-trade ledger entry (slug/side/cost/realized_pnl/settled).
+
+    NOT a duplicate of ``Order``: that models the CLOB matching-engine order
+    (account-based, order_type, price/quantity, filled_quantity, fills). They
+    are distinct domain concepts with different lifecycles and consumers, so the
+    long-standing "PaperOrder/Order consolidation" (C1/E09) is deliberately NOT
+    done — merging them would be an architectural error, not a cleanup.
+    """
+
     __tablename__ = "paper_orders"
     __table_args__ = (Index("ix_paper_orders_user_id", "user_id"),)
 
@@ -140,6 +149,14 @@ class Market(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     resolution: Mapped[str] = mapped_column(Text, default="")
     tournament_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(32), default="seed", server_default="seed")
+    external_slug: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    clob_token_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    image_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    last_synced_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[MarketStatus] = mapped_column(
         _pg_enum(MarketStatus, name="market_status"),
         default=MarketStatus.OPEN,
@@ -181,6 +198,14 @@ class Order(Base):
 
 
 class PaperSignal(Base):
+    """A per-account market signal/watchlist marker (unique per account+market).
+
+    NOT a duplicate of ``signal_events``: that stores pipeline-generated diff/
+    whale/news DeltaEvents (signal_type/platform/payload). Different producers,
+    different schema, different consumers — so the "PaperSignal → signal_events
+    fold" (C2/E09) is deliberately NOT done.
+    """
+
     __tablename__ = "paper_signals"
     __table_args__ = (
         Index("ix_paper_signals_account_market", "account_id", "market_id", unique=True),
@@ -359,6 +384,7 @@ class PredictionLog(Base):
         ForeignKey("feature_versions.id"), nullable=True
     )
     input_feature_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    explanation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # T11 SHAP top features
     odds_snapshot_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("odds_snapshots.id"), nullable=True
     )
@@ -465,6 +491,113 @@ class WalletPosition(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tracked_wallet: Mapped["TrackedWallet"] = relationship(back_populates="positions")
+
+
+class WalletPositionSnapshot(Base):
+    """T05 time-series of a whale's positions, for diffing into whale_delta events.
+
+    Distinct from WalletPosition (current state): this is append-only history keyed
+    by (wallet_address, market_slug, captured_at) so consecutive snapshots can be
+    diffed to detect adds/exits/flips.
+    """
+
+    __tablename__ = "wallet_position_snapshots"
+    __table_args__ = (
+        Index(
+            "ix_wallet_pos_snap_wallet_market_captured",
+            "wallet_address",
+            "market_slug",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    wallet_address: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(8), default="YES")
+    size: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    avg_price: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AnalystBrief(Base):
+    """T07 AI research brief generated on an analyst.trigger."""
+
+    __tablename__ = "analyst_briefs"
+    __table_args__ = (
+        Index("ix_analyst_briefs_market_created", "market_slug", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    trigger_event_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    headline: Mapped[str] = mapped_column(String(160), nullable=False)
+    body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    model_version: Mapped[str] = mapped_column(String(64), default="unknown")
+    prompt_version: Mapped[str] = mapped_column(String(32), default="v1")
+    generator: Mapped[str] = mapped_column(String(16), default="llm")
+    kind: Mapped[str] = mapped_column(String(16), default="brief")  # brief | digest
+    # E13 analyst persona lens: macro | whale-flow | news | NULL (default desk)
+    persona: Mapped[Optional[str]] = mapped_column(String(24), nullable=True)
+    latency_ms: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    claim: Mapped[Optional["BriefClaim"]] = relationship(
+        back_populates="brief", uselist=False
+    )
+
+
+class BriefClaim(Base):
+    """The falsifiable claim attached to a brief; graded by the eval harness (T08)."""
+
+    __tablename__ = "brief_claims"
+    __table_args__ = (
+        Index("ix_brief_claims_status_horizon", "status", "horizon_minutes"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    brief_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("analyst_briefs.id"))
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    horizon_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    confidence: Mapped[float] = mapped_column(Numeric(6, 4), default=0)
+    price_at_claim: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    resolution_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    brief: Mapped["AnalystBrief"] = relationship(back_populates="claim")
+
+
+class AnalystEvalAggregate(Base):
+    """T08 public track-record aggregate: accuracy/Brier per dimension + window."""
+
+    __tablename__ = "analyst_eval_aggregates"
+    __table_args__ = (
+        Index("ix_analyst_eval_dimension_key_window", "dimension", "dim_key", "window_days"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dimension: Mapped[str] = mapped_column(String(32), nullable=False)  # category|claim_type|model_version|prompt_version|overall
+    dim_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    window_days: Mapped[int] = mapped_column(Integer, default=7)  # 7 | 30 | 0 (all)
+    n: Mapped[int] = mapped_column(Integer, default=0)
+    accuracy: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0"))
+    brier: Mapped[Decimal] = mapped_column(Numeric(8, 6), default=Decimal("0"))
+    provisional: Mapped[bool] = mapped_column(Boolean, default=True)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 # Week 4
@@ -684,6 +817,73 @@ class ForecastLog(Base):
     )
 
 
+class AgentClone(Base):
+    """U06 — User-composed agent clone: a saved configuration of a SUBSET of
+    the vetted GRAPH_NODES plus execution params.  Editing creates a new version
+    (version increments); old versions are retained as separate rows with the
+    same clone_id but a higher version number."""
+
+    __tablename__ = "agent_clones"
+    __table_args__ = (
+        Index("ix_agent_clones_clone_id_version", "clone_id", "version", unique=True),
+        Index("ix_agent_clones_user_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Stable identifier across versions — all versions share the same clone_id.
+    clone_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # JSON-serialised list[str] of vetted GRAPH_NODE names (server-validated on write).
+    nodes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    # Watched market slugs / category strings (JSON list[str]).
+    markets: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    # Edge threshold: 0.0–0.50, clamped on write.
+    edge_threshold: Mapped[float] = mapped_column(Numeric(5, 4), default=0.05)
+    # Cooldown between runs in minutes: 60–10080 (1h–7d), clamped on write.
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    # is_latest flag — only the newest version per clone_id is True.
+    is_latest: Mapped[bool] = mapped_column(Boolean, default=True)
+    # paper-only enforcement annotation (non-functional; checked in runner).
+    paper_trading_only: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    runs: Mapped[list["AgentCloneRun"]] = relationship(
+        back_populates="clone", foreign_keys="AgentCloneRun.clone_version_id"
+    )
+
+
+class AgentCloneRun(Base):
+    """U06 — A single paper-mode execution of an AgentClone on a specific market."""
+
+    __tablename__ = "agent_clone_runs"
+    __table_args__ = (
+        Index("ix_agent_clone_runs_clone_id_created", "clone_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # The specific clone version row that was executed.
+    clone_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_clones.id"), nullable=False
+    )
+    # Stable clone_id for querying all runs across versions.
+    clone_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending")  # pending|running|done|error
+    # Serialised list of AgentTraceStep dicts.
+    trace: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    # Subset of AgentState snapshot at end of run.
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    clone: Mapped["AgentClone"] = relationship(
+        back_populates="runs", foreign_keys=[clone_version_id]
+    )
+
+
 class ForecastScore(Base):
     """Resolution scoring for a single locked forecast. Written only after the
     external market resolves and the leakage gate passes."""
@@ -703,3 +903,38 @@ class ForecastScore(Base):
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     forecast: Mapped["ForecastLog"] = relationship(back_populates="score")
+
+
+class BacktestRun(Base):
+    """U10 — Stored result of a backtest replay over historical odds_snapshots.
+
+    No order-path imports; paper-only simulation.  paper_trading_only is always True.
+    """
+
+    __tablename__ = "backtest_runs"
+    __table_args__ = (
+        Index("ix_backtest_runs_market_slug", "market_slug"),
+        Index("ix_backtest_runs_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    clone_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    initial_equity: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("10000"))
+    final_equity: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
+    spread: Mapped[Decimal] = mapped_column(Numeric(8, 6), default=Decimal("0.02"))
+    slippage_per_unit: Mapped[Decimal] = mapped_column(Numeric(10, 8), default=Decimal("0.001"))
+    edge_threshold: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0.05"))
+    snapshot_count: Mapped[int] = mapped_column(Integer, default=0)
+    trade_count: Mapped[int] = mapped_column(Integer, default=0)
+    brier_final: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6), nullable=True)
+    no_lookahead_verified: Mapped[bool] = mapped_column(Boolean, default=True)
+    insufficient_data: Mapped[bool] = mapped_column(Boolean, default=False)
+    equity_curve: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    fill_quality: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    brier_over_time: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="completed")
+    paper_trading_only: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

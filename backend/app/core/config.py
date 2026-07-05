@@ -30,6 +30,13 @@ class Settings(BaseSettings):
         alias="CORS_ORIGINS",
     )
     rate_limit: str = Field(default="600/minute", alias="RATE_LIMIT")
+    live_feed_enabled: bool = Field(default=True, alias="LIVE_FEED_ENABLED")
+    live_tick_interval_sec: int = Field(default=15, alias="LIVE_TICK_INTERVAL_SEC")
+    live_ingest_interval_sec: int = Field(default=1800, alias="LIVE_INGEST_INTERVAL_SEC")
+    live_ingest_total_limit: int = Field(default=100, alias="LIVE_INGEST_TOTAL_LIMIT")
+    live_ingest_min_volume_24h: float = Field(
+        default=10_000.0, alias="LIVE_INGEST_MIN_VOLUME_24H"
+    )
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",
@@ -77,8 +84,107 @@ class Settings(BaseSettings):
         default="https://gamma-api.polymarket.com", alias="POLYMARKET_GAMMA_BASE_URL"
     )
     kalshi_api_base_url: str = Field(
-        default="https://external-api.kalshi.com/trade-api/v2", alias="KALSHI_API_BASE_URL"
+        default="https://api.elections.kalshi.com/trade-api/v2",
+        alias="KALSHI_API_BASE_URL",
     )
+    live_kalshi_series: str = Field(default="KXWCGAME", alias="LIVE_KALSHI_SERIES")
+    kalshi_ws_enabled: bool = Field(default=True, alias="KALSHI_WS_ENABLED")
+    kalshi_ws_url: str = Field(
+        default="wss://api.elections.kalshi.com/trade-api/ws/v2",
+        alias="KALSHI_WS_URL",
+    )
+    polymarket_ws_enabled: bool = Field(default=True, alias="POLYMARKET_WS_ENABLED")
+    polymarket_ws_url: str = Field(
+        default="wss://ws-subscriptions-clob.polymarket.com/ws/market",
+        alias="POLYMARKET_WS_URL",
+    )
+    stream_reconnect_max_sec: float = Field(default=60.0, alias="STREAM_RECONNECT_MAX_SEC")
+    stream_heartbeat_timeout_sec: float = Field(
+        default=30.0, alias="STREAM_HEARTBEAT_TIMEOUT_SEC"
+    )
+    # Diff engine (T03)
+    diff_engine_enabled: bool = Field(default=True, alias="DIFF_ENGINE_ENABLED")
+    diff_state_backend: str = Field(default="memory", alias="DIFF_STATE_BACKEND")
+    diff_price_jump_bps: float = Field(default=100.0, alias="DIFF_PRICE_JUMP_BPS")
+    diff_orderbook_flip_ratio: float = Field(
+        default=1.0, alias="DIFF_ORDERBOOK_FLIP_RATIO"
+    )
+    diff_volume_surge_min: float = Field(default=10_000.0, alias="DIFF_VOLUME_SURGE_MIN")
+    # Alignment scorer (T04)
+    alignment_enabled: bool = Field(default=True, alias="ALIGNMENT_ENABLED")
+    alignment_window_sec: float = Field(default=600.0, alias="ALIGNMENT_WINDOW_SEC")
+    alignment_min_score: float = Field(default=3.0, alias="ALIGNMENT_MIN_SCORE")
+    alignment_min_layers: int = Field(default=3, alias="ALIGNMENT_MIN_LAYERS")
+    alignment_weight_price: float = Field(default=1.0, alias="ALIGNMENT_WEIGHT_PRICE")
+    alignment_weight_whale: float = Field(default=1.0, alias="ALIGNMENT_WEIGHT_WHALE")
+    alignment_weight_news: float = Field(default=1.0, alias="ALIGNMENT_WEIGHT_NEWS")
+    alignment_weight_model: float = Field(default=1.0, alias="ALIGNMENT_WEIGHT_MODEL")
+    # News->price lag detector (T06)
+    news_lag_enabled: bool = Field(default=True, alias="NEWS_LAG_ENABLED")
+    news_lag_window_sec: float = Field(default=300.0, alias="NEWS_LAG_WINDOW_SEC")
+    news_lag_min_relevance: float = Field(default=0.5, alias="NEWS_LAG_MIN_RELEVANCE")
+    news_lag_move_threshold: float = Field(default=0.02, alias="NEWS_LAG_MOVE_THRESHOLD")
+    # Analyst agent (T07)
+    analyst_enabled: bool = Field(default=True, alias="ANALYST_ENABLED")
+    analyst_cooldown_sec: float = Field(default=900.0, alias="ANALYST_COOLDOWN_SEC")
+    prompt_version: str = Field(default="v1", alias="PROMPT_VERSION")
+    # Eval harness (T08)
+    eval_claim_epsilon: float = Field(default=0.02, alias="EVAL_CLAIM_EPSILON")
+    # Macro desk (E11) — FRED economic data; World Bank is the keyless fallback
+    fred_api_key: str = Field(default="", alias="FRED_API_KEY")
+    # Alert dispatch (T09) — external channels OFF by default
+    alerts_telegram_enabled: bool = Field(default=False, alias="ALERTS_TELEGRAM_ENABLED")
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_chat_id: str = Field(default="", alias="TELEGRAM_CHAT_ID")
+    alerts_webhook_url: str = Field(default="", alias="ALERTS_WEBHOOK_URL")
+    # Scheduled research loop (T10)
+    research_top_n: int = Field(default=10, alias="RESEARCH_TOP_N")
+    research_lookback_hours: float = Field(default=24.0, alias="RESEARCH_LOOKBACK_HOURS")
+    # ML model selection (T11) — "xgboost" (default) | "lightgbm" (optional dep)
+    ml_model_type: str = Field(default="xgboost", alias="ML_MODEL_TYPE")
+    # Instability signal (T13) — feature/context only, OFF by default
+    instability_enabled: bool = Field(default=False, alias="INSTABILITY_ENABLED")
+    instability_window_hours: float = Field(default=24.0, alias="INSTABILITY_WINDOW_HOURS")
+    instability_half_life_hours: float = Field(default=12.0, alias="INSTABILITY_HALF_LIFE_HOURS")
+    instability_threshold: float = Field(default=50.0, alias="INSTABILITY_THRESHOLD")
+    # Feed instability as a forecasting feature (election/geopolitics markets only)
+    instability_feature_enabled: bool = Field(
+        default=False, alias="INSTABILITY_FEATURE_ENABLED"
+    )
+    # Daily digest distribution (T14) — push daily research to channels, OFF by default
+    digest_distribution_enabled: bool = Field(
+        default=False, alias="DIGEST_DISTRIBUTION_ENABLED"
+    )
+    # Multi-model ensemble + router (U08) — OFF by default (AutoLab-gated).
+    # Flag stays OFF until walk-forward Brier of ensemble < single-model baseline.
+    ensemble_enabled: bool = Field(default=False, alias="ENSEMBLE_ENABLED")
+    # JSON string: {"NBA": "single", "Elections": "single", "default": "single"}
+    # All categories default to "single" until the CLV gate passes.
+    ensemble_router_config: str = Field(
+        default="", alias="ENSEMBLE_ROUTER_CONFIG"
+    )
+    # U12 Calibration drift alarm — OFF by default.
+    # When enabled, the drift service fires through the EXISTING T09 AlertDispatchService.
+    # Zero external calls when both drift_alarm_enabled=false AND the T09 external channels
+    # are also disabled (default state).
+    drift_alarm_enabled: bool = Field(default=False, alias="DRIFT_ALARM_ENABLED")
+    drift_alarm_threshold: float = Field(
+        default=0.05,
+        alias="DRIFT_ALARM_THRESHOLD",
+        description="Absolute Brier drift above baseline that triggers the alarm.",
+    )
+    # Number of most-recent graded claims to include in the rolling Brier window.
+    drift_rolling_window: int = Field(default=30, alias="DRIFT_ROLLING_WINDOW")
+    # Backtest replay nightly job (U10) — OFF by default.
+    # When enabled, runs a nightly replay on configured market slugs and publishes
+    # results to backtest_runs for the track record.
+    backtest_nightly_enabled: bool = Field(default=False, alias="BACKTEST_NIGHTLY_ENABLED")
+    backtest_nightly_slugs: str = Field(
+        default="nba-2025-01-15-lal-bos", alias="BACKTEST_NIGHTLY_SLUGS"
+    )
+    # U13 Trader profile (personalization) — ON by default (purely read/derive).
+    # Set TRADER_PROFILE_ENABLED=false to return empty-state without a DB hit.
+    trader_profile_enabled: bool = Field(default=True, alias="TRADER_PROFILE_ENABLED")
     kalshi_api_key_id: str = Field(default="", alias="KALSHI_API_KEY_ID")
     kalshi_signing_pem: str = Field(default="", alias="KALSHI_SIGNING_PEM")
     polygon_rpc_url: str = Field(default="", alias="POLYGON_RPC_URL")

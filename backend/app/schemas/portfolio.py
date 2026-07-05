@@ -5,6 +5,31 @@ PORTFOLIO_DISCLAIMER = (
     "Research only — not financial advice. Verify resolution terms. Paper trading only."
 )
 
+EXPOSURE_DISCLAIMER = (
+    "Research only — not financial advice. "
+    "Exposure figures are cost-basis notional, not mark-to-market. "
+    "Paper trading only."
+)
+
+
+class ExposureGroupResponse(BaseModel):
+    underlier: str
+    position_count: int
+    net_directional: float
+    total_notional: float
+    pct_of_total: float
+    concentrated: bool
+    positions: list[str] = Field(default_factory=list)
+
+
+class ExposureResponse(BaseModel):
+    total_open_notional: float = 0.0
+    groups: list[ExposureGroupResponse] = Field(default_factory=list)
+    has_concentration: bool = False
+    concentrated_underliers: list[str] = Field(default_factory=list)
+    paper_trading_only: bool = True
+    disclaimer: str = EXPOSURE_DISCLAIMER
+
 
 class PortfolioPositionResponse(BaseModel):
     id: str | None = None
@@ -28,6 +53,20 @@ class PortfolioSummaryResponse(BaseModel):
     total_invested: float = 0.0
     unrealized_pnl: float = 0.0
     unrealized_pnl_pct: float = 0.0
+
+
+class PortfolioRiskResponse(BaseModel):
+    """Risk metrics over the user's paper book (E12). Descriptive, not advice."""
+
+    n_closed: int = 0
+    total_realized_pnl: float = 0.0
+    win_rate: float | None = None
+    max_drawdown: float = 0.0
+    sharpe: float | None = None  # per-trade, NOT annualized
+    exposure_by_category: dict[str, float] = Field(default_factory=dict)
+    exposure_pct_by_category: dict[str, float] = Field(default_factory=dict)
+    paper_trading_only: bool = True
+    disclaimer: str = PORTFOLIO_DISCLAIMER
 
 
 class PortfolioResponse(BaseModel):

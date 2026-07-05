@@ -1,5 +1,6 @@
 "use client";
 
+import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/alphaedge-api";
@@ -177,7 +178,7 @@ export function WC2026Schedule() {
               <div className="flex flex-wrap gap-2">
                 {homeMarket && (
                   <Link
-                    href={`/markets/${homeMarket.slug}`}
+                    href={marketHref(homeMarket.slug)}
                     className="rounded-md border border-border px-2.5 py-1 text-[11px] font-black text-text transition hover:border-accent"
                   >
                     Trade {match.home_team.split(" ").pop()}
@@ -185,7 +186,7 @@ export function WC2026Schedule() {
                 )}
                 {drawMarket && (
                   <Link
-                    href={`/markets/${drawMarket.slug}`}
+                    href={marketHref(drawMarket.slug)}
                     className="rounded-md border border-border px-2.5 py-1 text-[11px] font-black text-text transition hover:border-accent"
                   >
                     Trade Draw
@@ -193,7 +194,7 @@ export function WC2026Schedule() {
                 )}
                 {awayMarket && (
                   <Link
-                    href={`/markets/${awayMarket.slug}`}
+                    href={marketHref(awayMarket.slug)}
                     className="rounded-md border border-border px-2.5 py-1 text-[11px] font-black text-text transition hover:border-accent"
                   >
                     Trade {match.away_team.split(" ").pop()}

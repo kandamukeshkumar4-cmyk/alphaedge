@@ -37,3 +37,15 @@ backend/backend/
 # Local data
 *.db
 *.sqlite3
+vendor-study/
+
+# Local env files (public-only values, but keep env out of history by convention)
+.env.local
+.env.*.local
+
+# Deploy staging copies / scratch (generated, never source of truth)
+hf_stage/
+hf_stage_clean/
+hf_space_deploy/
+deploy-azure-live-summary.txt
+fix_files.py

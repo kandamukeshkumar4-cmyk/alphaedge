@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
+from app.core import markets_cache
 from app.core.config import get_settings
 from app.db.models import (
     Account,
@@ -31,6 +32,7 @@ from app.schemas.market import (
     PaperSignalCreate,
     PaperSignalSummaryResponse,
     PositionResponse,
+    UnifiedMarketSearchResult,
 )
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
@@ -66,6 +68,12 @@ _VALID_CATEGORIES = {
 _VALID_SORTS = {"volume", "traders", "newest"}
 
 
+# B01: the homepage rails poll /markets dozens of times per second per client,
+# which self-tripped the global rate limiter (users saw intermittent 429s).
+# The 3s TTL cache lives in app.core.markets_cache so MarketService can
+# invalidate it on any market mutation (resolve/lock/create are instant).
+
+
 @router.get("/markets", response_model=list[MarketResponse])
 async def list_markets(
     category: str | None = None,
@@ -77,8 +85,32 @@ async def list_markets(
         raise HTTPException(status_code=400, detail="Invalid category filter")
     if sort not in _VALID_SORTS:
         raise HTTPException(status_code=400, detail="Invalid sort parameter")
+    key = (category, sort, q)
+    cached = markets_cache.get(key)
+    if cached is not None:
+        return cached
     svc = MarketService(db)
-    return await svc.list_public_markets(category=category, sort=sort, q=q)
+    result = await svc.list_public_markets(category=category, sort=sort, q=q)
+    markets_cache.put(key, result)
+    return result
+
+
+@router.get("/search", response_model=list[UnifiedMarketSearchResult])
+async def search_markets(
+    q: str | None = None,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unified cross-platform market search (U01).
+    Returns markets from Polymarket + Kalshi + AlphaEdge seed catalog
+    from the local DB — no live external calls in this path.
+    Results ranked by: title-match quality → open status → volume.
+    """
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
+    svc = MarketService(db)
+    return await svc.search_markets(q=q, limit=limit)
 
 
 @router.get("/markets/{slug}", response_model=MarketResponse)

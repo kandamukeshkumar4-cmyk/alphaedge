@@ -33,6 +33,94 @@ class PolymarketGammaConnector:
             client=clob_client,
         )
 
+    def list_active_markets(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        order: str = "volume24hr",
+        tag_slug: str | None = None,
+        min_volume: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """List active, open binary markets from Gamma, highest-volume first."""
+        params: dict[str, Any] = {
+            "active": "true",
+            "closed": "false",
+            "archived": "false",
+            "order": order,
+            "ascending": "false",
+            "limit": limit,
+            "offset": offset,
+        }
+        if tag_slug:
+            params["tag_slug"] = tag_slug
+        payload = self.http.get_json("/markets", params=params)
+        if not isinstance(payload, list):
+            raise ValueError("Polymarket Gamma returned a non-list markets payload")
+        markets: list[dict[str, Any]] = []
+        for market in payload:
+            if not isinstance(market, dict):
+                continue
+            volume = _float_or_zero(
+                market.get("volume24hr") or market.get("volumeNum") or market.get("volume")
+            )
+            if volume < min_volume:
+                continue
+            markets.append(market)
+        return markets
+
+    def list_active_markets_via_events(
+        self,
+        *,
+        tag_slug: str,
+        limit: int = 25,
+        min_volume: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Tag-filtered discovery via /events (the /markets tag_slug param is
+        silently ignored by Gamma — verified live 2026-07-02). Returns the
+        events' nested market payloads, highest 24h volume first."""
+        params: dict[str, Any] = {
+            "active": "true",
+            "closed": "false",
+            "archived": "false",
+            "order": "volume24hr",
+            "ascending": "false",
+            "limit": limit,
+            "tag_slug": tag_slug,
+        }
+        payload = self.http.get_json("/events", params=params)
+        if not isinstance(payload, list):
+            raise ValueError("Polymarket Gamma returned a non-list events payload")
+        markets: list[dict[str, Any]] = []
+        for event in payload:
+            if not isinstance(event, dict):
+                continue
+            for market in event.get("markets") or []:
+                if not isinstance(market, dict):
+                    continue
+                if market.get("closed") is True or market.get("active") is False:
+                    continue
+                volume = _float_or_zero(
+                    market.get("volume24hr") or market.get("volumeNum") or market.get("volume")
+                )
+                if volume < min_volume:
+                    continue
+                markets.append(market)
+        markets.sort(
+            key=lambda m: _float_or_zero(
+                m.get("volume24hr") or m.get("volumeNum") or m.get("volume")
+            ),
+            reverse=True,
+        )
+        return markets
+
+    def fetch_market_payload(self, slug: str) -> dict[str, Any]:
+        """Fetch the raw Gamma market payload for one market slug."""
+        payload = self.http.get_json(f"/markets/slug/{quote(slug, safe='')}")
+        if not isinstance(payload, dict):
+            raise ValueError("Polymarket Gamma returned a non-object market payload")
+        return payload
+
     def fetch_market_snapshot(
         self,
         slug: str,
@@ -122,6 +210,25 @@ def normalize_gamma_market(
     )
 
 
+def implied_yes_from_gamma_payload(payload: dict[str, Any]) -> float | None:
+    """Best-effort YES price from a Gamma list payload (no network)."""
+    outcomes = decode_jsonish(payload.get("outcomes"))
+    prices = decode_jsonish(payload.get("outcomePrices") or payload.get("outcome_prices"))
+    if isinstance(outcomes, list) and isinstance(prices, list):
+        for index, outcome in enumerate(outcomes):
+            if str(outcome).strip().lower() == "yes" and index < len(prices):
+                implied = probability_from_decimalish(prices[index])
+                if implied is not None:
+                    return implied
+        if prices:
+            implied = probability_from_decimalish(prices[0])
+            if implied is not None:
+                return implied
+    return probability_from_decimalish(
+        payload.get("lastTradePrice") or payload.get("last_trade_price")
+    )
+
+
 def _yes_outcome_name_and_index(outcomes: object) -> tuple[str, int]:
     if isinstance(outcomes, list):
         for index, outcome in enumerate(outcomes):
@@ -130,6 +237,11 @@ def _yes_outcome_name_and_index(outcomes: object) -> tuple[str, int]:
         if outcomes:
             return str(outcomes[0]), 0
     return "Yes", 0
+
+
+def yes_clob_token_id(market: dict[str, Any]) -> str | None:
+    """Public: the YES-outcome CLOB token id from a Gamma market payload, or None."""
+    return _yes_clob_token_id(market)
 
 
 def _yes_clob_token_id(market: dict[str, Any]) -> str | None:
@@ -192,6 +304,13 @@ def _probability_field(market: dict[str, Any], *names: str) -> float | None:
         if probability is not None:
             return probability
     return None
+
+
+def _float_or_zero(value: object) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _status(market: dict[str, Any]) -> str:

@@ -1,4 +1,4 @@
-import { mergeApiMarketsForCards, type ApiMarketCatalogItem } from "./api-market-adapter";
+import { apiCatalogToMarkets, type ApiMarketCatalogItem } from "./api-market-adapter";
 import { mergeApiSnapshotForDetail } from "./api-market-detail-adapter";
 import { MARKETS, type Market as CardMarket } from "./mock-data";
 import type { Market, MarketSnapshot } from "./market-view-model";
@@ -100,8 +100,122 @@ export async function fetchMarketCandles(
     if (!response.ok) {
       return null;
     }
-    const data = (await response.json()) as { candles?: Candle[] };
+    const data = (await response.json()) as { candles?: Candle[]; source?: string };
     return data.candles ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchMarketCandlesMeta(
+  slug: string,
+  points = 90,
+): Promise<{ candles: Candle[]; source: string } | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as { candles?: Candle[]; source?: string };
+    return { candles: data.candles ?? [], source: data.source ?? "unknown" };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// U10 — Backtest replay API
+// ---------------------------------------------------------------------------
+
+export type EquityPoint = { timestamp: string; equity: number };
+export type FillQualityStats = {
+  trade_count: number;
+  mean_slippage: number;
+  max_slippage: number;
+  total_realized_pnl: number;
+  mean_realized_pnl: number;
+};
+export type BrierPoint = { timestamp: string; brier: number; sample_count: number };
+
+export type BacktestRunResult = {
+  id: string;
+  market_slug: string;
+  clone_id: string | null;
+  start_date: string;
+  end_date: string;
+  initial_equity: number;
+  final_equity: number | null;
+  equity_curve: EquityPoint[];
+  fill_quality: FillQualityStats | null;
+  brier_over_time: BrierPoint[];
+  brier_final: number | null;
+  snapshot_count: number;
+  trade_count: number;
+  no_lookahead_verified: boolean;
+  insufficient_data: boolean;
+  status: string;
+  paper_trading_only: boolean;
+  created_at: string;
+};
+
+export type BacktestRunRequest = {
+  market_slug: string;
+  start_date: string;
+  end_date: string;
+  initial_equity?: number;
+  stake?: number;
+  spread?: number;
+  slippage_per_unit?: number;
+  edge_threshold?: number;
+  clone_id?: string;
+};
+
+export async function triggerBacktestRun(
+  req: BacktestRunRequest,
+): Promise<BacktestRunResult | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/backtest/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as BacktestRunResult;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchBacktestRuns(
+  market_slug?: string,
+  limit = 20,
+): Promise<BacktestRunResult[]> {
+  if (!API_BASE) return [];
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (market_slug) params.set("market_slug", market_slug);
+    const response = await fetch(`${API_BASE}/api/v1/backtest/runs?${params}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return [];
+    return (await response.json()) as BacktestRunResult[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchBacktestRun(runId: string): Promise<BacktestRunResult | null> {
+  if (!API_BASE) return null;
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/backtest/runs/${encodeURIComponent(runId)}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as BacktestRunResult;
   } catch {
     return null;
   }
@@ -210,26 +324,25 @@ export function toApiCategory(category: string): string | undefined {
 
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
   if (!API_BASE) {
-    return MARKETS;
+    return [];
   }
 
-  try {
-    const url = new URL(`${API_BASE}/api/v1/markets`);
-    if (params?.category && params.category !== "all") {
-      url.searchParams.set("category", params.category);
+  const url = new URL(`${API_BASE}/api/v1/markets`);
+  if (params?.category && params.category !== "all") {
+    const apiCategory = toApiCategory(params.category);
+    if (apiCategory) {
+      url.searchParams.set("category", apiCategory);
     }
-    if (params?.sort) url.searchParams.set("sort", params.sort);
-    if (params?.q) url.searchParams.set("q", params.q);
-
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (!response.ok) {
-      return MARKETS;
-    }
-    const markets = (await response.json()) as ApiMarketCatalogItem[];
-    return markets.length ? mergeApiMarketsForCards(markets, MARKETS) : MARKETS;
-  } catch {
-    return MARKETS;
   }
+  if (params?.sort) url.searchParams.set("sort", params.sort);
+  if (params?.q) url.searchParams.set("q", params.q);
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Markets HTTP ${response.status}`);
+  }
+  const markets = (await response.json()) as ApiMarketCatalogItem[];
+  return apiCatalogToMarkets(markets);
 }
 
 export type PatchMeRequest = {
@@ -407,6 +520,121 @@ function mergeApiDetailForCards(
     description: local?.description ?? detail.resolution_criteria,
     resolution: detail.resolution_criteria,
   };
+}
+
+// ── U06 Clone API ────────────────────────────────────────────────────────────
+
+export type CloneConfig = {
+  id: string;
+  clone_id: string;
+  version: number;
+  name: string;
+  nodes: string[];
+  markets: string[];
+  edge_threshold: number;
+  cooldown_minutes: number;
+  is_latest: boolean;
+  paper_trading_only: boolean;
+  created_at: string;
+};
+
+export type CloneRun = {
+  id: string;
+  clone_id: string;
+  clone_version_id: string;
+  market_slug: string;
+  status: "pending" | "running" | "done" | "error";
+  trace: Array<{ step_name: string; input_data: Record<string, unknown>; output_data: Record<string, unknown> }>;
+  result: Record<string, unknown>;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export async function fetchVettedNodes(token?: string): Promise<string[]> {
+  if (!API_BASE) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones/nodes`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { nodes?: string[] };
+    return data.nodes ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchClones(token: string): Promise<CloneConfig[]> {
+  if (!API_BASE || !token) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { clones?: CloneConfig[] };
+    return data.clones ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createClone(
+  token: string,
+  payload: { name: string; nodes: string[]; markets: string[]; edge_threshold: number; cooldown_minutes: number },
+): Promise<CloneConfig | null> {
+  if (!API_BASE || !token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CloneConfig;
+  } catch {
+    return null;
+  }
+}
+
+export async function runClone(
+  token: string,
+  cloneId: string,
+  marketSlug: string,
+): Promise<CloneRun | null> {
+  if (!API_BASE || !token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones/${cloneId}/run`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ market_slug: marketSlug }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CloneRun;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCloneRuns(
+  token: string,
+  cloneId: string,
+  limit = 20,
+): Promise<CloneRun[]> {
+  if (!API_BASE || !token) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/clones/${cloneId}/runs?limit=${limit}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { runs?: CloneRun[] };
+    return data.runs ?? [];
+  } catch {
+    return [];
+  }
 }
 
 function fallbackForSlug(slug: string): MarketSnapshot {

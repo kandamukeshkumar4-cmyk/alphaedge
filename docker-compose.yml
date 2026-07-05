@@ -32,6 +32,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false   # gitignored; absent on fresh clones/CI — keys are optional
     environment:
       PAPER_TRADING_ONLY: "true"
       DATABASE_URL: postgresql+asyncpg://alphaedge:alphaedge@db:5432/alphaedge
@@ -41,14 +44,17 @@ services:
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       SYSTEM_ACCOUNT_ID: "00000000-0000-0000-0000-000000000001"
       SYSTEM_INITIAL_BANKROLL: "100000.00"
+      # E07: instability index ON in dev (PROVISIONAL — model unvalidated;
+      # forecast-feature flag stays OFF until the election dataset exists)
+      INSTABILITY_ENABLED: "true"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      sh -c "uv run alembic upgrade head &&
+             uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   # Week 5: uncomment worker profile
   worker:
@@ -56,18 +62,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - path: ./backend/.env
+        required: false   # gitignored; absent on fresh clones/CI — keys are optional
     environment:
       PAPER_TRADING_ONLY: "true"
       DATABASE_URL: postgresql+asyncpg://alphaedge:alphaedge@db:5432/alphaedge
       DATABASE_URL_SYNC: postgresql://alphaedge:alphaedge@db:5432/alphaedge
       REDIS_URL: redis://redis:6379/0
       ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+      INSTABILITY_ENABLED: "true"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python -m app.workers.main
+    command: uv run python -m app.workers.main
 
 volumes:
   pgdata:

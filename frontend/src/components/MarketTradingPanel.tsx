@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInterval } from "@/hooks/useInterval";
 import { useToast } from "./ToastProvider";
 import { PositionCard, type Position } from "./PositionCard";
+import { useGamification } from "@/lib/gamification";
 
 function formatUSD(v: number) {
   return `$${v.toFixed(2)}`;
@@ -34,6 +35,7 @@ export function MarketTradingPanel({
 }: Props) {
   const { toast } = useToast();
   const { token, paperBalance, refreshBalance } = useAuth();
+  const { markTradePlaced } = useGamification();
 
   const [yesPrice, setYesPrice] = useState(initialYesPrice);
   const [outcome, setOutcome] = useState<"yes" | "no">("yes");
@@ -102,6 +104,7 @@ export function MarketTradingPanel({
     try {
       const result = await placePaperOrder(token, { slug, side: "buy", outcome, shares: amount, price });
       await Promise.all([refreshBalance(), refreshPosition()]);
+      markTradePlaced();
       toast({
         title: "Order placed",
         body: `Cost ${formatUSD(result.cost)} · Balance ${formatUSD(result.remaining_balance)}`,

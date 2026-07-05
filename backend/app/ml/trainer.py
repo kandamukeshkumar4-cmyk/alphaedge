@@ -5,7 +5,6 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.metrics import brier_score_loss
-from xgboost import XGBClassifier
 
 from app.backtesting.clv import (
     ForecastComparison,
@@ -389,13 +388,10 @@ def _fit_calibrated_model(
     if len(set(int(value) for value in y_train)) < 2:
         model = ConstantProbabilityModel(float(np.mean(y_train)))
     else:
-        model = XGBClassifier(
-            n_estimators=50,
-            max_depth=3,
-            learning_rate=0.1,
-            eval_metric="logloss",
-            random_state=0,
-        )
+        from app.core.config import get_settings
+        from app.ml.model_registry import build_classifier
+
+        model = build_classifier(get_settings().ml_model_type)
         model.fit(X_train, y_train)
     train_probs = model.predict_proba(X_train)[:, 1]
     probs = model.predict_proba(X_eval)[:, 1]

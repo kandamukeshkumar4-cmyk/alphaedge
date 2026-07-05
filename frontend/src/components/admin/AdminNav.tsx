@@ -72,6 +72,17 @@ export function AdminNav() {
       >
         Agent Proof
       </Link>
+      <Link
+        href="/admin/observability"
+        className={cn(
+          "rounded-lg px-3 py-2 text-sm font-medium transition",
+          pathname === "/admin/observability"
+            ? "bg-primary-dim text-primary"
+            : "text-muted hover:bg-surface-2 hover:text-text",
+        )}
+      >
+        Observability
+      </Link>
     </nav>
   );
 }

@@ -309,6 +309,41 @@ def test_kalshi_normalizes_market_midpoint_from_price_fields():
     assert snapshot.metadata["status"] == "active"
 
 
+def test_kalshi_multi_outcome_title_includes_sub_title():
+    """Multi-outcome events (all sharing one title) must fold the outcome
+    (yes_sub_title) into the title so cards aren't identical duplicates."""
+    snapshot = normalize_kalshi_market(
+        {
+            "market": {
+                "ticker": "KXNEWPOPE-70-PPAR",
+                "title": "Who will the next Pope be?",
+                "yes_sub_title": "Pietro Parolin",
+                "status": "active",
+                "yes_bid_dollars": "0.0400",
+                "yes_ask_dollars": "0.0400",
+            }
+        },
+        captured_at=CAPTURED_AT,
+    )
+    assert snapshot.title == "Who will the next Pope be?: Pietro Parolin"
+
+
+def test_kalshi_binary_title_unchanged_without_sub_title():
+    snapshot = normalize_kalshi_market(
+        {
+            "market": {
+                "ticker": "KXNBA-LALBOS-26JAN15",
+                "title": "Lakers beat Celtics?",
+                "status": "active",
+                "yes_bid_dollars": "0.5400",
+                "yes_ask_dollars": "0.5800",
+            }
+        },
+        captured_at=CAPTURED_AT,
+    )
+    assert snapshot.title == "Lakers beat Celtics?"
+
+
 def test_kalshi_converts_opposite_side_bids_into_executable_asks():
     snapshot = normalize_kalshi_market(
         {
@@ -506,3 +541,22 @@ def test_onchain_connector_is_read_only_and_cannot_sign_or_submit_transactions()
     assert position.total_pnl == Decimal("17.8000")
     assert position.roi == Decimal("0.4450")
     assert position.hit_rate == Decimal("1.0000")
+
+
+def test_kalshi_list_markets_by_tickers_chunks_requests():
+    from app.data.connectors.kalshi import KalshiConnector
+
+    connector = KalshiConnector()
+    calls: list[dict] = []
+
+    class FakeHttp:
+        def get_json(self, path, params=None):
+            calls.append(params)
+            tickers = params["tickers"].split(",")
+            return {"markets": [{"ticker": t} for t in tickers]}
+
+    connector.http = FakeHttp()
+    out = connector.list_markets_by_tickers([f"KX-{i}" for i in range(90)])
+    assert len(out) == 90
+    assert len(calls) == 3  # 40 + 40 + 10
+    assert all(len(c["tickers"].split(",")) <= 40 for c in calls)

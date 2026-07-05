@@ -1,6 +1,7 @@
 """WebSocket price feed endpoint tests."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,14 +36,21 @@ def _make_mock_db():
 
 
 @pytest.fixture
-def ws_app() -> FastAPI:
+def ws_app(monkeypatch) -> FastAPI:
     test_app = FastAPI()
     test_app.include_router(ws_router)
 
+    mock_session = _make_mock_db()
+
     async def _mock_get_db():
-        yield _make_mock_db()
+        yield mock_session
+
+    @asynccontextmanager
+    async def _mock_session_local():
+        yield mock_session
 
     test_app.dependency_overrides[get_db] = _mock_get_db
+    monkeypatch.setattr("app.api.v1.ws.AsyncSessionLocal", _mock_session_local)
 
     @test_app.get("/health")
     async def health() -> dict[str, str]:
@@ -51,8 +59,7 @@ def ws_app() -> FastAPI:
     return test_app
 
 
-@pytest.mark.asyncio
-async def test_ws_prices_returns_valid_initial_message(ws_app: FastAPI):
+def test_ws_prices_returns_valid_initial_message(ws_app: FastAPI):
     with TestClient(ws_app) as sync_client:
         with sync_client.websocket_connect(
             "/api/v1/ws/prices?market=nba-2025-01-15-lal-bos"
@@ -84,8 +91,7 @@ async def test_ws_prices_disconnect_does_not_crash_server(ws_app: FastAPI):
     assert health.json()["status"] == "ok"
 
 
-@pytest.mark.asyncio
-async def test_ws_prices_messages_contain_no_order_keys(ws_app: FastAPI):
+def test_ws_prices_messages_contain_no_order_keys(ws_app: FastAPI):
     with TestClient(ws_app) as sync_client:
         with sync_client.websocket_connect(
             "/api/v1/ws/prices?market=nba-2025-01-15-lal-bos"
@@ -99,8 +105,7 @@ async def test_ws_prices_messages_contain_no_order_keys(ws_app: FastAPI):
     assert "ts" in message
 
 
-@pytest.mark.asyncio
-async def test_ws_prices_refused_when_paper_trading_disabled(ws_app: FastAPI):
+def test_ws_prices_refused_when_paper_trading_disabled(ws_app: FastAPI):
     disabled_settings = SimpleNamespace(paper_trading_only=False)
 
     with patch("app.api.v1.ws.get_settings", return_value=disabled_settings):
@@ -112,8 +117,7 @@ async def test_ws_prices_refused_when_paper_trading_disabled(ws_app: FastAPI):
                     websocket.receive_json()
 
 
-@pytest.mark.asyncio
-async def test_ws_prices_refused_for_unknown_slug(ws_app: FastAPI):
+def test_ws_prices_refused_for_unknown_slug(ws_app: FastAPI):
     with TestClient(ws_app) as sync_client:
         with pytest.raises(WebSocketDisconnect):
             with sync_client.websocket_connect(

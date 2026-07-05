@@ -2,7 +2,10 @@ import MarketDetailClient from "./market-detail-client";
 import { getMarket, MARKETS } from "@/lib/mock-data";
 import { fetchMarketDetailApi } from "@/lib/alphaedge-api";
 
-export const dynamicParams = false;
+// Live Kalshi/Polymarket slugs are discovered at runtime and can't be
+// enumerated ahead of time — they must render dynamically. The static list
+// below only seeds prerendering for the static-export demo deploy.
+export const dynamicParams = true;
 
 export function generateStaticParams() {
   return MARKETS.map((m) => ({ slug: m.slug }));

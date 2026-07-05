@@ -21,10 +21,101 @@ SOURCE = "kalshi.rest"
 class KalshiConnector:
     def __init__(
         self,
-        base_url: str = "https://external-api.kalshi.com/trade-api/v2",
+        base_url: str = "https://api.elections.kalshi.com/trade-api/v2",
         client: httpx.Client | None = None,
     ):
         self.http = JsonConnectorClient(base_url=base_url, client=client)
+
+    def list_series_events(self, series_ticker: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        payload = self.http.get_json(
+            "/events",
+            params={"series_ticker": series_ticker.upper(), "limit": str(limit)},
+        )
+        if not isinstance(payload, dict):
+            return []
+        events = payload.get("events")
+        return events if isinstance(events, list) else []
+
+    def list_open_events(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        """Open events across ALL categories (no series filter)."""
+        payload = self.http.get_json(
+            "/events",
+            params={"status": "open", "limit": str(min(limit, 200))},
+        )
+        if not isinstance(payload, dict):
+            return []
+        events = payload.get("events")
+        return events if isinstance(events, list) else []
+
+    # Kalshi rate-limits aggressively; one /markets call per event (~100/tick)
+    # gets 429ed and leaves most mirrored prices stale. /markets accepts a
+    # comma-separated `tickers` param, so the whole board fits in 2-3 calls.
+    _TICKER_BATCH_SIZE = 40
+
+    def list_markets_by_tickers(self, tickers: list[str]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        cleaned = [t.upper() for t in tickers if t]
+        for start in range(0, len(cleaned), self._TICKER_BATCH_SIZE):
+            chunk = cleaned[start : start + self._TICKER_BATCH_SIZE]
+            payload = self.http.get_json(
+                "/markets",
+                params={"tickers": ",".join(chunk), "limit": str(len(chunk))},
+            )
+            if isinstance(payload, dict) and isinstance(payload.get("markets"), list):
+                out.extend(m for m in payload["markets"] if isinstance(m, dict))
+        return out
+
+    def list_open_markets(
+        self,
+        *,
+        page_limit: int = 1000,
+        max_pages: int = 8,
+    ) -> list[dict[str, Any]]:
+        """The whole open board via cursor pagination (≤max_pages calls).
+
+        Feeds the catalog ingest: grouping these locally by event_ticker
+        replaces the one-/markets-call-per-event fan-out that 429ed."""
+        out: list[dict[str, Any]] = []
+        cursor: str | None = None
+        for _ in range(max_pages):
+            params: dict[str, str] = {"status": "open", "limit": str(page_limit)}
+            if cursor:
+                params["cursor"] = cursor
+            payload = self.http.get_json("/markets", params=params)
+            if not isinstance(payload, dict):
+                break
+            markets = payload.get("markets")
+            if isinstance(markets, list):
+                out.extend(m for m in markets if isinstance(m, dict))
+            cursor = payload.get("cursor") or None
+            if not cursor or not markets:
+                break
+        return out
+
+    def list_series_markets(self, series_ticker: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Open markets for a whole series (e.g. KXHIGHNY daily-high ladders)."""
+        payload = self.http.get_json(
+            "/markets",
+            params={
+                "series_ticker": series_ticker.upper(),
+                "status": "open",
+                "limit": str(min(limit, 1000)),
+            },
+        )
+        if not isinstance(payload, dict):
+            return []
+        markets = payload.get("markets")
+        return [m for m in markets if isinstance(m, dict)] if isinstance(markets, list) else []
+
+    def list_event_markets(self, event_ticker: str) -> list[dict[str, Any]]:
+        payload = self.http.get_json(
+            "/markets",
+            params={"event_ticker": event_ticker.upper(), "status": "open"},
+        )
+        if not isinstance(payload, dict):
+            return []
+        markets = payload.get("markets")
+        return markets if isinstance(markets, list) else []
 
     def fetch_market_snapshot(
         self,
@@ -48,6 +139,33 @@ class KalshiConnector:
         return normalize_kalshi_market(enriched_payload, captured_at=captured_at)
 
 
+# Kalshi sub-titles sometimes prepend a redundant scope ("Reg Time: Argentina")
+# that duplicates the event title ("… Regulation Time Moneyline"); strip it.
+_REDUNDANT_SUBTITLE_PREFIXES = (
+    "reg time:",
+    "regulation time:",
+    "regular time:",
+    "full time:",
+)
+
+
+def clean_outcome_label(sub_title: str) -> str:
+    s = sub_title.strip()
+    low = s.lower()
+    for prefix in _REDUNDANT_SUBTITLE_PREFIXES:
+        if low.startswith(prefix):
+            return s[len(prefix):].strip()
+    return s
+
+
+def is_distinguishing_outcome(sub_title: str, event_title: str) -> bool:
+    """Append the outcome to the title UNLESS it's empty, equals the event title,
+    or is a trivial binary label. 'Contained in the title' is NOT a skip reason —
+    'Ramp' in 'Will Ramp or Brex IPO first?' is what makes the two cards distinct."""
+    s = sub_title.strip().lower()
+    return bool(s) and s != event_title.strip().lower() and s not in {"yes", "no"}
+
+
 def normalize_kalshi_market(
     payload: dict[str, Any],
     captured_at: datetime | str | None = None,
@@ -65,10 +183,24 @@ def normalize_kalshi_market(
     if implied is None:
         raise ValueError("Kalshi market payload does not include a usable YES price")
 
+    # Kalshi multi-outcome events (e.g. "Who will the next Pope be?") return one
+    # market per outcome, ALL sharing the same `title`; the distinguishing label
+    # lives in `yes_sub_title` ("Pietro Parolin", "Argentina", …). Without folding
+    # it in, the catalog shows N identical cards at different prices. Compose a
+    # per-outcome title so each card is distinct and correct.
+    event_title = str(market.get("title") or ticker).strip()
+    raw_sub = str(market.get("yes_sub_title") or market.get("subtitle") or "")
+    sub_title = clean_outcome_label(raw_sub)
+    if is_distinguishing_outcome(sub_title, event_title):
+        display_title = f"{event_title}: {sub_title}"
+    else:
+        display_title = event_title
+
     captured = parse_timestamp(captured_at or market.get("last_update_time"))
+    raw_status = str(market.get("status") or "").lower()
     metadata = {
         "category": market.get("category"),
-        "status": market.get("status"),
+        "status": _normalize_kalshi_status(raw_status),
         "result": market.get("result"),
     }
     metadata.update(
@@ -89,7 +221,7 @@ def normalize_kalshi_market(
         book=SOURCE,
         event_id=market.get("event_ticker"),
         platform_market_id=ticker,
-        title=market.get("title") or ticker,
+        title=display_title,
         market_type="binary",
         outcome_name="Yes",
         close_at=parse_timestamp(
@@ -191,6 +323,20 @@ def _fill_orderbook_bid(
     price = _best_orderbook_price(levels)
     if price is not None:
         market[cents_name] = price
+
+
+def _normalize_kalshi_status(status: str) -> str:
+    if status in {"finalized", "settled", "determined"}:
+        return "resolved"
+    if status in {"closed", "inactive"}:
+        return "closed"
+    return status or "open"
+
+
+def implied_yes_from_kalshi_payload(market: dict[str, Any]) -> float | None:
+    """Best-effort YES price from a Kalshi market dict (no network)."""
+    quotes = _market_binary_quotes(market)
+    return _market_implied_yes(market, quotes)
 
 
 def _best_orderbook_price(levels: object) -> float | None:

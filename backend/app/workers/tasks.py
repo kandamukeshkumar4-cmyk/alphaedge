@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from datetime import UTC, datetime
 
@@ -16,6 +17,8 @@ from app.pipeline.ingest import (
     ingest_fixtures,
 )
 
+
+logger = logging.getLogger(__name__)
 
 CAPTURE_MARKET_SNAPSHOTS_JOB_NAME = "capture_market_snapshots_task"
 CAPTURE_HISTORICAL_CLOSING_SNAPSHOTS_JOB_NAME = (
@@ -162,6 +165,74 @@ async def fetch_news_signals_task(ctx: dict) -> dict:
     return {"fetched": sum(1 for v in results.values() if v == "ok"), "slugs": results}
 
 
+NEWS_SCAN_JOB_NAME = "news_scan_task"
+_NEWS_SCAN_TOP_N = 10  # Exa-quota guard: only the most active markets per pass
+
+
+async def news_scan_task(ctx: dict) -> dict:
+    """Hourly (B04): fetch real news per top market and feed the news-lag
+    detector so news_arrival SignalEvents exist for the analyst to cite.
+
+    Before this task, NewsLagService.detect had NO production caller -- the
+    news evidence layer was structurally empty no matter which API keys were
+    configured. Skips markets without a news signal; never raises per-market.
+    """
+    from app.db.session import AsyncSessionLocal
+
+    settings = ctx.get("settings") or get_settings()
+    if not settings.news_signals_enabled:
+        return {"skipped": True, "reason": "NEWS_SIGNALS_ENABLED=false"}
+
+    async with AsyncSessionLocal() as session:
+        results = await run_news_scan(session)
+        await session.commit()
+    return {"scanned": len(results), "results": results}
+
+
+async def run_news_scan(session) -> dict[str, str]:
+    """Core of news_scan_task on a caller-provided session (testable without
+    the app engine)."""
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+
+    from sqlalchemy import select as _select
+
+    from app.db.models import Market as _Market
+    from app.db.models import MarketStatus as _MarketStatus
+    from app.signals.news_lag import NewsLagService
+    from app.signals.news_signal import fetch_news_signal
+
+    results: dict[str, str] = {}
+    rows = (
+        await session.execute(
+            _select(_Market.slug, _Market.title)
+            .where(
+                _Market.status == _MarketStatus.OPEN,
+                _Market.source.in_(("polymarket", "kalshi")),
+            )
+            .order_by(_Market.volume.desc())
+            .limit(_NEWS_SCAN_TOP_N)
+        )
+    ).all()
+    service = NewsLagService(session)
+    for slug, title in rows:
+        try:
+            signal = await fetch_news_signal(title)
+            if signal is None or signal.sentiment_score == 0.0:
+                results[slug] = "no-news"
+                continue
+            outcome = await service.detect(
+                slug,
+                relevance=max(0.0, min(1.0, signal.volume_score)),
+                sentiment=signal.sentiment_score,
+                news_ts=_dt.now(_UTC),
+            )
+            results[slug] = outcome.reason
+        except Exception as exc:  # noqa: BLE001 - per-market isolation
+            results[slug] = f"error: {exc}"
+    return results
+
+
 async def run_eval_on_resolve_task(ctx: dict, market_id: str) -> dict:
     from uuid import UUID
 
@@ -197,6 +268,344 @@ def _artifact_dir_from_ctx(ctx: dict) -> Path | None:
     return Path(raw)
 
 
+REFRESH_WHALES_JOB_NAME = "refresh_whales_task"
+SNAPSHOT_WHALES_JOB_NAME = "snapshot_whale_positions_task"
+
+
+async def refresh_whales_task(ctx: dict) -> dict:
+    """Weekly: pull the Polymarket data-api leaderboard, qualify each wallet from its
+    trade history, and upsert TrackedWallet rows. Read-only; no execution."""
+    import asyncio
+
+    from app.data.connectors.polymarket_data_api import PolymarketDataApiConnector
+    from app.db.session import AsyncSessionLocal
+    from app.services.whale_tracker_service import WhaleTrackerService
+
+    connector = PolymarketDataApiConnector()
+    started_at = datetime.now(UTC)
+    qualified = evaluated = 0
+    try:
+        entries = await asyncio.to_thread(connector.fetch_leaderboard, limit=200)
+    except Exception as error:  # noqa: BLE001 - external API, degrade gracefully
+        logger.warning("Whale leaderboard fetch failed: %s", error)
+        return {"skipped": True, "reason": "leaderboard_fetch_failed"}
+
+    async with AsyncSessionLocal() as session:
+        service = WhaleTrackerService(session)
+        for entry in entries:
+            try:
+                trades = await asyncio.to_thread(
+                    connector.fetch_closed_positions, entry.wallet_address
+                )
+            except Exception as error:  # noqa: BLE001 - per-wallet isolation
+                logger.warning("Trades fetch failed for %s: %s", entry.wallet_address, error)
+                continue
+            stats = _wallet_stats_from_trades(trades)
+            evaluated += 1
+            result = await service.upsert_qualification(entry.wallet_address, stats)
+            if result.qualified:
+                qualified += 1
+        await session.commit()
+    return {
+        "evaluated": evaluated,
+        "qualified": qualified,
+        "started_at": started_at.isoformat(),
+    }
+
+
+def _wallet_stats_from_trades(trades):
+    """Derive WalletStats from resolved trades (wins/losses/top win)."""
+    from decimal import Decimal
+
+    from app.signals.smart_money import WalletStats
+
+    resolved = [t for t in trades if t.resolved]
+    wins = [t for t in resolved if t.pnl > 0]
+    losses = [t for t in resolved if t.pnl < 0]
+    gross_profit = sum((t.pnl for t in wins), Decimal("0"))
+    gross_loss = sum((-t.pnl for t in losses), Decimal("0"))
+    top_win = max((t.pnl for t in wins), default=Decimal("0"))
+    return WalletStats(
+        resolved_count=len(resolved),
+        wins=len(wins),
+        gross_profit=gross_profit,
+        gross_loss=gross_loss,
+        top_win=top_win,
+    )
+
+
+async def snapshot_whale_positions_task(ctx: dict) -> dict:
+    """Every ~3 min: snapshot qualified wallets' positions and diff into whale_delta
+    events that feed the alignment scorer. Read-only; no execution."""
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.data.connectors.polymarket_data_api import PolymarketDataApiConnector
+    from app.db.models import TrackedWallet
+    from app.db.session import AsyncSessionLocal
+    from app.services.whale_tracker_service import WhaleTrackerService
+
+    connector = PolymarketDataApiConnector()
+    deltas = wallets = 0
+    async with AsyncSessionLocal() as session:
+        addresses = (
+            await session.execute(
+                select(TrackedWallet.wallet_address).where(TrackedWallet.qualified.is_(True))
+            )
+        ).scalars().all()
+        service = WhaleTrackerService(session)
+        for address in addresses:
+            try:
+                positions = await asyncio.to_thread(connector.fetch_positions, address)
+            except Exception as error:  # noqa: BLE001 - per-wallet isolation
+                logger.warning("Positions fetch failed for %s: %s", address, error)
+                continue
+            events = await service.snapshot_and_diff(address, positions)
+            wallets += 1
+            deltas += len(events)
+        await session.commit()
+    return {"wallets": wallets, "deltas": deltas}
+
+
+SCORE_CLAIMS_JOB_NAME = "score_claims_task"
+ANALYST_AGGREGATES_JOB_NAME = "analyst_aggregates_task"
+
+
+async def score_claims_task(ctx: dict) -> dict:
+    """Every 15 min: grade analyst claims whose horizon has elapsed. Read-only."""
+    from app.db.session import AsyncSessionLocal
+    from app.eval.claim_scorer import ClaimScorerService
+
+    settings = ctx.get("settings") or get_settings()
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        service = ClaimScorerService(session, epsilon=settings.eval_claim_epsilon)
+        counts = await service.score_pending(now=now)
+        await session.commit()
+    return counts
+
+
+async def analyst_aggregates_task(ctx: dict) -> dict:
+    """Hourly: recompute the public track-record aggregates."""
+    from app.db.session import AsyncSessionLocal
+    from app.eval.analyst_metrics import AnalystMetricsService
+
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        n = await AnalystMetricsService(session).recompute(now=now)
+        await session.commit()
+    return {"aggregates": n}
+
+
+MORNING_RESEARCH_JOB_NAME = "morning_research_task"
+
+
+async def morning_research_task(ctx: dict) -> dict:
+    """Daily: sweep top-moving markets, run the analyst on each, write a digest,
+    and optionally distribute it to notification channels (T14, off by default)."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.digest_distribution import DigestDistributionService
+    from app.services.research_digest_service import ResearchDigestService
+
+    now = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        summary = await ResearchDigestService(session).run_daily(now=now)
+        distribution: dict = {"dispatched": False}
+        try:
+            distribution = await DigestDistributionService(session).distribute(summary, now=now)
+            await _attach_distribution_metadata(session, now, distribution)
+        except Exception:  # noqa: BLE001 - distribution must not fail the digest
+            logger.warning("Digest distribution failed", exc_info=True)
+        await session.commit()
+    return {**summary, "distribution": distribution}
+
+
+async def _attach_distribution_metadata(session, now, distribution: dict) -> None:
+    """Record channels attempted/sent on today's digest row (spec: digest row gains
+    distribution metadata)."""
+    from sqlalchemy import select
+
+    from app.db.models import AnalystBrief
+
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    digest = await session.scalar(
+        select(AnalystBrief)
+        .where(AnalystBrief.kind == "digest", AnalystBrief.created_at >= day_start)
+        .order_by(AnalystBrief.created_at.desc())
+        .limit(1)
+    )
+    if digest is not None:
+        citations = list(digest.citations or [])
+        citations.append({"kind": "model", "ref": "distribution", "url": None, "distribution": distribution})
+        digest.citations = citations
+
+
+NIGHTLY_BACKTEST_JOB_NAME = "nightly_backtest_task"
+
+
+async def nightly_backtest_task(ctx: dict) -> dict:
+    """Nightly: run replay on configured market slugs and publish to backtest_runs.
+
+    Flag-gated: BACKTEST_NIGHTLY_ENABLED must be true.  OFF by default.
+    Paper-only — does not route through OrderBookService or RiskService.
+    """
+    from datetime import timedelta
+
+    from app.backtesting.snapshot_replay import run_snapshot_replay
+    from app.db.models import BacktestRun
+    from app.db.session import AsyncSessionLocal
+
+    settings = ctx.get("settings") or get_settings()
+    if not settings.backtest_nightly_enabled:
+        return {"skipped": True, "reason": "BACKTEST_NIGHTLY_ENABLED=false"}
+
+    slugs = [s.strip() for s in settings.backtest_nightly_slugs.split(",") if s.strip()]
+    if not slugs:
+        return {"skipped": True, "reason": "no slugs configured"}
+
+    import uuid
+    from decimal import Decimal
+
+    now = datetime.now(UTC)
+    end_date = now
+    start_date = now - timedelta(days=7)
+    results: dict[str, str] = {}
+
+    for slug in slugs:
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await run_snapshot_replay(session, slug, start_date, end_date)
+                equity_curve_json = [
+                    {"timestamp": pt.timestamp.isoformat(), "equity": pt.equity}
+                    for pt in result.equity_curve
+                ]
+                brier_json = [
+                    {
+                        "timestamp": pt.timestamp.isoformat(),
+                        "brier": pt.brier,
+                        "sample_count": pt.sample_count,
+                    }
+                    for pt in result.brier_over_time
+                ]
+                fill_quality_json = None
+                if result.fill_quality is not None:
+                    fq = result.fill_quality
+                    fill_quality_json = {
+                        "trade_count": fq.trade_count,
+                        "mean_slippage": fq.mean_slippage,
+                        "max_slippage": fq.max_slippage,
+                        "total_realized_pnl": fq.total_realized_pnl,
+                        "mean_realized_pnl": fq.mean_realized_pnl,
+                    }
+                run_row = BacktestRun(
+                    id=uuid.uuid4(),
+                    market_slug=slug,
+                    start_date=start_date,
+                    end_date=end_date,
+                    initial_equity=Decimal("10000"),
+                    final_equity=Decimal(str(result.final_equity)),
+                    snapshot_count=result.snapshot_count,
+                    trade_count=len([t for t in result.trades if t.side in ("yes_buy", "no_buy")]),
+                    brier_final=Decimal(str(round(result.brier_final, 6))) if result.brier_final else None,
+                    no_lookahead_verified=result.no_lookahead_verified,
+                    insufficient_data=result.insufficient_data,
+                    equity_curve=equity_curve_json,
+                    fill_quality=fill_quality_json,
+                    brier_over_time=brier_json,
+                    status="completed",
+                    paper_trading_only=True,
+                )
+                session.add(run_row)
+                session.add(
+                    JobRun(
+                        job_name=NIGHTLY_BACKTEST_JOB_NAME,
+                        status="success",
+                        started_at=now,
+                        finished_at=datetime.now(UTC),
+                        summary={"slug": slug, "snapshots": result.snapshot_count},
+                    )
+                )
+                await session.commit()
+            results[slug] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Nightly backtest failed for %s: %s", slug, exc)
+            results[slug] = f"error: {exc}"
+
+    return {"results": results}
+
+
+NIGHTLY_PROFILE_REFRESH_JOB_NAME = "nightly_profile_refresh_task"
+
+
+async def nightly_profile_refresh_task(ctx: dict) -> dict:
+    """Nightly: recompute trader profiles for all users who have placed paper trades.
+
+    Flag-gated: TRADER_PROFILE_ENABLED must be true.  ON by default but will
+    simply skip when there are no users with paper trades.
+
+    Privacy: reads ONLY paper_orders (in-app paper activity).  No external data.
+    Paper-only — does NOT import OrderBookService or RiskService.
+    """
+    settings = ctx.get("settings") or get_settings()
+    if not settings.trader_profile_enabled:
+        return {"skipped": True, "reason": "TRADER_PROFILE_ENABLED=false"}
+
+    from app.db.models import PaperOrder, User
+    from app.db.session import AsyncSessionLocal
+    from app.services.trader_profile_service import TradeRecord, compute_trader_profile
+    from sqlalchemy import select
+
+    refreshed = 0
+    async with AsyncSessionLocal() as session:
+        # Identify users who have at least one paper trade
+        user_ids_result = await session.execute(
+            select(PaperOrder.user_id).distinct()
+        )
+        user_ids = [row[0] for row in user_ids_result.fetchall()]
+
+    for user_id in user_ids:
+        try:
+            async with AsyncSessionLocal() as session:
+                user_result = await session.execute(
+                    select(User).where(User.id == user_id)
+                )
+                db_user = user_result.scalar_one_or_none()
+                if db_user is None:
+                    continue
+                bankroll = float(db_user.paper_balance)
+
+                orders_result = await session.execute(
+                    select(PaperOrder).where(PaperOrder.user_id == user_id)
+                )
+                db_orders = orders_result.scalars().all()
+
+            trades: list[TradeRecord] = [
+                TradeRecord(
+                    slug=o.slug,
+                    side=o.side,
+                    shares=o.shares,
+                    price=o.price,
+                    cost=o.cost,
+                    action=o.action,
+                    realized_pnl=o.realized_pnl,
+                    settled=o.settled,
+                    created_at=o.created_at,
+                )
+                for o in db_orders
+            ]
+            # Recompute is a pure function — result not stored separately
+            # (profile is always recomputed on-demand from paper_orders).
+            # This task warms any future cached-profile layer and validates
+            # that the computation does not error for any live user.
+            _ = compute_trader_profile(trades, bankroll_usd=bankroll)
+            refreshed += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Profile refresh failed for user %s: %s", user_id, exc)
+
+    return {"refreshed": refreshed, "total_users": len(user_ids)}
+
+
 async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str) -> None:
     from app.db.models import FailedJob
     from app.db.session import AsyncSessionLocal
@@ -220,11 +629,32 @@ class WorkerSettings:
         run_eval_on_resolve_task,
         run_backtest_task,
         fetch_news_signals_task,
+        news_scan_task,
         wc2026_resolve_task,
+        refresh_whales_task,
+        snapshot_whale_positions_task,
+        score_claims_task,
+        analyst_aggregates_task,
+        morning_research_task,
+        nightly_backtest_task,
+        nightly_profile_refresh_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
         cron(ingest_odds_task, hour={12}, minute=0),
         cron(fetch_news_signals_task, minute={30}),  # every hour at :30
+        cron(news_scan_task, minute={35}),  # B04: news -> news_arrival events hourly
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
+        # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
+        cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
+        cron(snapshot_whale_positions_task, minute=set(range(0, 60, 3))),
+        # grade claims every 15 min; recompute the public track record hourly
+        cron(score_claims_task, minute={0, 15, 30, 45}),
+        cron(analyst_aggregates_task, minute={50}),
+        # daily research digest at 06:00 — "the desk runs while you sleep"
+        cron(morning_research_task, hour={6}, minute={0}),
+        # nightly backtest replay at 02:00 — flag-gated (BACKTEST_NIGHTLY_ENABLED=false)
+        cron(nightly_backtest_task, hour={2}, minute={0}),
+        # nightly trader profile refresh at 03:30 — flag-gated (TRADER_PROFILE_ENABLED=true)
+        cron(nightly_profile_refresh_task, hour={3}, minute={30}),
     ]

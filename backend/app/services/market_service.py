@@ -13,12 +13,13 @@ from app.db.models import (
     Market,
     MarketResolution,
     MarketStatus,
+    OddsSnapshot,
     OrderOutcome,
     Position,
 )
 from app.services.price_snapshot_seed import seed_price_snapshots
 from app.events.bus import DomainEventBus
-from app.schemas.market import MarketResponse
+from app.schemas.market import MarketResponse, UnifiedMarketSearchResult
 from app.services.ledger_service import LedgerService
 
 CATALOG_SLUGS: frozenset[str] = frozenset(
@@ -97,6 +98,7 @@ class MarketService:
         if market.status != MarketStatus.OPEN:
             raise ValueError("Market is not open")
         market.status = MarketStatus.LOCKED
+        _invalidate_public_list_cache()
         await self.session.flush()
         await self.events.emit(
             "market_locked",
@@ -110,6 +112,7 @@ class MarketService:
         if market.status == MarketStatus.RESOLVED:
             raise ValueError("Market already resolved")
         market.status = MarketStatus.RESOLVED
+        _invalidate_public_list_cache()
         market.winning_outcome = winning_outcome
         market.resolved_at = datetime.now(timezone.utc)
         await self.session.flush()
@@ -194,6 +197,9 @@ class MarketService:
                 Market.resolved_at,
                 cast(Market.winning_outcome, String).label("winning_outcome"),
                 MarketResolution.outcome.label("resolution_outcome"),
+                Market.source,
+                Market.image_url,
+                self._latest_yes_price_subquery().label("yes_price"),
             )
             .outerjoin(MarketResolution, MarketResolution.slug == Market.slug)
         )
@@ -272,6 +278,9 @@ class MarketService:
                 Market.resolved_at,
                 cast(Market.winning_outcome, String).label("winning_outcome"),
                 MarketResolution.outcome.label("resolution_outcome"),
+                Market.source,
+                Market.image_url,
+                self._latest_yes_price_subquery().label("yes_price"),
             )
             .outerjoin(MarketResolution, MarketResolution.slug == Market.slug)
             .where(Market.slug == slug)
@@ -282,8 +291,21 @@ class MarketService:
         return self._market_response_from_row(row._mapping)
 
     @staticmethod
+    def _latest_yes_price_subquery():
+        return (
+            select(OddsSnapshot.implied_yes)
+            .where(OddsSnapshot.market_slug == Market.slug)
+            .order_by(OddsSnapshot.captured_at.desc())
+            .limit(1)
+            .correlate(Market)
+            .scalar_subquery()
+        )
+
+    @staticmethod
     def _market_response_from_row(row) -> MarketResponse:
         data = dict(row)
+        if data.get("yes_price") is not None:
+            data["yes_price"] = float(data["yes_price"])
         if data.get("status"):
             data["status"] = str(data["status"]).lower()
         if data.get("winning_outcome"):
@@ -291,6 +313,110 @@ class MarketService:
         if data.get("resolution_outcome"):
             data["resolution_outcome"] = str(data["resolution_outcome"]).upper()
         return MarketResponse.model_validate(data)
+
+    # ------------------------------------------------------------------
+    # Unified market search (U01)
+    # Results come from the DB/cache — no live external calls in search path.
+    # Ranking: (1) exact title-word match > partial match, (2) open/active
+    # status before locked/resolved, (3) volume descending.
+    # Shape inspired by pmxt (MIT) UnifiedMarket model — see ATTRIBUTIONS.md.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _platform_label(source: str) -> str:
+        """Map the market.source field to a display platform name."""
+        s = (source or "seed").lower()
+        if s in ("polymarket", "polymarket_mirror"):
+            return "Polymarket"
+        if s in ("kalshi", "kalshi_mirror"):
+            return "Kalshi"
+        return "AlphaEdge"
+
+    @staticmethod
+    def _status_rank(status: str) -> int:
+        """Lower = higher priority: open markets first."""
+        s = status.lower()
+        if s == "open":
+            return 0
+        if s == "locked":
+            return 1
+        return 2  # resolved
+
+    @staticmethod
+    def _title_match_rank(title: str, q: str) -> int:
+        """Lower = better match: 0 = exact word, 1 = partial."""
+        if not q:
+            return 1
+        title_lower = title.lower()
+        q_lower = q.lower().strip()
+        if not q_lower:
+            return 1
+        # Exact word boundary match (any word in title starts with q)
+        for word in title_lower.split():
+            if word.startswith(q_lower):
+                return 0
+        return 1
+
+    async def search_markets(
+        self,
+        q: str | None = None,
+        limit: int = 20,
+    ) -> list[UnifiedMarketSearchResult]:
+        """
+        Cross-platform unified market search.  All data comes from the DB
+        (connectors already ingest Polymarket + Kalshi into the markets table).
+        No live external calls in this path.
+
+        Ranking: title-match quality → open/active status → volume desc.
+        """
+        stmt = select(
+            Market.slug,
+            Market.title,
+            Market.source,
+            Market.category,
+            Market.volume,
+            cast(Market.status, String).label("status"),
+            self._latest_yes_price_subquery().label("yes_price"),
+        )
+
+        if q and q.strip():
+            stmt = stmt.where(Market.title.ilike(f"%{q.strip()}%"))
+
+        # Fetch more than `limit` so ranking can re-order before truncating.
+        stmt = stmt.order_by(Market.volume.desc()).limit(limit * 5)
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        q_clean = (q or "").strip()
+        items: list[UnifiedMarketSearchResult] = []
+        for row in rows:
+            status_str = str(row.status).lower()
+            items.append(
+                UnifiedMarketSearchResult(
+                    slug=row.slug,
+                    title=row.title,
+                    platform=self._platform_label(row.source or "seed"),
+                    category=row.category or "Other",
+                    market_type="prediction",
+                    yes_price=float(row.yes_price) if row.yes_price is not None else None,
+                    volume=row.volume or 0,
+                    status=status_str,
+                )
+            )
+
+        # Sort: title-match rank ASC, status rank ASC, volume DESC
+        items.sort(
+            key=lambda m: (
+                self._title_match_rank(m.title, q_clean),
+                self._status_rank(m.status),
+                -(m.volume or 0),
+            )
+        )
+
+        return items[:limit]
+
+    # ------------------------------------------------------------------
 
     async def seed_canonical_market(self) -> Market | None:
         """Idempotent seed for Lakers vs Celtics demo market."""
@@ -569,3 +695,10 @@ class MarketService:
             "System paper bankroll seed",
         )
         return account
+
+
+def _invalidate_public_list_cache() -> None:
+    """B01: any market state change must be visible on /markets immediately."""
+    from app.core import markets_cache
+
+    markets_cache.invalidate()

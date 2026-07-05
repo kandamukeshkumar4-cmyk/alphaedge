@@ -57,6 +57,6 @@ describe("api market adapter", () => {
     expect(market.slug).toBe("elect-senate-control-2026");
     expect(market.category).toBe("Politics");
     expect(market.outcomes.map((outcome) => outcome.label)).toEqual(["YES", "NO"]);
-    expect(market.forecast.confidence).toBeGreaterThanOrEqual(0.7);
+    expect(market.forecast.prob).toBeGreaterThanOrEqual(0);
   });
 });

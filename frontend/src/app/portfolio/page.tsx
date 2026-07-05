@@ -1,5 +1,6 @@
 "use client";
 
+import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -7,6 +8,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 
 import { useAuth } from "@/hooks/useAuth";
+import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
+import { ExposurePanel } from "@/components/ExposurePanel";
+import { PortfolioRiskPanel } from "@/components/PortfolioRiskPanel";
+import { TraderProfileCard } from "@/components/TraderProfileCard";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatUSD } from "@/lib/mock-data";
@@ -162,6 +167,14 @@ export default function PortfolioPage() {
             />
           </section>
 
+          {token ? <ExposurePanel token={token} /> : null}
+
+          {token ? <TraderProfileCard token={token} /> : null}
+
+          {token ? <PortfolioRiskPanel token={token} /> : null}
+
+          <AnalystChatDrawer context="portfolio" />
+
           <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
               <button
@@ -253,7 +266,7 @@ export default function PortfolioPage() {
                       >
                         <td className="py-2">
                           <Link
-                            href={`/markets/${trade.slug}`}
+                            href={marketHref(trade.slug)}
                             className="text-text hover:text-accent"
                           >
                             {trade.slug}
@@ -319,7 +332,7 @@ function PortfolioPositionRow({ position }: { position: PortfolioPosition }) {
       )}
     >
       <td className="py-2">
-        <Link href={`/markets/${position.market_slug}`} className="hover:text-accent">
+        <Link href={marketHref(position.market_slug)} className="hover:text-accent">
           <span className="flex items-center gap-1.5 text-text">
             {position.settled ? <span aria-hidden>✓</span> : null}
             {position.market_title}

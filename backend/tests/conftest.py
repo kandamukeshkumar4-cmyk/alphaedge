@@ -55,3 +55,13 @@ async def trader_account(db_session):
 @pytest.fixture
 def lakers_celtics_slug():
     return "nba-2025-01-15-lal-bos"
+
+
+@pytest.fixture(autouse=True)
+def _clear_markets_cache():
+    """B01 micro-cache on /markets must not leak state between tests."""
+    from app.core import markets_cache
+
+    markets_cache.invalidate()
+    yield
+    markets_cache.invalidate()

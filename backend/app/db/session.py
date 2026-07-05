@@ -37,7 +37,15 @@ def async_engine_settings(database_url: str) -> tuple[str, dict[str, Any]]:
 
 
 engine_url, engine_kwargs = async_engine_settings(settings.database_url)
-engine = create_async_engine(engine_url, echo=False, **engine_kwargs)
+engine = create_async_engine(
+    engine_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=10,
+    max_overflow=20,
+    **engine_kwargs,
+)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
