@@ -46,7 +46,10 @@ async def explain_prediction(
         f"Recent headline: {news_headline or 'none'}"
     )
     try:
-        client, model = resolve_routed_client(settings, settings.llm_route_explain)
+        client, model = resolve_routed_client(
+            settings, settings.llm_route_explain,
+            use_case_model=settings.llm_model_explain,
+        )
         response = await client.chat.completions.create(
             model=model,
             messages=[

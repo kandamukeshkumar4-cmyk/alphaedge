@@ -61,7 +61,10 @@ async def extract_news_features(news_text: str, *, settings: Settings) -> NewsFe
         return _heuristic_news_features(news_text)
 
     try:
-        client, model = resolve_routed_client(settings, settings.llm_route_extraction)
+        client, model = resolve_routed_client(
+            settings, settings.llm_route_extraction,
+            use_case_model=settings.llm_model_extraction,
+        )
         response = await client.chat.completions.create(
             model=model,
             messages=[

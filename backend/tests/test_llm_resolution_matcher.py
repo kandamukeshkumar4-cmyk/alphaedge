@@ -30,7 +30,7 @@ async def test_llm_resolution_verdict_parses_structured_response(monkeypatch):
     mock_client.chat.completions.create = AsyncMock(return_value=_mock_completion(payload))
     monkeypatch.setattr(
         "app.llm.resolution_matcher.resolve_routed_client",
-        lambda settings, route: (mock_client, "test-model"),
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
     )
 
     settings = Settings(LLM_PROVIDER="openai", LLM_API_KEY="sk-test")
@@ -65,7 +65,7 @@ async def test_llm_resolution_verdict_clamps_confidence(monkeypatch):
     mock_client.chat.completions.create = AsyncMock(return_value=_mock_completion(payload))
     monkeypatch.setattr(
         "app.llm.resolution_matcher.resolve_routed_client",
-        lambda settings, route: (mock_client, "test-model"),
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
     )
 
     settings = Settings(LLM_PROVIDER="nim", NIM_API_KEY="nv-test")

@@ -361,7 +361,8 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
     persona = PERSONAS.get(state.persona or "")
     system_prompt = _SYSTEM_PROMPT + (f" {persona['emphasis']}" if persona else "")
 
-    client, model_id = resolve_routed_client(settings, route)
+    use_case_model = settings.llm_model_analyst_deep if state.deep else settings.llm_model_analyst
+    client, model_id = resolve_routed_client(settings, route, use_case_model=use_case_model)
     try:
         response = await client.chat.completions.create(
             model=model_id,

@@ -62,7 +62,10 @@ async def llm_resolution_verdict(
         f"Event description:\n{event_description}"
     )
     try:
-        client, model = resolve_routed_client(settings, settings.llm_route_extraction)
+        client, model = resolve_routed_client(
+            settings, settings.llm_route_extraction,
+            use_case_model=settings.llm_model_extraction,
+        )
         response = await client.chat.completions.create(
             model=model,
             messages=[

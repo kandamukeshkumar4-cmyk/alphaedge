@@ -73,40 +73,65 @@ class Settings(BaseSettings):
     )
     nim_api_key: str = Field(default="", alias="NIM_API_KEY")
 
-    # --- Per-use-case model routing (multi-provider) ---
-    # Each use case can target a different OpenAI-compatible provider.
-    # When the _API_KEY for a use case is empty, that call site falls back
-    # to the primary LLM provider above.
+    # --- Per-use-case model routing ---
+    # Two modes:
+    #   1. NIM-native (recommended): one NIM_API_KEY, different NIM-hosted models
+    #      per use case via LLM_MODEL_CHAT, LLM_MODEL_ANALYST, etc.
+    #   2. Multi-provider: separate API keys for DeepSeek/Kimi/GLM via
+    #      LLM_ROUTE_* + provider-specific keys (for users with direct accounts).
+    #
+    # When a per-use-case model is set AND we're on NIM, that model is used with
+    # the NIM endpoint. When a LLM_ROUTE_* points to a separate provider with a
+    # key, that provider takes priority. Empty values fall back to LLM_MODEL.
 
-    # DeepSeek — fast structured extraction (news features, resolution matching, chat)
+    # Per-use-case model IDs (work with any provider, ideal for NIM's 40+ models)
+    llm_model_chat: str = Field(
+        default="deepseek-ai/deepseek-r1", alias="LLM_MODEL_CHAT"
+    )
+    llm_model_analyst: str = Field(
+        default="meta/llama-3.3-70b-instruct", alias="LLM_MODEL_ANALYST"
+    )
+    llm_model_analyst_deep: str = Field(
+        default="deepseek-ai/deepseek-r1", alias="LLM_MODEL_ANALYST_DEEP"
+    )
+    llm_model_explain: str = Field(
+        default="meta/llama-3.3-70b-instruct", alias="LLM_MODEL_EXPLAIN"
+    )
+    llm_model_extraction: str = Field(
+        default="meta/llama-3.1-8b-instruct", alias="LLM_MODEL_EXTRACTION"
+    )
+    llm_model_judge: str = Field(
+        default="deepseek-ai/deepseek-r1", alias="LLM_MODEL_JUDGE"
+    )
+
+    # Optional: separate provider keys for direct API access (bypass NIM).
+    # When a route's API key is set, that provider is used instead of NIM.
     deepseek_base_url: str = Field(
         default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL"
     )
     deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
     deepseek_model: str = Field(default="deepseek-chat", alias="DEEPSEEK_MODEL")
 
-    # Kimi (Moonshot) — analyst briefs and signal explanations
     kimi_base_url: str = Field(
         default="https://api.moonshot.cn/v1", alias="KIMI_BASE_URL"
     )
     kimi_api_key: str = Field(default="", alias="KIMI_API_KEY")
     kimi_model: str = Field(default="moonshot-v1-8k", alias="KIMI_MODEL")
 
-    # GLM (Zhipu) — deep reasoning and drift analysis
     glm_base_url: str = Field(
         default="https://open.bigmodel.cn/api/paas/v4", alias="GLM_BASE_URL"
     )
     glm_api_key: str = Field(default="", alias="GLM_API_KEY")
     glm_model: str = Field(default="glm-4-flash", alias="GLM_MODEL")
 
-    # Per-use-case model overrides (use case -> provider mapping).
-    # Values: "deepseek", "kimi", "glm", or empty (use primary LLM_PROVIDER).
-    llm_route_chat: str = Field(default="deepseek", alias="LLM_ROUTE_CHAT")
-    llm_route_analyst: str = Field(default="kimi", alias="LLM_ROUTE_ANALYST")
-    llm_route_analyst_deep: str = Field(default="glm", alias="LLM_ROUTE_ANALYST_DEEP")
-    llm_route_explain: str = Field(default="kimi", alias="LLM_ROUTE_EXPLAIN")
-    llm_route_extraction: str = Field(default="deepseek", alias="LLM_ROUTE_EXTRACTION")
-    llm_route_judge: str = Field(default="glm", alias="LLM_ROUTE_JUDGE")
+    # Route overrides: "deepseek", "kimi", "glm", or empty.
+    # Empty (default) = use primary provider with the per-use-case model above.
+    llm_route_chat: str = Field(default="", alias="LLM_ROUTE_CHAT")
+    llm_route_analyst: str = Field(default="", alias="LLM_ROUTE_ANALYST")
+    llm_route_analyst_deep: str = Field(default="", alias="LLM_ROUTE_ANALYST_DEEP")
+    llm_route_explain: str = Field(default="", alias="LLM_ROUTE_EXPLAIN")
+    llm_route_extraction: str = Field(default="", alias="LLM_ROUTE_EXTRACTION")
+    llm_route_judge: str = Field(default="", alias="LLM_ROUTE_JUDGE")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
     football_data_api_key: str = Field(default="", alias="FOOTBALL_DATA_API_KEY")

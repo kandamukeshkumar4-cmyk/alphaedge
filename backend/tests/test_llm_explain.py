@@ -30,7 +30,7 @@ async def test_explain_prediction_returns_string(monkeypatch):
     )
     monkeypatch.setattr(
         "app.llm.explain.resolve_routed_client",
-        lambda settings, route: (mock_client, "test-model"),
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
     )
 
     settings = Settings(LLM_PROVIDER="openai", LLM_API_KEY="sk-test")
@@ -68,7 +68,7 @@ async def test_explain_prediction_does_not_contain_stake_or_side(monkeypatch):
     )
     monkeypatch.setattr(
         "app.llm.explain.resolve_routed_client",
-        lambda settings, route: (mock_client, "test-model"),
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
     )
 
     settings = Settings(LLM_PROVIDER="openai", LLM_API_KEY="sk-test")

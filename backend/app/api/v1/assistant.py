@@ -315,7 +315,10 @@ async def _llm_reply(
     try:
         from app.llm.provider import resolve_routed_client
 
-        client, chat_model = resolve_routed_client(settings, settings.llm_route_chat)
+        client, chat_model = resolve_routed_client(
+            settings, settings.llm_route_chat,
+            use_case_model=settings.llm_model_chat,
+        )
 
         system_parts: list[str] = [
             "You are AlphaEdge Analyst — a read-only market analysis assistant.",

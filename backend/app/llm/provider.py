@@ -53,29 +53,31 @@ def _resolve_route_endpoint(
 
 
 def resolve_routed_client(
-    settings: Settings, route: str
+    settings: Settings, route: str, *, use_case_model: str = ""
 ) -> tuple[AsyncOpenAI, str]:
     """Return (async_client, model_id) for a use-case route.
 
     If the route's provider has an API key configured, returns a client pointed
     at that provider with its model.  Otherwise falls back to the primary
-    LLM provider + LLM_MODEL."""
+    LLM provider with the per-use-case model (or LLM_MODEL if unset)."""
     resolved = _resolve_route_endpoint(settings, route)
     if resolved:
         base_url, api_key, model = resolved
         return AsyncOpenAI(base_url=base_url, api_key=api_key), model
-    return get_llm_client(settings), settings.llm_model
+    model = use_case_model.strip() if use_case_model else ""
+    return get_llm_client(settings), model or settings.llm_model
 
 
 def resolve_routed_sync_client(
-    settings: Settings, route: str
+    settings: Settings, route: str, *, use_case_model: str = ""
 ) -> tuple[OpenAI, str]:
     """Sync variant of resolve_routed_client."""
     resolved = _resolve_route_endpoint(settings, route)
     if resolved:
         base_url, api_key, model = resolved
         return OpenAI(base_url=base_url, api_key=api_key), model
-    return get_llm_sync_client(settings), settings.llm_model
+    model = use_case_model.strip() if use_case_model else ""
+    return get_llm_sync_client(settings), model or settings.llm_model
 
 
 def resolve_routed_endpoint(

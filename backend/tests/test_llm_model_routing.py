@@ -70,7 +70,7 @@ async def test_write_brief_sends_deep_model_to_llm(monkeypatch):
 
     monkeypatch.setattr(
         provider_mod, "resolve_routed_client",
-        lambda s, route: (_Client(), "glm-4-plus"),
+        lambda s, route, *, use_case_model="": (_Client(), "glm-4-plus"),
     )
 
     state = analyst_mod.AnalystState(market_slug="nba-2025-01-15-lal-bos", deep=True)
@@ -111,7 +111,7 @@ async def test_write_brief_uses_fast_model_when_not_deep(monkeypatch):
 
     monkeypatch.setattr(
         provider_mod, "resolve_routed_client",
-        lambda s, route: (_Client(), "moonshot-v1-8k"),
+        lambda s, route, *, use_case_model="": (_Client(), "moonshot-v1-8k"),
     )
 
     state = analyst_mod.AnalystState(market_slug="nba-2025-01-15-lal-bos", deep=False)
@@ -159,3 +159,49 @@ def test_route_glm_resolves():
     assert result is not None
     assert result[1] == "glm-test"
     assert result[2] == "glm-4-flash"
+
+
+def test_use_case_model_used_when_route_empty():
+    """NIM-native mode: empty route uses per-use-case model, not LLM_MODEL."""
+    from app.llm.provider import resolve_routed_client
+
+    settings = _settings(LLM_API_KEY="sk-test")
+    _, model = resolve_routed_client(
+        settings, "", use_case_model="deepseek-ai/deepseek-r1"
+    )
+    assert model == "deepseek-ai/deepseek-r1"
+
+
+def test_use_case_model_falls_back_to_llm_model_when_empty():
+    """Empty use_case_model falls back to LLM_MODEL."""
+    from app.llm.provider import resolve_routed_client
+
+    settings = _settings(LLM_API_KEY="sk-test")
+    _, model = resolve_routed_client(settings, "", use_case_model="")
+    assert model == "fast-model"
+
+
+def test_use_case_model_ignored_when_route_resolves():
+    """When a route resolves to a separate provider, use_case_model is ignored."""
+    from app.llm.provider import resolve_routed_client
+
+    settings = _settings(
+        LLM_API_KEY="sk-test",
+        DEEPSEEK_API_KEY="ds-test",
+        DEEPSEEK_MODEL="deepseek-chat",
+    )
+    _, model = resolve_routed_client(
+        settings, "deepseek", use_case_model="meta/llama-3.3-70b-instruct"
+    )
+    assert model == "deepseek-chat"
+
+
+def test_sync_client_use_case_model():
+    """Sync variant also respects use_case_model."""
+    from app.llm.provider import resolve_routed_sync_client
+
+    settings = _settings(LLM_API_KEY="sk-test")
+    _, model = resolve_routed_sync_client(
+        settings, "", use_case_model="deepseek-ai/deepseek-r1"
+    )
+    assert model == "deepseek-ai/deepseek-r1"

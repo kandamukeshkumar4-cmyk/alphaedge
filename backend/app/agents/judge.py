@@ -36,7 +36,10 @@ def _heuristic_drift(summary: str, model: str) -> dict:
 
 
 def _call_llm_drift(summary: str, settings: Settings) -> dict:
-    client, model = resolve_routed_sync_client(settings, settings.llm_route_judge)
+    client, model = resolve_routed_sync_client(
+        settings, settings.llm_route_judge,
+        use_case_model=settings.llm_model_judge,
+    )
     prompt = f"{_DRIFT_SYSTEM}\n\nSummary:\n{summary[:3000]}"
     response = client.chat.completions.create(
         model=model,
