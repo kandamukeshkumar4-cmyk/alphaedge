@@ -8,6 +8,15 @@ import { API_BASE } from "@/lib/alphaedge-api";
 // "checking" = first probe in flight
 export type ApiHealth = "checking" | "live" | "demo";
 
+// Pure classifier for the health probe, extracted so the live/demo decision is
+// unit-testable without a React renderer (the test env is node, no jsdom).
+// `res` is null when the fetch threw (backend unreachable).
+export function classifyHealth(apiBase: string, res: { ok: boolean } | null): ApiHealth {
+  if (!apiBase) return "demo";
+  if (res === null) return "demo";
+  return res.ok ? "live" : "demo";
+}
+
 // Lightweight global health probe for the header LIVE/DEMO indicator. Hits the
 // always-on `/health` endpoint (no auth, no data) so it stays cheap.
 export function useApiHealth(pollMs = 30_000): ApiHealth {
@@ -24,9 +33,9 @@ export function useApiHealth(pollMs = 30_000): ApiHealth {
       try {
         const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
         if (dead) return;
-        setHealth(res.ok ? "live" : "demo");
+        setHealth(classifyHealth(API_BASE, res));
       } catch {
-        if (!dead) setHealth("demo");
+        if (!dead) setHealth(classifyHealth(API_BASE, null));
       }
     };
 

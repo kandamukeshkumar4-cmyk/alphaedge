@@ -25,23 +25,35 @@
 
 ---
 
-## 1. Color Palette (dark-first, Kalshi-green primary)
+## 1. Color Palette (dark-first, mint-on-charcoal terminal)
 
-| Token | Use | Hex |
+> **Reconciled 2026-07-06 with the shipped tokens** (triggered by a design audit
+> of `/` — the homepage — where the rendered palette did not match this spec).
+> The original spec called for a Kalshi neon-green (`#00E676`) primary and a
+> distinct cyan (`#00D9FF`) accent. The product shipped the **Quest terminal**
+> system instead: a single mint (`#20C997`) serving as both primary and accent
+> on a green-tinted near-black canvas, with amber as the one secondary. This
+> table now mirrors the source of truth in `frontend/src/app/globals.css`
+> (`--c-*` RGB triplets) — update both together.
+
+| Token | Use | Hex (shipped) |
 |---|---|---|
-| `primary` | Buy / YES / positive | `#00E676` (Kalshi-style neon green) |
-| `danger` | Sell / NO / negative | `#FF4D4F` |
-| `accent` | Hover / links / focus | `#00D9FF` cyan |
-| `up` / `down` | Chart candles | `#26A69A` / `#EF5350` |
-| `bg` | App background | `#0B0E14` |
-| `surface` | Cards | `#12161F` |
-| `surface-2` | Raised / hover | `#181D29` |
-| `border` | Dividers | `#1F2533` |
-| `text` | Primary text | `#F5F7FA` |
-| `muted` | Secondary text | `#8A93A6` |
-| `gold` | Trophy / leaderboard | `#FFC107` |
+| `primary` | Buy / YES / positive | `#20C997` (mint) |
+| `accent` | Hover / links / focus | `#20C997` — **same as primary** (see note) |
+| `accent-bright` | Emphasis / active pills | `#3EE6B0` |
+| `danger` | Sell / NO / negative | `#E5484D` |
+| `secondary` | Trophy / leaderboard / warnings | `#F4B000` (amber) |
+| `bg` | App background | `#0A0E0D` |
+| `surface` / `-2` / `-3` | Cards / raised / hover | `#101614` / `#151D1A` / `#1B2420` |
+| `border` / `-light` | Dividers / hover borders | `#1E2924` / `#2A3831` |
+| `text` / `muted` / `muted-2` | Primary / secondary / tertiary text | `#F2F7F5` / `#9FB0A9` / `#6D7E77` |
 
-Typography: **Inter** (UI), **IBM Plex Mono** (prices/odds/numbers). Sizes 12/14/16/18/24/32.
+> **Open design question — `accent` ≡ `primary`.** Focus rings, links, and the
+> positive/YES/buy semantic all resolve to the same mint, so a focus ring is not
+> visually separable from "positive." Keep only if the single-hue palette is a
+> deliberate minimalist choice; otherwise split `accent` to a distinct focus hue.
+
+Typography: **Figtree** (UI) with a monospace face for prices/odds/numbers. Sizes 12/14/16/18/24/32.
 
 ---
 

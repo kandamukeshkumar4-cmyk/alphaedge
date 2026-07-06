@@ -134,7 +134,7 @@ export function QuestLeftRail({ trending }: { trending: Market[] }) {
 
       <RailSection title="Top Traders" href="/leaderboard" demo={tradersDemo}>
         {traders.length === 0 ? (
-          <p className="px-2 py-2 text-xs text-muted-2">Paper-trading ranks appear here.</p>
+          <p className="px-2 py-2 text-xs text-muted-2">No ranked traders yet — place a paper trade to claim a spot.</p>
         ) : (
           traders.map((t, i) => (
             <Link
@@ -178,7 +178,7 @@ export function QuestLeftRail({ trending }: { trending: Market[] }) {
       <RailSection title="Live Signals" href="/signals" demo={signalsDemo}>
         {signals.length === 0 ? (
           <p className="px-2 py-2 text-xs text-muted-2">
-            Whale moves and edge alerts show up here automatically.
+            No live signals yet — open a market to watch moves as they fire.
           </p>
         ) : (
           signals.map((s) => (

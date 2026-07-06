@@ -24,7 +24,7 @@ export async function placePaperOrder(
   token: string,
   order: PaperOrderInput,
 ): Promise<PaperOrderResponse> {
-  const apiBase = API_BASE || "http://localhost:8000";
+  const apiBase = API_BASE;
   const response = await fetch(`${apiBase}/api/v1/orders`, {
     method: "POST",
     headers: {
@@ -69,7 +69,7 @@ export async function closePaperPosition(
   token: string,
   input: PositionCloseInput,
 ): Promise<PositionCloseResponse> {
-  const apiBase = API_BASE || "http://localhost:8000";
+  const apiBase = API_BASE;
   const response = await fetch(`${apiBase}/api/v1/positions/close`, {
     method: "POST",
     headers: {

@@ -3,8 +3,22 @@ import { mergeApiSnapshotForDetail } from "./api-market-detail-adapter";
 import { MARKETS, type Market as CardMarket } from "./mock-data";
 import type { Market, MarketSnapshot } from "./market-view-model";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
-export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "";
+// Resolve the backend the deployed static site talks to.
+//
+// A static-exported SPA has NO backend at its own origin, so an empty base
+// ("") makes every /api/v1 call hit the static host, fail, and drop the whole
+// UI into sample-data fallback — the "everything is mock data" failure. So we
+// ALWAYS resolve to a real backend: the NEXT_PUBLIC_API_URL build var when set,
+// otherwise the known production API (prod build) or localhost (dev).
+const DEFAULT_API_BASE =
+  process.env.NODE_ENV === "production"
+    ? "https://mukeshkumarkanda-alphaedge-api.hf.space"
+    : "http://localhost:8000";
+
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").trim() || DEFAULT_API_BASE;
+export const WS_BASE =
+  (process.env.NEXT_PUBLIC_WS_URL || "").trim() ||
+  API_BASE.replace(/^http/, "ws");
 export const PAPER_BALANCE = 100_000;
 export const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
 

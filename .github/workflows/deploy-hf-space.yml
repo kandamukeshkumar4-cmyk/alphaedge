@@ -60,6 +60,7 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_MODEL_DEEP: ${{ secrets.LLM_MODEL_DEEP }}
           NIM_API_KEY: ${{ secrets.NIM_API_KEY }}
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -157,6 +158,7 @@ jobs:
               "LLM_BASE_URL",
               "LLM_API_KEY",
               "LLM_MODEL",
+              "LLM_MODEL_DEEP",
               "NIM_API_KEY",
               "EXA_API_KEY",
               "FRED_API_KEY",
@@ -273,7 +275,10 @@ jobs:
           if not space_sha:
               raise SystemExit("Expected pushed HF Space revision from previous step")
 
-          deadline = time.monotonic() + 600
+          # Free-tier Spaces can be slow to rebuild (and must wake first if
+          # asleep), so wait up to 20 min before treating a stuck revision as
+          # a failure the owner must resolve by hand.
+          deadline = time.monotonic() + 1200
           attempt = 1
           while True:
               runtime: dict[str, object]
@@ -295,8 +300,13 @@ jobs:
                   )
               if time.monotonic() >= deadline:
                   raise SystemExit(
-                      "ERROR: HF Space runtime did not switch to pushed revision "
-                      f"{space_sha} in time. Last stage={stage!r}, sha={runtime_sha!r}"
+                      "ERROR: HF Space runtime never switched to pushed revision "
+                      f"{space_sha} (last stage={stage!r}, sha={runtime_sha!r}). "
+                      "The new code was pushed to the Space git repo but the "
+                      "Space did not rebuild — it is stuck on an old image. "
+                      "FIX: open https://huggingface.co/spaces/mukeshkumarkanda/"
+                      "alphaedge-api > Settings > Factory rebuild, then re-run "
+                      "this workflow."
                   )
 
               print(

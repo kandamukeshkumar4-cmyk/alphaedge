@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     llm_base_url: str = Field(default="https://api.openai.com/v1", alias="LLM_BASE_URL")
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
     llm_model: str = Field(default="gpt-4o-mini", alias="LLM_MODEL")
+    # Reasoning model for deep, latency-tolerant work (the daily digest). Empty
+    # falls back to LLM_MODEL, so per-feature routing is opt-in.
+    llm_model_deep: str = Field(default="", alias="LLM_MODEL_DEEP")
     nim_base_url: str = Field(
         default="https://integrate.api.nvidia.com/v1",
         alias="NIM_BASE_URL",
@@ -210,6 +213,20 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def cors_origin_regex(self) -> str:
+        """Origins allowed in addition to the explicit CORS_ORIGINS list:
+        localhost (any port) for dev, plus THIS app's Azure Static Web Apps
+        origins — production AND the per-PR preview subdomains
+        (e.g. ``proud-meadow-01b42b810-41.centralus.7.azurestaticapps.net``).
+        Scoped to the app-name prefix so it is not an open
+        ``*.azurestaticapps.net`` wildcard. Without the preview arm, every stage
+        deploy is CORS-blocked and the frontend silently falls back to samples."""
+        return (
+            r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+            r"|https://proud-meadow-01b42b810(-\d+)?(\.[a-z0-9-]+)+\.azurestaticapps\.net"
+        )
 
     @property
     def odds_api_sport_key_list(self) -> List[str]:

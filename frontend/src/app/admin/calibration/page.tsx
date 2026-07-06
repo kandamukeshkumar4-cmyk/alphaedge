@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "";
+import { API_BASE } from "@/lib/alphaedge-api";
+const API = API_BASE;
 const ADMIN_API_KEY_STORAGE = "alphaedge.adminApiKey";
 
 const CATALOG_SLUGS = [

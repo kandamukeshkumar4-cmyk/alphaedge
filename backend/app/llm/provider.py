@@ -23,6 +23,15 @@ def resolve_llm_endpoint(settings: Settings) -> tuple[str, str]:
     return settings.llm_base_url.rstrip("/"), settings.llm_api_key
 
 
+def resolve_llm_model(settings: Settings, *, deep: bool = False) -> str:
+    """Return the model id for this call. Deep, latency-tolerant work (e.g. the
+    daily digest) uses ``LLM_MODEL_DEEP`` when set, otherwise falls back to the
+    default ``LLM_MODEL`` — so per-feature routing is opt-in."""
+    if deep:
+        return settings.llm_model_deep.strip() or settings.llm_model
+    return settings.llm_model
+
+
 def get_llm_client(settings: Settings) -> AsyncOpenAI:
     """Return an async OpenAI-compatible client pointed at the configured provider."""
     base_url, api_key = resolve_llm_endpoint(settings)

@@ -14,7 +14,8 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "";
+import { API_BASE } from "@/lib/alphaedge-api";
+const API = API_BASE;
 
 type EvalAggregates = Record<string, number>;
 
