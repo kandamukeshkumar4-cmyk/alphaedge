@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     llm_base_url: str = Field(default="https://api.openai.com/v1", alias="LLM_BASE_URL")
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
     llm_model: str = Field(default="gpt-4o-mini", alias="LLM_MODEL")
+    # Reasoning model for deep, latency-tolerant work (the daily digest). Empty
+    # falls back to LLM_MODEL, so per-feature routing is opt-in.
+    llm_model_deep: str = Field(default="", alias="LLM_MODEL_DEEP")
     nim_base_url: str = Field(
         default="https://integrate.api.nvidia.com/v1",
         alias="NIM_BASE_URL",
