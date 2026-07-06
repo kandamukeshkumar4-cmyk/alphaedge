@@ -6,8 +6,16 @@ from sqlalchemy import select
 
 from app.api.v1.feed import _signal_to_item
 from app.db.models import SignalEvent
-from app.services.weather_desk import weather_scan_to_events
+from app.services.weather_desk import WeatherDeskService, weather_scan_to_events
 from app.workers.tasks import run_weather_scan
+
+
+def test_weather_desk_service_keeps_scan_city_method():
+    """Guard the class structure: weather_scan_to_events must be module-level and
+    must NOT displace _scan_city out of the class (a prior edit did exactly that,
+    silently breaking the live scan() so the cron emitted zero events)."""
+    assert hasattr(WeatherDeskService, "_scan_city")
+    assert callable(WeatherDeskService.scan)
 
 CITIES = [
     {

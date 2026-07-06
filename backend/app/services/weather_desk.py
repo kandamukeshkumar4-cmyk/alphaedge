@@ -122,6 +122,55 @@ class WeatherDeskService:
                 out.append(report)
         return out
 
+    def _scan_city(self, city: CitySeries, day: date, code: str) -> dict[str, Any] | None:
+        markets = [
+            m
+            for m in self.kalshi.list_series_markets(city.series_ticker)
+            if f"-{code}-" in str(m.get("ticker") or "")
+        ]
+        if not markets:
+            return None
+        forecast_high = self.nws.daily_high_f(city.latitude, city.longitude, day)
+        if forecast_high is None:
+            return None
+
+        edges = []
+        for market in markets:
+            edge = price_bucket(
+                ticker=str(market.get("ticker") or ""),
+                bucket_label=str(market.get("yes_sub_title") or ""),
+                mean_f=forecast_high,
+                strike_type=str(market.get("strike_type") or ""),
+                floor_strike=market.get("floor_strike"),
+                cap_strike=market.get("cap_strike"),
+                market_yes=implied_yes_from_kalshi_payload(market),
+                sigma_f=self.sigma_f,
+            )
+            if edge is not None:
+                edges.append(edge)
+        if not edges:
+            return None
+        edges.sort(key=lambda e: -(abs(e.edge) if e.edge is not None else -1.0))
+        return {
+            "city": city.city,
+            "series_ticker": city.series_ticker,
+            "date": day.isoformat(),
+            "forecast_high_f": round(forecast_high, 1),
+            "sigma_f": self.sigma_f,
+            "source": "nws.point-forecast",
+            "buckets": [
+                {
+                    "ticker": e.ticker,
+                    "bucket": e.bucket_label,
+                    "model_probability": e.model_probability,
+                    "market_yes": e.market_yes,
+                    "edge": e.edge,
+                    "read": e.direction,
+                }
+                for e in edges
+            ],
+        }
+
 
 # O04 signal emission — turn scan reports into feed-visible SignalEvents.
 # Weather markets are Kalshi externals, so the events reference the Kalshi
@@ -180,52 +229,3 @@ def weather_scan_to_events(
             }
         )
     return events
-
-    def _scan_city(self, city: CitySeries, day: date, code: str) -> dict[str, Any] | None:
-        markets = [
-            m
-            for m in self.kalshi.list_series_markets(city.series_ticker)
-            if f"-{code}-" in str(m.get("ticker") or "")
-        ]
-        if not markets:
-            return None
-        forecast_high = self.nws.daily_high_f(city.latitude, city.longitude, day)
-        if forecast_high is None:
-            return None
-
-        edges = []
-        for market in markets:
-            edge = price_bucket(
-                ticker=str(market.get("ticker") or ""),
-                bucket_label=str(market.get("yes_sub_title") or ""),
-                mean_f=forecast_high,
-                strike_type=str(market.get("strike_type") or ""),
-                floor_strike=market.get("floor_strike"),
-                cap_strike=market.get("cap_strike"),
-                market_yes=implied_yes_from_kalshi_payload(market),
-                sigma_f=self.sigma_f,
-            )
-            if edge is not None:
-                edges.append(edge)
-        if not edges:
-            return None
-        edges.sort(key=lambda e: -(abs(e.edge) if e.edge is not None else -1.0))
-        return {
-            "city": city.city,
-            "series_ticker": city.series_ticker,
-            "date": day.isoformat(),
-            "forecast_high_f": round(forecast_high, 1),
-            "sigma_f": self.sigma_f,
-            "source": "nws.point-forecast",
-            "buckets": [
-                {
-                    "ticker": e.ticker,
-                    "bucket": e.bucket_label,
-                    "model_probability": e.model_probability,
-                    "market_yes": e.market_yes,
-                    "edge": e.edge,
-                    "read": e.direction,
-                }
-                for e in edges
-            ],
-        }
