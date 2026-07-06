@@ -99,6 +99,15 @@ def _signal_to_item(ev: SignalEvent, market_title: Optional[str]) -> FeedItem:
     elif item_type == "news_arrival":
         headline = payload.get("headline", "")
         summary = headline or f"News signal on {ev.market_id}"
+    elif ev.signal_type == "delta:weather_edge":
+        city = payload.get("city", ev.market_id)
+        model = payload.get("model_probability")
+        market = payload.get("market_yes")
+        read = payload.get("read", "")
+        if model is not None and market is not None:
+            summary = f"{city}: model {model:.0%} vs market {market:.0%} — {read}".strip(" —")
+        else:
+            summary = f"Weather edge on {city}"
     else:
         summary = ev.signal_type.replace("_", " ").capitalize()
 

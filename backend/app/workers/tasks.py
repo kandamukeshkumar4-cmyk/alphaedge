@@ -233,6 +233,50 @@ async def run_news_scan(session) -> dict[str, str]:
     return results
 
 
+WEATHER_SCAN_JOB_NAME = "weather_scan_task"
+
+
+async def weather_scan_task(ctx: dict) -> dict:
+    """O04: price NWS forecasts vs Kalshi daily-high books and persist the
+    strongest per-city edges as delta:weather_edge SignalEvents so they surface
+    in /signals, the ticker, and the engine room. Signals only — no order path.
+    """
+    import asyncio
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from app.db.session import AsyncSessionLocal
+    from app.services.weather_desk import WeatherDeskService
+
+    # Tomorrow: today's daily-high books close overnight.
+    day = (_dt.now(_UTC) + _td(days=1)).date()
+    try:
+        cities = await asyncio.to_thread(WeatherDeskService().scan, day)
+    except Exception as exc:  # noqa: BLE001 - never crash the scheduler
+        logger.warning("Weather scan failed: %s", exc)
+        return {"scanned": 0, "emitted": 0, "error": str(exc)}
+
+    async with AsyncSessionLocal() as session:
+        emitted = await run_weather_scan(session, cities)
+        await session.commit()
+    return {"scanned": len(cities), "emitted": emitted}
+
+
+async def run_weather_scan(session, cities: list[dict]) -> int:
+    """Core of weather_scan_task on a caller-provided session + pre-scanned
+    cities (testable without network). Persists one delta:weather_edge
+    SignalEvent per city edge; returns the count emitted."""
+    from app.db.models import SignalEvent
+    from app.services.weather_desk import weather_scan_to_events
+
+    events = weather_scan_to_events(cities)
+    for event in events:
+        session.add(SignalEvent(**event))
+    await session.flush()
+    return len(events)
+
+
 async def run_eval_on_resolve_task(ctx: dict, market_id: str) -> dict:
     from uuid import UUID
 
@@ -638,12 +682,14 @@ class WorkerSettings:
         morning_research_task,
         nightly_backtest_task,
         nightly_profile_refresh_task,
+        weather_scan_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
         cron(ingest_odds_task, hour={12}, minute=0),
         cron(fetch_news_signals_task, minute={30}),  # every hour at :30
         cron(news_scan_task, minute={35}),  # B04: news -> news_arrival events hourly
+        cron(weather_scan_task, minute={40}),  # O04: NWS-vs-Kalshi weather edges hourly
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
         cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
