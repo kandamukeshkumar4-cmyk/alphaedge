@@ -334,9 +334,10 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
 
 
 async def write_brief(state: AnalystState, settings) -> AnalystState:
-    from app.llm.provider import get_llm_client, resolve_llm_endpoint
+    from app.llm.provider import resolve_routed_client, resolve_routed_endpoint
 
-    _, api_key = resolve_llm_endpoint(settings)
+    route = settings.llm_route_analyst_deep if state.deep else settings.llm_route_analyst
+    _, api_key = resolve_routed_endpoint(settings, route)
     if not api_key:
         state.headline, state.body_markdown = _fallback_brief(state)
         state.generator = "fallback"
@@ -359,11 +360,9 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
     )
     persona = PERSONAS.get(state.persona or "")
     system_prompt = _SYSTEM_PROMPT + (f" {persona['emphasis']}" if persona else "")
-    from app.llm.provider import resolve_llm_model
 
-    model_id = resolve_llm_model(settings, deep=state.deep)
+    client, model_id = resolve_routed_client(settings, route)
     try:
-        client = get_llm_client(settings)
         response = await client.chat.completions.create(
             model=model_id,
             messages=[

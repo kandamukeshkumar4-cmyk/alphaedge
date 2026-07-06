@@ -29,8 +29,8 @@ async def test_extract_news_features_parses_structured_response(monkeypatch):
     mock_client = MagicMock()
     mock_client.chat.completions.create = AsyncMock(return_value=_mock_completion(payload))
     monkeypatch.setattr(
-        "app.llm.news_features.get_llm_client",
-        lambda settings: mock_client,
+        "app.llm.news_features.resolve_routed_client",
+        lambda settings, route: (mock_client, "test-model"),
     )
 
     settings = Settings(LLM_PROVIDER="gemini", GEMINI_API_KEY="gem-test")
@@ -67,8 +67,8 @@ async def test_extract_news_features_nullable_fields(monkeypatch):
     mock_client = MagicMock()
     mock_client.chat.completions.create = AsyncMock(return_value=_mock_completion(payload))
     monkeypatch.setattr(
-        "app.llm.news_features.get_llm_client",
-        lambda settings: mock_client,
+        "app.llm.news_features.resolve_routed_client",
+        lambda settings, route: (mock_client, "test-model"),
     )
 
     settings = Settings(LLM_PROVIDER="openai", LLM_API_KEY="sk-test")

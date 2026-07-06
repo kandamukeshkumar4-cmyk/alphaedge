@@ -72,6 +72,41 @@ class Settings(BaseSettings):
         alias="NIM_BASE_URL",
     )
     nim_api_key: str = Field(default="", alias="NIM_API_KEY")
+
+    # --- Per-use-case model routing (multi-provider) ---
+    # Each use case can target a different OpenAI-compatible provider.
+    # When the _API_KEY for a use case is empty, that call site falls back
+    # to the primary LLM provider above.
+
+    # DeepSeek — fast structured extraction (news features, resolution matching, chat)
+    deepseek_base_url: str = Field(
+        default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL"
+    )
+    deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
+    deepseek_model: str = Field(default="deepseek-chat", alias="DEEPSEEK_MODEL")
+
+    # Kimi (Moonshot) — analyst briefs and signal explanations
+    kimi_base_url: str = Field(
+        default="https://api.moonshot.cn/v1", alias="KIMI_BASE_URL"
+    )
+    kimi_api_key: str = Field(default="", alias="KIMI_API_KEY")
+    kimi_model: str = Field(default="moonshot-v1-8k", alias="KIMI_MODEL")
+
+    # GLM (Zhipu) — deep reasoning and drift analysis
+    glm_base_url: str = Field(
+        default="https://open.bigmodel.cn/api/paas/v4", alias="GLM_BASE_URL"
+    )
+    glm_api_key: str = Field(default="", alias="GLM_API_KEY")
+    glm_model: str = Field(default="glm-4-flash", alias="GLM_MODEL")
+
+    # Per-use-case model overrides (use case -> provider mapping).
+    # Values: "deepseek", "kimi", "glm", or empty (use primary LLM_PROVIDER).
+    llm_route_chat: str = Field(default="deepseek", alias="LLM_ROUTE_CHAT")
+    llm_route_analyst: str = Field(default="kimi", alias="LLM_ROUTE_ANALYST")
+    llm_route_analyst_deep: str = Field(default="glm", alias="LLM_ROUTE_ANALYST_DEEP")
+    llm_route_explain: str = Field(default="kimi", alias="LLM_ROUTE_EXPLAIN")
+    llm_route_extraction: str = Field(default="deepseek", alias="LLM_ROUTE_EXTRACTION")
+    llm_route_judge: str = Field(default="glm", alias="LLM_ROUTE_JUDGE")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
     football_data_api_key: str = Field(default="", alias="FOOTBALL_DATA_API_KEY")

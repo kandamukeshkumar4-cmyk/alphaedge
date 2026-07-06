@@ -32,9 +32,19 @@ def _no_llm_settings(**over):
         nim_api_key="",
         gemini_api_key="",
         llm_model="gpt-4o-mini",
+        llm_model_deep="",
         prompt_version="v1",
         analyst_enabled=True,
         analyst_cooldown_sec=900.0,
+        deepseek_api_key="",
+        kimi_api_key="",
+        glm_api_key="",
+        llm_route_analyst="",
+        llm_route_analyst_deep="",
+        llm_route_chat="",
+        llm_route_explain="",
+        llm_route_extraction="",
+        llm_route_judge="",
     )
     base.update(over)
     return SimpleNamespace(**base)

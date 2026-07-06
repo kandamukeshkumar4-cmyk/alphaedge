@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 
 from app.core.config import Settings
-from app.llm.provider import get_llm_client, resolve_llm_endpoint
+from app.llm.provider import resolve_routed_client, resolve_routed_endpoint
 
 _SYSTEM_PROMPT = (
     "Extract structured sports news features from the text. "
@@ -56,14 +56,14 @@ def _heuristic_news_features(news_text: str) -> NewsFeatures:
 
 async def extract_news_features(news_text: str, *, settings: Settings) -> NewsFeatures:
     """Structured extraction only — no edge/stake/side decisions."""
-    _, api_key = resolve_llm_endpoint(settings)
+    _, api_key = resolve_routed_endpoint(settings, settings.llm_route_extraction)
     if not api_key or not news_text.strip():
         return _heuristic_news_features(news_text)
 
     try:
-        client = get_llm_client(settings)
+        client, model = resolve_routed_client(settings, settings.llm_route_extraction)
         response = await client.chat.completions.create(
-            model=settings.llm_model,
+            model=model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": news_text},

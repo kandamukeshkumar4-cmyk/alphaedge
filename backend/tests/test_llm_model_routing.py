@@ -34,12 +34,19 @@ def test_deep_ignores_whitespace_only_deep_model():
 
 
 async def test_write_brief_sends_deep_model_to_llm(monkeypatch):
-    """End-to-end through write_brief: state.deep=True must send LLM_MODEL_DEEP
-    as the model id to the chat-completions call."""
+    """End-to-end through write_brief: state.deep=True must send the deep route's
+    model id to the chat-completions call."""
     import app.agents.analyst as analyst_mod
     import app.llm.provider as provider_mod
 
-    settings = _settings(LLM_MODEL_DEEP="nemotron-49b", LLM_API_KEY="k", LLM_PROVIDER="openai")
+    settings = _settings(
+        LLM_MODEL_DEEP="nemotron-49b",
+        LLM_API_KEY="k",
+        LLM_PROVIDER="openai",
+        GLM_API_KEY="glm-test",
+        GLM_MODEL="glm-4-plus",
+        LLM_ROUTE_ANALYST_DEEP="glm",
+    )
     captured: dict[str, str] = {}
 
     class _Completions:
@@ -61,14 +68,17 @@ async def test_write_brief_sends_deep_model_to_llm(monkeypatch):
         class chat:  # noqa: N801
             completions = _Completions()
 
-    monkeypatch.setattr(provider_mod, "get_llm_client", lambda s: _Client())
+    monkeypatch.setattr(
+        provider_mod, "resolve_routed_client",
+        lambda s, route: (_Client(), "glm-4-plus"),
+    )
 
     state = analyst_mod.AnalystState(market_slug="nba-2025-01-15-lal-bos", deep=True)
     state.market_state = {"title": "Lakers vs Celtics", "implied_yes": 0.55}
     state.evidence = {"model": {"predicted_prob": 0.55, "edge": 0.0}}
 
     result = await analyst_mod.write_brief(state, settings)
-    assert captured["model"] == "nemotron-49b"
+    assert captured["model"] == "glm-4-plus"
     assert result.generator == "llm"
 
 
@@ -76,7 +86,14 @@ async def test_write_brief_uses_fast_model_when_not_deep(monkeypatch):
     import app.agents.analyst as analyst_mod
     import app.llm.provider as provider_mod
 
-    settings = _settings(LLM_MODEL_DEEP="nemotron-49b", LLM_API_KEY="k", LLM_PROVIDER="openai")
+    settings = _settings(
+        LLM_MODEL_DEEP="nemotron-49b",
+        LLM_API_KEY="k",
+        LLM_PROVIDER="openai",
+        KIMI_API_KEY="kimi-test",
+        KIMI_MODEL="moonshot-v1-8k",
+        LLM_ROUTE_ANALYST="kimi",
+    )
     captured: dict[str, str] = {}
 
     class _Completions:
@@ -92,11 +109,53 @@ async def test_write_brief_uses_fast_model_when_not_deep(monkeypatch):
         class chat:  # noqa: N801
             completions = _Completions()
 
-    monkeypatch.setattr(provider_mod, "get_llm_client", lambda s: _Client())
+    monkeypatch.setattr(
+        provider_mod, "resolve_routed_client",
+        lambda s, route: (_Client(), "moonshot-v1-8k"),
+    )
 
     state = analyst_mod.AnalystState(market_slug="nba-2025-01-15-lal-bos", deep=False)
     state.market_state = {"title": "Lakers vs Celtics", "implied_yes": 0.55}
     state.evidence = {"model": {"predicted_prob": 0.55, "edge": 0.0}}
 
     await analyst_mod.write_brief(state, settings)
-    assert captured["model"] == "fast-model"
+    assert captured["model"] == "moonshot-v1-8k"
+
+
+def test_route_fallback_to_primary():
+    """When no per-use-case key is set, routing falls back to primary provider."""
+    from app.llm.provider import _resolve_route_endpoint
+
+    settings = _settings(LLM_API_KEY="sk-test")
+    assert _resolve_route_endpoint(settings, "") is None
+    assert _resolve_route_endpoint(settings, "deepseek") is None  # no DEEPSEEK_API_KEY
+
+
+def test_route_deepseek_resolves():
+    from app.llm.provider import _resolve_route_endpoint
+
+    settings = _settings(DEEPSEEK_API_KEY="ds-test", DEEPSEEK_MODEL="deepseek-chat")
+    result = _resolve_route_endpoint(settings, "deepseek")
+    assert result is not None
+    assert result[1] == "ds-test"
+    assert result[2] == "deepseek-chat"
+
+
+def test_route_kimi_resolves():
+    from app.llm.provider import _resolve_route_endpoint
+
+    settings = _settings(KIMI_API_KEY="ki-test", KIMI_MODEL="moonshot-v1-8k")
+    result = _resolve_route_endpoint(settings, "kimi")
+    assert result is not None
+    assert result[1] == "ki-test"
+    assert result[2] == "moonshot-v1-8k"
+
+
+def test_route_glm_resolves():
+    from app.llm.provider import _resolve_route_endpoint
+
+    settings = _settings(GLM_API_KEY="glm-test", GLM_MODEL="glm-4-flash")
+    result = _resolve_route_endpoint(settings, "glm")
+    assert result is not None
+    assert result[1] == "glm-test"
+    assert result[2] == "glm-4-flash"
