@@ -19,6 +19,7 @@ from app.db.models import (
     AnalystEvalAggregate,
     BriefClaim,
     Market,
+    MarketStatus,
     OddsSnapshot,
 )
 from app.db.session import get_db
@@ -119,6 +120,13 @@ async def get_brief(brief_id: UUID, db: AsyncSession = Depends(get_db)):
     return _brief_to_out(brief)
 
 
+def _title_from_slug(slug: str) -> str:
+    """Derive a human-readable title from a market slug."""
+    raw = slug.removeprefix("pm-").removeprefix("ks-")
+    raw = raw.rsplit("-", 1)[0] if raw[-1:].isdigit() else raw
+    return raw.replace("-", " ").capitalize()[:256]
+
+
 @router.post("/analyst/run", response_model=BriefOut)
 async def run_analyst_on_demand(
     market_slug: str = Query(..., min_length=3, max_length=128),
@@ -132,10 +140,23 @@ async def run_analyst_on_demand(
     """Run the analyst pipeline on one market, on demand (the "ask the analyst"
     interaction). Research-only: produces a brief + claim, never an order. If
     the market is inside its cooldown window, returns its latest brief instead
-    of re-running."""
+    of re-running. Auto-creates a minimal market record if the slug is unknown."""
     market = await db.scalar(select(Market).where(Market.slug == market_slug).limit(1))
     if market is None:
-        raise HTTPException(status_code=404, detail="Market not found")
+        title = _title_from_slug(market_slug)
+        source = "polymarket" if market_slug.startswith("pm-") else (
+            "kalshi" if market_slug.startswith("ks-") else "on-demand"
+        )
+        market = Market(
+            slug=market_slug,
+            title=title,
+            question=title + "?",
+            category="Sports" if any(k in market_slug for k in ("nba", "nfl", "mlb", "fifa", "nhl")) else "General",
+            source=source,
+            status=MarketStatus.OPEN,
+        )
+        db.add(market)
+        await db.flush()
 
     from app.agents.analyst import run_analyst
 
