@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { marketHref } from "@/lib/market-href";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { fetchFeed, subscribeFeedWS, type FeedItem, type FeedItemType } from "@/lib/feed-api";
@@ -127,7 +128,7 @@ function timeLabel(ts: string): string {
 
 function FeedCard({ item }: { item: FeedItem }) {
   const [expanded, setExpanded] = useState(false);
-  const marketHref = `/markets/${item.market_slug}`;
+  const marketLink = marketHref(item.market_slug);
   const hasDetail = Object.keys(item.payload).length > 0;
 
   return (
@@ -164,14 +165,14 @@ function FeedCard({ item }: { item: FeedItem }) {
 
           {item.market_title ? (
             <Link
-              href={marketHref}
+              href={marketLink}
               className="mt-1 inline-block text-xs text-accent-bright hover:underline"
             >
               {item.market_title}
             </Link>
           ) : (
             <Link
-              href={marketHref}
+              href={marketLink}
               className="mt-1 inline-block font-mono text-[11px] text-muted-2 hover:text-text"
             >
               {item.market_slug}

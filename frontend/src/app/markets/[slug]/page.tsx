@@ -5,7 +5,9 @@ import { fetchMarketDetailApi } from "@/lib/alphaedge-api";
 // Live Kalshi/Polymarket slugs are discovered at runtime and can't be
 // enumerated ahead of time — they must render dynamically. The static list
 // below only seeds prerendering for the static-export demo deploy.
-export const dynamicParams = true;
+// Live catalog slugs render on demand in server mode, but "output: export"
+// (Azure SWA static deploy) forbids dynamicParams — unknown slugs 404 there.
+export const dynamicParams = false;
 
 export function generateStaticParams() {
   return MARKETS.map((m) => ({ slug: m.slug }));

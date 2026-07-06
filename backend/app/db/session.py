@@ -13,6 +13,12 @@ def async_engine_settings(database_url: str) -> tuple[str, dict[str, Any]]:
     url = make_url(database_url)
     kwargs: dict[str, Any] = {}
 
+    # Plain postgres URLs (e.g. a DATABASE_URL secret without a driver suffix)
+    # would load the sync psycopg2 driver, which create_async_engine rejects.
+    # Coerce to asyncpg, mirroring the deploy workflow's URL normalization.
+    if url.drivername in ("postgresql", "postgres"):
+        url = url.set(drivername="postgresql+asyncpg")
+
     if url.drivername == "postgresql+asyncpg":
         sslmode = url.query.get("sslmode")
         ssl = url.query.get("ssl")

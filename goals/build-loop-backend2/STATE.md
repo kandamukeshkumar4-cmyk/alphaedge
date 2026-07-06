@@ -16,6 +16,7 @@ Guardrails: PAPER_TRADING_ONLY, no LLM order path, never game a benchmark.
 | B05 | Deep daily digest on reasoning model | QUEUED | digest uses LLM_MODEL_DEEP (nemotron-49b, ~19s ok for cron) | per-feature model routing |
 | B06 | Expiry-fade + momentum screeners (signals only) | QUEUED | deterministic screener API + tests | CloddsBot-inspired, clean-room |
 | B07 | Batch Kalshi catalog ingest (429s in sync_open_events) | DONE | ingest cycle completes with <5 429s | tick loop fixed; ingest still per-event calls |
+| B08 | Demo reliability: E2E smoke harness + deployed-AI root cause | DONE 2026-07-05 | 15-test user-journey smoke green vs live stack | See AutoLab log. Root causes of "demo broken": (1) deploy workflow never synced LLM/NIM keys to the HF Space → deployed briefs/chat always deterministic fallback; (2) assistant gated on LLM_API_KEY only, ignoring NIM_API_KEY even when set; (3) nothing pinged the free-tier Space/Neon between deploys → asleep at demo time. Fixes: provider-aware assistant gate + regression tests; optional AI-key sync in deploy-hf-space.yml; demo-uptime.yml 30-min keep-alive/uptime cron; tests/smoke/test_user_journey.py (any --base-url) + scripts/run_smoke.sh; analyst LLM failures now log at WARNING with provider/model. |
 
 ## AutoLab log
 - 2026-07-04 bootstrap: baseline = 1044+ backend tests green, ruff clean,
@@ -36,3 +37,12 @@ Guardrails: PAPER_TRADING_ONLY, no LLM order path, never game a benchmark.
 - NOTE: full-suite run concurrent with 2 other suites + container build showed
   1 flaky failure (name lost to tail -1); clean rerun launched to pin it down —
   the two isolated runs both passed 1046/5.
+- 2026-07-05 B08: baseline=full gate green on fresh clone (backend suite + ruff,
+  frontend typecheck/lint/61 tests/build) | benchmark=user-journey smoke suite
+  vs a live local stack (Postgres 16 + migrations 030 + uvicorn) | result=15/15
+  green — 77-route GET sweep 0×5xx, signup→login→paper order→close→realized
+  PnL, analyst brief + claim, assistant chat, agent-harness run risk-blocked
+  with no order artifacts | outcome=IMPROVED. Deployed-demo fixes ship in this
+  branch; user action needed: add LLM_PROVIDER/NIM_API_KEY/LLM_MODEL (+ EXA/
+  FRED) as GitHub secrets, then run "Deploy Backend to HF Space" with
+  sync_runtime_secrets=true.

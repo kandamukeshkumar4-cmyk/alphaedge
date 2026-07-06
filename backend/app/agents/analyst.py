@@ -309,7 +309,8 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
         + price_action
         + f"Model probability {model.get('predicted_prob', 0):.0%} — {edge_read}. "
         f"External evidence: {ext}. "
-        "(Deterministic brief — no LLM key configured; add LLM_API_KEY for prose reasoning.)"
+        "(Deterministic brief — no LLM key configured; set LLM_API_KEY, or "
+        "NIM_API_KEY with LLM_PROVIDER=nim, for prose reasoning.)"
     )
     return headline[:120], body[:1200]
 
@@ -359,7 +360,13 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
         state.body_markdown = ("\n".join(lines[1:]).strip() or lines[0])[:1200]
         state.generator = "llm"
     except Exception:  # noqa: BLE001 - fall back to deterministic brief
-        logger.debug("analyst LLM write_brief failed, falling back", exc_info=True)
+        logger.warning(
+            "analyst LLM write_brief failed (provider=%s model=%s), falling back "
+            "to deterministic brief",
+            settings.llm_provider,
+            settings.llm_model,
+            exc_info=True,
+        )
         state.headline, state.body_markdown = _fallback_brief(state)
         state.generator = "fallback"
     return state

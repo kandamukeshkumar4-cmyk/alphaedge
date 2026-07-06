@@ -9,6 +9,7 @@ import {
 } from "@/lib/signals-dashboard-api";
 import { useLivePrice } from "@/context/live-prices";
 import { cn } from "@/lib/cn";
+import { marketHref } from "@/lib/market-href";
 import { formatCompactUSD, type Market } from "@/lib/mock-data";
 import { DEMO_LEADERBOARD, DEMO_SIGNALS } from "@/lib/demo-data";
 import { DemoChip } from "@/components/quest/DemoChip";
@@ -48,7 +49,7 @@ function TrendingRow({ market, rank }: { market: Market; rank: number }) {
   const up = live.deltaPts >= 0;
   return (
     <Link
-      href={`/markets/${market.slug}`}
+      href={marketHref(market.slug)}
       className="flex items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-surface-2"
     >
       <span className={cn("w-3.5 font-mono text-[11px] font-bold", RANK_COLORS[rank] ?? "text-muted-2")}>

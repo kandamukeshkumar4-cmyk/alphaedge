@@ -3,6 +3,7 @@
 // Alerts desk — dispatched alerts (T09) plus the raw engine-room event stream
 // (diff engine, whale deltas, news arrivals, alignment triggers).
 import Link from "next/link";
+import { marketHref } from "@/lib/market-href";
 import { useEffect, useState } from "react";
 import {
   fetchAlerts,
@@ -178,7 +179,7 @@ export default function AlertsPage() {
                   </span>
                 </div>
                 <Link
-                  href={`/markets/${e.market_id}`}
+                  href={marketHref(e.market_id)}
                   className="mt-1.5 block font-mono text-sm text-text hover:text-accent-bright"
                 >
                   {e.market_id}
