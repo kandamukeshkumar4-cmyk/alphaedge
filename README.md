@@ -212,7 +212,7 @@ Use this when the Koyeb account flow requires payment verification but you still
 Current public API:
 
 ```text
-https://mukeshkumarkanda-alphaedge-api.hf.space
+https://mukeshkumar007-alphaedge-api.hf.space
 ```
 
 After creating the Neon DB and Hugging Face write token,

@@ -2,7 +2,7 @@
 # Run the E2E user-journey smoke suite against a running AlphaEdge deployment.
 #
 #   ./scripts/run_smoke.sh                                  # local stack
-#   ./scripts/run_smoke.sh https://mukeshkumarkanda-alphaedge-api.hf.space
+#   ./scripts/run_smoke.sh https://mukeshkumar007-alphaedge-api.hf.space
 #   ALPHAEDGE_EXPECT_LLM=1 ./scripts/run_smoke.sh <url>     # fail if AI is in fallback mode
 set -euo pipefail
 

@@ -257,7 +257,7 @@ def test_huggingface_neon_deploy_doc_exists():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "Hugging Face Spaces + Neon Postgres" in doc
-    assert "mukeshkumarkanda-alphaedge-api.hf.space" in doc
+    assert "mukeshkumar007-alphaedge-api.hf.space" in doc
     assert "PAPER_TRADING_ONLY=true" in doc
     assert "DATABASE_URL" in doc
     assert "DATABASE_URL_SYNC" in doc
@@ -322,7 +322,7 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "space_sha=$(git rev-parse HEAD)" in workflow
     assert 'echo "space_sha=$space_sha" >> "$GITHUB_OUTPUT"' in workflow
     assert "steps.push_space.outputs.space_sha" in workflow
-    assert "https://huggingface.co/api/spaces/mukeshkumarkanda/alphaedge-api/runtime" in workflow
+    assert "https://huggingface.co/api/spaces/mukeshkumar007/alphaedge-api/runtime" in workflow
     assert "runtime.get(\"sha\")" in workflow
     assert "Space runtime is running the pushed revision" in workflow
     assert "Expected paper_trading_only=true from /health" in workflow
@@ -411,7 +411,7 @@ def test_huggingface_paper_trading_ready_script_checks_live_order_lifecycle():
         encoding="utf-8"
     )
 
-    assert "https://mukeshkumarkanda-alphaedge-api.hf.space" in script
+    assert "https://mukeshkumar007-alphaedge-api.hf.space" in script
     assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in script
     assert "nba-2025-01-15-lal-bos" in script
     assert "elect-la-mayor-2026" in script

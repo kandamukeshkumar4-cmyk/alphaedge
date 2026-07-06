@@ -1,5 +1,5 @@
 param(
-    [string]$ApiUrl = "https://mukeshkumarkanda-alphaedge-api.hf.space",
+    [string]$ApiUrl = "https://mukeshkumar007-alphaedge-api.hf.space",
     [string]$FrontendUrl = "https://proud-meadow-01b42b810.7.azurestaticapps.net",
     [string]$MarketSlug = "nba-2025-01-15-lal-bos",
     [string]$ElectionSlug = "elect-la-mayor-2026",

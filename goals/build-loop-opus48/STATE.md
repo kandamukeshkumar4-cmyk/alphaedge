@@ -13,7 +13,7 @@ smoke harness + deployed-AI root causes).
 - The E2E smoke harness is the loop's main verification asset:
   `cd backend && uv run --extra dev pytest tests/smoke/ -q --base-url <url>`
   (15 tests; `ALPHAEDGE_EXPECT_LLM=1` makes fallback-mode AI a hard failure).
-- Deployed demo: API https://mukeshkumarkanda-alphaedge-api.hf.space, frontend
+- Deployed demo: API https://mukeshkumar007-alphaedge-api.hf.space, frontend
   https://proud-meadow-01b42b810.7.azurestaticapps.net (Azure SWA), DB Neon.
 - Queued loop-b2 tickets (B02/B03/B05/B06) move here as O04/O05/O06/O03.
 
