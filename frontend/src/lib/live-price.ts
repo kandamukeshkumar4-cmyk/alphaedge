@@ -1,15 +1,10 @@
 /** Shared live-price helpers for mirror markets (Kalshi / Polymarket). */
+import { WS_BASE } from "./alphaedge-api";
 
 export function wsBase(): string {
-  const configured = process.env.NEXT_PUBLIC_WS_URL;
-  if (configured) {
-    return configured.replace(/^http/, "ws").replace(/\/$/, "");
-  }
-  const api = process.env.NEXT_PUBLIC_API_URL;
-  if (api) {
-    return api.replace(/^http/, "ws").replace(/\/$/, "");
-  }
-  return "ws://localhost:8000";
+  // Reuse the single resolved backend so the socket and REST never diverge —
+  // an empty base would silently point the WS at the static host and hang.
+  return WS_BASE.replace(/\/$/, "");
 }
 
 export function resolveOutcomeSlug(outcomeId: string, marketSlug: string): string {
