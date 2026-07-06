@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
 )
@@ -444,6 +446,33 @@ class SignalEvent(Base):
     headline_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WeatherForecastLog(Base):
+    """O05: one row per (city, target_date) recording the NWS forecast high and
+    the sigma the bucket model used, so the observed high can be filled in later
+    and forecast-vs-actual error learned. Pure record-keeping — never an order.
+
+    The learned-sigma application stays OFF until enough resolved pairs exist
+    (data-gated); this table just accumulates the evidence."""
+
+    __tablename__ = "weather_forecast_logs"
+    __table_args__ = (
+        UniqueConstraint("city", "target_date", name="uq_weather_forecast_city_date"),
+        Index("ix_weather_forecast_target_date", "target_date"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    city: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_date: Mapped[Any] = mapped_column(Date, nullable=False)
+    forecast_high_f: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
+    sigma_used: Mapped[Decimal] = mapped_column(Numeric(6, 3), nullable=False)
+    actual_high_f: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=True)
+    source: Mapped[str] = mapped_column(String(64), default="nws.point-forecast")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class TrackedWallet(Base):

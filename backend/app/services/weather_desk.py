@@ -9,9 +9,10 @@ can construct an OrderIntent or reach the order path (paper-trading guardrail).
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 
@@ -170,6 +171,24 @@ class WeatherDeskService:
                 for e in edges
             ],
         }
+
+
+# O05 learned-sigma bootstrap — the RMS forecast error over resolved
+# (forecast, actual) daily-high pairs is the empirically-correct Gaussian sigma
+# for the bucket model. PURE + data-gated: returns None until at least
+# ``min_pairs`` pairs exist, and the caller must NOT apply it to the live model
+# until the sample is large enough (guardrail: no benchmark gaming on thin data).
+def suggest_sigma_f(
+    pairs: list[tuple[float, float]],
+    *,
+    min_pairs: int = 30,
+) -> Optional[float]:
+    """RMS of (forecast_high - actual_high) over resolved pairs, or None when
+    fewer than ``min_pairs`` pairs are available."""
+    if len(pairs) < min_pairs:
+        return None
+    sq = [(f - a) ** 2 for f, a in pairs]
+    return round(math.sqrt(sum(sq) / len(sq)), 3)
 
 
 # O04 signal emission — turn scan reports into feed-visible SignalEvents.

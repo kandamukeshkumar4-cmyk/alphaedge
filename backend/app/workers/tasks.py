@@ -259,8 +259,9 @@ async def weather_scan_task(ctx: dict) -> dict:
 
     async with AsyncSessionLocal() as session:
         emitted = await run_weather_scan(session, cities)
+        logged = await log_weather_forecasts(session, cities, day)
         await session.commit()
-    return {"scanned": len(cities), "emitted": emitted}
+    return {"scanned": len(cities), "emitted": emitted, "forecasts_logged": logged}
 
 
 async def run_weather_scan(session, cities: list[dict]) -> int:
@@ -275,6 +276,82 @@ async def run_weather_scan(session, cities: list[dict]) -> int:
         session.add(SignalEvent(**event))
     await session.flush()
     return len(events)
+
+
+async def log_weather_forecasts(session, cities: list[dict], day) -> int:
+    """O05: upsert one WeatherForecastLog row per city for ``day`` (the forecast
+    high + sigma the model used). One row per (city, target_date) — re-scanning
+    the same day updates the forecast, it does not duplicate. Actuals are filled
+    later by record_weather_actuals. Testable with a caller-provided session."""
+    from decimal import Decimal
+
+    from sqlalchemy import select as _select
+
+    from app.db.models import WeatherForecastLog
+
+    logged = 0
+    for report in cities:
+        city = report.get("city")
+        forecast = report.get("forecast_high_f")
+        if city is None or forecast is None:
+            continue
+        sigma = report.get("sigma_f")
+        existing = await session.scalar(
+            _select(WeatherForecastLog).where(
+                WeatherForecastLog.city == city,
+                WeatherForecastLog.target_date == day,
+            )
+        )
+        if existing is not None:
+            existing.forecast_high_f = Decimal(str(forecast))
+            if sigma is not None:
+                existing.sigma_used = Decimal(str(sigma))
+        else:
+            session.add(
+                WeatherForecastLog(
+                    city=city,
+                    target_date=day,
+                    forecast_high_f=Decimal(str(forecast)),
+                    sigma_used=Decimal(str(sigma if sigma is not None else 0)),
+                    source=str(report.get("source") or "nws.point-forecast"),
+                )
+            )
+        logged += 1
+    await session.flush()
+    return logged
+
+
+async def record_weather_actuals(session, actuals: dict, *, now=None) -> int:
+    """O05: fill actual_high_f (+ resolved_at) for unresolved forecast rows.
+    ``actuals`` maps (city, target_date) -> observed high F. Idempotent: only
+    rows with a NULL actual are touched. Returns the number resolved."""
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+    from decimal import Decimal
+
+    from sqlalchemy import select as _select
+
+    from app.db.models import WeatherForecastLog
+
+    now = now or _dt.now(_UTC)
+    resolved = 0
+    for (city, target_date), actual in actuals.items():
+        if actual is None:
+            continue
+        row = await session.scalar(
+            _select(WeatherForecastLog).where(
+                WeatherForecastLog.city == city,
+                WeatherForecastLog.target_date == target_date,
+                WeatherForecastLog.actual_high_f.is_(None),
+            )
+        )
+        if row is None:
+            continue
+        row.actual_high_f = Decimal(str(actual))
+        row.resolved_at = now
+        resolved += 1
+    await session.flush()
+    return resolved
 
 
 async def run_eval_on_resolve_task(ctx: dict, market_id: str) -> dict:
