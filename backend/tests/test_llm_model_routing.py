@@ -1,36 +1,12 @@
-"""O06: per-feature LLM model routing (deep reasoning model for the digest)."""
+"""O06: per-feature LLM model routing (per-use-case models via NIM)."""
 
 from app.core.config import Settings
-from app.llm.provider import resolve_llm_model
 
 
 def _settings(**overrides) -> Settings:
     base = dict(_env_file=None, PAPER_TRADING_ONLY=True, LLM_MODEL="fast-model")
     base.update(overrides)
     return Settings(**base)
-
-
-def test_resolve_model_defaults_to_llm_model():
-    settings = _settings()
-    assert resolve_llm_model(settings) == "fast-model"
-    assert resolve_llm_model(settings, deep=False) == "fast-model"
-
-
-def test_deep_falls_back_to_llm_model_when_deep_unset():
-    settings = _settings()  # LLM_MODEL_DEEP empty
-    assert resolve_llm_model(settings, deep=True) == "fast-model"
-
-
-def test_deep_uses_llm_model_deep_when_set():
-    settings = _settings(LLM_MODEL_DEEP="nemotron-49b")
-    assert resolve_llm_model(settings, deep=True) == "nemotron-49b"
-    # Non-deep callers must stay on the fast model even when a deep model exists.
-    assert resolve_llm_model(settings, deep=False) == "fast-model"
-
-
-def test_deep_ignores_whitespace_only_deep_model():
-    settings = _settings(LLM_MODEL_DEEP="   ")
-    assert resolve_llm_model(settings, deep=True) == "fast-model"
 
 
 async def test_write_brief_sends_deep_model_to_llm(monkeypatch):

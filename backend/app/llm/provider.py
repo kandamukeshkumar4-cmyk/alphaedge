@@ -8,8 +8,6 @@ from app.core.config import Settings
 
 _GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
-_ROUTE_PROVIDERS = ("deepseek", "kimi", "glm")
-
 
 def resolve_llm_endpoint(settings: Settings) -> tuple[str, str]:
     """Return (base_url, api_key) for the configured primary LLM provider."""
@@ -88,15 +86,6 @@ def resolve_routed_endpoint(
     if resolved:
         return resolved[0], resolved[1]
     return resolve_llm_endpoint(settings)
-
-
-def resolve_llm_model(settings: Settings, *, deep: bool = False) -> str:
-    """Return the model id for this call. Deep, latency-tolerant work (e.g. the
-    daily digest) uses ``LLM_MODEL_DEEP`` when set, otherwise falls back to the
-    default ``LLM_MODEL`` — so per-feature routing is opt-in."""
-    if deep:
-        return settings.llm_model_deep.strip() or settings.llm_model
-    return settings.llm_model
 
 
 def get_llm_client(settings: Settings) -> AsyncOpenAI:

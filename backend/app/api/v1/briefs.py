@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,6 +24,7 @@ from app.db.models import (
     OddsSnapshot,
 )
 from app.db.session import get_db
+from app.services.live_market_ingest import categorize
 from app.schemas.analyst_api import (
     AggregateOut,
     BriefListOut,
@@ -122,9 +124,14 @@ async def get_brief(brief_id: UUID, db: AsyncSession = Depends(get_db)):
 
 def _title_from_slug(slug: str) -> str:
     """Derive a human-readable title from a market slug."""
-    raw = slug.removeprefix("pm-").removeprefix("ks-")
+    if slug.startswith("pm-"):
+        raw = slug[3:]
+    elif slug.startswith("ks-"):
+        raw = slug[3:]
+    else:
+        raw = slug
     raw = raw.rsplit("-", 1)[0] if raw[-1:].isdigit() else raw
-    return raw.replace("-", " ").capitalize()[:256]
+    return (raw.replace("-", " ").capitalize() or slug)[:256]
 
 
 @router.post("/analyst/run", response_model=BriefOut)
@@ -147,16 +154,25 @@ async def run_analyst_on_demand(
         source = "polymarket" if market_slug.startswith("pm-") else (
             "kalshi" if market_slug.startswith("ks-") else "on-demand"
         )
+        category, _ = categorize(title, None, default=("General", "🌐"))
         market = Market(
             slug=market_slug,
             title=title,
             question=title + "?",
-            category="Sports" if any(k in market_slug for k in ("nba", "nfl", "mlb", "fifa", "nhl")) else "General",
+            category=category,
             source=source,
             status=MarketStatus.OPEN,
         )
         db.add(market)
-        await db.flush()
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            market = await db.scalar(
+                select(Market).where(Market.slug == market_slug).limit(1)
+            )
+            if market is None:
+                raise HTTPException(status_code=409, detail="Concurrent market creation failed")
 
     from app.agents.analyst import run_analyst
 

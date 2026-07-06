@@ -64,7 +64,7 @@ def llm_judge_drift(summary: str) -> dict:
         return _heuristic_drift(summary, "heuristic")
     try:
         return _call_llm_drift(summary, settings)
-    except (json.JSONDecodeError, TypeError, KeyError, IndexError, AttributeError, ValueError):
+    except Exception:
         result = _heuristic_drift(summary, "judge-fallback")
         result["note"] = f"{result['note']}; LLM call failed, used heuristic"
         return result
