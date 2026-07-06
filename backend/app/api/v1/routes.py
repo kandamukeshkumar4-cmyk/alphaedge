@@ -236,6 +236,20 @@ async def get_dutching_signal(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+@router.get("/signals/screeners")
+async def get_screener_signals(
+    screen: str = "all",
+    db: AsyncSession = Depends(get_db),
+):
+    """Deterministic expiry-fade + momentum screeners over recent odds
+    snapshots. Research signals only — no order path. `screen` = all |
+    expiry_fade | momentum."""
+    try:
+        return await SignalsService(db).screeners(screen=screen)
+    except InvalidSignalRequest as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @router.get("/signals/smart-money")
 async def get_smart_money_signal(
     platform: str,

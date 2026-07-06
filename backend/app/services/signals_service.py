@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import OddsSnapshot, SignalEvent
+from app.db.models import Market, OddsSnapshot, SignalEvent
 from app.forecasting.predictor import predict_market
 from app.signals.arbitrage import BinaryMarketQuote, find_binary_arbitrage
 from app.signals.dutching import DutchingOutcome, evaluate_dutching
 from app.signals.matching import ResolutionMatch, ResolutionTerms, match_resolution_terms
+from app.signals.screeners import (
+    ScreenerHit,
+    screen_expiry_fade,
+    screen_momentum,
+)
 
 
 SIGNAL_DISCLAIMER = "Research signal only. No execution. Simulated funds only."
@@ -136,6 +142,105 @@ class SignalsService:
             await self._persist_signal("forecast", platform, market_id, True, payload)
         return payload
 
+    async def screeners(
+        self,
+        *,
+        screen: str = "all",
+        lookback_hours: float = 168.0,
+        series_points: int = 6,
+        limit: int = 50,
+        persist: bool = True,
+        headline_min_strength: float = 0.5,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Run the deterministic expiry-fade + momentum screens over recent odds
+        snapshots and persist strong hits as ``screener:*`` SignalEvents.
+
+        Signals only — the result never sizes or places a trade."""
+        screen = screen.strip().lower()
+        if screen not in {"all", "expiry_fade", "momentum"}:
+            raise InvalidSignalRequest("Invalid screen")
+        now = now or datetime.now(timezone.utc)
+
+        result = await self.session.execute(
+            select(OddsSnapshot)
+            .where(OddsSnapshot.market_slug.isnot(None))
+            .order_by(OddsSnapshot.market_slug, OddsSnapshot.captured_at)
+        )
+        snapshots = list(result.scalars().all())
+
+        series_by_slug: dict[str, list[float]] = {}
+        latest_by_slug: dict[str, OddsSnapshot] = {}
+        for row in snapshots:
+            slug = row.market_slug
+            series_by_slug.setdefault(slug, []).append(float(_snapshot_price(row)))
+            latest_by_slug[slug] = row  # rows ascending → last wins
+
+        lock_at_by_slug: dict[str, datetime | None] = {}
+        if latest_by_slug:
+            markets = await self.session.execute(
+                select(Market.slug, Market.lock_at).where(
+                    Market.slug.in_(list(latest_by_slug.keys()))
+                )
+            )
+            lock_at_by_slug = {slug: lock_at for slug, lock_at in markets.all()}
+
+        hits: list[ScreenerHit] = []
+        for slug, latest in latest_by_slug.items():
+            series = series_by_slug[slug][-series_points:]
+            if screen in {"all", "momentum"}:
+                hit = screen_momentum(slug, series)
+                if hit is not None:
+                    hits.append(hit)
+            if screen in {"all", "expiry_fade"}:
+                lock_at = lock_at_by_slug.get(slug)
+                hours = _hours_between(now, lock_at)
+                hit = screen_expiry_fade(slug, float(_snapshot_price(latest)), hours)
+                if hit is not None:
+                    hits.append(hit)
+
+        hits.sort(key=lambda h: h.strength, reverse=True)
+        hits = hits[:limit]
+
+        if persist:
+            for hit in hits:
+                platform = _platform_from_source(latest_by_slug[hit.market_slug].source)
+                await self._persist_signal(
+                    f"screener:{hit.kind}"[:32],
+                    platform,
+                    hit.market_slug,
+                    hit.strength >= headline_min_strength,
+                    {
+                        "paper_trading_only": True,
+                        "disclaimer": SIGNAL_DISCLAIMER,
+                        "signal": {
+                            "kind": hit.kind,
+                            "direction": hit.direction,
+                            "strength": hit.strength,
+                            "reason": hit.reason,
+                            **hit.detail,
+                        },
+                    },
+                )
+
+        return {
+            "paper_trading_only": True,
+            "disclaimer": SIGNAL_DISCLAIMER,
+            "screen": screen,
+            "count": len(hits),
+            "hits": [
+                {
+                    "kind": hit.kind,
+                    "market_slug": hit.market_slug,
+                    "direction": hit.direction,
+                    "strength": hit.strength,
+                    "reason": hit.reason,
+                    "detail": hit.detail,
+                }
+                for hit in hits
+            ],
+        }
+
     async def _latest_snapshot(self, platform: str, market_id: str) -> OddsSnapshot | None:
         result = await self.session.execute(
             select(OddsSnapshot)
@@ -237,6 +342,14 @@ def _best_binary_candidate(
         reverse=True,
     )
     return scored[0]
+
+
+def _hours_between(now: datetime, close_at: datetime | None) -> float | None:
+    if close_at is None:
+        return None
+    if close_at.tzinfo is None:
+        close_at = close_at.replace(tzinfo=timezone.utc)
+    return (close_at - now).total_seconds() / 3600.0
 
 
 def _platform_from_source(source: str) -> str:
