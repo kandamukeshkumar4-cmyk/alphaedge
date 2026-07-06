@@ -26,6 +26,7 @@ CATALOG_SLUGS: frozenset[str] = frozenset(
     {
         "nba-2025-01-15-lal-bos",
         "nba-warriors-playoff-seed",
+        "nba-celtics-repeat-champs",
         "elect-la-mayor-2026",
         "elect-2028-dem-nominee",
         "wc2026-m1-mex-homewin",
@@ -40,11 +41,16 @@ CATALOG_SLUGS: frozenset[str] = frozenset(
         "culture-love-island-elim",
         "econ-cpi-above-3",
         "econ-fed-cut-march",
+        "weather-nyc-heat-wave-july",
+        "weather-la-wildfire-risk-summer",
+        "nfl-chiefs-superbowl-2027",
+        "tech-apple-ai-wwdc-2026",
+        "tech-spacex-starship-orbit",
     }
 )
 
 CATALOG_CATEGORIES: frozenset[str] = frozenset(
-    {"NBA", "FIFA WC2026", "Elections", "Crypto", "Culture", "Economics"}
+    {"NBA", "NFL", "FIFA WC2026", "Elections", "Crypto", "Culture", "Economics", "Weather", "Tech"}
 )
 
 
@@ -229,7 +235,7 @@ class MarketService:
         normalized = category.lower()
         if normalized == "sports":
             return or_(
-                Market.category.in_(("NBA", "FIFA WC2026", "sports", "Sports")),
+                Market.category.in_(("NBA", "NFL", "FIFA WC2026", "sports", "Sports")),
                 Market.tournament_tag == "wc2026",
             )
         if normalized == "politics":
@@ -243,6 +249,12 @@ class MarketService:
             return Market.category == "Culture"
         if normalized == "economics":
             return Market.category == "Economics"
+        if normalized == "weather":
+            return Market.category == "Weather"
+        if normalized == "tech":
+            return Market.category == "Tech"
+        if normalized == "nfl":
+            return or_(Market.category == "NFL", Market.slug.like("nfl-%"))
         # Legacy capitalized values
         if category == "NBA":
             return or_(Market.category == "NBA", Market.slug.like("nba-%"))
@@ -644,6 +656,87 @@ class MarketService:
                 "market_count": 2,
                 "description": "Paper market on the June 2026 FOMC rate decision.",
                 "resolution": "Resolves YES if the Fed announces a rate cut at the June 2026 meeting.",
+            },
+            # ── Weather ──────────────────────────────────────────────────────────
+            {
+                "slug": "weather-nyc-heat-wave-july",
+                "title": "NYC Heat Wave in July 2026",
+                "question": "Will NYC experience 3+ consecutive days above 95°F in July 2026?",
+                "lock_at": catalog_lock_at,
+                "category": "Weather",
+                "icon": "🌡️",
+                "volume": 320_000,
+                "traders": 580,
+                "market_count": 1,
+                "description": "Paper market on extreme heat events in New York City.",
+                "resolution": "Resolves YES if Central Park records 3+ consecutive days ≥ 95°F in July 2026.",
+            },
+            {
+                "slug": "weather-la-wildfire-risk-summer",
+                "title": "LA County Wildfire Warning Summer 2026",
+                "question": "Will LA County issue a Red Flag wildfire warning before Sep 2026?",
+                "lock_at": catalog_lock_at,
+                "category": "Weather",
+                "icon": "🔥",
+                "volume": 450_000,
+                "traders": 720,
+                "market_count": 1,
+                "description": "Paper market on wildfire risk conditions in Los Angeles County.",
+                "resolution": "Resolves YES if NWS issues a Red Flag Warning for LA County before September 1, 2026.",
+            },
+            # ── Sports (expanded) ────────────────────────────────────────────────
+            {
+                "slug": "nba-celtics-repeat-champs",
+                "title": "Celtics Repeat as NBA Champions",
+                "question": "Will the Celtics win back-to-back NBA championships?",
+                "lock_at": catalog_lock_at,
+                "category": "NBA",
+                "icon": "🏀",
+                "volume": 1_850_000,
+                "traders": 2_900,
+                "market_count": 2,
+                "description": "Paper market on the Boston Celtics repeating as NBA champions.",
+                "resolution": "Resolves YES if the Celtics win the 2025-26 NBA Finals.",
+            },
+            {
+                "slug": "nfl-chiefs-superbowl-2027",
+                "title": "Chiefs Win Super Bowl LXI",
+                "question": "Will the Kansas City Chiefs win Super Bowl LXI?",
+                "lock_at": catalog_lock_at,
+                "category": "NFL",
+                "icon": "🏈",
+                "volume": 3_100_000,
+                "traders": 4_200,
+                "market_count": 2,
+                "description": "Paper market on the Chiefs winning the next Super Bowl.",
+                "resolution": "Resolves YES if the Chiefs win Super Bowl LXI.",
+            },
+            # ── Tech ─────────────────────────────────────────────────────────────
+            {
+                "slug": "tech-apple-ai-wwdc-2026",
+                "title": "Apple AI Model at WWDC 2026",
+                "question": "Will Apple announce its own foundation model at WWDC 2026?",
+                "lock_at": catalog_lock_at,
+                "category": "Tech",
+                "icon": "🍎",
+                "volume": 2_600_000,
+                "traders": 3_800,
+                "market_count": 2,
+                "description": "Paper market on Apple announcing a proprietary AI foundation model.",
+                "resolution": "Resolves YES if Apple announces a proprietary foundation model during WWDC 2026.",
+            },
+            {
+                "slug": "tech-spacex-starship-orbit",
+                "title": "SpaceX Starship Full Orbit 2026",
+                "question": "Will SpaceX achieve a full Starship orbital flight by end of 2026?",
+                "lock_at": catalog_lock_at,
+                "category": "Tech",
+                "icon": "🚀",
+                "volume": 1_900_000,
+                "traders": 2_500,
+                "market_count": 2,
+                "description": "Paper market on SpaceX completing a full Starship orbital flight.",
+                "resolution": "Resolves YES if Starship completes a full orbital flight by December 31, 2026.",
             },
         ]
         markets = []

@@ -107,7 +107,7 @@ async def test_run_price_feed_once_all_seed_returns_seed_skip(db_session, monkey
     monkeypatch.setattr("app.workers.price_feed_worker.CATALOG_MAP", all_seed)
 
     results = await run_price_feed_once(db_session)
-    assert len(results) == 16
+    assert len(results) == len(catalog_map.CATALOG_MAP)
     assert all(status == "seed-skip" for status in results.values())
 
 

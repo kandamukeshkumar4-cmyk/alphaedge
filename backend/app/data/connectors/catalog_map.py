@@ -56,4 +56,25 @@ CATALOG_MAP: dict[str, CatalogEntry] = {
     ),
     "econ-cpi-above-3": CatalogEntry("econ-cpi-above-3", "seed", spec_price=0.40),
     "econ-fed-cut-march": CatalogEntry("econ-fed-cut-march", "seed", spec_price=0.31),
+    # ── Weather ──────────────────────────────────────────────────────────
+    "weather-nyc-heat-wave-july": CatalogEntry(
+        "weather-nyc-heat-wave-july", "seed", spec_price=0.62
+    ),
+    "weather-la-wildfire-risk-summer": CatalogEntry(
+        "weather-la-wildfire-risk-summer", "seed", spec_price=0.45
+    ),
+    # ── Sports (expanded) ────────────────────────────────────────────────
+    "nba-celtics-repeat-champs": CatalogEntry(
+        "nba-celtics-repeat-champs", "seed", spec_price=0.34
+    ),
+    "nfl-chiefs-superbowl-2027": CatalogEntry(
+        "nfl-chiefs-superbowl-2027", "seed", spec_price=0.18
+    ),
+    # ── Tech ─────────────────────────────────────────────────────────────
+    "tech-apple-ai-wwdc-2026": CatalogEntry(
+        "tech-apple-ai-wwdc-2026", "seed", spec_price=0.81
+    ),
+    "tech-spacex-starship-orbit": CatalogEntry(
+        "tech-spacex-starship-orbit", "seed", spec_price=0.72
+    ),
 }

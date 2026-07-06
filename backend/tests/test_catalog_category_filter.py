@@ -7,11 +7,11 @@ from app.services.market_service import CATALOG_SLUGS, MarketService
 
 
 @pytest.mark.asyncio
-async def test_seed_catalog_markets_populates_all_sixteen_slugs(db_session):
+async def test_seed_catalog_markets_populates_all_slugs(db_session):
     service = MarketService(db_session)
     seeded = await service.seed_catalog_markets()
 
-    assert len(seeded) == 16
+    assert len(seeded) == len(CATALOG_SLUGS)
     assert {market.slug for market in seeded} == set(CATALOG_SLUGS)
 
 
@@ -23,11 +23,14 @@ async def test_seed_catalog_markets_uses_loop_l_categories(db_session):
     categories = {market.category for market in seeded}
     assert {
         "NBA",
+        "NFL",
         "FIFA WC2026",
         "Elections",
         "Crypto",
         "Culture",
         "Economics",
+        "Weather",
+        "Tech",
     }.issubset(categories)
 
 
@@ -51,7 +54,7 @@ async def test_list_markets_category_filter_nba(db_session):
 
     assert response.status_code == 200
     slugs = {market["slug"] for market in response.json()}
-    assert slugs == {"nba-2025-01-15-lal-bos", "nba-warriors-playoff-seed"}
+    assert slugs == {"nba-2025-01-15-lal-bos", "nba-warriors-playoff-seed", "nba-celtics-repeat-champs"}
 
 
 @pytest.mark.asyncio

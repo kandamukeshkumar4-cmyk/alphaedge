@@ -7,18 +7,18 @@ from app.services.market_service import CATALOG_SLUGS, MarketService
 
 
 @pytest.mark.asyncio
-async def test_catalog_slugs_has_sixteen_markets():
-    assert len(CATALOG_SLUGS) == 16
+async def test_catalog_slugs_has_expected_markets():
+    assert len(CATALOG_SLUGS) >= 20
 
 
 @pytest.mark.asyncio
-async def test_seed_catalog_markets_creates_sixteen_idempotent(db_session):
+async def test_seed_catalog_markets_creates_all_idempotent(db_session):
     service = MarketService(db_session)
     first = await service.seed_catalog_markets()
     second = await service.seed_catalog_markets()
 
-    assert len(first) == 16
-    assert len(second) == 16
+    assert len(first) == len(CATALOG_SLUGS)
+    assert len(second) == len(CATALOG_SLUGS)
     assert {market.slug for market in first} == set(CATALOG_SLUGS)
     assert {market.slug for market in second} == set(CATALOG_SLUGS)
 

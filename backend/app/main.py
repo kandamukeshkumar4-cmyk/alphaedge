@@ -141,6 +141,8 @@ async def lifespan(app: FastAPI):
             "System Paper Account",
         )
         await svc.seed_catalog_markets()
+        from app.services.signal_event_seed import seed_signal_events
+        await seed_signal_events(session)
         await session.commit()
     from app.data.streams.runner import background_loop_plan
 
