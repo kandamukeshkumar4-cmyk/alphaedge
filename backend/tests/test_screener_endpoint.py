@@ -84,7 +84,19 @@ async def test_screeners_screen_filter_limits_kind(db_session):
 
 
 async def test_screener_endpoint_returns_200_and_shape(db_session):
-    await _seed(db_session)
+    # The route uses real wall-clock for its lookback, so seed a fresh
+    # momentum series relative to now (not the fixed NOW fixture date).
+    real_now = datetime.now(timezone.utc)
+    for minutes, implied in ((40, "0.30"), (30, "0.36"), (20, "0.42"), (10, "0.48")):
+        db_session.add(
+            OddsSnapshot(
+                market_slug="live-mom-mkt",
+                implied_yes=Decimal(implied),
+                source="polymarket.gamma",
+                captured_at=real_now - timedelta(minutes=minutes),
+            )
+        )
+    await db_session.flush()
 
     async def override_get_db():
         yield db_session
@@ -100,8 +112,7 @@ async def test_screener_endpoint_returns_200_and_shape(db_session):
     body = response.json()
     assert body["paper_trading_only"] is True
     assert "hits" in body and isinstance(body["hits"], list)
-    # mom-mkt momentum is time-independent, so it must appear regardless of wall clock
-    assert any(h["market_slug"] == "mom-mkt" for h in body["hits"])
+    assert any(h["market_slug"] == "live-mom-mkt" for h in body["hits"])
 
 
 async def test_screener_endpoint_rejects_bad_screen(db_session):
@@ -115,6 +126,21 @@ async def test_screener_endpoint_rejects_bad_screen(db_session):
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 400
+
+
+async def test_screeners_ignore_snapshots_outside_lookback(db_session):
+    # A clean upward drift, but every reading is 10 days old — outside the
+    # default 168h lookback, so it must NOT produce a momentum hit.
+    db_session.add_all(
+        [
+            _snap("stale-mkt", "0.30", 60 * 24 * 10 + 40),
+            _snap("stale-mkt", "0.40", 60 * 24 * 10 + 30),
+            _snap("stale-mkt", "0.50", 60 * 24 * 10 + 20),
+        ]
+    )
+    await db_session.flush()
+    result = await SignalsService(db_session).screeners(now=NOW, persist=False)
+    assert not any(h["market_slug"] == "stale-mkt" for h in result["hits"])
 
 
 async def test_screeners_empty_when_no_snapshots(db_session):

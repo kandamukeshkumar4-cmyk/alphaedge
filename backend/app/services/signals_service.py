@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -162,9 +162,13 @@ class SignalsService:
             raise InvalidSignalRequest("Invalid screen")
         now = now or datetime.now(timezone.utc)
 
+        cutoff = now - timedelta(hours=lookback_hours)
         result = await self.session.execute(
             select(OddsSnapshot)
-            .where(OddsSnapshot.market_slug.isnot(None))
+            .where(
+                OddsSnapshot.market_slug.isnot(None),
+                OddsSnapshot.captured_at >= cutoff,
+            )
             .order_by(OddsSnapshot.market_slug, OddsSnapshot.captured_at)
         )
         snapshots = list(result.scalars().all())
