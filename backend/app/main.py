@@ -239,10 +239,10 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    # Any localhost/127.0.0.1 port for local dev — the frontend dev server may
-    # bind an auto-assigned port. Harmless beyond dev: a localhost origin can
-    # only be a victim's own machine, so it's not a remote-exfiltration vector.
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    # localhost (dev) + this app's Azure SWA production AND per-PR preview
+    # origins — see Settings.cors_origin_regex. Without the preview arm, stage
+    # deploys are CORS-blocked and the UI silently falls back to sample data.
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

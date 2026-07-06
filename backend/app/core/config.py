@@ -215,6 +215,20 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
+    def cors_origin_regex(self) -> str:
+        """Origins allowed in addition to the explicit CORS_ORIGINS list:
+        localhost (any port) for dev, plus THIS app's Azure Static Web Apps
+        origins — production AND the per-PR preview subdomains
+        (e.g. ``proud-meadow-01b42b810-41.centralus.7.azurestaticapps.net``).
+        Scoped to the app-name prefix so it is not an open
+        ``*.azurestaticapps.net`` wildcard. Without the preview arm, every stage
+        deploy is CORS-blocked and the frontend silently falls back to samples."""
+        return (
+            r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+            r"|https://proud-meadow-01b42b810(-\d+)?(\.[a-z0-9-]+)+\.azurestaticapps\.net"
+        )
+
+    @property
     def odds_api_sport_key_list(self) -> List[str]:
         return self._csv_list(self.odds_api_sport_keys)
 
