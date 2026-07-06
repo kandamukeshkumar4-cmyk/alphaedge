@@ -54,6 +54,16 @@ jobs:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          # Optional AI/data keys — synced only when set, so the deployed demo
+          # gets real LLM analysis instead of the deterministic fallback.
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          NIM_API_KEY: ${{ secrets.NIM_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python3 -m pip install --quiet "huggingface_hub>=0.22"
           python3 << 'PY'
@@ -131,14 +141,34 @@ jobs:
                       time.sleep(delay)
                       attempt += 1
 
+          synced = []
           for key, value in {
               "DATABASE_URL": database_url,
               "DATABASE_URL_SYNC": database_url_sync,
               "ADMIN_API_KEY": admin_api_key,
           }.items():
               add_space_secret_with_retry(key, value)
+              synced.append(key)
 
-          print("Synced HF Space runtime secrets: DATABASE_URL, DATABASE_URL_SYNC, ADMIN_API_KEY")
+          # Optional AI/data keys: sync any that are set as GitHub Actions
+          # secrets; skip silently when empty (all have safe fallbacks).
+          OPTIONAL_KEYS = [
+              "LLM_PROVIDER",
+              "LLM_BASE_URL",
+              "LLM_API_KEY",
+              "LLM_MODEL",
+              "NIM_API_KEY",
+              "EXA_API_KEY",
+              "FRED_API_KEY",
+              "GEMINI_API_KEY",
+          ]
+          for key in OPTIONAL_KEYS:
+              value = os.environ.get(key, "").strip()
+              if value:
+                  add_space_secret_with_retry(key, value)
+                  synced.append(key)
+
+          print(f"Synced HF Space runtime secrets: {', '.join(synced)}")
           PY
 
       - name: Skip runtime secret sync

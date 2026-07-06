@@ -18,10 +18,10 @@ const PERSONAS = [
   { id: "news", label: "News desk" },
 ] as const;
 
-export default function BriefBySlugClient() {
+export default function BriefBySlugClient({ slug: slugProp }: { slug?: string } = {}) {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
-  const slug = params?.slug ?? "";
+  const slug = slugProp ?? params?.slug ?? "";
   const [state, setState] = useState<"resolving" | "none" | "running" | "failed">("resolving");
   const [persona, setPersona] = useState<string>("");
   const [error, setError] = useState<string | null>(null);

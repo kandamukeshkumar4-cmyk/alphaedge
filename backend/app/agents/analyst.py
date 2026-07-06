@@ -212,10 +212,16 @@ def build_citations(state: AnalystState) -> list[dict[str, Any]]:
             }
         )
     for n in state.evidence.get("news", []):
-        citations.append(
-            {"kind": "news", "ref": f"news {n.get('direction', '')} "
-             f"rel={n.get('detail', {}).get('relevance', '')}", "url": n.get("url")}
+        detail = n.get("detail", {}) if isinstance(n, dict) else {}
+        headline = detail.get("headline")
+        # Cite the real story when the event carries it; fall back to the
+        # direction/relevance summary for older events without a headline.
+        ref = (
+            f"{headline} ({n.get('direction', '')})"
+            if headline
+            else f"news {n.get('direction', '')} rel={detail.get('relevance', '')}"
         )
+        citations.append({"kind": "news", "ref": ref[:512], "url": n.get("url")})
     for w in state.evidence.get("whales", []):
         citations.append(
             {"kind": "wallet", "ref": f"whale {w.get('direction', '')} "
@@ -302,14 +308,24 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
         if abs(edge) < 0.01
         else f"the model reads a {edge:+.1%} edge versus the current line"
     )
+    # Surface the top news headline in the deterministic brief too, so the
+    # fallback path (no LLM key) still names the actual catalyst.
+    top_headline = ""
+    for n in state.evidence.get("news", []):
+        h = n.get("detail", {}).get("headline") if isinstance(n, dict) else None
+        if h:
+            top_headline = f'Top story: "{h}". '
+            break
     ext = f"{n_news} news, {n_whales} whale move(s)"
     body = (
         opener
         + f"Current price {price_txt}. "
         + price_action
+        + top_headline
         + f"Model probability {model.get('predicted_prob', 0):.0%} — {edge_read}. "
         f"External evidence: {ext}. "
-        "(Deterministic brief — no LLM key configured; add LLM_API_KEY for prose reasoning.)"
+        "(Deterministic brief — no LLM key configured; set LLM_API_KEY, or "
+        "NIM_API_KEY with LLM_PROVIDER=nim, for prose reasoning.)"
     )
     return headline[:120], body[:1200]
 
@@ -359,7 +375,13 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
         state.body_markdown = ("\n".join(lines[1:]).strip() or lines[0])[:1200]
         state.generator = "llm"
     except Exception:  # noqa: BLE001 - fall back to deterministic brief
-        logger.debug("analyst LLM write_brief failed, falling back", exc_info=True)
+        logger.warning(
+            "analyst LLM write_brief failed (provider=%s model=%s), falling back "
+            "to deterministic brief",
+            settings.llm_provider,
+            settings.llm_model,
+            exc_info=True,
+        )
         state.headline, state.body_markdown = _fallback_brief(state)
         state.generator = "fallback"
     return state

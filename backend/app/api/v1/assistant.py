@@ -306,7 +306,10 @@ async def _llm_reply(
 ) -> tuple[str, list[CitationChip], list[str]]:
     """Attempt an LLM reply; fall back to deterministic on any error."""
     settings = get_settings()
-    if not settings.llm_api_key:
+    from app.llm.provider import resolve_llm_endpoint
+
+    _, api_key = resolve_llm_endpoint(settings)
+    if not api_key:
         return _build_deterministic_reply(message, ctx, market_slug, trader_profile)
 
     try:

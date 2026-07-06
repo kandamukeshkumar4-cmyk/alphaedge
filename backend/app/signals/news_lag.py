@@ -75,24 +75,29 @@ def news_lag_to_delta_event(
     *,
     sentiment: float,
     source: str = "news",
+    headline: str | None = None,
 ):
     """Convert an unpriced result into a NEWS_ARRIVAL DeltaEvent, else None."""
     if not result.unpriced or result.direction is None:
         return None
     from app.signals.diff_engine import DeltaEvent, DeltaKind
 
+    detail = {
+        "unpriced": True,
+        "relevance": round(result.relevance, 4),
+        "sentiment": round(sentiment, 4),
+        "price_move": round(result.price_move, 6),
+    }
+    if headline:
+        # Carry the real story so downstream briefs cite it, not "news up rel=1.0".
+        detail["headline"] = headline[:250]
     return DeltaEvent(
         market_slug=market_slug,
         source=source,
         kind=DeltaKind.NEWS_ARRIVAL,
         direction=result.direction,
         magnitude=round(result.relevance, 4),
-        detail={
-            "unpriced": True,
-            "relevance": round(result.relevance, 4),
-            "sentiment": round(sentiment, 4),
-            "price_move": round(result.price_move, 6),
-        },
+        detail=detail,
         occurred_ts=datetime.now(UTC),
     )
 
@@ -136,6 +141,7 @@ class NewsLagService:
         sentiment: float,
         news_ts: datetime,
         now: datetime | None = None,
+        headline: str | None = None,
     ) -> NewsLagResult:
         """Evaluate lag for a market and, if unpriced+directional, persist the delta
         and feed the T04 alignment scorer."""
@@ -151,7 +157,9 @@ class NewsLagService:
             price_now=price_now,
             thresholds=self.thresholds,
         )
-        event = news_lag_to_delta_event(result, market_slug, sentiment=sentiment)
+        event = news_lag_to_delta_event(
+            result, market_slug, sentiment=sentiment, headline=headline
+        )
         if event is None:
             return result
 

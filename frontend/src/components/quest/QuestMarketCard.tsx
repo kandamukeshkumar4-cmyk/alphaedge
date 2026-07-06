@@ -7,6 +7,7 @@ import { useLiveSparkline } from "@/hooks/useLiveSparkline";
 import { Sparkline } from "@/components/Sparkline";
 import { cn } from "@/lib/cn";
 import { formatCompactUSD, type Market } from "@/lib/mock-data";
+import { briefHref, marketHref } from "@/lib/market-href";
 
 // Questflow-style grid card: name, live price, 24h change, volume, sparkline,
 // then Long / Short / AI Analyze action row.
@@ -26,7 +27,7 @@ export function QuestMarketCard({ market }: { market: Market }) {
         live.flash === "down" && "animate-flash-red",
       )}
     >
-      <Link href={`/markets/${market.slug}`} className="flex items-start gap-2">
+      <Link href={marketHref(market.slug)} className="flex items-start gap-2">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-3 text-sm">
           {market.icon || "◆"}
         </span>
@@ -67,21 +68,21 @@ export function QuestMarketCard({ market }: { market: Market }) {
       <div className="mt-2 grid grid-cols-3 gap-1.5">
         <button
           type="button"
-          onClick={() => router.push(`/markets/${market.slug}?side=yes`)}
+          onClick={() => router.push(marketHref(market.slug, { side: "yes" }))}
           className="rounded-md border border-primary/25 bg-primary-dim px-1.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary hover:text-bg"
         >
           ↑ Long
         </button>
         <button
           type="button"
-          onClick={() => router.push(`/markets/${market.slug}?side=no`)}
+          onClick={() => router.push(marketHref(market.slug, { side: "no" }))}
           className="rounded-md border border-danger/25 bg-danger-dim px-1.5 py-1 text-[11px] font-semibold text-danger transition hover:bg-danger hover:text-bg"
         >
           ↓ Short
         </button>
         <button
           type="button"
-          onClick={() => router.push(`/research/brief/${market.slug}`)}
+          onClick={() => router.push(briefHref(market.slug))}
           className="whitespace-nowrap rounded-md border border-border bg-surface-2 px-1 py-1 text-[10px] font-semibold text-muted transition hover:border-accent hover:text-accent-bright"
         >
           ✦ AI Analyze
