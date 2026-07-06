@@ -332,7 +332,10 @@ async def test_llm_reply_uses_llm_when_nim_key_configured(monkeypatch) -> None:
     class _FakeClient:
         chat = _FakeChat()
 
-    monkeypatch.setattr(provider_mod, "get_llm_client", lambda s: _FakeClient())
+    monkeypatch.setattr(
+        provider_mod, "resolve_routed_client",
+        lambda s, route, *, use_case_model="": (_FakeClient(), "test-model"),
+    )
 
     reply, _citations, _tools = await assistant_mod._llm_reply(
         "Why did odds move?", {}, [], None

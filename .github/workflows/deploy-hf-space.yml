@@ -74,7 +74,7 @@ jobs:
           from huggingface_hub import HfApi
           from huggingface_hub.errors import HfHubHTTPError
 
-          SPACE_ID = "mukeshkumarkanda/alphaedge-api"
+          SPACE_ID = "mukeshkumar007/alphaedge-api"
 
           def require(name: str) -> str:
               value = os.environ.get(name, "").strip()
@@ -240,7 +240,7 @@ jobs:
 
           rm -rf hf_space
           retry_hf_git "HF Space clone" \
-            git clone "https://mukeshkumarkanda:${HF_TOKEN}@huggingface.co/spaces/mukeshkumarkanda/alphaedge-api" hf_space
+            git clone "https://mukeshkumar007:${HF_TOKEN}@huggingface.co/spaces/mukeshkumar007/alphaedge-api" hf_space
 
           cd hf_space
           # Clear old content but preserve .git
@@ -270,7 +270,7 @@ jobs:
           import urllib.error
           import urllib.request
 
-          RUNTIME_URL = "https://huggingface.co/api/spaces/mukeshkumarkanda/alphaedge-api/runtime"
+          RUNTIME_URL = "https://huggingface.co/api/spaces/mukeshkumar007/alphaedge-api/runtime"
           space_sha = os.environ.get("SPACE_SHA", "").strip()
           if not space_sha:
               raise SystemExit("Expected pushed HF Space revision from previous step")
@@ -304,7 +304,7 @@ jobs:
                       f"{space_sha} (last stage={stage!r}, sha={runtime_sha!r}). "
                       "The new code was pushed to the Space git repo but the "
                       "Space did not rebuild — it is stuck on an old image. "
-                      "FIX: open https://huggingface.co/spaces/mukeshkumarkanda/"
+                      "FIX: open https://huggingface.co/spaces/mukeshkumar007/"
                       "alphaedge-api > Settings > Factory rebuild, then re-run "
                       "this workflow."
                   )
@@ -323,7 +323,7 @@ jobs:
           for i in $(seq 1 40); do
             body="$(mktemp)"
             status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
-              https://mukeshkumarkanda-alphaedge-api.hf.space/health || echo 000)
+              https://mukeshkumar007-alphaedge-api.hf.space/health || echo 000)
             if [ "$status" = "200" ]; then
               echo "Space healthy after attempt $i"
               python3 - "$body" << 'PY'
@@ -354,7 +354,7 @@ jobs:
           for i in $(seq 1 40); do
             body="$(mktemp)"
             status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
-              https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets || echo 000)
+              https://mukeshkumar007-alphaedge-api.hf.space/api/v1/markets || echo 000)
             if [ "$status" = "200" ]; then
               if python3 - "$body" << 'PY'
           from datetime import datetime, timedelta, timezone
@@ -408,7 +408,7 @@ jobs:
           for i in $(seq 1 40); do
             body="$(mktemp)"
             status=$(curl --silent --show-error --location --output "$body" --write-out "%{http_code}" \
-              https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets/elect-la-mayor-2026/snapshot || echo 000)
+              https://mukeshkumar007-alphaedge-api.hf.space/api/v1/markets/elect-la-mayor-2026/snapshot || echo 000)
             if [ "$status" = "200" ]; then
               if python3 - "$body" << 'PY'
           import json
@@ -446,7 +446,7 @@ jobs:
             body="$(mktemp)"
             status=$(curl --silent --show-error --location --request POST --output "$body" --write-out "%{http_code}" \
               --header "X-Admin-API-Key: ${ADMIN_API_KEY}" \
-              https://mukeshkumarkanda-alphaedge-api.hf.space/admin/agents/run/nba-2025-01-15-lal-bos || echo 000)
+              https://mukeshkumar007-alphaedge-api.hf.space/admin/agents/run/nba-2025-01-15-lal-bos || echo 000)
             if [ "$status" = "200" ]; then
               if python3 - "$body" << 'PY'
           import json
@@ -506,7 +506,7 @@ jobs:
           import urllib.error
           import urllib.request
 
-          BASE_URL = "https://mukeshkumarkanda-alphaedge-api.hf.space"
+          BASE_URL = "https://mukeshkumar007-alphaedge-api.hf.space"
           MARKET_SLUG = "nba-2025-01-15-lal-bos"
           ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 

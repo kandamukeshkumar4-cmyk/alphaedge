@@ -1,4 +1,4 @@
-"""LLM drift judge — OpenAI-compatible provider when configured, heuristic fallback otherwise."""
+"""LLM drift judge — multi-provider routing with heuristic fallback."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import re
 
 from app.core.config import Settings, get_settings
-from app.llm.provider import get_llm_sync_client, resolve_llm_endpoint
+from app.llm.provider import resolve_routed_endpoint, resolve_routed_sync_client
 
 _DRIFT_SYSTEM = (
     "You are a drift monitor for a paper-trading sports and election prediction market platform. "
@@ -35,16 +35,12 @@ def _heuristic_drift(summary: str, model: str) -> dict:
     }
 
 
-def _model_for_judge(settings: Settings) -> str:
-    if settings.llm_provider.strip().lower() == "gemini" and settings.llm_model == "gpt-4o-mini":
-        return settings.gemini_judge_model
-    return settings.llm_model
-
-
 def _call_llm_drift(summary: str, settings: Settings) -> dict:
-    model = _model_for_judge(settings)
+    client, model = resolve_routed_sync_client(
+        settings, settings.llm_route_judge,
+        use_case_model=settings.llm_model_judge,
+    )
     prompt = f"{_DRIFT_SYSTEM}\n\nSummary:\n{summary[:3000]}"
-    client = get_llm_sync_client(settings)
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
@@ -63,13 +59,12 @@ def _call_llm_drift(summary: str, settings: Settings) -> dict:
 
 def llm_judge_drift(summary: str) -> dict:
     settings = get_settings()
-    model = _model_for_judge(settings)
-    _, api_key = resolve_llm_endpoint(settings)
+    _, api_key = resolve_routed_endpoint(settings, settings.llm_route_judge)
     if not api_key:
-        return _heuristic_drift(summary, model)
+        return _heuristic_drift(summary, "heuristic")
     try:
         return _call_llm_drift(summary, settings)
-    except (json.JSONDecodeError, TypeError, KeyError, IndexError, AttributeError, ValueError):
-        result = _heuristic_drift(summary, model)
+    except Exception:
+        result = _heuristic_drift(summary, "judge-fallback")
         result["note"] = f"{result['note']}; LLM call failed, used heuristic"
         return result

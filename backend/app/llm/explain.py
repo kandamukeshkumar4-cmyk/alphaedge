@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.core.config import Settings
-from app.llm.provider import get_llm_client, resolve_llm_endpoint
+from app.llm.provider import resolve_routed_client, resolve_routed_endpoint
 
 _SYSTEM_PROMPT = (
     "You explain paper-trading prediction market signals in plain English. "
@@ -35,7 +35,7 @@ async def explain_prediction(
     settings: Settings,
 ) -> str:
     """Return a plain-English explanation — read-only, no decision authority."""
-    _, api_key = resolve_llm_endpoint(settings)
+    _, api_key = resolve_routed_endpoint(settings, settings.llm_route_explain)
     if not api_key:
         return _fallback_explanation(market_slug, predicted_prob, edge, news_headline)
 
@@ -46,9 +46,12 @@ async def explain_prediction(
         f"Recent headline: {news_headline or 'none'}"
     )
     try:
-        client = get_llm_client(settings)
+        client, model = resolve_routed_client(
+            settings, settings.llm_route_explain,
+            use_case_model=settings.llm_model_explain,
+        )
         response = await client.chat.completions.create(
-            model=settings.llm_model,
+            model=model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
