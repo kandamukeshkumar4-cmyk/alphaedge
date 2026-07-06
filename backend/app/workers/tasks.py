@@ -226,6 +226,7 @@ async def run_news_scan(session) -> dict[str, str]:
                 relevance=max(0.0, min(1.0, signal.volume_score)),
                 sentiment=signal.sentiment_score,
                 news_ts=_dt.now(_UTC),
+                headline=signal.headline,
             )
             results[slug] = outcome.reason
         except Exception as exc:  # noqa: BLE001 - per-market isolation

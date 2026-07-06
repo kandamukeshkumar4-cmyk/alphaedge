@@ -130,3 +130,22 @@ async def test_detect_persists_news_arrival(db_session):
         )
     )
     assert count == 1
+
+
+def test_news_lag_event_carries_headline():
+    """B04 quality: the news_arrival event stores the real Exa headline so
+    downstream briefs cite the story, not a generic 'news up rel=1.0'."""
+    from app.signals.news_lag import NewsLagResult, news_lag_to_delta_event
+
+    result = NewsLagResult(
+        unpriced=True, direction="up", relevance=0.8, price_move=0.0, reason="unpriced"
+    )
+    event = news_lag_to_delta_event(
+        result, "pm-test", sentiment=0.9, headline="Argentina thrash Cape Verde 4-0"
+    )
+    assert event is not None
+    assert event.detail["headline"] == "Argentina thrash Cape Verde 4-0"
+
+    # No headline supplied -> key absent, never a crash.
+    bare = news_lag_to_delta_event(result, "pm-test", sentiment=0.9)
+    assert "headline" not in bare.detail

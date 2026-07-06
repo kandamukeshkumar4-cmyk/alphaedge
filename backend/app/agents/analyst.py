@@ -212,10 +212,16 @@ def build_citations(state: AnalystState) -> list[dict[str, Any]]:
             }
         )
     for n in state.evidence.get("news", []):
-        citations.append(
-            {"kind": "news", "ref": f"news {n.get('direction', '')} "
-             f"rel={n.get('detail', {}).get('relevance', '')}", "url": n.get("url")}
+        detail = n.get("detail", {}) if isinstance(n, dict) else {}
+        headline = detail.get("headline")
+        # Cite the real story when the event carries it; fall back to the
+        # direction/relevance summary for older events without a headline.
+        ref = (
+            f"{headline} ({n.get('direction', '')})"
+            if headline
+            else f"news {n.get('direction', '')} rel={detail.get('relevance', '')}"
         )
+        citations.append({"kind": "news", "ref": ref[:512], "url": n.get("url")})
     for w in state.evidence.get("whales", []):
         citations.append(
             {"kind": "wallet", "ref": f"whale {w.get('direction', '')} "
@@ -302,11 +308,20 @@ def _fallback_brief(state: AnalystState) -> tuple[str, str]:
         if abs(edge) < 0.01
         else f"the model reads a {edge:+.1%} edge versus the current line"
     )
+    # Surface the top news headline in the deterministic brief too, so the
+    # fallback path (no LLM key) still names the actual catalyst.
+    top_headline = ""
+    for n in state.evidence.get("news", []):
+        h = n.get("detail", {}).get("headline") if isinstance(n, dict) else None
+        if h:
+            top_headline = f'Top story: "{h}". '
+            break
     ext = f"{n_news} news, {n_whales} whale move(s)"
     body = (
         opener
         + f"Current price {price_txt}. "
         + price_action
+        + top_headline
         + f"Model probability {model.get('predicted_prob', 0):.0%} — {edge_read}. "
         f"External evidence: {ext}. "
         "(Deterministic brief — no LLM key configured; set LLM_API_KEY, or "
