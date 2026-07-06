@@ -86,22 +86,22 @@ class Settings(BaseSettings):
 
     # Per-use-case model IDs (work with any provider, ideal for NIM's 40+ models)
     llm_model_chat: str = Field(
-        default="deepseek-ai/deepseek-r1", alias="LLM_MODEL_CHAT"
+        default="deepseek-ai/deepseek-v4-flash", alias="LLM_MODEL_CHAT"
     )
     llm_model_analyst: str = Field(
-        default="meta/llama-3.3-70b-instruct", alias="LLM_MODEL_ANALYST"
+        default="z-ai/glm-5.2", alias="LLM_MODEL_ANALYST"
     )
     llm_model_analyst_deep: str = Field(
-        default="deepseek-ai/deepseek-r1", alias="LLM_MODEL_ANALYST_DEEP"
+        default="nvidia/nemotron-3-ultra-550b-a55b", alias="LLM_MODEL_ANALYST_DEEP"
     )
     llm_model_explain: str = Field(
-        default="meta/llama-3.3-70b-instruct", alias="LLM_MODEL_EXPLAIN"
+        default="mistralai/mistral-medium-3.5-128b", alias="LLM_MODEL_EXPLAIN"
     )
     llm_model_extraction: str = Field(
-        default="meta/llama-3.1-8b-instruct", alias="LLM_MODEL_EXTRACTION"
+        default="mistralai/mistral-medium-3.5-128b", alias="LLM_MODEL_EXTRACTION"
     )
     llm_model_judge: str = Field(
-        default="deepseek-ai/deepseek-r1", alias="LLM_MODEL_JUDGE"
+        default="deepseek-ai/deepseek-r1-0528", alias="LLM_MODEL_JUDGE"
     )
 
     # Optional: separate provider keys for direct API access (bypass NIM).
