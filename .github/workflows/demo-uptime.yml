@@ -16,6 +16,7 @@ permissions:
   contents: read
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   BASE_URL: https://mukeshkumarkanda-alphaedge-api.hf.space
   FRONTEND_URL: https://proud-meadow-01b42b810.7.azurestaticapps.net
 
