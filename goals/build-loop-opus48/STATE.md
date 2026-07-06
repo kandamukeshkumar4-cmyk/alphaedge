@@ -108,6 +108,20 @@ Shipped on branch claude/agent-harness-e2e-testing-qklbyw → PR #41.
   1050 passed/16 skipped + ruff, frontend typecheck/lint/61 tests/build,
   SWA deploy green, smoke 15/15 vs live local stack) | loop authored with
   10 tickets (2 blocked-on-user, 1 blocked-on-data) | outcome = ready.
+- 2026-07-06 run 1 (O02,O03,O04,O05,O07,O08): all implemented + verifier-PASS
+  (fresh-context subagents; O07 CDP-verified). Verifiers caught+forced 2 real
+  defects (O03 unapplied lookback scanning whole table; O04 orphaned
+  _scan_city zeroing the cron). PR #41 CI all green (full backend suite incl.
+  migration 031, frontend/extension/SWA-deploy). outcome = IMPROVED.
+- 2026-07-06 O06: per-feature model routing plumbing (deep digest). Verifier
+  PASS — ran FULL suite 1089 passed/16 skipped + ruff + frontend
+  typecheck/lint/build all green; confirmed opt-in/no-change-when-unset,
+  non-deep callers never get the deep model, both pre-O06 callers
+  (alignment.py, briefs.py) unaffected, deploy YAML valid. Live NIM run
+  deferred to O01. outcome = IMPROVED (plumbing).
+- LOOP RUN 1 COMPLETE: every unblocked ticket DONE + verifier-approved.
+  Remaining O01/O09/O10 are BLOCKED-ON-USER/DATA (owner secrets + working HF
+  deploy / ~100 resolved outcomes / FIFA CSVs) — the loop's stop condition.
 - 2026-07-06 run 1: O02 (verify-not-fabricate, regression-locked) · O03
   (screeners; verifier caught unapplied lookback → fixed) · O04 (weather→
   SignalEvents; verifier caught _scan_city class break → fixed) · O05
