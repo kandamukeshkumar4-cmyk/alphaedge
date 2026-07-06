@@ -9,9 +9,10 @@ can construct an OrderIntent or reach the order path (paper-trading guardrail).
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 
@@ -170,3 +171,80 @@ class WeatherDeskService:
                 for e in edges
             ],
         }
+
+
+# O05 learned-sigma bootstrap — the RMS forecast error over resolved
+# (forecast, actual) daily-high pairs is the empirically-correct Gaussian sigma
+# for the bucket model. PURE + data-gated: returns None until at least
+# ``min_pairs`` pairs exist, and the caller must NOT apply it to the live model
+# until the sample is large enough (guardrail: no benchmark gaming on thin data).
+def suggest_sigma_f(
+    pairs: list[tuple[float, float]],
+    *,
+    min_pairs: int = 30,
+) -> Optional[float]:
+    """RMS of (forecast_high - actual_high) over resolved pairs, or None when
+    fewer than ``min_pairs`` pairs are available."""
+    if len(pairs) < min_pairs:
+        return None
+    sq = [(f - a) ** 2 for f, a in pairs]
+    return round(math.sqrt(sum(sq) / len(sq)), 3)
+
+
+# O04 signal emission — turn scan reports into feed-visible SignalEvents.
+# Weather markets are Kalshi externals, so the events reference the Kalshi
+# bucket ticker as market_id. Signals only: nothing here reaches the order path.
+WEATHER_EDGE_SIGNAL_TYPE = "delta:weather_edge"  # 19 chars, fits SignalEvent(32)
+
+
+def weather_scan_to_events(
+    cities: list[dict[str, Any]],
+    *,
+    min_abs_edge: float = 0.10,
+) -> list[dict[str, Any]]:
+    """Pure map: scan reports -> the strongest edge bucket per city whose
+    absolute edge clears ``min_abs_edge``. Returns SignalEvent-ready dicts
+    (signal_type/platform/market_id/headline_eligible/payload). Deterministic
+    and network-free so the emission logic is unit-testable."""
+    events: list[dict[str, Any]] = []
+    for report in cities:
+        buckets = report.get("buckets") or []
+        best = None
+        best_abs = min_abs_edge
+        for bucket in buckets:
+            edge = bucket.get("edge")
+            if edge is None:
+                continue
+            if abs(edge) >= best_abs:
+                best_abs = abs(edge)
+                best = bucket
+        if best is None:
+            continue
+        ticker = str(best.get("ticker") or "")
+        if not ticker:
+            continue
+        events.append(
+            {
+                "signal_type": WEATHER_EDGE_SIGNAL_TYPE,
+                "platform": "kalshi",
+                "market_id": ticker,
+                "headline_eligible": abs(best.get("edge") or 0.0) >= 0.15,
+                "payload": {
+                    "paper_trading_only": True,
+                    "disclaimer": (
+                        "Research signal only. NWS forecast vs Kalshi price. "
+                        "No execution. Simulated funds only."
+                    ),
+                    "city": report.get("city"),
+                    "date": report.get("date"),
+                    "ticker": ticker,
+                    "bucket": best.get("bucket"),
+                    "model_probability": best.get("model_probability"),
+                    "market_yes": best.get("market_yes"),
+                    "edge": best.get("edge"),
+                    "read": best.get("read"),
+                    "forecast_high_f": report.get("forecast_high_f"),
+                },
+            }
+        )
+    return events

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { API_BASE } from "@/lib/alphaedge-api";
 
 interface Props { slug: string; }
 
@@ -11,7 +12,7 @@ export default function MarketExplainer({ slug }: Props) {
   const load = () => {
     if (explanation || loading) return;
     setLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/v1/markets/${slug}/explain`)
+    fetch(`${API_BASE}/api/v1/markets/${slug}/explain`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setExplanation(d?.explanation ?? "AI insight unavailable."))
       .catch(() => setExplanation("AI insight unavailable."))

@@ -117,13 +117,17 @@ async def run_live_tick_once(db: AsyncSession) -> dict[str, str]:
     market_ids = {slug: market_id for market_id, slug, _, _, _ in rows}
 
     settings = get_settings()
-    poly_connector = PolymarketGammaConnector()
-    kalshi_connector = KalshiConnector(base_url=settings.kalshi_api_base_url)
-    semaphore = asyncio.Semaphore(_LIVE_FETCH_CONCURRENCY)
-    kalshi_semaphore = asyncio.Semaphore(_KALSHI_EVENT_CONCURRENCY)
-
     poly_rows = [row for row in rows if row[3] == "polymarket"]
     kalshi_rows = [row for row in rows if row[3] == "kalshi"]
+
+    poly_connector = PolymarketGammaConnector()
+    semaphore = asyncio.Semaphore(_LIVE_FETCH_CONCURRENCY)
+    # Only stand up the Kalshi connector when this tick actually has Kalshi
+    # markets — a poly-only tick shouldn't build a client it never calls.
+    kalshi_connector = (
+        KalshiConnector(base_url=settings.kalshi_api_base_url) if kalshi_rows else None
+    )
+    kalshi_semaphore = asyncio.Semaphore(_KALSHI_EVENT_CONCURRENCY)
 
     async def fetch_poly(slug: str, external_slug: str):
         async with semaphore:
@@ -178,9 +182,10 @@ async def run_live_tick_once(db: AsyncSession) -> dict[str, str]:
             *(fetch_poly(slug, external) for _, slug, external, _, _ in poly_rows)
         )
     )
-    fetched.extend(
-        await fetch_kalshi_board([(slug, external) for _, slug, external, _, _ in kalshi_rows])
-    )
+    if kalshi_rows:
+        fetched.extend(
+            await fetch_kalshi_board([(slug, external) for _, slug, external, _, _ in kalshi_rows])
+        )
 
     for slug, snapshot, error in fetched:
         if snapshot is None:

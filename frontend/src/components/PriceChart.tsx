@@ -29,6 +29,84 @@ const RANGES: { key: RangeKey; points: number; stepSec: number }[] = [
 
 type Mode = "area" | "candle";
 
+// lightweight-charts needs concrete color strings (it can't resolve CSS vars),
+// so read the live theme tokens off <html> and re-apply on the .light toggle.
+// Every value is token-derived → the chart reskins with the rest of the app
+// instead of staying dark-mode-only (E-chart-theme debt).
+function _triplet(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return raw ? raw.split(/\s+/).join(", ") : fallback;
+}
+
+type ChartTheme = {
+  text: string;
+  grid: string;
+  border: string;
+  accent: string;
+  accentSoft: string;
+  accentFade: string;
+  up: string;
+  down: string;
+  volUp: string;
+  volDown: string;
+  model: string;
+};
+
+function readChartTheme(): ChartTheme {
+  const text = _triplet("--c-muted", "159, 176, 169");
+  const border = _triplet("--c-border", "30, 41, 36");
+  const primary = _triplet("--c-primary", "32, 201, 151");
+  const danger = _triplet("--c-danger", "229, 72, 77");
+  const secondary = _triplet("--c-secondary", "244, 176, 0");
+  return {
+    text: `rgb(${text})`,
+    grid: `rgba(${border}, 0.6)`,
+    border: `rgb(${border})`,
+    accent: `rgb(${primary})`,
+    accentSoft: `rgba(${primary}, 0.28)`,
+    accentFade: `rgba(${primary}, 0.0)`,
+    up: `rgb(${primary})`,
+    down: `rgb(${danger})`,
+    volUp: `rgba(${primary}, 0.45)`,
+    volDown: `rgba(${danger}, 0.45)`,
+    model: `rgb(${secondary})`,
+  };
+}
+
+function applyChartTheme(
+  chart: IChartApi,
+  area: ISeriesApi<"Area"> | null,
+  candle: ISeriesApi<"Candlestick"> | null,
+  vol: ISeriesApi<"Histogram"> | null,
+  t: ChartTheme,
+): void {
+  chart.applyOptions({
+    layout: { textColor: t.text },
+    grid: { vertLines: { color: t.grid }, horzLines: { color: t.grid } },
+    rightPriceScale: { borderColor: t.border },
+    timeScale: { borderColor: t.border },
+    crosshair: {
+      vertLine: { color: t.accent, labelBackgroundColor: t.accent },
+      horzLine: { color: t.accent, labelBackgroundColor: t.accent },
+    },
+  });
+  area?.applyOptions({
+    lineColor: t.accent,
+    topColor: t.accentSoft,
+    bottomColor: t.accentFade,
+  });
+  candle?.applyOptions({
+    upColor: t.up,
+    downColor: t.down,
+    borderUpColor: t.up,
+    borderDownColor: t.down,
+    wickUpColor: t.up,
+    wickDownColor: t.down,
+  });
+  vol?.applyOptions({ color: t.accentSoft });
+}
+
 export function PriceChart({
   slug,
   endPrice,
@@ -71,23 +149,24 @@ export function PriceChart({
     const el = containerRef.current;
     if (!el) return;
 
+    const theme = readChartTheme();
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#a8acb3",
+        textColor: theme.text,
         fontFamily: "var(--font-mono), monospace",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(35,40,56,0.6)" },
-        horzLines: { color: "rgba(35,40,56,0.6)" },
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid },
       },
-      rightPriceScale: { borderColor: "#26292f" },
-      timeScale: { borderColor: "#26292f", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: theme.border },
+      timeScale: { borderColor: theme.border, timeVisible: true, secondsVisible: false },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#20c997", width: 1, style: 2, labelBackgroundColor: "#20c997" },
-        horzLine: { color: "#20c997", width: 1, style: 2, labelBackgroundColor: "#20c997" },
+        vertLine: { color: theme.accent, width: 1, style: 2, labelBackgroundColor: theme.accent },
+        horzLine: { color: theme.accent, width: 1, style: 2, labelBackgroundColor: theme.accent },
       },
       handleScale: { mouseWheel: true, pinch: true },
       handleScroll: true,
@@ -96,9 +175,9 @@ export function PriceChart({
     chartRef.current = chart;
 
     const area = chart.addSeries(AreaSeries, {
-      lineColor: "#20c997",
-      topColor: "rgba(32,201,151,0.28)",
-      bottomColor: "rgba(32,201,151,0.0)",
+      lineColor: theme.accent,
+      topColor: theme.accentSoft,
+      bottomColor: theme.accentFade,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -106,12 +185,12 @@ export function PriceChart({
     areaRef.current = area;
 
     const candle = chart.addSeries(CandlestickSeries, {
-      upColor: "#20c997",
-      downColor: "#e5484d",
-      borderUpColor: "#20c997",
-      borderDownColor: "#e5484d",
-      wickUpColor: "#20c997",
-      wickDownColor: "#e5484d",
+      upColor: theme.up,
+      downColor: theme.down,
+      borderUpColor: theme.up,
+      borderDownColor: theme.down,
+      wickUpColor: theme.up,
+      wickDownColor: theme.down,
       priceLineVisible: false,
       visible: false,
     });
@@ -121,7 +200,7 @@ export function PriceChart({
       const vol = chart.addSeries(HistogramSeries, {
         priceFormat: { type: "volume" },
         priceScaleId: "vol",
-        color: "rgba(32,201,151,0.28)",
+        color: theme.accentSoft,
       });
       vol.priceScale().applyOptions({
         scaleMargins: { top: 0.82, bottom: 0 },
@@ -140,7 +219,26 @@ export function PriceChart({
       if (typeof price === "number") setHovered(price);
     });
 
+    // Re-theme when the user flips the .light class on <html> (E04 toggle).
+    const observer =
+      typeof MutationObserver !== "undefined"
+        ? new MutationObserver(() => {
+            applyChartTheme(
+              chart,
+              areaRef.current,
+              candleRef.current,
+              volRef.current,
+              readChartTheme(),
+            );
+          })
+        : null;
+    observer?.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
     return () => {
+      observer?.disconnect();
       chart.remove();
       chartRef.current = null;
     };
@@ -206,7 +304,7 @@ export function PriceChart({
     if (typeof modelProb === "number") {
       modelLineRef.current = area.createPriceLine({
         price: modelProb,
-        color: "#f4b000",
+        color: readChartTheme().model,
         lineWidth: 2,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,

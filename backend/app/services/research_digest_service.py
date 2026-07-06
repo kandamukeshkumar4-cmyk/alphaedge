@@ -157,7 +157,11 @@ class ResearchDigestService:
                 direction = "up"
                 if price_now is not None and price_then is not None:
                     direction = "up" if price_now >= price_then else "down"
-                await run_analyst_for_trigger(self.session, slug, None, direction)
+                # O06: the daily digest is latency-tolerant (cron), so route its
+                # analyst runs to the deep reasoning model when one is configured.
+                await run_analyst_for_trigger(
+                    self.session, slug, None, direction, deep=True
+                )
             except Exception:  # noqa: BLE001 - one market must not fail the whole sweep
                 logger.warning("Analyst run failed for %s in digest", slug, exc_info=True)
 

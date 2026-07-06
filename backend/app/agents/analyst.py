@@ -40,6 +40,9 @@ class AnalystState:
     # False for on-demand runs, which derive direction from live price evidence.
     direction_forced: bool = False
     persona: Optional[str] = None  # E13: macro | whale-flow | news | None
+    # O06: route this brief to the deep reasoning model (LLM_MODEL_DEEP). Used by
+    # the latency-tolerant daily digest; on-demand/interactive runs stay fast.
+    deep: bool = False
     market_state: dict[str, Any] = field(default_factory=dict)
     evidence: dict[str, Any] = field(default_factory=dict)
     headline: str = ""
@@ -356,10 +359,13 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
     )
     persona = PERSONAS.get(state.persona or "")
     system_prompt = _SYSTEM_PROMPT + (f" {persona['emphasis']}" if persona else "")
+    from app.llm.provider import resolve_llm_model
+
+    model_id = resolve_llm_model(settings, deep=state.deep)
     try:
         client = get_llm_client(settings)
         response = await client.chat.completions.create(
-            model=settings.llm_model,
+            model=model_id,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -379,7 +385,7 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
             "analyst LLM write_brief failed (provider=%s model=%s), falling back "
             "to deterministic brief",
             settings.llm_provider,
-            settings.llm_model,
+            model_id,
             exc_info=True,
         )
         state.headline, state.body_markdown = _fallback_brief(state)
@@ -489,13 +495,15 @@ async def run_analyst(
     trigger_event_id: str | None = None,
     direction: str | None = None,
     persona: str | None = None,
+    deep: bool = False,
     settings=None,
 ) -> Any:
     """Run the full analyst pipeline once and return the validated brief model.
 
     ``direction`` is optional: when None (on-demand runs) the analyst derives the
     lean from live price evidence in ``gather_evidence``; when supplied (alignment
-    triggers) it is honored as the aligned direction.
+    triggers) it is honored as the aligned direction. ``deep`` routes the brief to
+    the reasoning model (LLM_MODEL_DEEP) for latency-tolerant callers (O06).
     """
     if settings is None:
         from app.core.config import get_settings
@@ -508,6 +516,7 @@ async def run_analyst(
         direction=direction or "up",
         direction_forced=direction is not None,
         persona=persona if persona in PERSONAS else None,
+        deep=deep,
         started_perf=time.perf_counter(),
     )
     state = await gather_market_state(session, state)
@@ -521,8 +530,12 @@ async def run_analyst_for_trigger(
     market_slug: str,
     trigger_event_id: str | None,
     direction: str,
+    *,
+    deep: bool = False,
 ) -> Any | None:
-    """Cooldown-gated entrypoint called from persist_alignment on analyst.trigger."""
+    """Cooldown-gated entrypoint called from persist_alignment on analyst.trigger.
+
+    ``deep`` routes the brief to LLM_MODEL_DEEP (the daily digest sets it)."""
     from app.core.config import get_settings
 
     settings = get_settings()
@@ -539,6 +552,7 @@ async def run_analyst_for_trigger(
         market_slug,
         trigger_event_id=trigger_event_id,
         direction=direction,
+        deep=deep,
         settings=settings,
     )
 

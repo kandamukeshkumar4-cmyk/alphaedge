@@ -208,6 +208,44 @@ async def test_portfolio_nets_out_sold_shares(db_session):
 
 
 @pytest.mark.asyncio
+async def test_rebuy_after_partial_close_nets_into_one_weighted_position(db_session):
+    """O02 regression: buy -> partial sell -> re-buy must collapse to a SINGLE
+    net position keyed by (slug, side, outcome), with a BUY-weighted average
+    cost — not one row per order, and not reset by the intervening sell.
+
+    Sequence: buy 10 @ 0.40 (cost 4.0); sell 4 @ 0.50 (realized +0.40);
+    buy 10 @ 0.60 (cost 6.0). Net = 16 shares; weighted avg over both BUYs =
+    (4.0 + 6.0) / (10 + 10) = 0.50; remaining cost basis 16 * 0.50 = 8.0;
+    realized P&L from the partial sell (0.40) is preserved."""
+    _override_db(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "rebuy-net@example.com")
+        await MarketService(db_session).seed_catalog_markets()
+        await _buy_yes(client, token, shares=10, price=0.4)
+        await client.post(
+            "/api/v1/positions/close",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "outcome": "yes", "shares": 4, "price": 0.5},
+        )
+        await _buy_yes(client, token, shares=10, price=0.6)
+        portfolio = await client.get(
+            "/api/v1/portfolio",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    app.dependency_overrides.clear()
+
+    body = portfolio.json()
+    matches = [p for p in body["positions"] if p["market_slug"] == CANONICAL_SLUG]
+    assert len(matches) == 1, "re-buy after partial close must not split into multiple rows"
+    position = matches[0]
+    assert position["shares"] == pytest.approx(16.0)
+    assert position["avg_cost"] == pytest.approx(0.5)
+    assert position["cost"] == pytest.approx(8.0)
+    assert position["realized_pnl"] == pytest.approx(0.4)
+    assert position["settled"] is False
+
+
+@pytest.mark.asyncio
 async def test_fully_closed_position_not_double_paid_on_settlement(db_session):
     _override_db(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
