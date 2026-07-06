@@ -89,9 +89,31 @@ diff against the guardrails. Verifier verdict goes in Notes.
 6. Update the ticket row + append one AutoLab line below. Commit
    `feat(opus-loop): <ID> <summary>`, push, PR per the remote workflow.
 
+## Loop run 1 complete — 2026-07-06 (Opus 4.8)
+
+Every UNBLOCKED ticket is DONE and verified: O02, O03, O04, O05, O07, O08.
+Each was checked by a separate fresh-context verifier subagent (maker/checker),
+which caught and forced fixes for two real defects (O03 unapplied lookback
+window; O04 a class-integrity break that silently zeroed the weather cron).
+Remaining tickets are all genuinely blocked — the loop's stop condition:
+- O01 BLOCKED-ON-USER (add LLM_PROVIDER/NIM_API_KEY/LLM_MODEL GH secrets)
+- O06 BLOCKED-ON-KEY (live NIM key for the deep digest)
+- O09 BLOCKED-ON-DATA (~17 resolved outcomes; needs ≥100)
+- O10 BLOCKED-ON-USER (FIFA CSVs)
+Shipped on branch claude/agent-harness-e2e-testing-qklbyw → PR #41.
+
 ## AutoLab log
 
 - 2026-07-06 bootstrap: baseline = PR #40 merged, ALL CI green (backend
   1050 passed/16 skipped + ruff, frontend typecheck/lint/61 tests/build,
   SWA deploy green, smoke 15/15 vs live local stack) | loop authored with
   10 tickets (2 blocked-on-user, 1 blocked-on-data) | outcome = ready.
+- 2026-07-06 run 1: O02 (verify-not-fabricate, regression-locked) · O03
+  (screeners; verifier caught unapplied lookback → fixed) · O04 (weather→
+  SignalEvents; verifier caught _scan_city class break → fixed) · O05
+  (forecast log + suggest_sigma_f, model unchanged) · O07 (chart light-mode,
+  CDP-verified both themes) · O08 (useApiHealth test + lazy KalshiConnector).
+  6 tickets, all gates green locally + targeted suites; full backend suite +
+  CI authoritative. outcome = IMPROVED across correctness, signals depth,
+  and UX; guardrails intact (no order path, no benchmark gaming, migration
+  single-head).
