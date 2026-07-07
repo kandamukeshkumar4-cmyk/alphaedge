@@ -12,14 +12,14 @@ Updated 2026-07-07. Plans 003–006 shipped; API image **kalshi4**.
 | 004 | Kalshi 429 backoff + shared event fetcher | **DONE** | 003 | perf |
 | 005 | [Kalshi live API parity](005-kalshi-live-api-parity.md) | **DONE** | — | bug |
 | 006 | [Seed snapshot on ingest](006-seed-snapshot-on-ingest.md) | **DONE** | 005 | bug |
-| 007 | [Multiplex WS + poll budget](007-multiplex-ws-frontend-poll.md) | TODO | 005 | perf |
+| 007 | [Multiplex WS + poll budget](007-multiplex-ws-frontend-poll.md) | **DONE** | 005 | perf |
 | 008 | [Retire/document hf_stage](008-retire-hf-stage-duplicate.md) | **DONE** | — | tech-debt |
 
 ## Recommended execution order
 
 1. ~~**005**~~ — Kalshi candles/latest API
 2. ~~**006**~~ — seed snapshot on ingest
-3. **007** — frontend connection budget (execute next)
+3. ~~**007**~~ — frontend connection budget (single multiplexed WS + 5s scoped poll)
 4. ~~**003**~~ — worker refactor (`LivePriceTickService` extracted)
 5. **008** — duplication cleanup
 
@@ -63,7 +63,7 @@ curl "https://alphaedge-api.../api/v1/markets/ks-kxwcgame-26jun12canbih-can/cand
 | Goals (phases 0–4, 6, X, Y, FIFA) | DONE in `goals/README.md` |
 | Kalshi read API | **Fixed** (005 + kalshi3 deploy) |
 | First-paint prices | **Fixed** (006 + kalshi4 deploy) |
-| WS/poll fan-out | Gap → Plan 007 |
+| WS/poll fan-out | **Fixed** (007: 1 multiplexed WS + scoped 5s poll) |
 | `hf_stage/` duplicate | Gap → Plan 008 |
 
 ## AutoLab
