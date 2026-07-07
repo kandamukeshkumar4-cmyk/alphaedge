@@ -5,47 +5,45 @@
 > access, or real-world data that does not yet exist. Each has an explicit
 > unblock condition.
 
-## 1. Push / merge the loop commits and trigger the HF Space deploy
-Agents do not push to `origin` or dispatch deploys. Owner must push/merge the
-loop branches and run **"Deploy Backend to HF Space"**.
-- **Unblock condition:** loop commits merged to the deploy branch and the deploy
-  workflow completes green.
+## 1. Push / merge the loop commits and trigger the HF Space deploy — ✅ DONE (2026-07-07)
+Loop2–loop9 merged to `codex/alphaedge-base` (PRs #49/#50/#51) and the
+**"Deploy Backend to HF Space"** workflow ran green through every smoke gate
+(health, markets, snapshot, admin agent-proof, paper-order lifecycle, smoke
+suite). Live: https://mukeshkumar007-alphaedge-api.hf.space/health
 
-## 2. Factory-reboot the HF Space if Loop 8 found it stale
-Free-tier Spaces sleep and can serve a stale build; only the owner can factory
-reboot from the Space settings.
-- **Unblock condition:** Space rebooted and `/health` returns 200 on the fresh
-  build (recheck after the Loop 8 smoke result).
+## 2. Factory-reboot the HF Space if Loop 8 found it stale — ✅ NOT NEEDED (2026-07-07)
+Every deploy reached `RUNNING` on the pushed revision (the workflow's
+wait-for-revision step passed); the Space was never stuck on a stale image. No
+factory reboot was required. (Still owner-only if a future deploy hangs.)
 
-## 3. Make the deployed LLM path actually return `generator=llm`
-Progress (2026-07-07, agent): `LLM_PROVIDER=nim`, `NIM_API_KEY`, `LLM_MODEL`,
-`LLM_MODEL_ANALYST`, `LLM_MODEL_CHAT` are now all set as GitHub secrets and
-**verified synced to the Space** (deploy log: "Synced HF Space runtime secrets:
-… LLM_PROVIDER, LLM_MODEL, LLM_MODEL_CHAT, LLM_MODEL_ANALYST, NIM_API_KEY").
-A real deploy-workflow bug was fixed and shipped: per-use-case model keys were
-never in the sync list, so the analyst used the placeholder default
-`z-ai/glm-5.2` (not a real NIM id) → PR #50, merged.
-
-**Still blocked (owner-only diagnosis).** Even after syncing real models
-(`meta/llama-3.1-70b-instruct`, then `qwen/qwen2.5-7b-instruct`), BOTH the
-analyst brief and the assistant chat still return the deterministic fallback on
-the live Space — i.e. every NIM call fails at runtime, independent of model and
-endpoint. The exception is swallowed by the analyst/assistant `except` and only
-written to the **Space server logs**, which need owner HF access to read.
-- **Root cause is one of:** (a) HF Space egress to `integrate.api.nvidia.com`
-  blocked, or (b) `NIM_API_KEY` invalid / quota-exhausted in the deployed env.
-- **Owner unblock steps:** open the Space logs and find the
-  `analyst LLM write_brief failed (provider=nim model=…)` WARNING to see the real
-  error; verify the NIM key has quota and the exact model id it can access (the
-  local run that worked used a "NIM qwen" model — confirm which one); if egress
-  is the issue, allow outbound to the NIM host. Then re-run "Deploy Backend to HF
-  Space" with `sync_runtime_secrets=true`.
-- **Verified done when:** `POST /api/v1/analyst/run?market_slug=<real market>`
-  returns `generator=llm` (and the market-prediction endpoint reports
-  `n_models >= 1`).
-- **Optional enrichment, owner-held values:** `EXA_API_KEY` (news citations) and
-  `FRED_API_KEY` (macro) are not set; they improve briefs but do not block
-  `generator=llm`.
+## 3. Make the deployed LLM path return `generator=llm` — ✅ DONE (2026-07-07)
+**Live in production.** Both the analyst briefs and the assistant chat now
+return real LLM output on the deployed Space.
+- Deploy-workflow bug fixed + shipped (PR #50): per-use-case model keys
+  (`LLM_MODEL_ANALYST`/`_CHAT`/`_ANALYST_DEEP`) were never in the secret-sync
+  list, so the analyst called the placeholder default `z-ai/glm-5.2` (not a real
+  NIM id) and silently fell back.
+- **Actual root cause (found by owner):** it was never egress or a bad key — it
+  was the model ids. Tested directly against NVIDIA with the working NIM key:
+  `qwen/qwen2.5-7b-instruct` → 404 (doesn't exist on this key);
+  `qwen/qwen3-next-80b-a3b-instruct` (local `.env` model) → >60s timeout, too
+  slow/cold for the analyst path; **`meta/llama-3.1-70b-instruct` → works,
+  responds instantly.**
+- **Fix applied by owner:** set `LLM_MODEL`, `LLM_MODEL_ANALYST`,
+  `LLM_MODEL_CHAT` = `meta/llama-3.1-70b-instruct`, synced the verified
+  `NIM_API_KEY` + `LLM_PROVIDER=nim`, re-ran the deploy with
+  `sync_runtime_secrets=true`.
+- **Live-verified:** the deploy's AI-mode check now prints
+  "AI analysis is live (generator=llm)" (previously always warned `fallback`); a
+  fresh analyst run returns `generator: llm` with a real LLM headline; the
+  assistant chat returns a genuine LLM answer with the paper-trading-only banner
+  intact.
+- **Security note:** the working `NIM_API_KEY` lives in plaintext in
+  `backend/.env`, which is untracked (not in git) — keep it that way; never
+  commit it.
+- **Optional enrichment, still owner-held:** `EXA_API_KEY` (news citations) and
+  `FRED_API_KEY` (macro) remain unset; they enrich briefs but are not required
+  for `generator=llm`.
 
 ## 4. LightGBM vs XGBoost A/B on real resolved outcomes
 Cannot be run until enough markets have resolved to make walk-forward Brier
