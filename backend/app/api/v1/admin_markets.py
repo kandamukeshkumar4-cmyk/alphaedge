@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import markets_cache
 from app.core.broadcast import hub
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
@@ -154,8 +155,6 @@ async def resolve_market(
     resolution = MarketResolution(slug=slug, outcome=winning_outcome)
     db.add(resolution)
     await db.flush()
-
-    from app.core import markets_cache
 
     markets_cache.invalidate()  # B01: resolution must be visible on /markets now
 

@@ -18,7 +18,7 @@ from app.agents.graph import run_agent_graph_with_trace
 from app.api.v1.market_prediction import _implied_prob_from_catalog, _is_provisional
 from app.forecasting.predictor import predict_market
 from app.services.market_service import CATALOG_SLUGS
-from app.schemas.agent_trace import AgentTraceOut, AgentTraceStepOut, SimilarEventOut
+from app.schemas.agent_trace import AgentTraceOut, AgentTraceStepOut
 
 router = APIRouter(prefix="/api/v1", tags=["markets"])
 
@@ -82,11 +82,6 @@ async def get_agent_trace(slug: str) -> AgentTraceOut:
         for step in raw_trace
     ]
 
-    # U09: pass through retrieved precedents ([] when RETRIEVAL_ENABLED=false)
-    similar_events = [
-        SimilarEventOut(**ev) for ev in state.similar_events
-    ]
-
     return AgentTraceOut(
         slug=slug,
         verdict=verdict,
@@ -95,5 +90,4 @@ async def get_agent_trace(slug: str) -> AgentTraceOut:
         reasoning=state.reasoning,
         steps=steps,
         paper_trading_only=True,
-        similar_events=similar_events,
     )
