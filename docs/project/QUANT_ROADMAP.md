@@ -36,7 +36,17 @@ So future readers know what is real vs scaffold:
 - **`backend/app/agents/judge.py`** wires Google Gemini as an optional drift-judge with a heuristic fallback; dormant without `GEMINI_API_KEY`. Explanation-only.
 - **`backend/app/forecasting/market_source.py`** has genuine read-only Polymarket/Kalshi adapters (keep, extend).
 - **Real and working:** paper ledger, forecast scoring (Brier), `risk/rules.py`, order book, `backtesting/` scaffold, extension overlay + paper-signal capture.
-- **Not implemented at all:** arbitrage, dutching, on-chain whale tracking, real prediction features, NIM.
+- **Not implemented at all (as of 2026-06-04 — NOW SHIPPED, see below):** arbitrage, dutching, on-chain whale tracking, real prediction features, NIM.
+
+> **UPDATE 2026-07-07:** the "not implemented" line above is the 2026-06-04
+> starting-point snapshot and is now stale. All of it shipped (see
+> [`goals/README.md`](../../goals/README.md) queue): **arbitrage + dutching** =
+> Phase 1 ✅ DONE, **on-chain whale tracking** = Phase 2 (smart-money) ✅ DONE,
+> **real prediction features** = Phase 3 Forecast Engine (Elo/rest/pace/rating,
+> isotonic calibration, CLV-gated) ✅ DONE + FIFA WC2026 track ✅ DONE,
+> **LLM/NIM assist** = Phase 4 ✅ DONE (provider-swappable OpenAI/NIM/Gemini,
+> AST-guarded out of the order path). This §1 is retained as a historical
+> baseline; the queue in `goals/README.md` is the source of truth for status.
 
 ---
 
