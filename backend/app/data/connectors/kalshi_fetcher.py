@@ -48,10 +48,16 @@ class SharedKalshiFetcher:
         self._max_429_retries = max_429_retries
         self._base_backoff = base_backoff_sec
         self._sleep = sleep
-        self._events_cache: tuple[float, list[dict[str, Any]]] | None = None
-        self._open_markets_cache: tuple[float, list[dict[str, Any]]] | None = None
-        self._series_events_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
-        self._series_markets_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+        # Cache stores are dicts keyed by the actual call arguments so varying
+        # ``limit`` / ``page_limit`` / ``max_pages`` never returns a stale hit.
+        self._events_cache: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+        self._open_markets_cache: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
+        self._series_events_cache: dict[
+            tuple[str, int], tuple[float, list[dict[str, Any]]]
+        ] = {}
+        self._series_markets_cache: dict[
+            tuple[str, int], tuple[float, list[dict[str, Any]]]
+        ] = {}
 
     # ── backoff ──────────────────────────────────────────────────────────────
 
@@ -85,47 +91,48 @@ class SharedKalshiFetcher:
     # ── events ───────────────────────────────────────────────────────────────
 
     def list_open_events(self, *, limit: int = 200, use_cache: bool = True) -> list[dict[str, Any]]:
-        if use_cache and self._events_cache is not None and not self._is_expired(self._events_cache[0]):
-            return self._events_cache[1]
+        cached = self._events_cache.get(limit)
+        if use_cache and cached is not None and not self._is_expired(cached[0]):
+            return cached[1]
         events = self._call_with_backoff(self.connector.list_open_events, limit=limit)
-        self._events_cache = (time.monotonic(), events)
+        self._events_cache[limit] = (time.monotonic(), events)
         return events
 
     def list_series_events(
         self, series_ticker: str, *, limit: int = 100, use_cache: bool = True
     ) -> list[dict[str, Any]]:
-        cached = self._series_events_cache.get(series_ticker)
+        key = (series_ticker, limit)
+        cached = self._series_events_cache.get(key)
         if use_cache and cached is not None and not self._is_expired(cached[0]):
             return cached[1]
         events = self._call_with_backoff(
             self.connector.list_series_events, series_ticker, limit=limit
         )
-        self._series_events_cache[series_ticker] = (time.monotonic(), events)
+        self._series_events_cache[key] = (time.monotonic(), events)
         return events
 
     # ── markets ──────────────────────────────────────────────────────────────
 
     def list_open_markets(self, *, use_cache: bool = True, **kwargs) -> list[dict[str, Any]]:
-        if (
-            use_cache
-            and self._open_markets_cache is not None
-            and not self._is_expired(self._open_markets_cache[0])
-        ):
-            return self._open_markets_cache[1]
+        key: tuple = tuple(sorted(kwargs.items()))
+        cached = self._open_markets_cache.get(key)
+        if use_cache and cached is not None and not self._is_expired(cached[0]):
+            return cached[1]
         markets = self._call_with_backoff(self.connector.list_open_markets, **kwargs)
-        self._open_markets_cache = (time.monotonic(), markets)
+        self._open_markets_cache[key] = (time.monotonic(), markets)
         return markets
 
     def list_series_markets(
         self, series_ticker: str, *, limit: int = 1000, use_cache: bool = True
     ) -> list[dict[str, Any]]:
-        cached = self._series_markets_cache.get(series_ticker)
+        key = (series_ticker, limit)
+        cached = self._series_markets_cache.get(key)
         if use_cache and cached is not None and not self._is_expired(cached[0]):
             return cached[1]
         markets = self._call_with_backoff(
             self.connector.list_series_markets, series_ticker, limit=limit
         )
-        self._series_markets_cache[series_ticker] = (time.monotonic(), markets)
+        self._series_markets_cache[key] = (time.monotonic(), markets)
         return markets
 
     def list_markets_by_tickers(self, tickers: list[str]) -> list[dict[str, Any]]:
@@ -137,7 +144,7 @@ class SharedKalshiFetcher:
 
     def invalidate(self) -> None:
         """Clear all cached entries (test helper / forced refresh)."""
-        self._events_cache = None
-        self._open_markets_cache = None
+        self._events_cache.clear()
+        self._open_markets_cache.clear()
         self._series_events_cache.clear()
         self._series_markets_cache.clear()

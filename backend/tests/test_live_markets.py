@@ -505,7 +505,8 @@ def test_shared_kalshi_fetcher_propagates_non_429_errors():
     from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
 
     class _500Connector:
-        calls = 0
+        def __init__(self):
+            self.calls = 0
 
         def list_open_events(self, *, limit=200):
             self.calls += 1

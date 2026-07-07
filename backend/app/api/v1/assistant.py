@@ -65,6 +65,9 @@ _ANON_WINDOW_SEC = 60.0
 _anon_window: dict[str, tuple[int, float]] = {}
 
 
+_ANON_PRUNE_THRESHOLD = 100
+
+
 def _anon_allowed(ip: str, limit: int) -> bool:
     """Fixed-window per-IP counter. Returns True when the request is allowed."""
     now = time.monotonic()
@@ -75,7 +78,18 @@ def _anon_allowed(ip: str, limit: int) -> bool:
         _anon_window[ip] = (count, start)
         return False
     _anon_window[ip] = (count + 1, start)
+    # Light-weight stale-entry prune so the dict never grows unbounded.
+    if len(_anon_window) > _ANON_PRUNE_THRESHOLD:
+        _prune_stale_anon_entries(now)
     return True
+
+
+def _prune_stale_anon_entries(now: float | None = None) -> None:
+    """Remove IPs whose window has expired."""
+    now = now or time.monotonic()
+    stale = [ip for ip, (_, start) in _anon_window.items() if now - start >= _ANON_WINDOW_SEC]
+    for ip in stale:
+        del _anon_window[ip]
 
 
 def _reset_anon_rate_limiter() -> None:
