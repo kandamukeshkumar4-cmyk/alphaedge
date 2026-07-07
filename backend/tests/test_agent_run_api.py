@@ -51,6 +51,7 @@ async def test_admin_agent_run_persists_guardrail_proof_steps(db_session):
         "memory",
         "prediction",
         "risk",
+        "market_tools",
         "reasoning",
         "execute",
     ]
@@ -80,6 +81,7 @@ async def test_admin_agent_run_persists_guardrail_proof_steps(db_session):
         "memory",
         "prediction",
         "risk",
+        "market_tools",
         "reasoning",
         "execute",
     ]
@@ -169,7 +171,7 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
             "status": "blocked",
             "graph_version": "v1",
             "approved": False,
-            "step_count": 7,
+            "step_count": 8,
             "errors": [
                 "no resolved walk-forward evaluation",
                 "edge 0.00% < 5%",
@@ -190,6 +192,7 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
         "memory",
         "prediction",
         "risk",
+        "market_tools",
         "reasoning",
         "execute",
     ]

@@ -16,11 +16,40 @@ https://mukeshkumar007-alphaedge-api.hf.space
 
 Database runs on Neon Postgres.
 
-## Current status
+## Current status — one canonical stack
 
-The Koyeb path remains documented in `docs/deploy/KOYEB_NEON.md`, but the
-account setup flow required payment verification before deploying a service.
-For the free/no-card portfolio demo path, use Hugging Face Spaces instead.
+There is exactly **one production deployment**:
+
+| Layer | Canonical production | Status |
+|---|---|---|
+| Backend API + worker | **Hugging Face Docker Space** (`deploy-hf-space.yml`) | LIVE |
+| Frontend | **Azure Static Web Apps** (`azure-static-web-apps-proud-meadow-01b42b810.yml`) | LIVE |
+| Database | **Neon Postgres** | LIVE |
+
+Every other host is **retired or blocked** and must not be treated as
+production:
+
+| Retired/blocked target | Reason |
+|---|---|
+| Koyeb (`docs/deploy/KOYEB_NEON.md`, `deploy-koyeb-backend.yml`) | No active service; setup required payment verification. Workflow is `workflow_dispatch`-only. |
+| Railway (`deploy-railway-backend.yml`) | Never provisioned (no project token). Workflow is `workflow_dispatch`-only. |
+| Azure Container Apps | Superseded by the HF Space; not monitored. |
+
+### Scheduled tasks on the workerless free tier
+
+The HF free tier runs the API only (`REDIS_URL=redis://disabled`, no ARQ
+worker). The periodic jobs (news scan, weather scan, morning research, whale
+refresh, WC2026 resolve, claim grading) run **in-process inside the API** via
+the `SCHEDULER_*_ENABLED` flags (each defaults to `true`). No separate worker
+deployment is required for scheduled tasks.
+
+### Feature flags active in production (defaults)
+
+| Flag | Default | Effect |
+|---|---|---|
+| `ENSEMBLE_ENABLED` | `true` | Multi-model ensemble router for predictions |
+| `KALSHI_WS_ENABLED` / `POLYMARKET_WS_ENABLED` | `true` | Live WebSocket price streams |
+| `SCHEDULER_*_ENABLED` | `true` | In-process scheduled jobs (see above) |
 
 ## Runtime secrets
 
@@ -208,7 +237,8 @@ Lakers vs Celtics - nba-2025-01-15-lal-bos (open)
 ## Limitations
 
 - Hugging Face free CPU Spaces can sleep or cold start.
-- This deploy runs the API only; no worker is attached to `REDIS_URL`.
+- This deploy runs the API only; no ARQ worker is attached to `REDIS_URL`.
+  Periodic jobs instead run in-process via the `SCHEDULER_*_ENABLED` flags.
 - Keep the Space public for the portfolio demo unless you add an auth layer.
 - The live paper-order smoke test uses the admin-only deployment smoke account
   so deploy verification does not add cancelled orders to the public portfolio.

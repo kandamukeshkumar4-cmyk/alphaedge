@@ -1,3 +1,10 @@
+> **⚠ SUPERSEDED (2026-07-07).** This queue (U00–U12) was superseded by
+> `goals/build-loop-ui/STATE.md` (the executed frontend build loop) and the
+> subsequent E-loop (Questflow/Astryx retheme + chart theming, analyst terminal,
+> live wiring). The "OPEN" statuses below are historical planning artifacts and do
+> NOT reflect current reality — the frontend shipped and passes its gate
+> (lint/typecheck/build/tests). Kept for provenance only; do not action U00–U12.
+
 # UI Loop State — PolyScout frontend (Kalshi mirror × Coinbase skin)
 
 Spec: docs/project/BUILD_LOOP_UI.md (read it before touching this file)

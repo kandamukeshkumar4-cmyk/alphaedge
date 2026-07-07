@@ -1,3 +1,7 @@
+# RETIRED: canonical backend is HF Space (deploy-hf-space.yml).
+# Railway was never provisioned (no project token supplied). This workflow is
+# kept for reference/portability only and runs solely on manual
+# workflow_dispatch — it is never triggered by push/PR.
 name: Deploy Backend to Railway
 
 on:

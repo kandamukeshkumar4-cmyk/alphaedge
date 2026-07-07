@@ -380,10 +380,11 @@ def test_build_router_from_settings_flag_on():
 
 
 def test_settings_ensemble_defaults():
-    """Ensemble settings have correct defaults (flag OFF, empty config)."""
+    """Ensemble flag defaults ON (loop4) — safe because it degrades to the
+    single-model baseline with 0-1 providers; router config still empty."""
     from app.core.config import Settings
 
     # Use the defaults directly (no env vars needed)
     settings = Settings()
-    assert settings.ensemble_enabled is False
+    assert settings.ensemble_enabled is True
     assert settings.ensemble_router_config == ""

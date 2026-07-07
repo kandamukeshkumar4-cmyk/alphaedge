@@ -32,6 +32,23 @@ This is the ordered work queue that turns [docs/project/QUANT_ROADMAP.md](../doc
 
 Status legend: ✅ DONE · 🟢 ACTIVE · 🟢 ACTIVE ∥ (active, runs in parallel) · ⏳ QUEUED · 🅿️ DEFERRED · 🔴 BLOCKED.
 
+## Report coverage (technical-report gap trackers — 2026-07-07)
+
+The gaps called out in the technical report are now implemented:
+
+- **Streaming (Loop 2)** — implemented (SSE/token streaming through the agent
+  graph; see loop2 commits).
+- **Persistent memory (Loop 3)** — implemented (agent memory persisted across
+  runs; `/api/v1/memories` surface).
+- **Multi-model ensemble (Loop 4)** — implemented (ensemble across models;
+  briefs expose `n_models`).
+- **Market tool nodes (Loop 5)** — implemented (native market-data tool nodes in
+  the agent graph; see `loop5` commit `5dc18b4`).
+
+**Frozen by owner decision:** the Chrome extension track (`extension/`) is out of
+scope and will not be developed, packaged, or documented further. See
+[`REMAINING-OWNER-ACTIONS.md`](REMAINING-OWNER-ACTIONS.md).
+
 ## Rules that override speed
 
 - Never weaken `PAPER_TRADING_ONLY`, the order path, or any deploy/safety gate to close a goal.

@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { fetchMarketCandles, fetchMarkets } from "@/lib/alphaedge-api";
+import { fetchLatestPrice, fetchMarketCandles } from "@/lib/alphaedge-api";
 import { isLiveMirror } from "@/lib/hero-market";
 import { resolveOutcomeSlug, wsBase } from "@/lib/live-price";
 import type { Market } from "@/lib/mock-data";
@@ -36,9 +36,21 @@ const EMPTY: LivePriceState = {
   ts: null,
 };
 
-const LivePricesContext = createContext<Record<string, LivePriceState>>({});
+type LivePricesContextValue = {
+  prices: Record<string, LivePriceState>;
+  /** Subscribe a card to a slug; returns an unsubscribe. The provider's single
+   * poll loop fetches only the union of `prioritySlugs` and subscribed slugs. */
+  subscribe: (slug: string) => () => void;
+};
 
-const POLL_MS = 1000;
+const LivePricesContext = createContext<LivePricesContextValue>({
+  prices: {},
+  subscribe: () => () => {},
+});
+
+// Plan 007: catalog poll was 1s and fetched the FULL catalog. Now a single
+// lightweight poll loop fetches only subscribed/priority slugs at 5s.
+const POLL_MS = 5000;
 const FLASH_MS = 600;
 
 function ingestMarketPrices(markets: Market[], apply: (slug: string, price: number) => void) {
@@ -53,44 +65,140 @@ function ingestMarketPrices(markets: Market[], apply: (slug: string, price: numb
   }
 }
 
-function LiveWsBridge({
-  slug,
-  onTick,
-}: {
-  slug: string;
-  onTick: (slug: string, yes: number, ts: number | null) => void;
-}) {
-  useEffect(() => {
-    if (!slug) return;
-    let dead = false;
-    let ws: WebSocket | null = null;
+/**
+ * Refcounted subscription registry. Multiple cards subscribing to the same slug
+ * produce ONE slot (refcount), so the provider runs a single poll loop with one
+ * fetch per slug regardless of subscriber count — no per-card WebSocket/poll.
+ */
+export class SubscriptionRegistry {
+  private counts = new Map<string, number>();
 
-    function connect() {
-      if (dead) return;
-      ws = new WebSocket(`${wsBase()}/api/v1/ws/prices?market=${encodeURIComponent(slug)}`);
-      ws.onmessage = (ev) => {
-        try {
-          const d = JSON.parse(ev.data) as { yes?: number; ts?: number; keepalive?: boolean };
-          if (d.keepalive || typeof d.yes !== "number") return;
-          onTick(slug, d.yes, d.ts ?? Date.now() / 1000);
-        } catch {
-          /* ignore */
-        }
-      };
-      ws.onclose = () => {
-        if (!dead) setTimeout(connect, 2000);
-      };
-      ws.onerror = () => ws?.close();
-    }
+  subscribe(slug: string): () => void {
+    if (!slug) return () => {};
+    this.counts.set(slug, (this.counts.get(slug) ?? 0) + 1);
+    return () => this.unsubscribe(slug);
+  }
 
-    connect();
-    return () => {
-      dead = true;
-      ws?.close();
+  unsubscribe(slug: string): void {
+    const n = this.counts.get(slug);
+    if (n === undefined) return;
+    if (n <= 1) this.counts.delete(slug);
+    else this.counts.set(slug, n - 1);
+  }
+
+  has(slug: string): boolean {
+    return this.counts.has(slug);
+  }
+
+  size(): number {
+    return this.counts.size;
+  }
+
+  slugs(): string[] {
+    return [...this.counts.keys()];
+  }
+}
+
+/** Dedup priority + dynamically subscribed slugs into the single poll list. */
+export function selectPollSlugs(priority: string[], subscribed: string[]): string[] {
+  const set = new Set<string>();
+  for (const s of priority) if (s) set.add(s);
+  for (const s of subscribed) if (s) set.add(s);
+  return [...set];
+}
+
+/** Minimal WebSocket surface the multiplexer relies on — lets tests inject a
+ *  fake socket without a real network. Matches the browser `WebSocket` subset. */
+export type FeedSocket = {
+  onopen: (() => void) | null;
+  onmessage: ((ev: { data: string }) => void) | null;
+  onclose: (() => void) | null;
+  onerror: (() => void) | null;
+  close: () => void;
+};
+
+export type FeedTick = { slug: string; yes: number; ts: number | null };
+
+/**
+ * Parse one raw `/api/v1/ws/feed` frame into a price tick — but ONLY when it is
+ * a `market.tick` frame (Loop 2 routed ticks through the event bus onto the
+ * multiplexed feed socket) for a slug that is currently active. Every other
+ * channel (briefs/alerts/system) and every inactive slug is filtered out.
+ * Returns null when the frame is not an applicable tick.
+ */
+export function selectFeedTick(
+  raw: unknown,
+  isActive: (slug: string) => boolean,
+): FeedTick | null {
+  if (!raw || typeof raw !== "object") return null;
+  const f = raw as { channel?: unknown; slug?: unknown; yes?: unknown; ts?: unknown };
+  if (f.channel !== "market.tick") return null;
+  if (typeof f.slug !== "string" || !isActive(f.slug)) return null;
+  if (typeof f.yes !== "number") return null;
+  return { slug: f.slug, yes: f.yes, ts: typeof f.ts === "number" ? f.ts : null };
+}
+
+/**
+ * ONE shared WebSocket to `/api/v1/ws/feed`, multiplexing live prices for every
+ * subscribed card. Plan 007: replaces the old up-to-24 per-card sockets. The
+ * provider owns a single FeedMultiplexer for its lifetime; incoming `market.tick`
+ * frames are filtered per-slug against the active subscription set and dispatched
+ * to `onTick`. Auto-reconnects with capped exponential backoff. `connectionCount`
+ * proves (in tests) that N subscribers still share exactly one live connection.
+ */
+export class FeedMultiplexer {
+  private socket: FeedSocket | null = null;
+  private dead = false;
+  private retry = 0;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private opens = 0;
+
+  constructor(
+    private readonly createSocket: () => FeedSocket | null,
+    private readonly onTick: (tick: FeedTick) => void,
+    private readonly isActive: (slug: string) => boolean,
+  ) {}
+
+  /** Total sockets opened over this multiplexer's life (1 + reconnects). */
+  get connectionCount(): number {
+    return this.opens;
+  }
+
+  start(): void {
+    if (this.dead || this.socket) return;
+    const sock = this.createSocket();
+    if (!sock) return;
+    this.opens += 1;
+    this.socket = sock;
+    sock.onopen = () => {
+      this.retry = 0;
     };
-  }, [slug, onTick]);
+    sock.onmessage = (ev) => {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      const tick = selectFeedTick(raw, this.isActive);
+      if (tick) this.onTick(tick);
+    };
+    sock.onclose = () => {
+      this.socket = null;
+      if (this.dead) return;
+      const delay = Math.min(30_000, 1_000 * 2 ** this.retry);
+      this.retry += 1;
+      this.timer = setTimeout(() => this.start(), delay);
+    };
+    sock.onerror = () => sock.close();
+  }
 
-  return null;
+  stop(): void {
+    this.dead = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.socket?.close();
+    this.socket = null;
+  }
 }
 
 export function collectLiveSlugs(markets: Market[]): string[] {
@@ -121,41 +229,6 @@ export function collectPrioritySlugs(
   return [...slugs];
 }
 
-export function selectPollSlugs(priority: string[], subscribed: string[]): string[] {
-  const slugs = new Set<string>();
-  for (const s of [...priority, ...subscribed]) {
-    if (s) slugs.add(s);
-  }
-  return [...slugs];
-}
-
-export class SubscriptionRegistry {
-  private counts = new Map<string, number>();
-
-  subscribe(slug: string): () => void {
-    if (!slug) return () => {};
-    this.counts.set(slug, (this.counts.get(slug) ?? 0) + 1);
-    return () => {
-      const c = this.counts.get(slug);
-      if (c === undefined) return;
-      if (c <= 1) this.counts.delete(slug);
-      else this.counts.set(slug, c - 1);
-    };
-  }
-
-  has(slug: string): boolean {
-    return this.counts.has(slug);
-  }
-
-  size(): number {
-    return this.counts.size;
-  }
-
-  slugs(): string[] {
-    return [...this.counts.keys()];
-  }
-}
-
 export function LivePricesProvider({
   markets,
   prioritySlugs = [],
@@ -170,6 +243,17 @@ export function LivePricesProvider({
   const prevPrices = useRef<Record<string, number>>({});
   const flashTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const baselineLoaded = useRef<Set<string>>(new Set());
+
+  // One subscription registry for the whole provider lifetime. Cards register
+  // their slug via `subscribe`; the single poll loop reads this ref each tick.
+  const registryRef = useRef<SubscriptionRegistry | null>(null);
+  if (registryRef.current === null) registryRef.current = new SubscriptionRegistry();
+  // Ref mirror of prioritySlugs so the poll effect can depend on a stable
+  // callback and never re-arm — exactly one interval for the provider lifetime.
+  const prioritySlugsRef = useRef<string[]>(prioritySlugs);
+  useEffect(() => {
+    prioritySlugsRef.current = prioritySlugs;
+  }, [prioritySlugs]);
 
   const fallbacks = useMemo(() => {
     const map: Record<string, number> = {};
@@ -230,13 +314,6 @@ export function LivePricesProvider({
     });
   }, []);
 
-  const onWsTick = useCallback(
-    (slug: string, yes: number, ts: number | null) => {
-      applyPrice(slug, yes, true, ts);
-    },
-    [applyPrice],
-  );
-
   // Candle baseline = trend vs start of visible history (real market move).
   useEffect(() => {
     for (const slug of prioritySlugs) {
@@ -262,25 +339,30 @@ export function LivePricesProvider({
     };
   }, []);
 
-  // Fast catalog poll — one request updates every visible mirror slug.
+  // Single shared poll loop (Plan 007). Replaces the old 1s full-catalog poll
+  // AND the per-card WebSockets. Fetches ONLY the union of priority + subscribed
+  // slugs, one `fetchLatestPrice` per slug, deduped. Falls back to mock-derived
+  // prices (disconnected) per slug when the API is down — mock data preserved.
   useEffect(() => {
     let dead = false;
 
     const poll = async () => {
-      try {
-        const fresh = await fetchMarkets();
-        if (dead) return;
-        ingestMarketPrices(fresh, (slug, price) => {
-          applyPrice(slug, price, true, Date.now() / 1000);
-        });
-      } catch {
-        // Whole-catalog fetch failed (backend down) — mark fallbacks as
-        // disconnected without a per-slug request fan-out.
-        for (const [slug, price] of Object.entries(fallbacksRef.current)) {
+      if (dead) return;
+      const reg = registryRef.current;
+      const slugs = selectPollSlugs(prioritySlugsRef.current, reg?.slugs() ?? []);
+      await Promise.all(
+        slugs.map(async (slug) => {
+          const live = await fetchLatestPrice(slug);
           if (dead) return;
-          applyPrice(slug, price, false, null);
-        }
-      }
+          if (live && typeof live.yes === "number") {
+            applyPrice(slug, live.yes, true, Date.now() / 1000);
+          } else {
+            // API down / no row for this slug — keep mock fallback, mark offline.
+            const fb = fallbacksRef.current[slug];
+            if (typeof fb === "number") applyPrice(slug, fb, false, null);
+          }
+        }),
+      );
     };
 
     void poll();
@@ -291,19 +373,49 @@ export function LivePricesProvider({
     };
   }, [applyPrice]);
 
-  return (
-    <>
-      {prioritySlugs.map((slug) => (
-        <LiveWsBridge key={slug} slug={slug} onTick={onWsTick} />
-      ))}
-      <LivePricesContext.Provider value={prices}>{children}</LivePricesContext.Provider>
-    </>
+  // Single multiplexed WS (Plan 007). One `/api/v1/ws/feed` connection carries
+  // every card's live price via `market.tick` frames; cards "subscribe" only by
+  // registering their slug in the registry above. A frame is applied iff its
+  // slug is a priority or subscribed slug. The 5s poll remains as fallback for
+  // slugs that haven't ticked yet / when the socket is down. Degrades silently
+  // when no backend WS base is configured (static export) — poll-only then.
+  useEffect(() => {
+    if (!wsBase()) return;
+    const isActive = (slug: string) =>
+      prioritySlugsRef.current.includes(slug) || (registryRef.current?.has(slug) ?? false);
+    const mux = new FeedMultiplexer(
+      () =>
+        typeof WebSocket === "undefined"
+          ? null
+          : (new WebSocket(`${wsBase()}/api/v1/ws/feed`) as unknown as FeedSocket),
+      (tick) => applyPrice(tick.slug, tick.yes, true, tick.ts),
+      isActive,
+    );
+    mux.start();
+    return () => mux.stop();
+  }, [applyPrice]);
+
+  const subscribe = useCallback((slug: string) => {
+    const reg = registryRef.current;
+    if (!reg) return () => {};
+    return reg.subscribe(slug);
+  }, []);
+
+  const ctx = useMemo<LivePricesContextValue>(
+    () => ({ prices, subscribe }),
+    [prices, subscribe],
   );
+
+  return <LivePricesContext.Provider value={ctx}>{children}</LivePricesContext.Provider>;
 }
 
 export function useLivePrice(slug: string, fallback: number): LivePriceState {
-  const ctx = useContext(LivePricesContext);
-  const tick = ctx[slug];
+  const { prices, subscribe } = useContext(LivePricesContext);
+  useEffect(() => {
+    const unsub = subscribe(slug);
+    return unsub;
+  }, [slug, subscribe]);
+  const tick = prices[slug];
   if (tick && (tick.price > 0 || tick.connected)) return tick;
   return {
     ...EMPTY,
@@ -314,5 +426,5 @@ export function useLivePrice(slug: string, fallback: number): LivePriceState {
 }
 
 export function useLivePricesMap(): Record<string, LivePriceState> {
-  return useContext(LivePricesContext);
+  return useContext(LivePricesContext).prices;
 }

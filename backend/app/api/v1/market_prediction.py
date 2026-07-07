@@ -5,8 +5,13 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import get_settings
+from app.forecasting.ensemble_providers import ensemble_forecast
 from app.forecasting.predictor import predict_market
-from app.schemas.market_prediction import MarketPredictionResponse
+from app.forecasting.router import ModelRouter
+from app.schemas.market_prediction import (
+    EnsembleForecast,
+    MarketPredictionResponse,
+)
 from app.services import market_service
 from app.services.market_service import CATALOG_SLUGS
 
@@ -48,6 +53,11 @@ async def get_market_prediction(slug: str) -> MarketPredictionResponse:
         },
     )
 
+    # LLM ensemble (flag-gated) — a SEPARATE probability from the XGBoost judge
+    # above. Degrades to None (single-model baseline) with 0 providers or if
+    # every provider fails; never raises into the response.
+    ensemble = await _maybe_ensemble(slug, implied_prob)
+
     return MarketPredictionResponse(
         slug=slug,
         predicted_prob=prediction.predicted_prob,
@@ -57,4 +67,23 @@ async def get_market_prediction(slug: str) -> MarketPredictionResponse:
         reason=prediction.reason,
         provisional=_is_provisional(slug, prediction.is_edge, prediction.reason),
         paper_trading_only=settings.paper_trading_only,
+        ensemble=ensemble,
     )
+
+
+async def _maybe_ensemble(slug: str, implied_prob: float) -> EnsembleForecast | None:
+    """Run the LLM ensemble for *slug*, returning None on any degradation path."""
+    if not getattr(settings, "ensemble_enabled", False):
+        return None
+    category = ModelRouter().category_from_features({"market_slug": slug})
+    question = f"Will the market '{slug}' resolve YES?"
+    context = f"Current market-implied YES probability: {implied_prob:.3f}."
+    try:
+        result = await ensemble_forecast(
+            question, context, settings, market_category=category
+        )
+    except Exception:  # noqa: BLE001 - the ensemble must never break the baseline
+        return None
+    if not result:
+        return None
+    return EnsembleForecast(**result)

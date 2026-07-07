@@ -242,9 +242,11 @@ class Settings(BaseSettings):
     digest_distribution_enabled: bool = Field(
         default=False, alias="DIGEST_DISTRIBUTION_ENABLED"
     )
-    # Multi-model ensemble + router (U08) — OFF by default (AutoLab-gated).
-    # Flag stays OFF until walk-forward Brier of ensemble < single-model baseline.
-    ensemble_enabled: bool = Field(default=False, alias="ENSEMBLE_ENABLED")
+    # Multi-model ensemble + router (U08 / loop4).
+    # Default ON: SAFE because the ensemble degrades to however many LLM keys are
+    # configured (4 → 1 → 0). With 0 providers, or if every provider fails, the
+    # prediction path falls back byte-identically to the single-model baseline.
+    ensemble_enabled: bool = Field(default=True, alias="ENSEMBLE_ENABLED")
     # JSON string: {"NBA": "single", "Elections": "single", "default": "single"}
     # All categories default to "single" until the CLV gate passes.
     ensemble_router_config: str = Field(

@@ -150,6 +150,64 @@ def combine_estimates(
 # ---------------------------------------------------------------------------
 
 
+def aggregate(predictions: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate LLM-provider probability estimates into an uncertainty-aware dict.
+
+    This is the flag-wired entrypoint used by the prediction path (see
+    ``ensemble_providers.ensemble_forecast``). It is deliberately dict-in/dict-out
+    so the API can serialise it directly without dragging the dataclass layer
+    into the schema.
+
+    Parameters
+    ----------
+    predictions:
+        A list of ``{"prob": float, "provider": str, "rationale": str}`` dicts —
+        one per LLM provider that answered. ``rationale`` is optional.
+
+    Returns
+    -------
+    dict with keys:
+        prob         weighted (here: equal-weight) mean probability, clamped [0,1]
+        stdev        population standard deviation of the per-provider probs
+                     (0.0 for a single model — degrades cleanly)
+        n_models     number of providers that contributed
+        spread_flag  True when stdev > 0.15 (providers materially disagree)
+        per_model    [{provider, prob, rationale}, ...] for transparency
+
+    Raises
+    ------
+    ValueError
+        If ``predictions`` is empty — callers must fall back to the single-model
+        baseline rather than aggregate nothing.
+    """
+    if not predictions:
+        raise ValueError("aggregate requires at least one prediction")
+
+    probs = [_clamp(float(p["prob"])) for p in predictions]
+    n = len(probs)
+    mean = sum(probs) / n
+    if n <= 1:
+        stdev = 0.0
+    else:
+        variance = sum((x - mean) ** 2 for x in probs) / n
+        stdev = math.sqrt(variance)
+
+    return {
+        "prob": _clamp(mean),
+        "stdev": stdev,
+        "n_models": n,
+        "spread_flag": stdev > 0.15,
+        "per_model": [
+            {
+                "provider": str(p.get("provider", "unknown")),
+                "prob": _clamp(float(p["prob"])),
+                "rationale": str(p.get("rationale", "")),
+            }
+            for p in predictions
+        ],
+    }
+
+
 def ensemble_predict(
     features: dict[str, Any],
     model_estimates: Sequence[ModelEstimate],

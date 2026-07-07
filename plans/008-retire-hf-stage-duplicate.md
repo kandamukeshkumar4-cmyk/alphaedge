@@ -65,6 +65,36 @@ Add a script or test that fails if `hf_stage/app` differs from `backend/app` for
 
 ## Done criteria
 
-- [ ] Clear doc: where to edit for live mirror
-- [ ] `plans/README.md` row 008 → DONE
-- [ ] No accidental deletion of HF deploy path without sign-off
+- [x] Clear doc: where to edit for live mirror
+- [x] `plans/README.md` row 008 → DONE
+- [x] No accidental deletion of HF deploy path without sign-off
+
+## Resolution (2026-07-07, loop 8 — one canonical stack, verified live)
+
+Deploy-path drift resolved by **declaration**, not deletion (per the "document
+only" default and STOP conditions):
+
+- **Canonical stack declared** in `README.md` → "Canonical live stack (one
+  stack, verified live)": HF Docker Space backend
+  (`mukeshkumar007-alphaedge-api.hf.space`) + Azure Static Web Apps frontend
+  (`proud-meadow-01b42b810.7.azurestaticapps.net`) + Neon Postgres. This is what
+  the deployed frontend bundle (`frontend/src/lib/alphaedge-api.ts`) and the
+  uptime monitor (`demo-uptime.yml`) actually target. Railway/Vercel/Koyeb/Azure
+  Container Apps are reframed as alternate recipes, not parallel production.
+- **Drift corrected:** the earlier note that "Azure production uses `backend/`
+  via `deploy_azure_live.ps1`" is superseded — the live frontend + monitor point
+  at the HF Space, whose workflow copies `backend/` at build time. Canonical code
+  remains `backend/`.
+- **`hf_stage/` staleness:** the local `hf_stage/`, `hf_stage_clean/`, and
+  `hf_space_deploy/` trees were gitignored, **untracked** local scratch (0 tracked
+  files) — the HF workflow regenerates `hf_stage/` fresh from `backend/.` at
+  deploy time. Removed the stale local copies so no one edits the wrong tree. No
+  tracked file or deploy path was deleted; `deploy-config` tests stay green.
+- **Verified live 2026-07-07:** backend `/health` → `200`
+  `{"paper_trading_only": true}`; frontend → `200`. Both backends (HF + the
+  leftover Azure Container Apps instance) respond, but the canonical/monitored
+  target is the HF Space.
+
+```text
+AutoLab: baseline=deploy-config 27/27 green + live /health 200 | benchmark=backend/tests/test_deploy_config.py + curl canonical stack | iterations=1 (declare canonical stack, remove untracked hf_stage scratch) | budget=1/1 | outcome=improved (one canonical stack documented, verified live)
+```

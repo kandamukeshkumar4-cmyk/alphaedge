@@ -22,7 +22,7 @@ Gate (must stay green after every ticket):
 | U5 | Auth pages restyle + signup → onboarding handoff | DONE 2026-07-03 | Quest tokens inherited via retheme; signup clears ae_quest_onboarding_v1 so tour fires post-signup |
 | U6 | Alerts surface (backend route + `/alerts` page) | DONE 2026-07-03 | backend `app/api/v1/activity.py` (`GET /api/v1/alerts`, `GET /api/v1/signals/events`) + tests; frontend `/alerts` page with Dispatched/Engine-room tabs; bell icon in header |
 | U7 | Whale/news activity feed on market detail | DONE 2026-07-03 | QuestMarketActivity.tsx (per-market signal events, hidden when empty) mounted in detail right rail; nav completeness: Forecast in top nav, Eval/Mirror/Alerts/Portfolio in mobile menu |
-| U8 | Migrate quest/* components onto Astryx primitives | TODO | follow frontend/.claude/CLAUDE.md |
+| U8 | Migrate quest/* components onto Astryx primitives | RETIRED | retired per E10 mandate conflict, see goals/build-loop-e2e/STATE.md |
 
 ## Loop protocol
 1. Pick first TODO ticket. 2. Implement smallest shippable slice.
