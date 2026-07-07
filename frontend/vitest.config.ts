@@ -15,5 +15,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Unit tests live under src/. Exclude e2e/ so Playwright specs (which use
+    // @playwright/test, not vitest) are not collected by `vitest run`.
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
 });

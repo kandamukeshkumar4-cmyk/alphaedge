@@ -61,6 +61,73 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - name: Start stack (db, redis, api + migrations on boot)
+        run: docker compose up -d --build db redis api
+      - name: Wait for API /health (120s timeout)
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health || true)
+            if [ "$code" = "200" ]; then
+              echo "API healthy after $((i*2))s"
+              exit 0
+            fi
+            echo "waiting for API... ($((i*2))s, last=$code)"
+            sleep 2
+          done
+          echo "API did not become healthy within 120s" >&2
+          docker compose logs api >&2
+          exit 1
+      - name: Sync backend test deps
+        run: uv sync --extra dev
+        working-directory: backend
+      - name: Run smoke tests
+        run: uv run pytest tests/smoke/ --base-url http://localhost:8000 -v
+        working-directory: backend
+      - name: Run demo richness assertions
+        run: uv run pytest tests/smoke/test_demo_richness.py --base-url http://localhost:8000 -v
+        working-directory: backend
+        env:
+          DEMO_RICHNESS: "1"
+      - name: Dump API logs on failure
+        if: failure()
+        run: docker compose logs api
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v
+
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build frontend
+        run: npm run build
+      - name: Run Playwright E2E (mock fallback, no backend)
+        run: npm run e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
   extension:
     runs-on: ubuntu-latest
     defaults:
