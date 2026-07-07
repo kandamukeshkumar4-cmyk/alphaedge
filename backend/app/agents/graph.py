@@ -138,6 +138,43 @@ def memory_node(state: AgentState) -> AgentState:
     return state
 
 
+# ── market-tools node ─────────────────────────────────────────────────────────
+# Native implementation of the report's MCP "tool node" capability: on-demand
+# order-book / price-history / whale-activity data attached to agent context.
+#
+# Like memory_node, this node is SYNC while the tools are async + DB-backed, so it
+# follows the same provider pattern: an async caller pre-injects results into
+# ``features['market_tools']`` (see AgentRunService), or a sync provider is bound
+# via ``set_market_tools_provider``. Either way the node is CONTEXT-ONLY — it never
+# mutates predicted_prob / confidence / order_intent and never calls RiskService.
+_MARKET_TOOLS_PROVIDER: Callable[[str], dict[str, Any]] | None = None
+
+
+def set_market_tools_provider(fn: Callable[[str], dict[str, Any]] | None) -> None:
+    """Register a sync callable ``(market_slug) -> market-tools dict``."""
+    global _MARKET_TOOLS_PROVIDER
+    _MARKET_TOOLS_PROVIDER = fn
+
+
+def market_tools_node(state: AgentState) -> AgentState:
+    """Attach on-demand market-data tool output to the reasoning context."""
+    features = dict(state.features)
+    results = features.get("market_tools")
+    if results is None and _MARKET_TOOLS_PROVIDER is not None:
+        try:
+            results = _MARKET_TOOLS_PROVIDER(state.market_slug)
+        except Exception as exc:  # noqa: BLE001 - tool calls must never break a run
+            state.errors.append(f"market_tools skipped: {exc}")
+            results = None
+    if results:
+        from app.agents.tools import summarize_tools_used
+
+        features["market_tools"] = results
+        features["tools_used"] = results.get("tools_used") or summarize_tools_used(results)
+    state.features = features
+    return state
+
+
 def prediction_node(state: AgentState) -> AgentState:
     prediction = predict_market(state.features)
     state.predicted_prob = prediction.predicted_prob
@@ -208,13 +245,32 @@ def reasoning_node(state: AgentState) -> AgentState:
     memory_context = state.features.get("memory_context")
     if memory_context:
         memory_note = f" Memory: {memory_context}"
+    tools_note = _tools_note(state.features.get("tools_used"))
     state.reasoning = (
         f"Model predicts {state.predicted_prob:.2%} vs market "
         f"{state.features.get('implied_yes', 0.5):.2%}. "
         f"{state.features.get('forecast_gate_reason', 'forecast gate unavailable')}. "
-        f"Risk {'approved' if state.approved else 'rejected'}.{news_note}{memory_note}"
+        f"Risk {'approved' if state.approved else 'rejected'}.{news_note}{memory_note}{tools_note}"
     )
     return state
+
+
+def _tools_note(tools_used: Any) -> str:
+    """Fold market-tool key figures (spread, whale count) into the reasoning line."""
+    if not isinstance(tools_used, list) or not tools_used:
+        return ""
+    by_name = {t.get("tool"): t for t in tools_used if isinstance(t, dict)}
+    parts: list[str] = []
+    ob = by_name.get("get_order_book_summary", {})
+    if isinstance(ob.get("spread"), (int, float)):
+        parts.append(f"spread {ob['spread']:.3f}")
+    wh = by_name.get("get_whale_activity", {})
+    if isinstance(wh.get("whale_count"), int):
+        parts.append(f"{wh['whale_count']} whale move(s)")
+    ph = by_name.get("get_price_history", {})
+    if isinstance(ph.get("points"), int) and ph["points"]:
+        parts.append(f"{ph['points']} price pts")
+    return f" Tools: {', '.join(parts)}." if parts else ""
 
 
 def execute_node(state: AgentState) -> AgentState:
@@ -229,6 +285,7 @@ GRAPH_NODES: list[tuple[str, Callable[[AgentState], AgentState]]] = [
     ("memory", memory_node),
     ("prediction", prediction_node),
     ("risk", risk_node),
+    ("market_tools", market_tools_node),
     ("reasoning", reasoning_node),
     ("execute", execute_node),
 ]
@@ -249,7 +306,8 @@ def _build_langgraph():
     graph.add_edge("news", "memory")
     graph.add_edge("memory", "prediction")
     graph.add_edge("prediction", "risk")
-    graph.add_edge("risk", "reasoning")
+    graph.add_edge("risk", "market_tools")
+    graph.add_edge("market_tools", "reasoning")
     graph.add_edge("reasoning", "execute")
     graph.add_edge("execute", END)
     return graph.compile()

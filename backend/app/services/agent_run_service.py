@@ -31,6 +31,13 @@ class AgentRunService:
         features: dict[str, Any] | None = None,
     ) -> tuple[AgentRun, AgentState, list[AgentRunStep]]:
         started_at = await self._next_run_timestamp()
+        features = dict(features or {})
+        if "market_tools" not in features:
+            # Pre-inject market-data tool output (order book / price history / whale
+            # activity, run concurrently) so the sync market_tools node has data.
+            from app.agents.tools import gather_market_tools
+
+            features["market_tools"] = await gather_market_tools(self.session, market.slug)
         state, trace = run_agent_graph_with_trace(market.slug, features)
         status = "approved" if state.approved else "blocked"
         run = AgentRun(

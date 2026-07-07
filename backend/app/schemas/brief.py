@@ -46,6 +46,23 @@ class Claim(BaseModel):
         return v
 
 
+class ToolUsage(BaseModel):
+    """A market-data tool the agent graph invoked, with its key figures.
+
+    Populated from the ``market_tools`` graph node's ``tools_used`` summary so the
+    frontend can render what on-demand data informed the forecast.
+    """
+
+    tool: str = Field(min_length=1, max_length=64)
+    spread: Optional[float] = None
+    best_bid: Optional[float] = None
+    best_ask: Optional[float] = None
+    points: Optional[int] = None
+    last: Optional[float] = None
+    whale_count: Optional[int] = None
+    error: Optional[str] = None
+
+
 class AnalystBriefModel(BaseModel):
     market_slug: str = Field(min_length=1, max_length=128)
     trigger_event_id: Optional[str] = None
@@ -57,6 +74,8 @@ class AnalystBriefModel(BaseModel):
     prompt_version: str = "v1"
     generator: str = "llm"  # "llm" | "fallback"
     latency_ms: float = 0.0
+    # Market-data tools that informed the forecast (from the market_tools node).
+    tools_used: Optional[list[ToolUsage]] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @field_validator("citations")
