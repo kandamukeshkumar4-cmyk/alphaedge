@@ -61,6 +61,12 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_MODEL_DEEP: ${{ secrets.LLM_MODEL_DEEP }}
+          # Per-use-case model routing — without these the analyst/chat fall back
+          # to their placeholder config defaults (e.g. z-ai/glm-5.2), which are not
+          # real NIM catalog ids, so every LLM call 404s → generator=fallback.
+          LLM_MODEL_CHAT: ${{ secrets.LLM_MODEL_CHAT }}
+          LLM_MODEL_ANALYST: ${{ secrets.LLM_MODEL_ANALYST }}
+          LLM_MODEL_ANALYST_DEEP: ${{ secrets.LLM_MODEL_ANALYST_DEEP }}
           NIM_API_KEY: ${{ secrets.NIM_API_KEY }}
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -159,6 +165,9 @@ jobs:
               "LLM_API_KEY",
               "LLM_MODEL",
               "LLM_MODEL_DEEP",
+              "LLM_MODEL_CHAT",
+              "LLM_MODEL_ANALYST",
+              "LLM_MODEL_ANALYST_DEEP",
               "NIM_API_KEY",
               "EXA_API_KEY",
               "FRED_API_KEY",
