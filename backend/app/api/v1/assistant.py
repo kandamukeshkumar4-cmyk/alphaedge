@@ -20,12 +20,15 @@ shapes for the allowlist.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.api.v1.deps import get_optional_user
 from app.core.config import get_settings
+from app.db.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +55,32 @@ assert "submit_order_intent" not in ASSISTANT_ALLOWED_TOOLS, (
 )
 
 ANALYSIS_ONLY_BANNER = "Analysis only — this assistant cannot place trades."
+
+# ── Anonymous per-IP rate limiter ────────────────────────────────────────────
+# The chat endpoint keeps an anonymous public path (the demo works with no
+# login). Authenticated requests bypass this; anonymous traffic is bounded per
+# IP via a simple in-memory fixed-window counter. Process-local by design —
+# fine for a single API process and zero-external-state on the free tier.
+_ANON_WINDOW_SEC = 60.0
+_anon_window: dict[str, tuple[int, float]] = {}
+
+
+def _anon_allowed(ip: str, limit: int) -> bool:
+    """Fixed-window per-IP counter. Returns True when the request is allowed."""
+    now = time.monotonic()
+    count, start = _anon_window.get(ip, (0, now))
+    if now - start >= _ANON_WINDOW_SEC:
+        count, start = 0, now
+    if count >= limit:
+        _anon_window[ip] = (count, start)
+        return False
+    _anon_window[ip] = (count + 1, start)
+    return True
+
+
+def _reset_anon_rate_limiter() -> None:
+    """Clear the in-memory anon rate-limit state (test helper)."""
+    _anon_window.clear()
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -373,13 +402,34 @@ async def _llm_reply(
 
 
 @router.post("/assistant/chat", response_model=AssistantChatResponse)
-async def assistant_chat(body: AssistantChatRequest) -> AssistantChatResponse:
+async def assistant_chat(
+    body: AssistantChatRequest,
+    request: Request,
+    current_user: User | None = Depends(get_optional_user),
+) -> AssistantChatResponse:
     """Analysis-only chat.  Cannot emit order intents.
 
     Uses read-only context: news signals, model features, exposure (U04),
     briefs (T12), agent trace (U03). Works with no LLM key via deterministic
     fallback.
+
+    Auth: optional. A valid bearer token authenticates the caller and bypasses
+    the per-IP limit. Anonymous calls (no token) are rate-limited per IP
+    (ASSISTANT_ANON_RATE_PER_MIN, default 10/min) so the public demo keeps
+    working while preventing unbounded abuse.
     """
+    if current_user is None:
+        ip = request.client.host if request.client else "unknown"
+        limit = get_settings().assistant_anon_rate_per_min
+        if not _anon_allowed(ip, limit):
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Rate limit exceeded for anonymous assistant chat. "
+                    "Sign in to continue."
+                ),
+            )
+
     market_slug = body.market_slug
     ctx: dict[str, Any] = {}
 

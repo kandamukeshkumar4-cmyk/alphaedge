@@ -385,3 +385,136 @@ async def test_lapse_expired_markets_locks_past_lock_at(db_session):
     await db_session.refresh(future)
     assert expired.status == MarketStatus.LOCKED
     assert future.status == MarketStatus.OPEN
+
+
+# ── plan 003: LivePriceTickService extraction ────────────────────────────────
+
+
+async def fake_noop_publish(slug, payload):
+    return None
+
+
+@pytest.mark.asyncio
+async def test_live_price_tick_service_extracted_from_worker(db_session, monkeypatch):
+    """Plan 003: the tick orchestration now lives in LivePriceTickService and
+    the worker delegates to it — behaviour unchanged."""
+    from app.services.live_price_tick import LivePriceTickService
+
+    market = await _import_live_market(db_session)
+    snapshots = {market.external_slug: _snapshot(0.17)}
+    fake_poly = FakeConnector(snapshots=snapshots)
+    monkeypatch.setattr("app.workers.price_feed_worker.hub.publish", fake_noop_publish)
+
+    results = await LivePriceTickService(
+        db_session,
+        poly_connector_cls=lambda: fake_poly,
+    ).run_once()
+
+    assert results[market.slug] == "ok"
+    row = await db_session.scalar(
+        select(OddsSnapshot)
+        .where(OddsSnapshot.market_slug == market.slug)
+        .order_by(OddsSnapshot.captured_at.desc())
+        .limit(1)
+    )
+    assert row is not None and float(row.implied_yes) == 0.17
+
+
+# ── plan 004: SharedKalshiFetcher — 429 backoff + shared event cache ─────────
+
+
+def _kalshi_429_error():
+    import httpx
+
+    request = httpx.Request("GET", "https://kalshi.test/events")
+    response = httpx.Response(429, request=request)
+    return httpx.HTTPStatusError("429 Too Many Requests", request=request, response=response)
+
+
+class _FlakyKalshiConnector:
+    """Raises 429 on the first N calls, then returns ``payload``."""
+
+    def __init__(self, payload, fail_times: int = 1):
+        self.payload = payload
+        self.fail_times = fail_times
+        self.calls = 0
+
+    def list_open_events(self, *, limit=200):
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise _kalshi_429_error()
+        return self.payload
+
+    def list_open_markets(self, **kwargs):
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise _kalshi_429_error()
+        return self.payload
+
+
+def test_shared_kalshi_fetcher_retries_on_429():
+    """Plan 004: a Kalshi 429 is retred with backoff instead of zeroing the
+    ingest/tick pass. The sleep is stubbed so the test is fast."""
+    from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
+
+    payload = [{"event_ticker": "KXABC"}]
+    connector = _FlakyKalshiConnector(payload, fail_times=1)
+    fetcher = SharedKalshiFetcher(connector, sleep=lambda _s: None)
+
+    events = fetcher.list_open_events(limit=200)
+
+    assert events == payload
+    assert connector.calls == 2  # one 429, one success
+
+
+def test_shared_kalshi_fetcher_gives_up_after_max_retries():
+    """After max_429_retries the 429 propagates so callers see the failure."""
+    from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
+
+    import httpx
+
+    connector = _FlakyKalshiConnector([], fail_times=99)
+    fetcher = SharedKalshiFetcher(connector, max_429_retries=2, sleep=lambda _s: None)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        fetcher.list_open_events(limit=200)
+    # 1 initial + 2 retries = 3 attempts
+    assert connector.calls == 3
+
+
+def test_shared_kalshi_fetcher_caches_open_events_within_ttl():
+    """Plan 004: repeated event fetches within the TTL hit the cache, not the
+    upstream — coalescing the tick + ingest calls."""
+    from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
+
+    payload = [{"event_ticker": "KXABC"}]
+    connector = _FlakyKalshiConnector(payload, fail_times=0)
+    fetcher = SharedKalshiFetcher(connector, ttl_sec=60.0, sleep=lambda _s: None)
+
+    first = fetcher.list_open_events(limit=200)
+    second = fetcher.list_open_events(limit=200)
+
+    assert first == second == payload
+    assert connector.calls == 1  # cached on the second call
+
+
+def test_shared_kalshi_fetcher_propagates_non_429_errors():
+    """Non-429 HTTP errors must propagate immediately — only 429 is retried."""
+    import httpx
+
+    from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
+
+    class _500Connector:
+        calls = 0
+
+        def list_open_events(self, *, limit=200):
+            self.calls += 1
+            request = httpx.Request("GET", "https://kalshi.test/events")
+            response = httpx.Response(500, request=request)
+            raise httpx.HTTPStatusError("500", request=request, response=response)
+
+    fetcher = SharedKalshiFetcher(_500Connector(), sleep=lambda _s: None)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        fetcher.list_open_events(limit=200)
+    assert fetcher.connector.calls == 1  # no retry on 500

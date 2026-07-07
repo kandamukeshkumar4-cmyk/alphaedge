@@ -1,15 +1,15 @@
 # AlphaEdge improvement plans
 
-Updated 2026-06-12. Plans 005–006 shipped; API image **kalshi4**.
+Updated 2026-07-07. Plans 003–006 shipped; API image **kalshi4**.
 
 ## Status table
 
 | # | Plan | Status | Depends on | Category |
 |---|------|--------|------------|----------|
 | 001 | Kalshi UI parity hero | DONE | API live | ui |
-| 002 | Consolidate live-price hooks | PARTIAL | 001 | tech-debt |
-| 003 | Extract `LivePriceTickService` from worker | TODO | — | tech-debt |
-| 004 | Kalshi 429 backoff + shared event fetcher | TODO | 003 | perf |
+| 002 | Consolidate live-price hooks | PARTIAL (frontend-only; deferred — backend loop is out of scope here) | 001 | tech-debt |
+| 003 | Extract `LivePriceTickService` from worker | **DONE** | — | tech-debt |
+| 004 | Kalshi 429 backoff + shared event fetcher | **DONE** | 003 | perf |
 | 005 | [Kalshi live API parity](005-kalshi-live-api-parity.md) | **DONE** | — | bug |
 | 006 | [Seed snapshot on ingest](006-seed-snapshot-on-ingest.md) | **DONE** | 005 | bug |
 | 007 | [Multiplex WS + poll budget](007-multiplex-ws-frontend-poll.md) | TODO | 005 | perf |
@@ -20,8 +20,23 @@ Updated 2026-06-12. Plans 005–006 shipped; API image **kalshi4**.
 1. ~~**005**~~ — Kalshi candles/latest API
 2. ~~**006**~~ — seed snapshot on ingest
 3. **007** — frontend connection budget (execute next)
-5. **003** — worker refactor
-6. **008** — duplication cleanup
+4. ~~**003**~~ — worker refactor (`LivePriceTickService` extracted)
+5. **008** — duplication cleanup
+
+## Plan 003 / 004 notes (shipped 2026-07-07)
+
+- **003** — `LivePriceTickService` extracted into `backend/app/services/live_price_tick.py`;
+  `run_live_tick_once` is now a thin wrapper that passes the worker's connector
+  bindings to the service, so every existing caller and monkeypatch target keeps
+  working. `persist_and_publish_tick` / `lapse_expired_markets` stay in the worker.
+- **004** — `SharedKalshiFetcher` (`backend/app/data/connectors/kalshi_fetcher.py`)
+  wraps `KalshiConnector` with exponential 429 backoff + a short-TTL in-memory
+  cache for the event/board calls. `KalshiLiveIngestService` and the tick service
+  both route Kalshi event/board calls through it; the tick's per-ticker board slice
+  gets 429 backoff without a cache (fresh prices every tick).
+- **002** — frontend-only hook consolidation (`useMarketPrice` / `live-prices.tsx` /
+  `useLiveMarket`). Not implemented in this loop per the "do not touch frontend/"
+  constraint; left PARTIAL.
 
 ## Deploy notes
 

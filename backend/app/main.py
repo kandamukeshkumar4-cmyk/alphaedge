@@ -131,6 +131,76 @@ async def _eval_loop() -> None:
             logger.error("Eval loop failed", exc_info=True)
 
 
+# In-process mirrors of the ARQ cron jobs. The deployed free tier has no ARQ
+# worker (REDIS_URL=redis://disabled), so these periodic tasks must run inside
+# the API process. Each loop sleeps first (so a startup burst never fires the
+# task immediately), reuses the same interval the cron job uses in tasks.py,
+# is gated by its own settings flag, and isolates every pass in try/except so
+# one failing task can never crash the app.
+
+
+async def _news_scan_loop() -> None:
+    """Hourly news scan (mirrors ``cron(news_scan_task, minute={35})``)."""
+    from app.workers.tasks import news_scan_task
+
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await news_scan_task({})
+        except Exception:
+            logger.error("News scan loop failed", exc_info=True)
+
+
+async def _weather_scan_loop() -> None:
+    """Hourly weather scan (mirrors ``cron(weather_scan_task, minute={40})``)."""
+    from app.workers.tasks import weather_scan_task
+
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await weather_scan_task({})
+        except Exception:
+            logger.error("Weather scan loop failed", exc_info=True)
+
+
+async def _morning_research_loop() -> None:
+    """Daily research digest (mirrors ``cron(morning_research_task, hour={6})``)."""
+    from app.workers.tasks import morning_research_task
+
+    while True:
+        await asyncio.sleep(86400)
+        try:
+            await morning_research_task({})
+        except Exception:
+            logger.error("Morning research loop failed", exc_info=True)
+
+
+async def _whale_refresh_loop() -> None:
+    """Weekly whale re-qualification (mirrors
+    ``cron(refresh_whales_task, weekday={0}, hour={3})``)."""
+    from app.workers.tasks import refresh_whales_task
+
+    while True:
+        await asyncio.sleep(7 * 86400)
+        try:
+            await refresh_whales_task({})
+        except Exception:
+            logger.error("Whale refresh loop failed", exc_info=True)
+
+
+async def _wc2026_resolve_loop() -> None:
+    """Every 10 min WC2026 resolution sweep (mirrors
+    ``cron(wc2026_resolve_task, minute={5,15,25,35,45,55})``)."""
+    from app.workers.tasks import wc2026_resolve_task
+
+    while True:
+        await asyncio.sleep(600)
+        try:
+            await wc2026_resolve_task({})
+        except Exception:
+            logger.error("WC2026 resolve loop failed", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
@@ -148,6 +218,18 @@ async def lifespan(app: FastAPI):
 
     plan = background_loop_plan(settings)
     asyncio.create_task(_price_feed_loop())
+    # In-process mirrors of the ARQ cron jobs (free tier has no worker).
+    # Each is flag-gated and self-isolating; see the loop docstrings above.
+    if settings.scheduler_news_scan_enabled:
+        asyncio.create_task(_news_scan_loop())
+    if settings.scheduler_weather_scan_enabled:
+        asyncio.create_task(_weather_scan_loop())
+    if settings.scheduler_morning_research_enabled:
+        asyncio.create_task(_morning_research_loop())
+    if settings.scheduler_whale_refresh_enabled:
+        asyncio.create_task(_whale_refresh_loop())
+    if settings.scheduler_wc2026_resolve_enabled:
+        asyncio.create_task(_wc2026_resolve_loop())
     if settings.live_feed_enabled:
         async with AsyncSessionLocal() as session:
             try:

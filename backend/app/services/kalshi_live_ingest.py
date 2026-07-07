@@ -19,6 +19,7 @@ from app.data.connectors.kalshi import (
     implied_yes_from_kalshi_payload,
     is_distinguishing_outcome as _is_distinguishing_outcome,
 )
+from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
 from app.db.models import Market, MarketStatus
 from app.services.live_snapshot_seed import seed_initial_snapshot_if_missing
 
@@ -45,10 +46,15 @@ class KalshiLiveIngestService:
         self,
         session: AsyncSession,
         connector: KalshiConnector | None = None,
+        fetcher: SharedKalshiFetcher | None = None,
     ):
         self.session = session
         settings = get_settings()
         self.connector = connector or KalshiConnector(base_url=settings.kalshi_api_base_url)
+        # Plan 004: route event/board calls through the shared fetcher for
+        # 429 backoff + a short-TTL cache. Caller-supplied fetcher wins so
+        # tests can inject a fetcher that wraps a fake connector.
+        self._fetcher = fetcher or SharedKalshiFetcher(self.connector)
         self.series = settings.live_kalshi_series
 
     async def sync_open_events(
@@ -61,7 +67,7 @@ class KalshiLiveIngestService:
         not just the World Cup series)."""
         imported = updated = skipped = 0
         try:
-            events = await asyncio.to_thread(self.connector.list_open_events, limit=200)
+            events = await asyncio.to_thread(self._fetcher.list_open_events, limit=200)
         except Exception as error:
             logger.warning("Kalshi open-events list failed: %s", error)
             return {"imported": 0, "updated": 0, "skipped": 0}
@@ -70,7 +76,7 @@ class KalshiLiveIngestService:
         # the per-event fan-out (~100 calls/cycle) tripped Kalshi's rate limit
         # and left most catalog syncs half-finished behind 429s.
         try:
-            board = await asyncio.to_thread(self.connector.list_open_markets)
+            board = await asyncio.to_thread(self._fetcher.list_open_markets)
         except Exception as error:
             logger.warning("Kalshi open-markets board failed: %s", error)
             return {"imported": 0, "updated": 0, "skipped": 0}
@@ -130,7 +136,7 @@ class KalshiLiveIngestService:
         imported = updated = skipped = 0
         try:
             events = await asyncio.to_thread(
-                self.connector.list_series_events,
+                self._fetcher.list_series_events,
                 self.series,
                 limit=100,
             )
@@ -144,7 +150,7 @@ class KalshiLiveIngestService:
         # per-event fan-out that 429ed against Kalshi's rate limit.
         try:
             series_markets = await asyncio.to_thread(
-                self.connector.list_series_markets, self.series, limit=1000
+                self._fetcher.list_series_markets, self.series, limit=1000
             )
         except Exception as error:
             logger.warning("Kalshi series markets failed for %s: %s", self.series, error)

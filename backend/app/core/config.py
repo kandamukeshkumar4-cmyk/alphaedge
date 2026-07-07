@@ -37,6 +37,30 @@ class Settings(BaseSettings):
     live_ingest_min_volume_24h: float = Field(
         default=10_000.0, alias="LIVE_INGEST_MIN_VOLUME_24H"
     )
+    # In-process scheduler flags — the deployed free tier has no ARQ worker
+    # (REDIS_URL=redis://disabled), so the periodic worker tasks must run
+    # in-process inside the API. Each defaults to True; set to False to opt
+    # out of an individual loop without touching the others.
+    scheduler_news_scan_enabled: bool = Field(
+        default=True, alias="SCHEDULER_NEWS_SCAN_ENABLED"
+    )
+    scheduler_weather_scan_enabled: bool = Field(
+        default=True, alias="SCHEDULER_WEATHER_SCAN_ENABLED"
+    )
+    scheduler_morning_research_enabled: bool = Field(
+        default=True, alias="SCHEDULER_MORNING_RESEARCH_ENABLED"
+    )
+    scheduler_whale_refresh_enabled: bool = Field(
+        default=True, alias="SCHEDULER_WHALE_REFRESH_ENABLED"
+    )
+    scheduler_wc2026_resolve_enabled: bool = Field(
+        default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
+    )
+    # Per-IP rate limit for the anonymous (no-token) assistant chat path.
+    # Authenticated requests bypass this; anon demo traffic is bounded.
+    assistant_anon_rate_per_min: int = Field(
+        default=10, alias="ASSISTANT_ANON_RATE_PER_MIN"
+    )
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",

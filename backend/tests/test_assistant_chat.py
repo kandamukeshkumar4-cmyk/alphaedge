@@ -359,3 +359,101 @@ async def test_llm_reply_falls_back_without_any_key(monkeypatch) -> None:
     )
     assert reply
     assert tools, "deterministic fallback should report the tools it used"
+
+
+# ── 8. Auth + per-IP anonymous rate limit (security hardening) ────────────────
+
+
+def test_assistant_chat_anon_rate_limited_beyond_limit(client: TestClient, monkeypatch) -> None:
+    """Anonymous requests past ASSISTANT_ANON_RATE_PER_MIN must get 429."""
+    from app.api.v1.assistant import _reset_anon_rate_limiter
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "assistant_anon_rate_per_min", 2)
+    _reset_anon_rate_limiter()
+
+    payload = {"message": "Why did odds move today?"}
+    assert client.post("/api/v1/assistant/chat", json=payload).status_code == 200
+    assert client.post("/api/v1/assistant/chat", json=payload).status_code == 200
+    third = client.post("/api/v1/assistant/chat", json=payload)
+    assert third.status_code == 429
+    assert "rate limit" in third.json()["detail"].lower()
+
+
+def test_assistant_chat_valid_anon_request_within_limit_200(client: TestClient, monkeypatch) -> None:
+    """A valid anonymous request within the limit still gets 200."""
+    from app.api.v1.assistant import _reset_anon_rate_limiter
+
+    _reset_anon_rate_limiter()
+    resp = client.post(
+        "/api/v1/assistant/chat", json={"message": "Why did odds move today?"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["paper_trading_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_assistant_chat_authenticated_bypasses_rate_limit(db_session, monkeypatch) -> None:
+    """A valid bearer token authenticates the caller and bypasses the per-IP
+    anon limit, so logged-in users are never 429'd by the demo guard."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.api.v1.assistant import _reset_anon_rate_limiter
+    from app.core.config import get_settings
+    from app.db.session import get_db
+    from app.main import app
+
+    monkeypatch.setattr(get_settings(), "assistant_anon_rate_per_min", 1)
+    _reset_anon_rate_limiter()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
+            signup = await ac.post(
+                "/api/v1/auth/signup",
+                json={"email": "asst@example.com", "password": "securepass1"},
+            )
+            assert signup.status_code == 201
+            token = signup.json()["access_token"]
+            headers = {"Authorization": f"Bearer {token}"}
+            payload = {"message": "Why did odds move today?"}
+            r1 = await ac.post("/api/v1/assistant/chat", json=payload, headers=headers)
+            r2 = await ac.post("/api/v1/assistant/chat", json=payload, headers=headers)
+            assert r1.status_code == 200
+            assert r2.status_code == 200  # would be 429 if anon limit applied
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_assistant_chat_invalid_token_rejected_401(db_session, monkeypatch) -> None:
+    """An invalid bearer token must still 401 (optional auth ≠ no auth)."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.api.v1.assistant import _reset_anon_rate_limiter
+    from app.db.session import get_db
+    from app.main import app
+
+    _reset_anon_rate_limiter()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
+            resp = await ac.post(
+                "/api/v1/assistant/chat",
+                json={"message": "hi"},
+                headers={"Authorization": "Bearer not-a-real-token"},
+            )
+            assert resp.status_code == 401
+    finally:
+        app.dependency_overrides.clear()
