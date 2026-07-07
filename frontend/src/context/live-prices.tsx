@@ -121,6 +121,41 @@ export function collectPrioritySlugs(
   return [...slugs];
 }
 
+export function selectPollSlugs(priority: string[], subscribed: string[]): string[] {
+  const slugs = new Set<string>();
+  for (const s of [...priority, ...subscribed]) {
+    if (s) slugs.add(s);
+  }
+  return [...slugs];
+}
+
+export class SubscriptionRegistry {
+  private counts = new Map<string, number>();
+
+  subscribe(slug: string): () => void {
+    if (!slug) return () => {};
+    this.counts.set(slug, (this.counts.get(slug) ?? 0) + 1);
+    return () => {
+      const c = this.counts.get(slug);
+      if (c === undefined) return;
+      if (c <= 1) this.counts.delete(slug);
+      else this.counts.set(slug, c - 1);
+    };
+  }
+
+  has(slug: string): boolean {
+    return this.counts.has(slug);
+  }
+
+  size(): number {
+    return this.counts.size;
+  }
+
+  slugs(): string[] {
+    return [...this.counts.keys()];
+  }
+}
+
 export function LivePricesProvider({
   markets,
   prioritySlugs = [],

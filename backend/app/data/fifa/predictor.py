@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 _CACHE_PATH = Path(__file__).parent / ".model_cache.pkl"
 
 
-def _cache_is_fresh(path: Path, max_age_hours: int = 24) -> bool:
+def _cache_is_fresh(path: Path, max_age_hours: int = 168) -> bool:
     if not path.exists():
         return False
     mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
@@ -106,7 +106,7 @@ class FifaPredictor:
             return False
 
     def _load_and_train(self) -> None:
-        if _CACHE_PATH.exists() and _cache_is_fresh(_CACHE_PATH, max_age_hours=24):
+        if _CACHE_PATH.exists() and _cache_is_fresh(_CACHE_PATH, max_age_hours=168):
             with _CACHE_PATH.open("rb") as cache_file:
                 (
                     self._model,

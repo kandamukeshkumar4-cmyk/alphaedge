@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -13,7 +14,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url_sync)
+# Allow an explicit override for local dev (e.g. SQLite) without touching .env:
+#   ALEMBIC_DATABASE_URL_SYNC=sqlite:///./dev.db alembic upgrade head
+db_url_sync = os.getenv("ALEMBIC_DATABASE_URL_SYNC") or settings.database_url_sync
+config.set_main_option("sqlalchemy.url", db_url_sync)
 
 target_metadata = Base.metadata
 
@@ -37,7 +41,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = create_engine(settings.database_url_sync, poolclass=pool.NullPool)
+    connectable = create_engine(db_url_sync, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         do_run_migrations(connection)
 
