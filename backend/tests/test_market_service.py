@@ -4,7 +4,8 @@ from uuid import UUID
 import pytest
 from sqlalchemy import select
 
-from app.db.models import LedgerEntry, LedgerEntryType, MarketStatus
+from app.core import markets_cache
+from app.db.models import LedgerEntry, LedgerEntryType, MarketStatus, OrderOutcome
 from app.schemas.market import MarketResponse
 from app.services.market_service import MarketService
 
@@ -56,3 +57,48 @@ async def test_seed_system_account_records_single_initial_bankroll(db_session):
     assert len(ledger_entries) == 1
     assert ledger_entries[0].entry_type == LedgerEntryType.DEPOSIT
     assert ledger_entries[0].balance_after == Decimal("100000")
+
+
+# ── B01: public /markets cache must invalidate on every mutation ────────────
+# markets_cache.py's own docstring promises "resolve/lock/create must be
+# visible immediately" — create_market previously add+flush+emit'd with no
+# invalidation, so newly created markets stayed invisible on /markets until
+# the 3s TTL expired.
+
+
+@pytest.mark.asyncio
+async def test_create_market_invalidates_public_list_cache(db_session):
+    service = MarketService(db_session)
+    markets_cache.put(("all", "volume", None), ["stale-cached-list"])
+
+    await service.create_market(
+        slug="test-cache-create", title="t", question="q?",
+    )
+
+    assert markets_cache.get(("all", "volume", None)) is None
+
+
+@pytest.mark.asyncio
+async def test_lock_market_invalidates_public_list_cache(db_session):
+    service = MarketService(db_session)
+    market = await service.create_market(
+        slug="test-cache-lock", title="t", question="q?",
+    )
+    markets_cache.put(("all", "volume", None), ["stale-cached-list"])
+
+    await service.lock_market(market.id)
+
+    assert markets_cache.get(("all", "volume", None)) is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_market_invalidates_public_list_cache(db_session):
+    service = MarketService(db_session)
+    market = await service.create_market(
+        slug="test-cache-resolve", title="t", question="q?",
+    )
+    markets_cache.put(("all", "volume", None), ["stale-cached-list"])
+
+    await service.resolve_market(market.id, OrderOutcome.YES)
+
+    assert markets_cache.get(("all", "volume", None)) is None

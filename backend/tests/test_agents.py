@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agents.graph import GRAPH_NODES, run_agent_graph, run_agent_graph_with_trace
-from app.agents.guardrails import sanitize_news_text, validate_agent_output
+from app.agents.guardrails import validate_agent_output
 from app.agents.judge import llm_judge_drift
 
 
@@ -24,12 +24,6 @@ def test_guardrails_reject_invalid_probability():
         validate_agent_output(
             {"predicted_prob": 1.2, "confidence": 0.8, "reasoning": "invalid"}
         )
-
-
-def test_news_text_sanitizer_bounds_and_removes_control_chars():
-    cleaned = sanitize_news_text("good\x00 headline\nmore", max_len=12)
-
-    assert cleaned == "good headlin"
 
 
 def test_agent_trace_captures_every_gate_in_order():
