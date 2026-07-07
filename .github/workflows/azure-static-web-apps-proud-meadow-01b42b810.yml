@@ -6,7 +6,9 @@ on:
       api_url:
         description: "Public backend API URL to bake into the static frontend"
         required: true
-        default: "https://alphaedge-api.koyeb.app"
+        # Canonical backend = Hugging Face Space (see deploy-hf-space.yml and
+        # frontend/src/lib/alphaedge-api.ts). The old Koyeb URL is retired/dead.
+        default: "https://mukeshkumar007-alphaedge-api.hf.space"
   push:
     branches:
       - codex/alphaedge-base

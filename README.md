@@ -143,6 +143,9 @@ alphaedge/
 | `GEMINI_API_KEY` | LLM drift judge + agent reasoning (falls back to heuristics without it) |
 | `LANGSMITH_API_KEY` | Agent tracing |
 | `ODDS_API_KEY` | Live NBA odds (fixtures used when unset) |
+| `ENSEMBLE_ENABLED` | Multi-model ensemble router (**default `true`**); set `false` to force single-model |
+| `KALSHI_WS_ENABLED` / `POLYMARKET_WS_ENABLED` | Live WebSocket price streams (**default `true`** for both) |
+| `SCHEDULER_*_ENABLED` | In-process scheduled jobs — news scan, weather scan, morning research, whale refresh, WC2026 resolve (**default `true`**). On the workerless free tier (`REDIS_URL=redis://disabled`) these run inside the API process instead of an ARQ worker, so scheduled tasks work with no separate worker deployment. |
 
 ---
 

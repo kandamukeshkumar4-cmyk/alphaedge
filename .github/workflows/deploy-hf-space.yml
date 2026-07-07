@@ -647,3 +647,42 @@ jobs:
 
           raise SystemExit("ERROR: paper order lifecycle smoke did not pass in time.")
           PY
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run smoke suite against the deployed Space
+        working-directory: backend
+        env:
+          BASE_URL: https://mukeshkumar007-alphaedge-api.hf.space
+        run: |
+          uv sync --extra dev
+          uv run --extra dev pytest tests/smoke/ -q --base-url "${BASE_URL}"
+
+      - name: Check AI analysis mode (warn-only)
+        continue-on-error: true
+        run: |
+          body="$(mktemp)"
+          status=$(curl --silent --show-error --location --max-time 30 \
+            --output "$body" --write-out "%{http_code}" \
+            "https://mukeshkumar007-alphaedge-api.hf.space/api/v1/briefs?limit=1" || echo 000)
+          if [ "$status" != "200" ]; then
+            echo "::warning::/api/v1/briefs returned HTTP $status — cannot check AI mode"
+            exit 0
+          fi
+          python3 - "$body" << 'PY'
+          import json, sys
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          items = payload.get("items") or []
+          if not items:
+              print("::warning::No analyst briefs yet on the deployed demo")
+          elif items[0].get("generator") != "llm":
+              print(
+                  "::warning::LLM keys not synced to Space — latest analyst brief is "
+                  f"generator={items[0].get('generator')!r} (fallback, not llm). Run "
+                  "'Deploy Backend to HF Space' with sync_runtime_secrets=true after "
+                  "setting the LLM_* / NIM_API_KEY GitHub secrets."
+              )
+          else:
+              print("AI analysis is live (generator=llm)")
+          PY
