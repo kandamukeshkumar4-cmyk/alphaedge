@@ -72,6 +72,59 @@ async def test_response_has_all_required_fields():
 
 
 @pytest.mark.asyncio
+async def test_ensemble_absent_falls_back_to_baseline():
+    """Flag ON but no LLM keys in the test env -> ensemble degrades to None,
+    the response is the exact single-model baseline (fallback proof)."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
+
+    assert response.status_code == 200
+    assert response.json().get("ensemble") is None
+
+
+@pytest.mark.asyncio
+async def test_ensemble_attached_when_providers_answer(monkeypatch):
+    """When the ensemble returns an aggregate, the API exposes prob/stdev/
+    n_models/per-model rationales alongside the XGBoost judge probability."""
+    import app.api.v1.market_prediction as mp
+
+    async def _fake_forecast(question, context, settings, *, market_category=None):
+        return {
+            "prob": 0.62,
+            "stdev": 0.08,
+            "n_models": 3,
+            "spread_flag": False,
+            "per_model": [
+                {"provider": "primary:openai", "prob": 0.6, "rationale": "r1"},
+                {"provider": "deepseek", "prob": 0.55, "rationale": "r2"},
+                {"provider": "kimi", "prob": 0.71, "rationale": "r3"},
+            ],
+        }
+
+    monkeypatch.setattr(mp, "ensemble_forecast", _fake_forecast)
+    monkeypatch.setattr(mp.settings, "ensemble_enabled", True)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
+
+    assert response.status_code == 200
+    payload = response.json()
+    ens = payload["ensemble"]
+    assert ens is not None
+    assert ens["n_models"] == 3
+    assert ens["prob"] == pytest.approx(0.62)
+    assert len(ens["per_model"]) == 3
+    # XGBoost judge probability is still a SEPARATE field, untouched.
+    assert "predicted_prob" in payload
+
+
+@pytest.mark.asyncio
 async def test_provisional_markets_have_no_edge():
     async with AsyncClient(
         transport=ASGITransport(app=app),
