@@ -238,21 +238,37 @@ jobs:
             done
           }
 
+          command -v git-lfs >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y git-lfs
+          git lfs install --skip-repo
+
           rm -rf hf_space
-          retry_hf_git "HF Space clone" \
-            git clone "https://mukeshkumar007:${HF_TOKEN}@huggingface.co/spaces/mukeshkumar007/alphaedge-api" hf_space
+          if ! retry_hf_git "HF Space clone" \
+            git clone "https://mukeshkumar007:${HF_TOKEN}@huggingface.co/spaces/mukeshkumar007/alphaedge-api" hf_space; then
+            echo "::error::HF Space clone permanently failed — see logs above for the reason."
+            exit 1
+          fi
 
           cd hf_space
+          git lfs install
           # Clear old content but preserve .git
           find . -mindepth 1 -not -path './.git' -not -path './.git/*' -delete
           cp -r ../hf_stage/. .
+
+          # HF Spaces' git server rejects plain-git binary blobs outright (pre-receive
+          # hook, no retry will help) — large/binary artifacts (e.g. the WC2026 model
+          # pickle) must go through Git LFS instead.
+          git lfs track "*.pkl" "*.parquet" "*.npy" "*.npz" "*.onnx" "*.db" "*.sqlite" "*.sqlite3"
+          git add .gitattributes
 
           git add -A
           if git diff --cached --quiet; then
             echo "No changes - skipping push"
           else
             git commit -m "deploy: backend @ ${{ github.sha }}"
-            retry_hf_git "HF Space push" git push
+            if ! retry_hf_git "HF Space push" git push; then
+              echo "::error::HF Space push permanently failed — see the 'remote:' rejection reason above. This is NOT a transient failure; retrying further will not help."
+              exit 1
+            fi
           fi
 
           space_sha=$(git rev-parse HEAD)
