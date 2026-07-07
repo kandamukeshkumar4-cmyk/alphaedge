@@ -148,6 +148,34 @@ alphaedge/
 
 ## Deploy (Week 5)
 
+### Canonical live stack (one stack, verified live)
+
+AlphaEdge runs as **one canonical deployment stack**. The deployed frontend
+bundle (`frontend/src/lib/alphaedge-api.ts`) and the uptime monitor
+(`.github/workflows/demo-uptime.yml`) both target the URLs below — this table is
+the single source of truth. Every other subsection in this Deploy area is an
+**alternate/fallback recipe kept for portability, not a parallel production
+deployment**, and none of them is monitored.
+
+| Layer | Service | URL | Deploy path |
+|---|---|---|---|
+| Backend API + worker | Hugging Face Docker Space | `https://mukeshkumar007-alphaedge-api.hf.space` | `.github/workflows/deploy-hf-space.yml` (copies `backend/` at build time) |
+| Frontend | Azure Static Web Apps | `https://proud-meadow-01b42b810.7.azurestaticapps.net` | `.github/workflows/azure-static-web-apps-proud-meadow-01b42b810.yml` |
+| Database | Neon Postgres | (private) | `NEON_DATABASE_URL` GitHub secret |
+
+- **Canonical code is `backend/`.** The HF Space workflow copies `backend/` at
+  build time; the local `hf_stage/` scratch tree is a CI artifact, not a source
+  of truth — never edit features there.
+- Verify the live stack end-to-end with
+  `scripts/verify_hf_paper_trading_ready.ps1` (health, canonical market, paper
+  order lifecycle, admin agent proof, frontend API URL).
+- **Last verified live: 2026-07-07** — backend `/health` → `200`
+  `paper_trading_only=true`; frontend → `200`.
+
+> Railway, Vercel, Koyeb, and Azure Container Apps below are alternate deploy
+> targets. They are not the live stack — do not point users at them as
+> production without re-pointing the frontend and uptime monitor first.
+
 ### Railway (API + worker)
 
 - API service config: `backend/railway.toml` (Dockerfile build; service **Root Directory must be `backend`**)

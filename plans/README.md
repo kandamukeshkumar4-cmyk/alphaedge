@@ -13,7 +13,7 @@ Updated 2026-07-07. Plans 003–006 shipped; API image **kalshi4**.
 | 005 | [Kalshi live API parity](005-kalshi-live-api-parity.md) | **DONE** | — | bug |
 | 006 | [Seed snapshot on ingest](006-seed-snapshot-on-ingest.md) | **DONE** | 005 | bug |
 | 007 | [Multiplex WS + poll budget](007-multiplex-ws-frontend-poll.md) | TODO | 005 | perf |
-| 008 | [Retire/document hf_stage](008-retire-hf-stage-duplicate.md) | TODO | — | tech-debt |
+| 008 | [Retire/document hf_stage](008-retire-hf-stage-duplicate.md) | **DONE** | — | tech-debt |
 
 ## Recommended execution order
 
