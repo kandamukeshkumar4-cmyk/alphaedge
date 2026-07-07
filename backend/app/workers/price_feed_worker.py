@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broadcast import hub
+from app.core.event_bus import get_event_bus
 from app.data.connectors.catalog_map import CATALOG_MAP
 from app.data.connectors.kalshi import KalshiConnector
 from app.data.connectors.polymarket import PolymarketGammaConnector
@@ -74,16 +75,15 @@ async def persist_and_publish_tick(
         )
 
     alert = prev_yes is not None and abs(yes - prev_yes) >= 0.05
-    await hub.publish(
-        slug,
-        {
-            "slug": slug,
-            "yes": yes,
-            "no": no,
-            "ts": int(time.time()),
-            "alert": alert,
-        },
-    )
+    tick_payload = {
+        "slug": slug,
+        "yes": yes,
+        "no": no,
+        "ts": int(time.time()),
+        "alert": alert,
+    }
+    await hub.publish(slug, tick_payload)
+    get_event_bus().publish("market.tick", tick_payload)
     return moved
 
 

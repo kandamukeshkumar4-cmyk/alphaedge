@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.core.broadcast import hub
 from app.core.config import get_settings
+from app.core.event_bus import get_event_bus
 from app.db.models import Market, OddsSnapshot
 from app.db.session import AsyncSessionLocal
 from app.services.market_service import CATALOG_SLUGS
@@ -18,6 +19,9 @@ _QUEUE_TIMEOUT_SEC = 29.0
 
 # Hub topics multiplexed onto the /feed socket (analyst briefs + alerts + unified feed).
 _FEED_TOPICS = ("briefs", "alerts", "feed")
+
+# In-process event-bus topics fanned onto the same socket (Redis-free push path).
+_BUS_TOPICS = ("market.tick", "signal.new", "order.filled", "market.resolved")
 
 
 @router.websocket("/prices")
@@ -92,10 +96,15 @@ async def activity_feed(websocket: WebSocket) -> None:
     await websocket.send_json({"channel": "system", "connected": True, "ts": int(time.time())})
 
     queues = {topic: hub.subscribe(topic) for topic in _FEED_TOPICS}
+    # In-process bus subscriptions expose the same .get() coroutine as hub queues,
+    # so the two source kinds merge into one getter set below.
+    bus = get_event_bus()
+    bus_subs = {topic: bus.subscribe(topic) for topic in _BUS_TOPICS}
+    sources = {**queues, **bus_subs}
     # One persistent getter task per topic. Only the completed getter is
     # recreated each loop, so a message that arrives on another topic between
     # iterations is never consumed-then-dropped.
-    getters = {topic: asyncio.ensure_future(q.get()) for topic, q in queues.items()}
+    getters = {topic: asyncio.ensure_future(src.get()) for topic, src in sources.items()}
     try:
         while True:
             done, _pending = await asyncio.wait(
@@ -113,7 +122,7 @@ async def activity_feed(websocket: WebSocket) -> None:
                 if task not in done:
                     continue
                 payload = task.result()
-                getters[topic] = asyncio.ensure_future(queues[topic].get())
+                getters[topic] = asyncio.ensure_future(sources[topic].get())
                 try:
                     await websocket.send_json({"channel": topic, **payload})
                 except Exception:
@@ -125,3 +134,5 @@ async def activity_feed(websocket: WebSocket) -> None:
             task.cancel()
         for topic, q in queues.items():
             hub.unsubscribe(topic, q)
+        for sub in bus_subs.values():
+            sub.close()

@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.event_bus import get_event_bus
 from app.db.models import (
     Fill,
     Market,
@@ -362,16 +363,15 @@ class OrderBookService:
 
         await self.session.flush()
 
-        await self.events.emit(
-            "order_filled",
-            {
-                "fill_id": str(fill.id),
-                "market_id": str(market_id),
-                "price": str(match.price),
-                "quantity": str(match.quantity),
-                "outcome": match.outcome.value,
-            },
-        )
+        fill_payload = {
+            "fill_id": str(fill.id),
+            "market_id": str(market_id),
+            "price": str(match.price),
+            "quantity": str(match.quantity),
+            "outcome": match.outcome.value,
+        }
+        await self.events.emit("order_filled", fill_payload)
+        get_event_bus().publish("order.filled", fill_payload)
 
     @staticmethod
     def _advance_order_fill_state(order: Order, quantity: Decimal) -> None:

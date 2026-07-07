@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.event_bus import get_event_bus
 from app.db.models import (
     LedgerEntry,
     LedgerEntryType,
@@ -144,6 +145,11 @@ async def settle_market(
         settled += 1
 
     await session.flush()
+
+    get_event_bus().publish(
+        "market.resolved",
+        {"market_slug": market_slug, "outcome": outcome, "settled": settled},
+    )
 
     return {
         "settled": settled,

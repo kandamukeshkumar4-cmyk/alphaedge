@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.event_bus import get_event_bus
 from app.db.models import Account, Market, OrderOutcome, PaperSignal
 from app.events.bus import DomainEventBus
 from app.schemas.market import PaperSignalOption, PaperSignalSummaryResponse
@@ -70,15 +71,14 @@ class PaperSignalService:
             signal.outcome = outcome
 
         await self.session.flush()
-        await self.events.emit(
-            "paper_signal_submitted",
-            {
-                "market_id": str(market.id),
-                "market_slug": market.slug,
-                "account_id": str(account_id),
-                "outcome": outcome.value,
-            },
-        )
+        signal_payload = {
+            "market_id": str(market.id),
+            "market_slug": market.slug,
+            "account_id": str(account_id),
+            "outcome": outcome.value,
+        }
+        await self.events.emit("paper_signal_submitted", signal_payload)
+        get_event_bus().publish("signal.new", signal_payload)
         return await self.get_summary(market, paper_trading_only, account_id)
 
     async def _get_signal(self, market_id: UUID, account_id: UUID) -> PaperSignal | None:
