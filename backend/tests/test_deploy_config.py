@@ -329,7 +329,7 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "Canonical Lakers vs Celtics market was not returned" in workflow
     assert "Canonical market lock_at must be in the future for browser paper trading" in workflow
     assert "Los Angeles mayoral election market was not returned" in workflow
-    assert "Expected Politics category on election market" in workflow
+    assert "Expected Elections category on election market" in workflow
 
 
 def test_huggingface_space_workflow_lfs_tracks_binaries_and_fails_push_hard():

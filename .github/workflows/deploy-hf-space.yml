@@ -401,8 +401,8 @@ jobs:
           )
           if election is None:
               raise SystemExit("Los Angeles mayoral election market was not returned")
-          if election.get("category") != "Politics":
-              raise SystemExit("Expected Politics category on election market")
+          if election.get("category") != "Elections":
+              raise SystemExit("Expected Elections category on election market")
 
           print("/api/v1/markets returned 200 with canonical and election markets")
           PY
