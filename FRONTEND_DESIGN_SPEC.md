@@ -1,6 +1,12 @@
 # AlphaEdge Frontend Design Specification
 ### Best of Kalshi (market grid + odds + rankings) × Polymarket (clean trading + animated charts)
 
+> **Update 2026-07:** the visual shell (palette, nav model, component
+> primitives) now follows the QuestFlow-app-inspired terminal system in
+> `frontend/docs/QUESTFLOW_DESIGN_SYSTEM.md`, built on Astryx
+> (`@astryxdesign/core`). The layout/structure guidance below (grids, rails,
+> trading panel anatomy) still applies.
+
 > **North star:** Kalshi's *information density and discovery* (category-organized grid, multiplier odds, ranked sidebars) fused with Polymarket's *trading clarity and motion* (big percentage pricing, prominent live chart, order book, holders/comments). Plus our own edge: **AI predictions visible on every market.**
 
 ---

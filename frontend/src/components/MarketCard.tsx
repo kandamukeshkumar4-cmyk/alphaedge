@@ -1,165 +1,93 @@
-import { marketHref } from "@/lib/market-href";
 import Link from "next/link";
 
 import type { Market } from "@/lib/markets-api";
 import { cn } from "@/lib/cn";
-import { formatProbabilityAxis } from "@/lib/probability-format";
-import { AIAnalyzeButton } from "./AIAnalyzeButton";
 
-const PLATFORM_STYLES: Record<string, string> = {
-  Polymarket: "border-[#5B4FE8]/35 bg-[#5B4FE8]/15 text-[#B4ABFF]",
-  Kalshi: "border-primary/35 bg-primary/15 text-primary",
+/*
+ * QuestFlow-anatomy market card for the live catalog (markets-api shape):
+ * icon tile + title, platform/status meta row, an outcome row with the YES
+ * price in teal cents and tinted Yes/No buttons, then the outlined
+ * "AI Analyze" action. Paper-trading only.
+ */
+
+const CATEGORY_ICON: Record<string, string> = {
+  NBA: "🏀",
+  "FIFA WC2026": "⚽",
+  Elections: "🗳️",
+  Crypto: "₿",
+  Culture: "🎬",
+  Economics: "📊",
 };
 
-const CATEGORY_BADGE_STYLES: Record<string, string> = {
-  NBA: "border-accent/35 bg-accent/15 text-accent",
-  "FIFA WC2026": "border-emerald-500/35 bg-emerald-500/15 text-emerald-400",
-  Elections: "border-[#5B4FE8]/35 bg-[#5B4FE8]/15 text-[#B4ABFF]",
-};
-
-type CatalogCategory = keyof typeof CATEGORY_BADGE_STYLES;
-
-function platformBadgeClass(platform: string): string {
-  return PLATFORM_STYLES[platform] ?? "border-border bg-surface-2 text-muted";
-}
-
-function catalogCategory(market: Market): CatalogCategory | null {
-  if (market.slug.startsWith("nba-") || market.category === "NBA") {
-    return "NBA";
-  }
-  if (market.slug.startsWith("wc2026-") || market.category === "FIFA WC2026") {
-    return "FIFA WC2026";
-  }
-  if (
-    market.slug.startsWith("elect-") ||
-    market.category === "Elections" ||
-    market.category === "Politics"
-  ) {
-    return "Elections";
-  }
-  return null;
-}
-
-function statusLabel(status: string): "Open" | "Resolved" {
-  return status === "resolved" ? "Resolved" : "Open";
-}
-
-function isResolvedMarket(market: Market): boolean {
-  return market.status === "resolved" || market.resolution_outcome != null;
-}
-
-function winningOutcomeLabel(outcome: string | null): string | null {
-  if (!outcome) {
-    return null;
-  }
-  const normalized = outcome.toUpperCase();
-  if (normalized === "YES" || normalized === "NO") {
-    return normalized;
-  }
-  return null;
+function centsLabel(probability: number | null): string {
+  if (probability == null) return "—";
+  return `${Math.round(probability * 100)}¢`;
 }
 
 export function MarketCard({ market }: { market: Market }) {
-  const impliedPct =
-    market.implied_yes != null ? Math.round(market.implied_yes * 100) : null;
-  const category = catalogCategory(market);
-  const resolved = isResolvedMarket(market);
-  const winner = winningOutcomeLabel(market.resolution_outcome);
+  const resolved = market.status === "resolved" || market.resolution_outcome != null;
+  const winner = market.resolution_outcome?.toUpperCase();
+  const yes = market.implied_yes;
 
   return (
-    <Link
-      href={marketHref(market.slug)}
+    <div
       className={cn(
-        "group flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 hover:shadow-glow",
+        "flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:border-border-light",
         resolved && "opacity-75",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {category ? (
-            <span
-              className={cn(
-                "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em]",
-                CATEGORY_BADGE_STYLES[category],
-              )}
-            >
-              {category}
-            </span>
-          ) : (
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-              {market.category}
-            </p>
-          )}
-          <h3 className="mt-1.5 line-clamp-2 text-base font-black leading-snug text-text">
-            {market.title}
-          </h3>
-        </div>
-        <span
-          className={cn(
-            "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em]",
-            platformBadgeClass(market.platform),
-          )}
-        >
-          {market.platform}
+      <div className="flex items-start gap-4">
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-surface-3 text-2xl">
+          {CATEGORY_ICON[market.category] ?? "📈"}
         </span>
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-xs font-semibold">
-          <span className="text-muted">Implied YES</span>
-          <span className="font-mono font-bold text-text tabular">
-            {impliedPct != null ? formatProbabilityAxis(market.implied_yes!) : "—"}
-          </span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all"
-            style={{ width: impliedPct != null ? `${impliedPct}%` : "0%" }}
-          />
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {resolved ? (
-            <>
-              <span className="rounded-full border border-red-500/35 bg-red-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-red-300">
-                RESOLVED
-              </span>
-              {winner === "YES" ? (
-                <span className="rounded-full border border-emerald-500/35 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-emerald-300">
-                  YES ✓
+        <div className="min-w-0 flex-1">
+          <Link href={`/markets/${market.slug}`} className="block">
+            <h3 className="line-clamp-2 text-lg font-bold leading-snug text-text hover:text-primary">
+              {market.title}
+            </h3>
+          </Link>
+          <div className="mt-2 flex items-center justify-between text-sm text-muted">
+            <span>{market.platform}</span>
+            <span>
+              {resolved ? (
+                <span className="font-semibold text-danger">
+                  Resolved{winner === "YES" || winner === "NO" ? ` · ${winner}` : ""}
                 </span>
-              ) : null}
-              {winner === "NO" ? (
-                <span className="rounded-full border border-red-500/35 bg-red-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-red-300">
-                  NO ✓
-                </span>
-              ) : null}
-            </>
-          ) : (
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em]",
-                statusLabel(market.status) === "Open"
-                  ? "bg-accent/15 text-accent"
-                  : "bg-muted/15 text-muted",
+              ) : (
+                "Open"
               )}
-            >
-              {statusLabel(market.status)}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {!resolved ? (
-            <AIAnalyzeButton slug={market.slug} title={market.title} variant="card" />
-          ) : null}
-          <span className="text-xs font-semibold text-muted transition group-hover:text-accent">
-            View market →
-          </span>
+          </div>
         </div>
       </div>
-    </Link>
+
+      <div className="mt-3 flex items-center gap-2.5">
+        <span className="min-w-0 flex-1 truncate text-base font-medium text-text">Yes</span>
+        <span className="shrink-0 text-base font-bold tabular-nums text-primary">
+          {centsLabel(yes)}
+        </span>
+        <Link
+          href={`/markets/${market.slug}?side=yes`}
+          className="grid h-10 w-[72px] shrink-0 place-items-center rounded-xl bg-primary-dim text-sm font-semibold text-primary transition hover:bg-primary hover:text-bg"
+        >
+          Yes
+        </Link>
+        <Link
+          href={`/markets/${market.slug}?side=no`}
+          className="grid h-10 w-[72px] shrink-0 place-items-center rounded-xl bg-danger-dim text-sm font-semibold text-danger transition hover:bg-danger hover:text-white"
+        >
+          No
+        </Link>
+      </div>
+
+      <Link
+        href={`/markets/${market.slug}#ai`}
+        className="mt-4 flex h-12 items-center justify-center gap-2 rounded-xl border border-primary/45 text-base font-medium text-primary transition hover:bg-primary-dim"
+      >
+        <SparkIcon />
+        AI Analyze
+      </Link>
+    </div>
   );
 }
 
@@ -169,22 +97,24 @@ export function MarketCardSkeleton() {
       aria-hidden
       className="animate-pulse rounded-2xl border border-border bg-surface p-4 shadow-card"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-4">
+        <div className="h-14 w-14 rounded-xl bg-surface-2" />
         <div className="flex-1 space-y-2">
-          <div className="h-3 w-16 rounded bg-surface-2" />
           <div className="h-5 w-4/5 rounded bg-surface-2" />
-          <div className="h-5 w-3/5 rounded bg-surface-2" />
+          <div className="h-4 w-3/5 rounded bg-surface-2" />
         </div>
-        <div className="h-6 w-20 rounded-full bg-surface-2" />
       </div>
-      <div className="mt-4 space-y-2">
-        <div className="h-3 w-24 rounded bg-surface-2" />
-        <div className="h-2 rounded-full bg-surface-2" />
-      </div>
-      <div className="mt-4 flex justify-between border-t border-border pt-3">
-        <div className="h-6 w-14 rounded-full bg-surface-2" />
-        <div className="h-4 w-24 rounded bg-surface-2" />
-      </div>
+      <div className="mt-4 h-10 rounded-xl bg-surface-2" />
+      <div className="mt-3 h-12 rounded-xl bg-surface-2" />
     </div>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" strokeLinejoin="round" />
+      <path d="M19 3l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z" strokeLinejoin="round" />
+    </svg>
   );
 }

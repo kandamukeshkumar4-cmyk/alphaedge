@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@astryxdesign/core/Badge";
+import { Tab, TabList } from "@astryxdesign/core/TabList";
 import {
   cents,
   timeAgo,
@@ -9,30 +11,20 @@ import {
 } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
-type Tab = "Activity" | "Holders" | "Comments" | "About";
-const TABS: Tab[] = ["Activity", "Holders", "Comments", "About"];
+type TabKey = "Activity" | "Holders" | "Comments" | "About";
+const TABS: TabKey[] = ["Activity", "Holders", "Comments", "About"];
 
 export function MarketTabs({ market }: { market: Market }) {
-  const [tab, setTab] = useState<Tab>("Activity");
+  const [tab, setTab] = useState<TabKey>("Activity");
 
   return (
     <div className="rounded-2xl border border-border bg-surface">
-      <div className="flex gap-1 border-b border-border px-2">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              "relative px-3 py-3 text-sm font-semibold transition",
-              tab === t ? "text-text" : "text-muted hover:text-text",
-            )}
-          >
-            {t}
-            {tab === t && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />
-            )}
-          </button>
-        ))}
+      <div className="border-b border-border px-2 pt-1">
+        <TabList value={tab} onChange={(value) => setTab(value as TabKey)}>
+          {TABS.map((t) => (
+            <Tab key={t} value={t} label={t} />
+          ))}
+        </TabList>
       </div>
 
       <div className="p-4">
@@ -43,16 +35,7 @@ export function MarketTabs({ market }: { market: Market }) {
                 key={t.id}
                 className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm transition hover:bg-surface-2"
               >
-                <span
-                  className={cn(
-                    "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                    t.side === "YES"
-                      ? "bg-primary-dim text-primary"
-                      : "bg-danger-dim text-danger",
-                  )}
-                >
-                  {t.side}
-                </span>
+                <Badge variant={t.side === "YES" ? "green" : "red"} label={t.side} />
                 <span className="min-w-0 flex-1 truncate text-muted">
                   <span className="font-semibold text-text">@{t.user}</span> {t.side === "YES" ? "bought" : "sold"}{" "}
                   {t.shares} {t.outcome} @ {cents(t.price)}
@@ -80,16 +63,7 @@ export function MarketTabs({ market }: { market: Market }) {
                 <span className="min-w-0 flex-1 truncate font-semibold text-text">
                   @{h.user}
                 </span>
-                <span
-                  className={cn(
-                    "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold",
-                    h.side === "YES"
-                      ? "bg-primary-dim text-primary"
-                      : "bg-danger-dim text-danger",
-                  )}
-                >
-                  {h.side}
-                </span>
+                <Badge variant={h.side === "YES" ? "green" : "red"} label={h.side} />
                 <span className="w-24 text-right font-mono text-xs text-muted">
                   {h.shares.toLocaleString()} sh
                 </span>

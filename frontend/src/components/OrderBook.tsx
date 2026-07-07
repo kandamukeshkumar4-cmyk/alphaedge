@@ -78,7 +78,7 @@ function Level({
         style={{
           width: w,
           background:
-            tone === "bid" ? "rgba(47,107,255,0.14)" : "rgba(255,59,71,0.14)",
+            tone === "bid" ? "rgba(47,107,255,0.14)" : "rgba(241,88,92,0.14)",
         }}
       />
       <span className={tone === "bid" ? "relative text-primary" : "relative text-danger"}>

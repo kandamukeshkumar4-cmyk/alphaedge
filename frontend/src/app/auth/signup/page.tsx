@@ -41,13 +41,7 @@ export default function SignupPage() {
       }
       const body = (await response.json()) as { access_token: string };
       saveAuthSession(body.access_token, email);
-      // Fresh account → replay the welcome tour on the Discover home.
-      try {
-        localStorage.removeItem("ae_quest_onboarding_v1");
-      } catch {
-        /* ignore */
-      }
-      router.replace("/");
+      router.replace("/portfolio");
     } catch {
       toast({
         title: "Signup failed",
@@ -116,7 +110,7 @@ export default function SignupPage() {
               type="checkbox"
               checked={agree}
               onChange={(e) => setAgree(e.target.checked)}
-              className="mt-0.5 accent-[#0052ff]"
+              className="mt-0.5 accent-[#14B8A6]"
             />
             I agree to the Terms and understand this is a paper-trading simulation.
           </label>
@@ -142,16 +136,16 @@ export default function SignupPage() {
         .input {
           width: 100%;
           border-radius: 0.625rem;
-          border: 1px solid #26292f;
-          background: #0a0b0d;
+          border: 1px solid #243430;
+          background: #0C1210;
           padding: 0.5rem 0.75rem;
           font-size: 0.875rem;
-          color: #ffffff;
+          color: #F2F4F8;
         }
         .input:focus {
           outline: none;
-          border-color: #0052ff;
-          box-shadow: 0 0 0 3px rgba(46, 125, 246, 0.18);
+          border-color: #14B8A6;
+          box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
         }
       `}</style>
     </main>
