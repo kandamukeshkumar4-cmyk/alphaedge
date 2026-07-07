@@ -11,7 +11,7 @@ https://proud-meadow-01b42b810.7.azurestaticapps.net
 Backend runs on a public Hugging Face Docker Space:
 
 ```text
-https://mukeshkumarkanda-alphaedge-api.hf.space
+https://mukeshkumar007-alphaedge-api.hf.space
 ```
 
 Database runs on Neon Postgres.
@@ -27,7 +27,7 @@ For the free/no-card portfolio demo path, use Hugging Face Spaces instead.
 Set these as GitHub Actions secrets, not repository files:
 
 ```text
-HF_TOKEN=<huggingface write token for mukeshkumarkanda>
+HF_TOKEN=<huggingface write token for mukeshkumar007>
 NEON_DATABASE_URL=<neon SQLAlchemy URL>
 NEON_DATABASE_URL_SYNC=<optional neon sync SQLAlchemy URL>
 ADMIN_API_KEY=<long random secret>
@@ -73,7 +73,7 @@ any push to `codex/alphaedge-base` that touches `backend/**`. It:
 
 1. Stages `backend/` as the Space root.
 2. Renames `Dockerfile.hfspace` to `Dockerfile`.
-3. Git-pushes to `https://huggingface.co/spaces/mukeshkumarkanda/alphaedge-api`.
+3. Git-pushes to `https://huggingface.co/spaces/mukeshkumar007/alphaedge-api`.
 4. Waits for Hugging Face runtime metadata to report the pushed Space revision
    as `RUNNING`.
 5. Waits up to 10 min for `/health` to return 200 with `paper_trading_only=true`.
@@ -163,8 +163,8 @@ snapshot, the Azure frontend bundle, one risk-gated paper order lifecycle, and
 admin agent proof when `ADMIN_API_KEY` or `-AdminApiKey` is supplied.
 
 ```powershell
-Invoke-RestMethod https://mukeshkumarkanda-alphaedge-api.hf.space/health
-Invoke-RestMethod https://mukeshkumarkanda-alphaedge-api.hf.space/api/v1/markets
+Invoke-RestMethod https://mukeshkumar007-alphaedge-api.hf.space/health
+Invoke-RestMethod https://mukeshkumar007-alphaedge-api.hf.space/api/v1/markets
 ```
 
 Expected:
@@ -181,13 +181,13 @@ Use the existing helper:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\set_frontend_api_url.ps1 `
-  -ApiUrl "https://mukeshkumarkanda-alphaedge-api.hf.space"
+  -ApiUrl "https://mukeshkumar007-alphaedge-api.hf.space"
 ```
 
 This sets:
 
 ```text
-NEXT_PUBLIC_API_URL=https://mukeshkumarkanda-alphaedge-api.hf.space
+NEXT_PUBLIC_API_URL=https://mukeshkumar007-alphaedge-api.hf.space
 ```
 
 Then it triggers the Azure Static Web Apps workflow with the same `api_url`

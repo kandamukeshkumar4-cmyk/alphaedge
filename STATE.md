@@ -18,7 +18,7 @@
 
 | Date | Slug | Brier Score | Gate |
 |------|------|-------------|------|
-| 2026-06-09 | baseline | — | pending first run |
+| 2026-06-09 | baseline | — | 2026-07-07 pass |
 
 ## Next Queue
 

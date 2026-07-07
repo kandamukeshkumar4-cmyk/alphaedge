@@ -306,16 +306,19 @@ async def _llm_reply(
 ) -> tuple[str, list[CitationChip], list[str]]:
     """Attempt an LLM reply; fall back to deterministic on any error."""
     settings = get_settings()
-    from app.llm.provider import resolve_llm_endpoint
+    from app.llm.provider import resolve_routed_endpoint
 
-    _, api_key = resolve_llm_endpoint(settings)
+    _, api_key = resolve_routed_endpoint(settings, settings.llm_route_chat)
     if not api_key:
         return _build_deterministic_reply(message, ctx, market_slug, trader_profile)
 
     try:
-        from app.llm.provider import get_llm_client
+        from app.llm.provider import resolve_routed_client
 
-        client = get_llm_client(settings)
+        client, chat_model = resolve_routed_client(
+            settings, settings.llm_route_chat,
+            use_case_model=settings.llm_model_chat,
+        )
 
         system_parts: list[str] = [
             "You are AlphaEdge Analyst — a read-only market analysis assistant.",
@@ -342,7 +345,7 @@ async def _llm_reply(
         messages.append({"role": "user", "content": message})
 
         response = await client.chat.completions.create(
-            model=settings.llm_model,
+            model=chat_model,
             messages=messages,  # type: ignore[arg-type]
             max_tokens=400,
             temperature=0.3,

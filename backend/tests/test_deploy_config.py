@@ -257,7 +257,7 @@ def test_huggingface_neon_deploy_doc_exists():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "Hugging Face Spaces + Neon Postgres" in doc
-    assert "mukeshkumarkanda-alphaedge-api.hf.space" in doc
+    assert "mukeshkumar007-alphaedge-api.hf.space" in doc
     assert "PAPER_TRADING_ONLY=true" in doc
     assert "DATABASE_URL" in doc
     assert "DATABASE_URL_SYNC" in doc
@@ -322,14 +322,35 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "space_sha=$(git rev-parse HEAD)" in workflow
     assert 'echo "space_sha=$space_sha" >> "$GITHUB_OUTPUT"' in workflow
     assert "steps.push_space.outputs.space_sha" in workflow
-    assert "https://huggingface.co/api/spaces/mukeshkumarkanda/alphaedge-api/runtime" in workflow
+    assert "https://huggingface.co/api/spaces/mukeshkumar007/alphaedge-api/runtime" in workflow
     assert "runtime.get(\"sha\")" in workflow
     assert "Space runtime is running the pushed revision" in workflow
     assert "Expected paper_trading_only=true from /health" in workflow
     assert "Canonical Lakers vs Celtics market was not returned" in workflow
     assert "Canonical market lock_at must be in the future for browser paper trading" in workflow
     assert "Los Angeles mayoral election market was not returned" in workflow
-    assert "Expected Politics category on election market" in workflow
+    assert "Expected Elections category on election market" in workflow
+
+
+def test_huggingface_space_workflow_lfs_tracks_binaries_and_fails_push_hard():
+    """Regression guard: HF Spaces' git server pre-receive-hook-rejects any binary
+    blob pushed via plain git (e.g. the WC2026 model .pkl) — permanently, not a
+    transient failure retries can fix. Without Git LFS tracking, every deploy
+    silently never lands a commit, and the old retry wrapper reported the step
+    as a false 'success', so the failure only surfaced ~20 minutes later as a
+    misleading 'Space stuck on old image, factory reboot' error at the wait-for-
+    revision step — sending whoever's debugging on a wild goose chase."""
+    workflow = (ROOT / ".github" / "workflows" / "deploy-hf-space.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "git lfs install" in workflow
+    assert 'git lfs track "*.pkl"' in workflow
+    assert "git add .gitattributes" in workflow
+    assert "HF Space clone permanently failed" in workflow
+    assert "HF Space push permanently failed" in workflow
+    # The push failure must actually abort the job (not just log and continue).
+    assert 'if ! retry_hf_git "HF Space push" git push; then' in workflow
     assert "/api/v1/markets/elect-la-mayor-2026/snapshot" in workflow
     assert "Expected snapshot route to return the election market" in workflow
     assert "Waiting for markets endpoint to return canonical market" in workflow
@@ -411,7 +432,7 @@ def test_huggingface_paper_trading_ready_script_checks_live_order_lifecycle():
         encoding="utf-8"
     )
 
-    assert "https://mukeshkumarkanda-alphaedge-api.hf.space" in script
+    assert "https://mukeshkumar007-alphaedge-api.hf.space" in script
     assert "https://proud-meadow-01b42b810.7.azurestaticapps.net" in script
     assert "nba-2025-01-15-lal-bos" in script
     assert "elect-la-mayor-2026" in script

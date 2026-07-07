@@ -3,7 +3,7 @@
 Run with a base URL (local stack or the deployed demo):
 
     uv run --extra dev pytest tests/smoke/ -q --base-url http://127.0.0.1:8000
-    uv run --extra dev pytest tests/smoke/ -q --base-url https://mukeshkumarkanda-alphaedge-api.hf.space
+    uv run --extra dev pytest tests/smoke/ -q --base-url https://mukeshkumar007-alphaedge-api.hf.space
 
 Covers the exact flows shown in demos: the public GET surface (no 5xx
 anywhere), signup/login, paper trading through the RiskService path the

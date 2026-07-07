@@ -72,6 +72,66 @@ class Settings(BaseSettings):
         alias="NIM_BASE_URL",
     )
     nim_api_key: str = Field(default="", alias="NIM_API_KEY")
+
+    # --- Per-use-case model routing ---
+    # Two modes:
+    #   1. NIM-native (recommended): one NIM_API_KEY, different NIM-hosted models
+    #      per use case via LLM_MODEL_CHAT, LLM_MODEL_ANALYST, etc.
+    #   2. Multi-provider: separate API keys for DeepSeek/Kimi/GLM via
+    #      LLM_ROUTE_* + provider-specific keys (for users with direct accounts).
+    #
+    # When a per-use-case model is set AND we're on NIM, that model is used with
+    # the NIM endpoint. When a LLM_ROUTE_* points to a separate provider with a
+    # key, that provider takes priority. Empty values fall back to LLM_MODEL.
+
+    # Per-use-case model IDs (work with any provider, ideal for NIM's 40+ models)
+    llm_model_chat: str = Field(
+        default="deepseek-ai/deepseek-v4-flash", alias="LLM_MODEL_CHAT"
+    )
+    llm_model_analyst: str = Field(
+        default="z-ai/glm-5.2", alias="LLM_MODEL_ANALYST"
+    )
+    llm_model_analyst_deep: str = Field(
+        default="nvidia/nemotron-3-ultra-550b-a55b", alias="LLM_MODEL_ANALYST_DEEP"
+    )
+    llm_model_explain: str = Field(
+        default="mistralai/mistral-medium-3.5-128b", alias="LLM_MODEL_EXPLAIN"
+    )
+    llm_model_extraction: str = Field(
+        default="mistralai/mistral-medium-3.5-128b", alias="LLM_MODEL_EXTRACTION"
+    )
+    llm_model_judge: str = Field(
+        default="deepseek-ai/deepseek-r1-0528", alias="LLM_MODEL_JUDGE"
+    )
+
+    # Optional: separate provider keys for direct API access (bypass NIM).
+    # When a route's API key is set, that provider is used instead of NIM.
+    deepseek_base_url: str = Field(
+        default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL"
+    )
+    deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
+    deepseek_model: str = Field(default="deepseek-chat", alias="DEEPSEEK_MODEL")
+
+    kimi_base_url: str = Field(
+        default="https://api.moonshot.cn/v1", alias="KIMI_BASE_URL"
+    )
+    kimi_api_key: str = Field(default="", alias="KIMI_API_KEY")
+    kimi_model: str = Field(default="moonshot-v1-8k", alias="KIMI_MODEL")
+
+    glm_base_url: str = Field(
+        default="https://open.bigmodel.cn/api/paas/v4", alias="GLM_BASE_URL"
+    )
+    glm_api_key: str = Field(default="", alias="GLM_API_KEY")
+    glm_model: str = Field(default="glm-4-flash", alias="GLM_MODEL")
+
+    # Route overrides: "deepseek", "kimi", "glm", or empty.
+    # Empty (default) = use primary provider with the per-use-case model above.
+    llm_route_chat: str = Field(default="", alias="LLM_ROUTE_CHAT")
+    llm_route_analyst: str = Field(default="", alias="LLM_ROUTE_ANALYST")
+    llm_route_analyst_deep: str = Field(default="", alias="LLM_ROUTE_ANALYST_DEEP")
+    llm_route_explain: str = Field(default="", alias="LLM_ROUTE_EXPLAIN")
+    llm_route_extraction: str = Field(default="", alias="LLM_ROUTE_EXTRACTION")
+    llm_route_judge: str = Field(default="", alias="LLM_ROUTE_JUDGE")
     langsmith_api_key: str = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="alphaedge", alias="LANGSMITH_PROJECT")
     football_data_api_key: str = Field(default="", alias="FOOTBALL_DATA_API_KEY")

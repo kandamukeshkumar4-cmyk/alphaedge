@@ -1,5 +1,5 @@
 param(
-    [string]$ApiUrl = "https://mukeshkumarkanda-alphaedge-api.hf.space",
+    [string]$ApiUrl = "https://mukeshkumar007-alphaedge-api.hf.space",
     [string]$ResourceGroup = "alphaedge-static-rg",
     [string]$Name = "alphaedge-web",
     [switch]$SkipApi

@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 
 from app.core.config import Settings
-from app.llm.provider import get_llm_client, resolve_llm_endpoint
+from app.llm.provider import resolve_routed_client, resolve_routed_endpoint
 
 _SYSTEM_PROMPT = (
     "You assist with matching prediction-market resolution questions to event descriptions. "
@@ -53,7 +53,7 @@ async def llm_resolution_verdict(
     settings: Settings,
 ) -> ResolutionMatch:
     """Return a structured match verdict; deterministic checks in matching.py remain the gate."""
-    _, api_key = resolve_llm_endpoint(settings)
+    _, api_key = resolve_routed_endpoint(settings, settings.llm_route_extraction)
     if not api_key:
         return _fallback_verdict(market_question, event_description)
 
@@ -62,9 +62,12 @@ async def llm_resolution_verdict(
         f"Event description:\n{event_description}"
     )
     try:
-        client = get_llm_client(settings)
+        client, model = resolve_routed_client(
+            settings, settings.llm_route_extraction,
+            use_case_model=settings.llm_model_extraction,
+        )
         response = await client.chat.completions.create(
-            model=settings.llm_model,
+            model=model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},

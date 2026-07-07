@@ -12,7 +12,7 @@ import type { Market, MarketSnapshot } from "./market-view-model";
 // otherwise the known production API (prod build) or localhost (dev).
 const DEFAULT_API_BASE =
   process.env.NODE_ENV === "production"
-    ? "https://mukeshkumarkanda-alphaedge-api.hf.space"
+    ? "https://mukeshkumar007-alphaedge-api.hf.space"
     : "http://localhost:8000";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").trim() || DEFAULT_API_BASE;

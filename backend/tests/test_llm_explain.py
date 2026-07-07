@@ -28,7 +28,10 @@ async def test_explain_prediction_returns_string(monkeypatch):
             "The model gives the Lakers a 58% chance, slightly above the market implied 55%."
         )
     )
-    monkeypatch.setattr("app.llm.explain.get_llm_client", lambda settings: mock_client)
+    monkeypatch.setattr(
+        "app.llm.explain.resolve_routed_client",
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
+    )
 
     settings = Settings(LLM_PROVIDER="openai", LLM_API_KEY="sk-test")
     result = await explain_prediction(
@@ -63,7 +66,10 @@ async def test_explain_prediction_does_not_contain_stake_or_side(monkeypatch):
     mock_client.chat.completions.create = AsyncMock(
         return_value=_mock_completion("Model probability is 0.72; edge is +0.07.")
     )
-    monkeypatch.setattr("app.llm.explain.get_llm_client", lambda settings: mock_client)
+    monkeypatch.setattr(
+        "app.llm.explain.resolve_routed_client",
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
+    )
 
     settings = Settings(LLM_PROVIDER="openai", LLM_API_KEY="sk-test")
     result = await explain_prediction(
