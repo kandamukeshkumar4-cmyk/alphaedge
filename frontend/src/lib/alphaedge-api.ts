@@ -98,6 +98,45 @@ export async function fetchLatestPrice(slug: string): Promise<LivePrice | null> 
   }
 }
 
+// loop6 — agent-memory feed (loop3). Read-only "what the system learned":
+// recently remembered resolved markets with the model-vs-market outcome + Brier.
+export type AgentMemoryRow = {
+  id: string;
+  market_slug: string;
+  category: string;
+  question: string;
+  outcome: string;
+  model_prob_at_close: number | null;
+  market_prob_at_close: number | null;
+  brier: number | null;
+  rationale_summary: string;
+  created_at: string;
+};
+
+export async function fetchMemories(
+  category?: string,
+  limit = 8,
+): Promise<AgentMemoryRow[]> {
+  if (!API_BASE) {
+    return [];
+  }
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  params.set("limit", String(limit));
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/memories?${params.toString()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as { items?: AgentMemoryRow[] };
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchMarketCandles(
   slug: string,
   points = 90,
@@ -418,6 +457,12 @@ export type MarketDetailApi = {
     model_prob: number;
     clv_gate_passed: boolean;
     provisional: boolean;
+    // loop6 — optional ensemble + tool fields (present only on newer backends).
+    n_models?: number;
+    stdev?: number;
+    spread_flag?: boolean;
+    per_model?: Array<{ provider: string; prob: number; rationale: string }>;
+    tools_used?: string[];
   } | null;
   volume_usd: number;
   traders: number;
@@ -517,6 +562,18 @@ function mergeApiDetailForCards(
           reasoning:
             local?.forecast.reasoning ??
             "API-backed market forecast generated from current market proof.",
+          // Pass ensemble/tool fields through only when the backend supplied them.
+          ...(detail.forecast.n_models !== undefined ? { nModels: detail.forecast.n_models } : {}),
+          ...(detail.forecast.stdev !== undefined ? { stdev: detail.forecast.stdev } : {}),
+          ...(detail.forecast.spread_flag !== undefined
+            ? { spreadFlag: detail.forecast.spread_flag }
+            : {}),
+          ...(detail.forecast.per_model !== undefined
+            ? { perModel: detail.forecast.per_model }
+            : {}),
+          ...(detail.forecast.tools_used !== undefined
+            ? { toolsUsed: detail.forecast.tools_used }
+            : {}),
         }
       : local?.forecast ?? {
           prob: 0.5,

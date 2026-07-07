@@ -31,6 +31,7 @@ import {
   type MarketDetailApi,
 } from "@/lib/alphaedge-api";
 import { SimilarMarkets } from "@/components/SimilarMarkets";
+import { SimilarPastMarkets } from "@/components/SimilarPastMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
 import { QuestMarketActivity } from "@/components/quest/QuestMarketActivity";
 import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
@@ -202,6 +203,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
                 </p>
               ) : null}
               <AIForecastPanel market={market} />
+              <SimilarPastMarkets category={market.category} currentSlug={slug} />
             </div>
           </div>
 

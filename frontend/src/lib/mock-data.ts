@@ -47,12 +47,26 @@ export type Holder = {
   tone: OutcomeTone;
 };
 
+export type EnsembleModelRow = {
+  provider: string;
+  prob: number;
+  rationale: string;
+};
+
 export type AIForecast = {
   prob: number;
   confidence: number;
   edge: number;
   brier: number;
   reasoning: string;
+  // loop6 — multi-model ensemble (loop4). All optional so the panel degrades
+  // silently against an older backend that returns a single-model forecast.
+  nModels?: number;
+  stdev?: number;
+  spreadFlag?: boolean;
+  perModel?: EnsembleModelRow[];
+  // loop6 — native market-data tools the agent used to build the brief (loop5).
+  toolsUsed?: string[];
 };
 
 export type Comment = {
