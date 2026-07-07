@@ -16,7 +16,6 @@ from app.pipeline.ingest import (
     capture_configured_market_snapshots,
     capture_configured_historical_closing_snapshots,
 )
-from app.workers import settings as worker_settings_module
 from app.workers.tasks import (
     WorkerSettings,
     capture_historical_closing_snapshots_task,
@@ -305,12 +304,6 @@ def test_settings_parse_market_snapshot_capture_targets():
 def test_worker_settings_register_live_snapshot_capture_task():
     assert capture_market_snapshots_task in WorkerSettings.functions
     assert capture_historical_closing_snapshots_task in WorkerSettings.functions
-    assert "app.workers.tasks.capture_market_snapshots_task" in (
-        worker_settings_module.WorkerSettings.functions
-    )
-    assert "app.workers.tasks.capture_historical_closing_snapshots_task" in (
-        worker_settings_module.WorkerSettings.functions
-    )
     cron_function_names = {
         getattr(getattr(job, "coroutine", None), "__name__", "")
         for job in WorkerSettings.cron_jobs

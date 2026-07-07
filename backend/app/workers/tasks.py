@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import UTC, datetime
 
 from arq import cron
+from arq.connections import RedisSettings
 
 from app.agents.graph import prefetch_news_for_market
 from app.backtesting.replay import run_backtest, run_phase3_snapshot_matrix_backtest
@@ -740,9 +741,7 @@ async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str)
 
 
 class WorkerSettings:
-    from app.workers.settings import WorkerSettings as _WS
-
-    redis_settings = _WS.redis_settings
+    redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     max_tries = 3
     functions = [
         capture_market_snapshots_task,

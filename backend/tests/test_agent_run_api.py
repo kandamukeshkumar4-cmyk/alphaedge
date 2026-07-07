@@ -47,7 +47,6 @@ async def test_admin_agent_run_persists_guardrail_proof_steps(db_session):
     assert payload["disclaimer"] == "Paper-trading simulation only."
     assert [step["step_name"] for step in payload["steps"]] == [
         "data",
-        "retrieval",  # U09: flag-gated no-op when RETRIEVAL_ENABLED=false
         "news",
         "prediction",
         "risk",
@@ -76,7 +75,6 @@ async def test_admin_agent_run_persists_guardrail_proof_steps(db_session):
     )
     assert [step.step_name for step in steps] == [
         "data",
-        "retrieval",  # U09: flag-gated no-op when RETRIEVAL_ENABLED=false
         "news",
         "prediction",
         "risk",
@@ -169,7 +167,7 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
             "status": "blocked",
             "graph_version": "v1",
             "approved": False,
-            "step_count": 7,  # U09 added "retrieval" node (flag-gated no-op)
+            "step_count": 6,
             "errors": [
                 "no resolved walk-forward evaluation",
                 "edge 0.00% < 5%",
@@ -186,7 +184,6 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
     assert detail["market_title"] == first_market.title
     assert [step["step_name"] for step in detail["steps"]] == [
         "data",
-        "retrieval",  # U09: flag-gated no-op when RETRIEVAL_ENABLED=false
         "news",
         "prediction",
         "risk",

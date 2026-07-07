@@ -1,13 +1,7 @@
-"""LangGraph agent pipeline with manual fallback when LangGraph is unavailable.
-
-U09: retrieval_node is inserted between data_node and prediction_node when
-RETRIEVAL_ENABLED=true. When the flag is OFF the node is a no-op and the
-reasoning output is byte-identical to the pre-U09 baseline (regression-tested).
-"""
+"""LangGraph agent pipeline with manual fallback when LangGraph is unavailable."""
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -32,11 +26,6 @@ class AgentState:
     order_intent: OrderIntent | None = None
     approved: bool = False
     errors: list[str] = field(default_factory=list)
-    # U09: populated by retrieval_node when RETRIEVAL_ENABLED=true; [] otherwise.
-    # Each entry is a dict with keys: slug, title, category, outcome,
-    # similarity_score, model_error_pts, model_note, resolved_at_iso,
-    # market_url_path.  Never fabricated — only real resolved markets.
-    similar_events: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -75,7 +64,6 @@ def agent_state_snapshot(state: AgentState) -> dict[str, Any]:
         "order_intent": _order_intent_snapshot(state.order_intent),
         "approved": state.approved,
         "errors": list(state.errors),
-        "similar_events": list(state.similar_events),  # U09
     }
 
 
@@ -83,70 +71,6 @@ def data_node(state: AgentState) -> AgentState:
     features = dict(state.features)
     features["implied_yes"] = features.get("implied_yes", 0.5)
     state.features = features
-    return state
-
-
-# ---------------------------------------------------------------------------
-# U09 retrieval node
-# ---------------------------------------------------------------------------
-
-_RETRIEVAL_ENABLED: bool = os.getenv("RETRIEVAL_ENABLED", "false").lower() == "true"
-
-
-def retrieval_node(state: AgentState) -> AgentState:
-    """U09: retrieve similar resolved markets and inject as context.
-
-    When RETRIEVAL_ENABLED=false (default): returns state unmodified —
-    similar_events stays [] and reasoning is byte-identical to baseline.
-
-    When RETRIEVAL_ENABLED=true: queries the in-process resolved-market
-    registry for candidates, runs deterministic similarity scoring, and
-    populates state.similar_events with above-threshold precedents.
-
-    No order-path imports. No fabrication: only markets with winning_outcome
-    set qualify as candidates. Uses the in-memory registry from
-    app.memory.resolved_registry (built from CATALOG_MAP + seed resolution data).
-    """
-    if not _RETRIEVAL_ENABLED:
-        # Flag OFF: return unmodified — regression test verifies byte-identity.
-        return state
-
-    from app.memory.retrieval import (
-        RetrievalDisabledError,
-        retrieve_similar_markets,
-    )
-    from app.memory.resolved_registry import (
-        get_query_feature_vector,
-        get_resolved_candidates,
-    )
-
-    query_fv = get_query_feature_vector(state.market_slug)
-    resolved_candidates = get_resolved_candidates(exclude_slug=state.market_slug)
-
-    try:
-        precedents = retrieve_similar_markets(
-            query_fv,
-            resolved_candidates,
-            enabled=True,
-        )
-    except RetrievalDisabledError:
-        # Should not happen when flag is ON, but guard defensively.
-        return state
-
-    state.similar_events = [
-        {
-            "slug": p.slug,
-            "title": p.title,
-            "category": p.category,
-            "outcome": p.outcome,
-            "similarity_score": p.similarity_score,
-            "model_error_pts": p.model_error_pts,
-            "model_note": p.model_note,
-            "resolved_at_iso": p.resolved_at_iso,
-            "market_url_path": p.market_url_path,
-        }
-        for p in precedents
-    ]
     return state
 
 
@@ -251,7 +175,6 @@ def execute_node(state: AgentState) -> AgentState:
 
 GRAPH_NODES: list[tuple[str, Callable[[AgentState], AgentState]]] = [
     ("data", data_node),
-    ("retrieval", retrieval_node),  # U09: flag-gated; no-op when RETRIEVAL_ENABLED=false
     ("news", news_node),
     ("prediction", prediction_node),
     ("risk", risk_node),
@@ -271,8 +194,7 @@ def _build_langgraph():
     for name, node_fn in GRAPH_NODES:
         graph.add_node(name, node_fn)
     graph.add_edge(START, "data")
-    graph.add_edge("data", "retrieval")  # U09: no-op when flag OFF
-    graph.add_edge("retrieval", "news")
+    graph.add_edge("data", "news")
     graph.add_edge("news", "prediction")
     graph.add_edge("prediction", "risk")
     graph.add_edge("risk", "reasoning")
@@ -293,7 +215,6 @@ def _coerce_agent_state(result: AgentState | dict[str, Any]) -> AgentState:
         order_intent=result.get("order_intent"),
         approved=result.get("approved", False),
         errors=result.get("errors") or [],
-        similar_events=result.get("similar_events") or [],  # U09
     )
 
 

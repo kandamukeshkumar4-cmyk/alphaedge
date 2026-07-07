@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional, Protocol
+from typing import Any, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -174,11 +174,6 @@ def compute_market_delta(
     return out
 
 
-class SnapshotStateStore(Protocol):
-    async def get(self, slug: str) -> Optional[MarketSnapshotState]: ...
-    async def set(self, slug: str, state: MarketSnapshotState) -> None: ...
-
-
 class InMemorySnapshotStateStore:
     """Process-local last-state store. Sufficient because streams run in one process;
     a restart simply re-seeds on the next tick (seed = no false delta)."""
@@ -198,7 +193,7 @@ class DiffEngineService:
 
     def __init__(
         self,
-        store: SnapshotStateStore | None = None,
+        store: InMemorySnapshotStateStore | None = None,
         thresholds: DiffThresholds | None = None,
     ) -> None:
         self.store = store or InMemorySnapshotStateStore()

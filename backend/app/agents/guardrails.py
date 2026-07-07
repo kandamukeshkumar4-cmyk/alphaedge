@@ -19,11 +19,3 @@ def validate_agent_output(data: dict[str, Any], max_retries: int = 2) -> AgentOu
         except ValidationError as e:
             last_error = e
     raise last_error  # type: ignore[misc]
-
-
-ALLOWED_TOOLS = frozenset({"get_odds", "get_features", "submit_order_intent"})
-
-
-def sanitize_news_text(text: str, max_len: int = 2000) -> str:
-    cleaned = "".join(c for c in text if c.isprintable() or c in "\n\t")
-    return cleaned[:max_len]

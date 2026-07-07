@@ -6,6 +6,7 @@ from sqlalchemy import or_, select
 from sqlalchemy import String, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import markets_cache
 from app.data.connectors.catalog_map import CATALOG_MAP
 from app.db.models import (
     Account,
@@ -92,6 +93,7 @@ class MarketService:
         )
         self.session.add(market)
         await self.session.flush()
+        markets_cache.invalidate()
         await self.events.emit(
             "market_created",
             {"market_id": str(market.id), "slug": slug, "title": title},
@@ -104,7 +106,7 @@ class MarketService:
         if market.status != MarketStatus.OPEN:
             raise ValueError("Market is not open")
         market.status = MarketStatus.LOCKED
-        _invalidate_public_list_cache()
+        markets_cache.invalidate()
         await self.session.flush()
         await self.events.emit(
             "market_locked",
@@ -118,7 +120,7 @@ class MarketService:
         if market.status == MarketStatus.RESOLVED:
             raise ValueError("Market already resolved")
         market.status = MarketStatus.RESOLVED
-        _invalidate_public_list_cache()
+        markets_cache.invalidate()
         market.winning_outcome = winning_outcome
         market.resolved_at = datetime.now(timezone.utc)
         await self.session.flush()
@@ -788,10 +790,3 @@ class MarketService:
             "System paper bankroll seed",
         )
         return account
-
-
-def _invalidate_public_list_cache() -> None:
-    """B01: any market state change must be visible on /markets immediately."""
-    from app.core import markets_cache
-
-    markets_cache.invalidate()
