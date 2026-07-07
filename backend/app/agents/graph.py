@@ -92,6 +92,52 @@ def news_node(state: AgentState) -> AgentState:
     return state
 
 
+# ── memory node ──────────────────────────────────────────────────────────────
+# Optional provider hook so the (synchronous) memory node can pull similar past
+# cases. Callers on an async request path bind a session-backed provider via
+# ``set_memory_provider``; otherwise the node reads any cases pre-injected into
+# features["memory_similar_cases"]. Either way the node is CONTEXT-ONLY.
+_MEMORY_PROVIDER: Callable[[str, str, int], list[Any]] | None = None
+
+
+def set_memory_provider(fn: Callable[[str, str, int], list[Any]] | None) -> None:
+    """Register a sync callable (question, category, k) -> list[memory-like]."""
+    global _MEMORY_PROVIDER
+    _MEMORY_PROVIDER = fn
+
+
+def memory_node(state: AgentState) -> AgentState:
+    """Inject a compact summary of similar past resolved markets into context.
+
+    Guardrail: this node only writes ``features['memory_context']`` (and the raw
+    ``memory_similar_cases`` it summarized). It NEVER mutates predicted_prob /
+    confidence / order_intent and NEVER calls RiskService — memory is reasoning
+    context only.
+    """
+    features = dict(state.features)
+    question = str(features.get("question") or features.get("title") or state.market_slug)
+    category = str(features.get("category") or "")
+
+    cases = features.get("memory_similar_cases")
+    if cases is None and _MEMORY_PROVIDER is not None:
+        try:
+            cases = _MEMORY_PROVIDER(question, category, 3)
+        except Exception as exc:  # noqa: BLE001 - memory recall must never break a run
+            state.errors.append(f"memory recall skipped: {exc}")
+            cases = []
+    cases = cases or []
+
+    if cases:
+        from app.services.memory_service import summarize_memories
+
+        summary = summarize_memories(list(cases))
+        if summary:
+            features["memory_context"] = summary
+            features["memory_case_count"] = len(cases)
+    state.features = features
+    return state
+
+
 def prediction_node(state: AgentState) -> AgentState:
     prediction = predict_market(state.features)
     state.predicted_prob = prediction.predicted_prob
@@ -158,11 +204,15 @@ def reasoning_node(state: AgentState) -> AgentState:
         )
         headline = state.features.get("news_headline", "")
         news_note = f" News: {direction} ({sentiment:+.2f}). {headline}"
+    memory_note = ""
+    memory_context = state.features.get("memory_context")
+    if memory_context:
+        memory_note = f" Memory: {memory_context}"
     state.reasoning = (
         f"Model predicts {state.predicted_prob:.2%} vs market "
         f"{state.features.get('implied_yes', 0.5):.2%}. "
         f"{state.features.get('forecast_gate_reason', 'forecast gate unavailable')}. "
-        f"Risk {'approved' if state.approved else 'rejected'}.{news_note}"
+        f"Risk {'approved' if state.approved else 'rejected'}.{news_note}{memory_note}"
     )
     return state
 
@@ -176,6 +226,7 @@ def execute_node(state: AgentState) -> AgentState:
 GRAPH_NODES: list[tuple[str, Callable[[AgentState], AgentState]]] = [
     ("data", data_node),
     ("news", news_node),
+    ("memory", memory_node),
     ("prediction", prediction_node),
     ("risk", risk_node),
     ("reasoning", reasoning_node),
@@ -195,7 +246,8 @@ def _build_langgraph():
         graph.add_node(name, node_fn)
     graph.add_edge(START, "data")
     graph.add_edge("data", "news")
-    graph.add_edge("news", "prediction")
+    graph.add_edge("news", "memory")
+    graph.add_edge("memory", "prediction")
     graph.add_edge("prediction", "risk")
     graph.add_edge("risk", "reasoning")
     graph.add_edge("reasoning", "execute")

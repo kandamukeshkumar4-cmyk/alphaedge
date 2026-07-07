@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -967,3 +968,37 @@ class BacktestRun(Base):
     status: Mapped[str] = mapped_column(String(32), default="completed")
     paper_trading_only: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentMemory(Base):
+    """loop3 — Resolved-market memory the agent graph can recall.
+
+    One row per resolved market/forecast: what the model believed at close, what
+    the market implied, the realized outcome and Brier, plus a short rationale so
+    the "memory" graph node can surface similar past cases as reasoning context.
+
+    ``embedding`` is an OPTIONAL JSON list of floats. It stays null unless an
+    embedding provider is configured — the portable design never hard-depends on
+    pgvector (Neon may not have it) and falls back to category/keyword recall.
+    Memory is context-only: it never mutates probabilities or touches RiskService.
+    """
+
+    __tablename__ = "agent_memories"
+    __table_args__ = (
+        Index("ix_agent_memories_category_created", "category", "created_at"),
+        Index("ix_agent_memories_slug", "market_slug"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    category: Mapped[str] = mapped_column(String(64), nullable=False, default="General")
+    question: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    outcome: Mapped[str] = mapped_column(String(8), nullable=False)  # YES | NO | VOID
+    model_prob_at_close: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    market_prob_at_close: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    brier: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    rationale_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    embedding: Mapped[Optional[list[float]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

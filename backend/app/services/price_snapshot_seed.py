@@ -26,7 +26,7 @@ async def seed_price_snapshots(
     n_points: int = 90,
     step_sec: int = 3600,
 ) -> int:
-    candles = generate_candles(slug, n_points, end_price, step_sec, now=datetime.now(UTC))
+    candles = generate_candles(slug, n_points, end_price, step_sec)
 
     # One bulk SELECT instead of N individual queries.
     # Compare as int timestamps to handle SQLite naive-datetime storage.

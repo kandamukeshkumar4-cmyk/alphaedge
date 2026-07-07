@@ -15,6 +15,7 @@ from app.db.models import (
 )
 from app.events.bus import DomainEventBus
 from app.forecasting import scoring
+from app.services.memory_service import store_resolution
 
 
 class ScoringService:
@@ -90,6 +91,16 @@ class ScoringService:
                     brier_delta=_dec6(res.brier_delta) if res.brier_delta is not None else None,
                     synthetic_pnl=Decimal(str(round(res.synthetic_pnl, 4))),
                 )
+            )
+            # loop3 — resolution learning loop: remember this resolved case so the
+            # agent graph can recall similar past markets. Fire-and-forget: any
+            # failure is logged inside store_resolution and never blocks scoring.
+            await store_resolution(
+                self.session,
+                external_market,
+                forecast,
+                outcome,
+                brier=float(res.user_brier),
             )
             scored += 1
 
