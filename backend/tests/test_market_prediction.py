@@ -72,9 +72,27 @@ async def test_response_has_all_required_fields():
 
 
 @pytest.mark.asyncio
-async def test_ensemble_absent_falls_back_to_baseline():
-    """Flag ON but no LLM keys in the test env -> ensemble degrades to None,
-    the response is the exact single-model baseline (fallback proof)."""
+async def test_ensemble_absent_falls_back_to_baseline(monkeypatch):
+    """Flag ON but no LLM keys -> ensemble degrades to None, the response is the
+    exact single-model baseline (fallback proof).
+
+    Enforce the "no keys" precondition explicitly by clearing every provider key
+    on the shared settings object, so the test is hermetic: it proves the
+    degradation path regardless of whatever LLM keys a developer's ``.env``
+    happens to configure (CI has none; a live dev box may have a real NIM key).
+    """
+    import app.api.v1.market_prediction as mp
+
+    for key_attr in (
+        "nim_api_key",
+        "llm_api_key",
+        "gemini_api_key",
+        "deepseek_api_key",
+        "kimi_api_key",
+        "glm_api_key",
+    ):
+        monkeypatch.setattr(mp.settings, key_attr, "", raising=False)
+
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
