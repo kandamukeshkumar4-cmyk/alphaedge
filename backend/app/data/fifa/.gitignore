@@ -1,2 +1,1 @@
-# Trained model pickle cache (regenerated locally; warm init <1s)
-.model_cache.pkl
+# Trained model pickle cache — committed for CI (warm init <1s; regen takes hours)
