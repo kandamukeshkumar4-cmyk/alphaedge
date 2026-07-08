@@ -43,7 +43,7 @@ Updated 2026-07-07. Plans 003–006 shipped; API image **kalshi4**.
 | Surface | Image / URL |
 |---------|-------------|
 | API (2026-06-12) | `alphaedge-api:kalshi4` (006 seed on ingest + worker flatten fix) |
-| Frontend | `https://proud-meadow-01b42b810.7.azurestaticapps.net` |
+| Frontend | `https://alphaedge-frontend-three.vercel.app` (Azure SWA URL is DEAD/404) |
 
 Verify after deploy:
 ```bash
