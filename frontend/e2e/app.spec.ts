@@ -17,7 +17,12 @@ async function stubBackend(page: Page): Promise<void> {
 // are not application errors — the app catches them and falls back to mock — so
 // they are excluded from the "zero console errors" gate. Real app errors
 // (React crashes, uncaught exceptions, pageerror) are kept strict.
-const NETWORK_NOISE = /Failed to load resource|net::ERR|ERR_FAILED|ERR_ABORTED/i;
+//
+// Against production, HF Spaces free-tier reverse proxy rejects WebSocket
+// upgrades (403/429). The FeedMultiplexer degrades to HTTP polling — that is
+// expected, not an app crash.
+const NETWORK_NOISE =
+  /Failed to load resource|net::ERR|ERR_FAILED|ERR_ABORTED|WebSocket connection to .* failed/i;
 
 function collectConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -30,12 +35,25 @@ function collectConsoleErrors(page: Page): string[] {
   return errors;
 }
 
+// Against a deployed URL (PLAYWRIGHT_BASE_URL / E2E_LIVE=1) we exercise the
+// live API. Locally we abort backend calls so the deterministic mock catalog
+// drives the UI.
+const BASE = process.env.PLAYWRIGHT_BASE_URL?.trim() ?? "";
+const LIVE =
+  process.env.E2E_LIVE === "1" ||
+  (BASE.length > 0 && !BASE.includes("localhost"));
+
+// Live pages keep polling prices, so networkidle never settles. Use load.
+const GOTO_WAIT: "load" | "networkidle" = LIVE ? "load" : "networkidle";
+
 test.beforeEach(async ({ page }) => {
-  await stubBackend(page);
+  if (!LIVE) {
+    await stubBackend(page);
+  }
 });
 
 test("home loads with at least one market card", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/", { waitUntil: GOTO_WAIT });
   const cards = page.locator('a[href^="/markets/"]');
   await expect(cards.first()).toBeVisible({ timeout: 15_000 });
   expect(await cards.count()).toBeGreaterThan(0);
@@ -44,7 +62,7 @@ test("home loads with at least one market card", async ({ page }) => {
 test("clicking a market card opens the detail view with a price/chart element", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/", { waitUntil: GOTO_WAIT });
   await expect(page.locator('a[href^="/markets/"]').first()).toBeVisible({
     timeout: 15_000,
   });
@@ -66,7 +84,7 @@ test("clicking a market card opens the detail view with a price/chart element", 
 for (const path of ["/portfolio", "/leaderboard", "/clones"]) {
   test(`${path} loads with zero console errors`, async ({ page }) => {
     const errors = collectConsoleErrors(page);
-    await page.goto(path, { waitUntil: "networkidle" });
+    await page.goto(path, { waitUntil: GOTO_WAIT, timeout: 60_000 });
     await expect(page.locator("body")).toBeVisible();
     expect(errors, `console errors on ${path}:\n${errors.join("\n")}`).toEqual([]);
   });
@@ -79,7 +97,8 @@ test("/research/brief renders the ensemble/model section on mock data", async ({
   // ?slug=<canonical> exercises the analyst/model brief path (BriefBySlugClient),
   // which surfaces the model read on mock data instead of the empty state.
   await page.goto("/research/brief?slug=nba-2025-01-15-lal-bos", {
-    waitUntil: "networkidle",
+    waitUntil: GOTO_WAIT,
+    timeout: 60_000,
   });
   await expect(page.locator("body")).toBeVisible();
   // Must render without crashing (no Next.js error overlay / app error).

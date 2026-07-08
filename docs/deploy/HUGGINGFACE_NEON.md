@@ -2,10 +2,16 @@
 
 This is the current no-card backend unblock for AlphaEdge.
 
-Frontend stays on Azure Static Web Apps:
+Frontend runs on Vercel (canonical):
 
 ```text
-https://proud-meadow-01b42b810.7.azurestaticapps.net
+https://alphaedge-frontend-three.vercel.app
+```
+
+The former Azure Static Web Apps URL is **DEAD (404)** and must not be used:
+
+```text
+https://proud-meadow-01b42b810.7.azurestaticapps.net  # DEAD (404)
 ```
 
 Backend runs on a public Hugging Face Docker Space:
@@ -23,7 +29,7 @@ There is exactly **one production deployment**:
 | Layer | Canonical production | Status |
 |---|---|---|
 | Backend API + worker | **Hugging Face Docker Space** (`deploy-hf-space.yml`) | LIVE |
-| Frontend | **Azure Static Web Apps** (`azure-static-web-apps-proud-meadow-01b42b810.yml`) | LIVE |
+| Frontend | **Vercel** (`alphaedge-frontend-three.vercel.app`) | LIVE |
 | Database | **Neon Postgres** | LIVE |
 
 Every other host is **retired or blocked** and must not be treated as
@@ -31,6 +37,7 @@ production:
 
 | Retired/blocked target | Reason |
 |---|---|
+| Azure Static Web Apps (`proud-meadow-01b42b810…`) | DEAD (404). Do not use. |
 | Koyeb (`docs/deploy/KOYEB_NEON.md`, `deploy-koyeb-backend.yml`) | No active service; setup required payment verification. Workflow is `workflow_dispatch`-only. |
 | Railway (`deploy-railway-backend.yml`) | Never provisioned (no project token). Workflow is `workflow_dispatch`-only. |
 | Azure Container Apps | Superseded by the HF Space; not monitored. |
@@ -80,7 +87,7 @@ The Space Dockerfile sets these non-secret runtime defaults:
 
 ```text
 PAPER_TRADING_ONLY=true
-CORS_ORIGINS=https://proud-meadow-01b42b810.7.azurestaticapps.net
+CORS_ORIGINS=https://alphaedge-frontend-three.vercel.app
 REDIS_URL=redis://disabled:6379/0
 ```
 
@@ -188,7 +195,7 @@ powershell -ExecutionPolicy Bypass -File ./scripts/verify_hf_paper_trading_ready
 ```
 
 The script checks health, canonical NBA and election markets, the election
-snapshot, the Azure frontend bundle, one risk-gated paper order lifecycle, and
+snapshot, the Vercel frontend bundle, one risk-gated paper order lifecycle, and
 admin agent proof when `ADMIN_API_KEY` or `-AdminApiKey` is supplied.
 
 ```powershell
@@ -219,20 +226,19 @@ This sets:
 NEXT_PUBLIC_API_URL=https://mukeshkumar007-alphaedge-api.hf.space
 ```
 
-Then it triggers the Azure Static Web Apps workflow with the same `api_url`
-workflow input so the static Next.js export bakes in the backend URL.
+Then deploy the Vercel frontend so `NEXT_PUBLIC_API_URL` points at the Space
+(`cd frontend && npx vercel --prod --yes`).
 
 ## Verify frontend
 
 ```powershell
-Invoke-WebRequest https://proud-meadow-01b42b810.7.azurestaticapps.net/markets
+Invoke-WebRequest https://alphaedge-frontend-three.vercel.app/
+# Azure SWA is DEAD — do not use:
+# Invoke-WebRequest https://proud-meadow-01b42b810.7.azurestaticapps.net/markets
 ```
 
-The page should show:
-
-```text
-Lakers vs Celtics - nba-2025-01-15-lal-bos (open)
-```
+The homepage should show live Polymarket (`pm-`) markets from the HF API, not
+only seed/demo rows.
 
 ## Limitations
 

@@ -163,7 +163,7 @@ deployment**, and none of them is monitored.
 | Layer | Service | URL | Deploy path |
 |---|---|---|---|
 | Backend API + worker | Hugging Face Docker Space | `https://mukeshkumar007-alphaedge-api.hf.space` | `.github/workflows/deploy-hf-space.yml` (copies `backend/` at build time) |
-| Frontend | Azure Static Web Apps | `https://proud-meadow-01b42b810.7.azurestaticapps.net` | `.github/workflows/azure-static-web-apps-proud-meadow-01b42b810.yml` |
+| Frontend | Vercel | `https://alphaedge-frontend-three.vercel.app` | `vercel --prod` from `frontend/` (project `alphaedge-frontend`) |
 | Database | Neon Postgres | (private) | `NEON_DATABASE_URL` GitHub secret |
 
 - **Canonical code is `backend/`.** The HF Space workflow copies `backend/` at
@@ -175,9 +175,11 @@ deployment**, and none of them is monitored.
 - **Last verified live: 2026-07-07** — backend `/health` → `200`
   `paper_trading_only=true`; frontend → `200`.
 
-> Railway, Vercel, Koyeb, and Azure Container Apps below are alternate deploy
-> targets. They are not the live stack — do not point users at them as
-> production without re-pointing the frontend and uptime monitor first.
+> Railway, Koyeb, Azure Static Web Apps, and Azure Container Apps below are
+> alternate/legacy deploy targets. They are not the live stack — do not point
+> users at them as production. The Azure SWA URL
+> (`proud-meadow-01b42b810.7.azurestaticapps.net`) is **DEAD (404)** and must
+> not be used.
 
 ### Railway (API + worker)
 
@@ -195,25 +197,24 @@ One-token deploy (reuses the existing Neon Postgres):
 
 `scripts/deploy_railway.ps1` can also be run locally with the Railway CLI for a one-off deploy. Verify with `scripts/verify_koyeb_neon_ready.ps1 -ApiUrl https://<your-app>.up.railway.app`.
 
-### Vercel (frontend)
+### Vercel (frontend) — canonical production
 
+- Live URL: `https://alphaedge-frontend-three.vercel.app`
 - Root directory: `frontend/`
-- Env: `NEXT_PUBLIC_API_URL=https://your-api.railway.app`
+- Env: `NEXT_PUBLIC_API_URL=https://mukeshkumar007-alphaedge-api.hf.space`
+- Deploy: `cd frontend && npx vercel --prod --yes`
 
-### Azure Static Web Apps frontend
+### Azure Static Web Apps frontend (DEAD — do not use)
 
-The frontend is deployed as a static Next.js export on Azure Static Web Apps:
+The former Azure SWA frontend URL is retired and returns 404:
 
 ```text
-https://proud-meadow-01b42b810.7.azurestaticapps.net
+https://proud-meadow-01b42b810.7.azurestaticapps.net  # DEAD (404)
 ```
 
-Set `NEXT_PUBLIC_API_URL` in GitHub Actions secrets before rebuilding the static frontend.
-
-The live demo also includes a small Azure Static Web Apps managed API under `api/`.
-It serves `/api/health`, `/api/v1/markets`, and `/api/v1/eval/aggregates` from the
-same free Static Web App so the public portfolio pages stay usable even when a
-separate container backend is blocked by free-tier quota or payment verification.
+Do not point users, CORS, or the uptime monitor at this host. Canonical
+frontend is the Vercel URL above. The workflow
+`azure-static-web-apps-proud-meadow-01b42b810.yml` is legacy only.
 
 ### Koyeb + Neon backend fallback
 

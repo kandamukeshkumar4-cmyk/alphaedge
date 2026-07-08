@@ -5,12 +5,22 @@ name: Demo Uptime Watch
 # compute — this cron both wakes them and proves the API answers before anyone
 # opens the demo in front of an audience.
 #
-# Read-only by design: no orders, no briefs, no DB writes.
+# Cron (every 30 min): read-only production checks only
+#   - scripts/verify_prod.py (checks 1-6) — failures fail the workflow
+#   - no paper orders (journey order step stays off the schedule)
+#
+# workflow_dispatch: same read-only checks, plus optional full journey
+#   (signup + paper order) when run_full_journey=true.
 
 on:
   schedule:
     - cron: "*/30 * * * *"
   workflow_dispatch:
+    inputs:
+      run_full_journey:
+        description: "Run full verify_journey.py including signup + paper order"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -18,12 +28,20 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   BASE_URL: https://mukeshkumar007-alphaedge-api.hf.space
-  FRONTEND_URL: https://proud-meadow-01b42b810.7.azurestaticapps.net
+  FRONTEND_URL: https://alphaedge-frontend-three.vercel.app
 
 jobs:
   uptime:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
       - name: Wake and verify /health (up to 5 min for cold start)
         run: |
           for i in $(seq 1 20); do
@@ -48,23 +66,11 @@ jobs:
           echo "ERROR: demo API did not answer /health within 5 minutes."
           exit 1
 
-      - name: Verify markets endpoint serves data
+      - name: Production verifier (checks 1-6)
         run: |
-          body="$(mktemp)"
-          status=$(curl --silent --show-error --location --max-time 30 \
-            --output "$body" --write-out "%{http_code}" \
-            "$BASE_URL/api/v1/markets" || echo 000)
-          if [ "$status" != "200" ]; then
-            echo "ERROR: /api/v1/markets returned HTTP $status"
-            cat "$body"
-            exit 1
-          fi
-          python3 - "$body" << 'PY'
-          import json, sys
-          markets = json.load(open(sys.argv[1], encoding="utf-8"))
-          assert isinstance(markets, list) and markets, "no markets returned"
-          print(f"/api/v1/markets OK — {len(markets)} markets")
-          PY
+          python3 scripts/verify_prod.py \
+            --api "$BASE_URL" \
+            --frontend "$FRONTEND_URL"
 
       - name: Check AI analysis mode (warn-only)
         run: |
@@ -94,13 +100,7 @@ jobs:
               print("AI analysis is live (generator=llm)")
           PY
 
-      - name: Verify frontend is reachable
+      - name: Full journey (manual/dispatch only — places a paper order)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_full_journey }}
         run: |
-          status=$(curl --silent --show-error --location --max-time 30 \
-            --output /dev/null --write-out "%{http_code}" \
-            "$FRONTEND_URL" || echo 000)
-          if [ "$status" != "200" ]; then
-            echo "ERROR: frontend returned HTTP $status"
-            exit 1
-          fi
-          echo "Frontend OK"
+          python3 scripts/verify_journey.py --api "$BASE_URL"
