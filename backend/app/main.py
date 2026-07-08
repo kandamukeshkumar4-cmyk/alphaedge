@@ -42,6 +42,8 @@ from app.api.v1.backtest import router as backtest_router
 from app.api.v1.arb import router as arb_router
 from app.api.v1.observability import router as observability_router
 from app.api.v1.profile import router as profile_router
+from app.api.v1.system import router as system_router
+from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
 from app.core.middleware import RequestIdMiddleware
@@ -64,9 +66,11 @@ async def _price_feed_loop() -> None:
             try:
                 await run_price_feed_once(session)
                 await session.commit()
+                record_heartbeat("price_feed")
             except Exception:
                 await session.rollback()
                 logger.error("Hourly price feed failed — candle data may be stale", exc_info=True)
+                record_heartbeat("price_feed", status="error", detail="price feed pass failed")
         await asyncio.sleep(3600)
 
 
@@ -79,9 +83,11 @@ async def _live_tick_loop() -> None:
             try:
                 await run_live_tick_once(session)
                 await session.commit()
+                record_heartbeat("live_tick")
             except Exception:
                 await session.rollback()
                 logger.error("Live tick loop failed", exc_info=True)
+                record_heartbeat("live_tick", status="error", detail="live tick pass failed")
         await asyncio.sleep(interval)
 
 
@@ -110,9 +116,11 @@ async def _live_ingest_loop() -> None:
                     kalshi_summary,
                     poly_summary,
                 )
+                record_heartbeat("live_ingest")
             except Exception:
                 await session.rollback()
                 logger.error("Live market ingest failed", exc_info=True)
+                record_heartbeat("live_ingest", status="error", detail="live ingest pass failed")
         await asyncio.sleep(interval)
 
 
@@ -128,8 +136,10 @@ async def _eval_loop() -> None:
             await analyst_aggregates_task({})
             if any(scored.values()):
                 logger.info("Eval loop graded claims: %s", scored)
+            record_heartbeat("eval")
         except Exception:
             logger.error("Eval loop failed", exc_info=True)
+            record_heartbeat("eval", status="error", detail="eval pass failed")
 
 
 # In-process mirrors of the ARQ cron jobs. The deployed free tier has no ARQ
@@ -148,8 +158,10 @@ async def _news_scan_loop() -> None:
         await asyncio.sleep(3600)
         try:
             await news_scan_task({})
+            record_heartbeat("news_scan")
         except Exception:
             logger.error("News scan loop failed", exc_info=True)
+            record_heartbeat("news_scan", status="error", detail="news scan pass failed")
 
 
 async def _weather_scan_loop() -> None:
@@ -160,8 +172,10 @@ async def _weather_scan_loop() -> None:
         await asyncio.sleep(3600)
         try:
             await weather_scan_task({})
+            record_heartbeat("weather_scan")
         except Exception:
             logger.error("Weather scan loop failed", exc_info=True)
+            record_heartbeat("weather_scan", status="error", detail="weather scan pass failed")
 
 
 async def _morning_research_loop() -> None:
@@ -172,8 +186,10 @@ async def _morning_research_loop() -> None:
         await asyncio.sleep(86400)
         try:
             await morning_research_task({})
+            record_heartbeat("morning_research")
         except Exception:
             logger.error("Morning research loop failed", exc_info=True)
+            record_heartbeat("morning_research", status="error", detail="morning research pass failed")
 
 
 async def _whale_refresh_loop() -> None:
@@ -185,8 +201,10 @@ async def _whale_refresh_loop() -> None:
         await asyncio.sleep(7 * 86400)
         try:
             await refresh_whales_task({})
+            record_heartbeat("whale_refresh")
         except Exception:
             logger.error("Whale refresh loop failed", exc_info=True)
+            record_heartbeat("whale_refresh", status="error", detail="whale refresh pass failed")
 
 
 async def _wc2026_resolve_loop() -> None:
@@ -198,8 +216,10 @@ async def _wc2026_resolve_loop() -> None:
         await asyncio.sleep(600)
         try:
             await wc2026_resolve_task({})
+            record_heartbeat("wc2026_resolve")
         except Exception:
             logger.error("WC2026 resolve loop failed", exc_info=True)
+            record_heartbeat("wc2026_resolve", status="error", detail="wc2026 resolve pass failed")
 
 
 @asynccontextmanager
@@ -272,6 +292,7 @@ async def _kalshi_stream_loop() -> None:
 
     while True:
         try:
+            record_heartbeat("kalshi_ws", detail="stream loop starting")
             await run_kalshi_stream_loop(
                 ws_url=settings.kalshi_ws_url,
                 reconnect_cap_sec=settings.stream_reconnect_max_sec,
@@ -286,6 +307,7 @@ async def _kalshi_stream_loop() -> None:
                 _STREAM_RESTART_DELAY_SEC,
                 exc_info=True,
             )
+            record_heartbeat("kalshi_ws", status="error", detail="stream loop crashed; restarting")
             await asyncio.sleep(_STREAM_RESTART_DELAY_SEC)
 
 
@@ -294,6 +316,7 @@ async def _polymarket_stream_loop() -> None:
 
     while True:
         try:
+            record_heartbeat("polymarket_ws", detail="stream loop starting")
             await run_polymarket_stream_loop(
                 ws_url=settings.polymarket_ws_url,
                 reconnect_cap_sec=settings.stream_reconnect_max_sec,
@@ -308,6 +331,7 @@ async def _polymarket_stream_loop() -> None:
                 _STREAM_RESTART_DELAY_SEC,
                 exc_info=True,
             )
+            record_heartbeat("polymarket_ws", status="error", detail="stream loop crashed; restarting")
             await asyncio.sleep(_STREAM_RESTART_DELAY_SEC)
 
 
@@ -360,6 +384,7 @@ app.include_router(backtest_router)
 app.include_router(arb_router)
 app.include_router(observability_router)
 app.include_router(profile_router)
+app.include_router(system_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
