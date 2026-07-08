@@ -76,7 +76,7 @@ describe("critical component smoke tests", () => {
     const html = renderToStaticMarkup(React.createElement(LiveTicker));
 
     expect(html).toContain("Live trades");
-    expect(html).toContain("alpha_quant");
+    expect(html).toContain("demo-trader-1");
   });
 
   it("renders price chart controls before browser chart initialization", () => {
@@ -89,6 +89,6 @@ describe("critical component smoke tests", () => {
 
     expect(html).toContain("Market");
     expect(html).toContain("area");
-    expect(html).toContain("1D");
+    expect(html).toContain("1d");
   });
 });

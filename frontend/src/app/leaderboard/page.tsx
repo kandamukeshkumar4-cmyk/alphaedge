@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
@@ -48,9 +49,27 @@ function initials(name: string): string {
 }
 
 const PODIUM_STYLES = [
-  { ring: "border-gold/50 bg-gold/10", medal: "🥇", glow: "shadow-[0_0_28px_rgba(246,194,68,0.25)]", order: "sm:order-2 sm:-translate-y-3" },
-  { ring: "border-border-light bg-surface-2", medal: "🥈", glow: "shadow-lift", order: "sm:order-1" },
-  { ring: "border-[#C6824A]/45 bg-[#C6824A]/10", medal: "🥉", glow: "shadow-lift", order: "sm:order-3" },
+  {
+    ring: "border-gold/50 bg-gold/10",
+    place: "1st",
+    glow: "shadow-[0_0_28px_rgba(246,194,68,0.25)]",
+    order: "sm:order-2 sm:-translate-y-3",
+    accent: "text-gold",
+  },
+  {
+    ring: "border-border-light bg-surface-2",
+    place: "2nd",
+    glow: "shadow-lift",
+    order: "sm:order-1",
+    accent: "text-muted",
+  },
+  {
+    ring: "border-[#C6824A]/45 bg-[#C6824A]/10",
+    place: "3rd",
+    glow: "shadow-lift",
+    order: "sm:order-3",
+    accent: "text-[#C6824A]",
+  },
 ];
 
 function Podium({ entries }: { entries: LeaderboardEntry[] }) {
@@ -61,15 +80,21 @@ function Podium({ entries }: { entries: LeaderboardEntry[] }) {
       {top.map((entry, i) => {
         const s = PODIUM_STYLES[i];
         return (
-          <div
+          <motion.div
             key={entry.username}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 * i, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            whileHover={{ y: -4, transition: { duration: 0.18 } }}
             className={cn("rounded-2xl border p-4 text-center", s.ring, s.glow, s.order)}
           >
-            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-border-light bg-bg font-mono text-sm font-black text-text">
+            <p className={cn("text-[10px] font-bold uppercase tracking-[0.14em]", s.accent)}>
+              {s.place}
+            </p>
+            <div className="mx-auto mt-2 grid h-12 w-12 place-items-center rounded-full border border-border-light bg-bg font-mono text-sm font-black text-text">
               {initials(entry.username)}
             </div>
-            <div className="mt-2 text-lg">{s.medal}</div>
-            <div className="mt-1 truncate text-sm font-black text-text">{entry.username}</div>
+            <div className="mt-2 truncate text-sm font-black text-text">{entry.username}</div>
             <div className="mt-1 font-mono text-xl font-black tabular-nums text-primary">
               {formatUSD(entry.realized_pnl)}
             </div>
@@ -78,11 +103,11 @@ function Podium({ entries }: { entries: LeaderboardEntry[] }) {
             </div>
             <Link
               href="/mirror"
-              className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-accent/40 bg-accent/12 px-3 py-1.5 text-xs font-black text-accent transition hover:bg-accent/20"
+              className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-primary px-3 py-2 text-xs font-black text-bg shadow-glow transition hover:brightness-110"
             >
               Copy trader
             </Link>
-          </div>
+          </motion.div>
         );
       })}
     </div>
@@ -103,6 +128,7 @@ export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [demo, setDemo] = useState(false);
+  const [liveEmpty, setLiveEmpty] = useState(false);
   const [sort, setSort] = useState<ArenaSort>("pnl");
 
   useEffect(() => {
@@ -121,8 +147,10 @@ export default function LeaderboardPage() {
           setEntries(rows);
           setDemo(false);
         } else {
-          setEntries(DEMO_LEADERBOARD);
-          setDemo(true);
+          // Live API answered with zero ranked traders — show that honestly
+          // instead of fabricated demo standings.
+          setEntries([]);
+          setLiveEmpty(true);
         }
       } catch {
         setEntries(DEMO_LEADERBOARD);
@@ -184,6 +212,14 @@ export default function LeaderboardPage() {
         <div className="p-4 sm:p-5">
           {loading ? (
             <ArenaSkeleton />
+          ) : liveEmpty ? (
+            <div className="py-10 text-center">
+              <p className="text-sm font-bold text-text">No ranked traders yet</p>
+              <p className="mt-1 text-xs text-muted">
+                Rankings appear once paper traders place orders and markets resolve.
+                Place a paper trade to claim the first spot.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
@@ -198,9 +234,12 @@ export default function LeaderboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((entry) => (
-                    <tr
+                  {sorted.map((entry, rowIdx) => (
+                    <motion.tr
                       key={`${entry.username}`}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: Math.min(rowIdx * 0.03, 0.35), duration: 0.25 }}
                       className="border-b border-border/60 transition last:border-0 hover:bg-surface-2/50"
                     >
                       <td className="px-3 py-3">
@@ -231,14 +270,16 @@ export default function LeaderboardPage() {
                         {formatWinRate(entry.win_rate)}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <Link
-                          href="/mirror"
-                          className="inline-flex items-center rounded-lg border border-border px-2.5 py-1 text-xs font-black text-muted transition hover:border-accent hover:text-accent"
-                        >
-                          Copy
-                        </Link>
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}>
+                          <Link
+                            href="/mirror"
+                            className="inline-flex items-center rounded-lg border border-primary/35 bg-primary-dim px-2.5 py-1 text-xs font-black text-primary shadow-glow transition hover:bg-primary hover:text-bg"
+                          >
+                            Copy
+                          </Link>
+                        </motion.div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
                 </tbody>
               </table>

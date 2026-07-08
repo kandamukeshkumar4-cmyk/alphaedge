@@ -9,8 +9,8 @@ import { cn } from "@/lib/cn";
  * Desktop keeps the top nav; this renders on small screens only.
  */
 const ITEMS = [
-  { label: "Feed", href: "/", icon: HomeIcon },
-  { label: "Discover", href: "/discover", icon: CompassIcon },
+  { label: "Discover", href: "/", icon: HomeIcon },
+  { label: "Trade", href: "/trade", icon: CompassIcon },
   { label: "Portfolio", href: "/portfolio", icon: WalletIcon },
 ];
 

@@ -84,12 +84,12 @@ export function AlertToast({ alerts }: AlertToastProps) {
                 New {formatSignalType(toast.signalType)} signal
               </p>
               <p className="mt-0.5 truncate text-sm font-semibold text-text">{toast.marketTitle}</p>
-              <p className="mt-0.5 text-xs text-muted">
-                Confidence{" "}
-                <span className="font-mono font-bold text-text">
-                  {toast.confidencePct === null ? "—" : `${toast.confidencePct}%`}
-                </span>
-              </p>
+              {toast.confidencePct !== null ? (
+                <p className="mt-0.5 text-xs text-muted">
+                  Confidence{" "}
+                  <span className="font-mono font-bold text-text">{toast.confidencePct}%</span>
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="mt-3 flex justify-end">
