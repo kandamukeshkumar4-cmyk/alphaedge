@@ -24,6 +24,7 @@ must exit 0 (all 6 checks PASS). Today check 5 FAILS by design.
 | loop | date | result | proof |
 |------|------|--------|-------|
 | 0 | 2026-07-08 | setup done; checks 1-4,6 PASS, check 5 FAILS (by design) | verify_prod.py: 5/6 — health ok; markets total=322 open+locked=300 polymarket=282 kalshi=18; live candles pm-will-morocco-...; signals=5; FE alpha_quant present + 0/282 pm- slugs; memories 200. NOTE prod-facts counts (287/185/12) now stale (322/282/18), non-blocking |
+| 1 | 2026-07-08 | backlog shipped: merged 3 loop3-agent-memory commits into base, pushed, backend+frontend deployed to prod; checks 1-4,6 PASS, 5 FAILS by design | verify_prod.py: 5/6 — 1 health PASS (200 ok); 2 markets PASS (total=324 open+locked=302 polymarket=284 kalshi=18); 3 candles PASS (live pm-will-morocco-win-the-2026-fifa-world-cup-464); 4 signals PASS (count=5); 5 frontend-live FAIL (alpha_quant present, 0/284 pm- slugs — by design, loops 2-5 fix this); 6 memories PASS (200). Merge: 7a06c6a (loop0 e2e state+verifier, loop1 hermetic ensemble test, loop2 dead component removal+plan007). Push: 5c85732..c2ac741. HF deploy run 28956631913 success 3m39s. Vercel prod READY aliased alphaedge-frontend-three.vercel.app. |
 
 ## BLOCKED
 
