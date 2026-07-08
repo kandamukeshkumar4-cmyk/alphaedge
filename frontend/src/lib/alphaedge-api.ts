@@ -22,6 +22,32 @@ export const WS_BASE =
 export const PAPER_BALANCE = 100_000;
 export const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
 
+/**
+ * FastAPI may return `detail` as a string or as a validation-error array/object.
+ * Never pass the raw value into React children — that throws React error #31.
+ */
+export function formatApiDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          const msg = (item as { msg?: unknown }).msg;
+          return typeof msg === "string" ? msg : null;
+        }
+        return null;
+      })
+      .filter((part): part is string => Boolean(part));
+    if (parts.length > 0) return parts.join("; ");
+  }
+  if (detail && typeof detail === "object" && "msg" in detail) {
+    const msg = (detail as { msg?: unknown }).msg;
+    if (typeof msg === "string" && msg.trim()) return msg;
+  }
+  return fallback;
+}
+
 export type Candle = {
   time: number;
   open: number;

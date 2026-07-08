@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import { saveAuthSession } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
-import { API_BASE } from "@/lib/alphaedge-api";
+import { API_BASE, formatApiDetail } from "@/lib/alphaedge-api";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -31,10 +31,10 @@ export default function SignupPage() {
         body: JSON.stringify({ email, password }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { detail?: string };
+        const body = (await response.json().catch(() => ({}))) as { detail?: unknown };
         toast({
           title: "Signup failed",
-          body: body.detail ?? "Unable to create account",
+          body: formatApiDetail(body.detail, "Unable to create account"),
           tone: "error",
         });
         return;

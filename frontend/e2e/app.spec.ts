@@ -125,7 +125,8 @@ test("signup page is interactive: ATLAS never covers the terms checkbox", async 
 test("header reflects auth state after signup without a refresh", async ({ page }) => {
   test.skip(!LIVE, "requires the live backend to create a throwaway account");
   await page.goto("/auth/signup", { waitUntil: GOTO_WAIT, timeout: 60_000 });
-  const email = `e2e-${Date.now()}@alphaedge.test`;
+  // EmailStr rejects reserved TLDs like `.test` — use a deliverable-looking domain.
+  const email = `e2e-${Date.now()}@example.com`;
   await page.locator('input[type="email"]').first().fill(email);
   const passwords = page.locator('input[type="password"]');
   await passwords.nth(0).fill("Str0ngPass!e2e");
