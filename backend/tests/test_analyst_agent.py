@@ -86,6 +86,16 @@ async def test_run_analyst_fallback_generator_persists_brief(db_session):
     assert model.claim.direction.value == "up"
 
     await db_session.flush()
+    row = await db_session.scalar(
+        select(AnalystBrief).where(AnalystBrief.market_slug == "pm-analyst").limit(1)
+    )
+    assert row is not None
+    assert row.tools_used is not None
+    assert {tool["tool"] for tool in row.tools_used} == {
+        "get_order_book_summary",
+        "get_price_history",
+        "get_whale_activity",
+    }
     briefs = await db_session.scalar(
         select(func.count()).select_from(AnalystBrief).where(
             AnalystBrief.market_slug == "pm-analyst"

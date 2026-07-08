@@ -566,6 +566,7 @@ class AnalystBrief(Base):
     headline: Mapped[str] = mapped_column(String(160), nullable=False)
     body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    tools_used: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(JSON, nullable=True)
     model_version: Mapped[str] = mapped_column(String(64), default="unknown")
     prompt_version: Mapped[str] = mapped_column(String(32), default="v1")
     generator: Mapped[str] = mapped_column(String(16), default="llm")

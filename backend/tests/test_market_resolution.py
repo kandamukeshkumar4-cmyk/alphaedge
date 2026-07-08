@@ -5,7 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.db.models import PaperOrder, User
+from app.db.models import AgentMemory, PaperOrder, User
 from app.db.session import get_db
 from app.main import app
 from app.services.market_service import MarketService
@@ -70,6 +70,29 @@ async def test_resolve_market_success(db_session):
     assert body["slug"] == CANONICAL_SLUG
     assert body["winning_outcome"] == "YES"
     assert body["paper_orders_settled"] == 0
+
+
+@pytest.mark.asyncio
+async def test_resolve_market_stores_agent_memory(db_session):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await MarketService(db_session).seed_catalog_markets()
+        response = await client.post(
+            f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
+            headers=ADMIN_HEADERS,
+            json={"winning_outcome": "YES"},
+        )
+
+    assert response.status_code == 200
+    memory = await db_session.scalar(
+        select(AgentMemory).where(AgentMemory.market_slug == CANONICAL_SLUG)
+    )
+    assert memory is not None
+    assert memory.outcome == "YES"
+    assert memory.category == "NBA"
+    assert memory.question == "Will the Lakers win?"
+    assert memory.model_prob_at_close is not None
+    assert memory.market_prob_at_close is not None
+    assert memory.brier is not None
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,7 @@ class BriefOut(BaseModel):
     headline: str
     body_markdown: str
     citations: list[dict]
+    tools_used: Optional[list[dict]] = None
     generator: str
     model_version: str
     prompt_version: str
