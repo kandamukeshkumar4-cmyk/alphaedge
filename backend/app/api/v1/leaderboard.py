@@ -29,23 +29,23 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)) -> LeaderboardResp
                     u.email,
                     SUM(
                         CASE
-                            WHEN po.settled = 1
+                            WHEN po.settled IS TRUE
                                  AND UPPER(po.outcome) = COALESCE(mr.outcome, '')
                             THEN po.shares * 1.0 - po.cost
-                            WHEN po.settled = 1 THEN 0.0 - po.cost
+                            WHEN po.settled IS TRUE THEN 0.0 - po.cost
                             ELSE 0.0
                         END
                     ) AS realized_pnl,
                     COUNT(*) AS total_trades,
                     SUM(
                         CASE
-                            WHEN po.settled = 1
+                            WHEN po.settled IS TRUE
                                  AND UPPER(po.outcome) = COALESCE(mr.outcome, '')
                             THEN 1
                             ELSE 0
                         END
                     ) AS wins,
-                    SUM(CASE WHEN po.settled = 1 THEN 1 ELSE 0 END) AS settled_trades
+                    SUM(CASE WHEN po.settled IS TRUE THEN 1 ELSE 0 END) AS settled_trades
                 FROM paper_orders po
                 LEFT JOIN market_resolutions mr ON mr.slug = po.slug
                 LEFT JOIN users u ON u.id = po.user_id
