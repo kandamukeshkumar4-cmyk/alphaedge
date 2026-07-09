@@ -199,20 +199,21 @@ export async function fetchMemories(
   category?: string,
   limit = 8,
 ): Promise<AgentMemoryRow[]> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!base) {
     return [];
   }
   const params = new URLSearchParams();
   if (category) params.set("category", category);
   params.set("limit", String(limit));
   try {
-    const response = await fetch(`${API_BASE}/api/v1/memories?${params.toString()}`, {
+    const response = await fetch(`${base}/api/v1/memories?${params.toString()}`, {
       cache: "no-store",
     });
     if (!response.ok) {
       return [];
     }
-    const data = (await response.json()) as { items?: AgentMemoryRow[] };
+    const data = (await response.json()) as { items?: AgentMemoryRow[]; total?: number };
     return Array.isArray(data.items) ? data.items : [];
   } catch {
     return [];
