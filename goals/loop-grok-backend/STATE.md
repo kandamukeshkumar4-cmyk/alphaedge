@@ -140,4 +140,5 @@ tools' underlying services. Read-only. Tests with fixtures.
 
 | iter | date | ticket | result | proof |
 |------|------|--------|--------|-------|
-| 1 | 2026-07-09 | G00 | DONE | Tier-1 cloned under `E:\polymarket-vendor\` (pmxt, PredictOS, polymarket-agents, prediction-market-analysis, prediction-market-backtester); all five MIT. Tier-2 README/license skimmed. `VENDOR-NOTES.md` + `API-NOTES.md` (no API delta). No `backend/**` code changes. Gate: `1155 passed, 28 skipped`; ruff `All checks passed`. AutoLab: not applicable (no iterative measure) |
+| 1 | 2026-07-09 | G00 | DONE | Tier-1 cloned + studied; notes written. Gate: `1155 passed, 28 skipped`; ruff clean. AutoLab: n/a |
+| 1b | 2026-07-09 | G00 | DONE (complete inventory) | Cloned remaining Tier-2 + official SDKs → **20 repos** in `E:\polymarket-vendor\`. Every repo license-checked and mapped to G01–G07 in `VENDOR-NOTES.md`. No `backend/**` changes. Gate: `1155 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a |
