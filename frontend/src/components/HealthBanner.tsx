@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { API_BASE } from "@/lib/alphaedge-api";
+import { API_BASE, ensureApiBase } from "@/lib/alphaedge-api";
 
 type DetailedHealth = {
   status: "ok" | "degraded" | "down";
@@ -41,7 +41,8 @@ export function HealthBanner() {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     async function loadHealth() {
-      if (!API_BASE) {
+      const base = await ensureApiBase();
+      if (!base) {
         if (!cancelled) setStatus("degraded");
         return;
       }

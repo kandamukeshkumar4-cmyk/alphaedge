@@ -1,4 +1,4 @@
-import { API_BASE } from "./alphaedge-api";
+import { API_BASE, ensureApiBase } from "./alphaedge-api";
 
 export const SIGNALS_DISCLAIMER =
   "Research only — not financial advice. Verify resolution terms. Paper trading only.";
@@ -50,7 +50,7 @@ export async function fetchSignalsDashboard(input?: {
   apiBase?: string;
   fetcher?: Fetcher;
 }): Promise<SignalsDashboard | null> {
-  const apiBase = input?.apiBase ?? API_BASE;
+  const apiBase = input?.apiBase ?? (await ensureApiBase()) ?? API_BASE;
   if (!apiBase) {
     return null;
   }

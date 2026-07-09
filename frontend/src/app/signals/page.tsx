@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { API_BASE } from "@/lib/alphaedge-api";
+import { API_BASE, ensureApiBase } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { fetchSignalsDashboard } from "@/lib/signals-dashboard-api";
 import { buildSignalsDashboardView } from "@/lib/signals-dashboard-view-model";
@@ -15,38 +15,42 @@ type Notice = {
 
 export default function SignalsPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [loading, setLoading] = useState(false);
+  const apiConfigured = Boolean(API_BASE);
+  const [loading, setLoading] = useState(apiConfigured);
   const [dashboard, setDashboard] = useState<Awaited<ReturnType<typeof fetchSignalsDashboard>>>(null);
 
   const view = useMemo(() => buildSignalsDashboardView(dashboard), [dashboard]);
-  const apiConfigured = Boolean(API_BASE);
 
-  useEffect(() => {
-    if (!apiConfigured) {
+  async function loadDashboard() {
+    const base = await ensureApiBase();
+    if (!base) {
       setNotice({
         tone: "muted",
         text: "Set NEXT_PUBLIC_API_URL to load live signal and CLV data.",
       });
+      setLoading(false);
       return;
     }
-    void loadDashboard();
-  }, [apiConfigured]);
-
-  async function loadDashboard() {
     setLoading(true);
     setNotice(null);
     try {
-      const next = await fetchSignalsDashboard();
+      const next = await fetchSignalsDashboard({ apiBase: base });
       setDashboard(next);
     } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "Failed to load signals dashboard.";
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "Failed to load signals dashboard.",
+        text: `${detail} (${base}) — showing last loaded data. Retry below.`,
       });
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [apiConfigured]);
 
   return (
     <PageShell width="medium">
@@ -99,7 +103,13 @@ export default function SignalsPage() {
           <h2 className="text-lg font-black text-text">Signal feed</h2>
           <span className="text-xs text-muted">{view.signalCards.length} signals</span>
         </div>
-        {view.signalCards.length === 0 ? (
+        {loading && view.signalCards.length === 0 ? (
+          <div className="grid gap-4 md:grid-cols-2" aria-hidden>
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="skeleton h-36 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : view.signalCards.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
             No signals detected yet. Headline-eligible arb, dutch, and forecast signals appear here.
           </div>
@@ -176,7 +186,8 @@ export default function SignalsPage() {
               {view.clvRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                    No resolved CLV records yet.
+                    No resolved CLV records yet — CLV appears after markets resolve and
+                    forecasts reconcile against closing prices.
                   </td>
                 </tr>
               ) : (
@@ -207,14 +218,24 @@ export default function SignalsPage() {
       </section>
 
       {notice ? (
-        <p
+        <div
           className={cn(
             "mt-6 rounded-xl px-4 py-3 text-sm",
             notice.tone === "error" ? "bg-danger/10 text-danger" : "bg-surface-2 text-muted",
           )}
         >
-          {notice.text}
-        </p>
+          <p>{notice.text}</p>
+          {notice.tone === "error" ? (
+            <button
+              type="button"
+              onClick={() => void loadDashboard()}
+              disabled={loading}
+              className="mt-2 text-xs font-bold underline hover:no-underline disabled:opacity-50"
+            >
+              Retry now
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <footer className="mt-8 rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs font-semibold text-muted">

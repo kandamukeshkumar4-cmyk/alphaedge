@@ -10,15 +10,71 @@ import type { Market, MarketSnapshot } from "./market-view-model";
 // UI into sample-data fallback — the "everything is mock data" failure. So we
 // ALWAYS resolve to a real backend: the NEXT_PUBLIC_API_URL build var when set,
 // otherwise the known production API (prod build) or localhost (dev).
-const DEFAULT_API_BASE =
-  process.env.NODE_ENV === "production"
-    ? "https://mukeshkumar007-alphaedge-api.hf.space"
-    : "http://localhost:8000";
+//
+// Dev without NEXT_PUBLIC_API_URL: probe localhost:8000/health once; if the
+// local API is down, fall back to the HF Space prod URL (matches local.config.json
+// policy — only repoint after health passes).
+const HF_PROD_API = "https://mukeshkumar007-alphaedge-api.hf.space";
+const LOCAL_DEV_API = "http://localhost:8000";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").trim() || DEFAULT_API_BASE;
-export const WS_BASE =
+function readEnvApiUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_URL || "").trim();
+}
+
+function syncDefaultBase(): string {
+  const env = readEnvApiUrl();
+  if (env) return env;
+  if (process.env.NODE_ENV === "production") return HF_PROD_API;
+  return LOCAL_DEV_API;
+}
+
+let _resolvedBase: string | null = null;
+let _probePromise: Promise<string> | null = null;
+
+export async function resolveApiBase(): Promise<string> {
+  const env = readEnvApiUrl();
+  if (env) {
+    _resolvedBase = env;
+    return env;
+  }
+  if (process.env.NODE_ENV === "production") {
+    _resolvedBase = HF_PROD_API;
+    return HF_PROD_API;
+  }
+  if (_resolvedBase) return _resolvedBase;
+  if (_probePromise) return _probePromise;
+
+  _probePromise = (async () => {
+    try {
+      const response = await fetch(`${LOCAL_DEV_API}/health`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(2500),
+      });
+      _resolvedBase = response.ok ? LOCAL_DEV_API : HF_PROD_API;
+    } catch {
+      _resolvedBase = HF_PROD_API;
+    }
+    _probePromise = null;
+    return _resolvedBase;
+  })();
+
+  return _probePromise;
+}
+
+/** Live binding — updated after {@link ensureApiBase} in dev when local API is down. */
+export let API_BASE = syncDefaultBase();
+
+export let WS_BASE =
   (process.env.NEXT_PUBLIC_WS_URL || "").trim() ||
   API_BASE.replace(/^http/, "ws");
+
+export async function ensureApiBase(): Promise<string> {
+  const base = await resolveApiBase();
+  API_BASE = base;
+  WS_BASE =
+    (process.env.NEXT_PUBLIC_WS_URL || "").trim() || base.replace(/^http/, "ws");
+  return base;
+}
 export const PAPER_BALANCE = 100_000;
 export const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
 
@@ -402,11 +458,12 @@ export function toApiCategory(category: string): string | undefined {
 }
 
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
-  if (!API_BASE) {
+  const apiBase = await ensureApiBase();
+  if (!apiBase) {
     return [];
   }
 
-  const url = new URL(`${API_BASE}/api/v1/markets`);
+  const url = new URL(`${apiBase}/api/v1/markets`);
   if (params?.category && params.category !== "all") {
     const apiCategory = toApiCategory(params.category);
     if (apiCategory) {
