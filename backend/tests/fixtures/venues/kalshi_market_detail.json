@@ -1,0 +1,13 @@
+{
+  "market": {
+    "ticker": "KXNBA-LALBOS-26JAN15",
+    "title": "Lakers beat Celtics?",
+    "category": "Sports",
+    "status": "open",
+    "close_time": "2026-01-15T00:30:00Z",
+    "last_price_dollars": "0.5600",
+    "last_update_time": "2026-01-14T18:00:00Z",
+    "yes_bid_dollars": "0.5400",
+    "yes_ask_dollars": "0.5800"
+  }
+}

@@ -81,7 +81,7 @@ jon-becker dataset schema → G05/G06). No production code changes in this
 ticket. Gate: notes file exists, licenses recorded, pytest+ruff still green
 (nothing should have changed).
 
-### G01 — Venue adapter layer (pmxt idea, clean-room) (TODO)
+### G01 — Venue adapter layer (pmxt idea, clean-room) (DONE 2026-07-09)
 Introduce `backend/app/services/venues/` with a small `VenueAdapter` protocol
 (fetch_markets, fetch_orderbook_summary, fetch_last_price, normalize slug/
 title/close_time) and adapters wrapping the EXISTING Polymarket + Kalshi
@@ -142,3 +142,4 @@ tools' underlying services. Read-only. Tests with fixtures.
 |------|------|--------|--------|-------|
 | 1 | 2026-07-09 | G00 | DONE | Tier-1 cloned + studied; notes written. Gate: `1155 passed, 28 skipped`; ruff clean. AutoLab: n/a |
 | 1b | 2026-07-09 | G00 | DONE (complete inventory) | Cloned remaining Tier-2 + official SDKs → **20 repos** in `E:\polymarket-vendor\`. Every repo license-checked and mapped to G01–G07 in `VENDOR-NOTES.md`. No `backend/**` changes. Gate: `1155 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a |
+| 2 | 2026-07-09 | G01 | DONE | `app/services/venues/` protocol + Polymarket/Kalshi adapters wrapping existing connectors + registry. Fixture tests in `tests/test_venue_adapters.py` (+ `tests/fixtures/venues/`). `ATTRIBUTIONS.md` for pmxt MIT idea credit. No new HTTP endpoints. Gate: `1160 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a (adapter seam; matcher accuracy is G02) |

@@ -1,0 +1,7 @@
+{
+  "asset_id": "yes-token-123",
+  "timestamp": "2026-01-14T18:00:00Z",
+  "hash": "book-hash",
+  "bids": [{"price": "0.54", "size": "100"}],
+  "asks": [{"price": "0.60", "size": "80"}]
+}
