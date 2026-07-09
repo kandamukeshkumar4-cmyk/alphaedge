@@ -94,7 +94,7 @@ export default function AlertsPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-text">Alerts</h1>
       <p className="mt-1 text-sm text-muted">
         Everything the pipeline flags — alignment triggers, new briefs, and the raw
-        signal events behind them. Research only — no bets placed in-app.
+        signal events behind them. Research only, paper trading only.
       </p>
       {demo && (
         <p className="mt-3 flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary-dim px-4 py-2.5 text-xs text-secondary">

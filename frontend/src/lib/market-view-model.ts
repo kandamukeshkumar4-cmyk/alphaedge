@@ -84,7 +84,7 @@ export function buildMarketDetailView(snapshot: MarketSnapshot) {
     question: snapshot.market.question,
     statusLabel: titleCase(snapshot.market.status),
     primaryPriceLabel: formatProbability(yesPrice),
-    paperOnlyLabel: snapshot.paper_trading_only ? "Research only" : "Unavailable",
+    paperOnlyLabel: snapshot.paper_trading_only ? "Paper trading only" : "Unavailable",
     outcomes: [
       outcomeView("YES", yesPrice, snapshot.book.yes),
       outcomeView("NO", noPrice, snapshot.book.no),

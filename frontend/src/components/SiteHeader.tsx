@@ -13,16 +13,25 @@ import { cn } from "@/lib/cn";
 import { MARKETS } from "@/lib/mock-data";
 
 /*
- * QuestFlow nav: Discover | Analyze | Markets | Signals | Clones
- * (History / research log stays reachable at /portfolio; Leaderboard from Discover.)
+ * QuestFlow nav: Discover | Trade | Markets | Signals | Clones | Portfolio
+ * (Leaderboard stays reachable from Discover Intelligence + /leaderboard).
  */
 const NAV = [
   { label: "Discover", href: "/" },
-  { label: "Analyze", href: "/trade" },
+  { label: "Trade", href: "/trade" },
   { label: "Markets", href: "/markets" },
   { label: "Signals", href: "/signals" },
   { label: "Clones", href: "/clones" },
+  { label: "Portfolio", href: "/portfolio" },
 ];
+
+function formatPaperBalance(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 function truncateEmail(value: string): string {
   const at = value.indexOf("@");
@@ -48,7 +57,7 @@ function NavLabel({ label, unreadCount }: { label: string; unreadCount?: number 
 export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const { token, email, logout, isReady } = useAuth();
+  const { token, email, paperBalance, logout, isReady } = useAuth();
   const [open, setOpen] = useState(false);
   const { alerts, unreadCount, markRead } = useSignalAlerts();
   const catalogSlugs = useMemo(() => MARKETS.map((m) => m.slug), []);
@@ -66,7 +75,7 @@ export function SiteHeader() {
             <span className="flex items-center gap-2">
               <span className="text-[15px] font-black tracking-tight text-text">AlphaEdge</span>
               <span className="hidden rounded border border-primary/25 bg-primary-dim/55 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-primary xl:inline">
-                Research
+                Sim
               </span>
             </span>
           </Link>
@@ -114,15 +123,23 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2">
             <Link
-              href="/signals"
+              href="/portfolio"
               className="hidden h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"
-              aria-label="Open signals"
-              title="Browse live signals"
+              aria-label="Add paper funds"
+              title="Add paper funds (simulated)"
             >
-              Signals
+              Deposit
             </Link>
             {isLoggedIn ? (
               <>
+                {paperBalance !== null ? (
+                  <span
+                    className="hidden items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 font-mono text-sm font-bold text-text sm:inline-flex"
+                    title="Unified paper portfolio balance"
+                  >
+                    {formatPaperBalance(paperBalance)}
+                  </span>
+                ) : null}
                 <span
                   className="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline"
                   title={email ?? undefined}
@@ -173,13 +190,6 @@ export function SiteHeader() {
                   />
                 </Link>
               ))}
-              <Link
-                href="/portfolio"
-                onClick={() => setOpen(false)}
-                className="rounded-md px-2 py-2 text-muted-2 transition hover:bg-surface-2 hover:text-text"
-              >
-                Research history
-              </Link>
             </nav>
           </div>
         )}
@@ -205,3 +215,4 @@ function MenuIcon() {
     </svg>
   );
 }
+

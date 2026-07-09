@@ -116,7 +116,7 @@ async function task4MobilePass() {
 
   console.log("\n=== TASK 4: iPhone viewport mobile pass ===");
   await checkSurface("homepage", `${FE}/`);
-  await checkSurface("market-detail", `${FE}/markets/${MKT}`, { tradeButtonSelector: 'button:has-text("AI Analyze"), a:has-text("Analyze")' });
+  await checkSurface("market-detail", `${FE}/markets/${MKT}`, { tradeButtonSelector: 'button:has-text("Buy YES"), a:has-text("YES")' });
   await checkSurface("portfolio", `${FE}/portfolio`);
 
   const allOk = results.every((r) => r.noOverflow && (r.tradeTappable === null || r.tradeTappable === true));

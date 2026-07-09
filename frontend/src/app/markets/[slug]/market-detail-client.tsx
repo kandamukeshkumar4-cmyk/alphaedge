@@ -37,9 +37,8 @@ import { QuestMarketActivity } from "@/components/quest/QuestMarketActivity";
 import { useAtlasPanel } from "@/context/atlas-panel";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
-import { PRODUCT_DISCLAIMER } from "@/lib/product-disclaimer";
-
-const PAPER_DISCLAIMER = PRODUCT_DISCLAIMER;
+const PAPER_DISCLAIMER =
+  "This project is a paper-trading simulation for sports and election markets using simulated funds for research and portfolio demonstration only.";
 
 export default function MarketDetailClient({
   slug,
@@ -168,7 +167,7 @@ export default function MarketDetailClient({
             href={`/trade?slug=${encodeURIComponent(market.slug)}`}
             className="rounded-lg border border-border px-3 py-2 text-sm font-bold text-muted transition hover:text-text"
           >
-            Analyze view
+            Trade view
           </Link>
           {isResolved ? (
             <span className="rounded-md bg-primary-dim px-2 py-1 font-bold uppercase text-primary">

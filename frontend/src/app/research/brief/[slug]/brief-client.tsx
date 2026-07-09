@@ -127,7 +127,7 @@ export default function BriefBySlugClient({ slug: slugProp }: { slug?: string } 
             </p>
           )}
           <p className="mt-4 text-[10px] text-muted-2">
-            Research only — never a bet-size recommendation. No bets placed in-app.
+            Research only — never a bet-size recommendation. Paper trading only.
           </p>
         </div>
       )}

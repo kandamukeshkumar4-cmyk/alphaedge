@@ -10,8 +10,8 @@ import { cn } from "@/lib/cn";
  */
 const ITEMS = [
   { label: "Discover", href: "/", icon: HomeIcon },
-  { label: "Analyze", href: "/trade", icon: CompassIcon },
-  { label: "Signals", href: "/signals", icon: SignalIcon },
+  { label: "Trade", href: "/trade", icon: CompassIcon },
+  { label: "Portfolio", href: "/portfolio", icon: WalletIcon },
 ];
 
 export function BottomNav() {
@@ -63,10 +63,11 @@ function CompassIcon() {
   );
 }
 
-function SignalIcon() {
+function WalletIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <path d="M4 18V12M9 18V8M14 18v-5M19 18V6" strokeLinecap="round" />
+      <rect x="3" y="6" width="18" height="13" rx="2.5" />
+      <path d="M3 10h18M16 14.5h1.5" strokeLinecap="round" />
     </svg>
   );
 }

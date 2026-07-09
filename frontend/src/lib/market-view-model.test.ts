@@ -86,7 +86,7 @@ describe("market view model", () => {
       verdict: "Positive model edge",
     });
     expect(detail.activity[0].summary).toBe("YES filled at 64% for 10 shares");
-    expect(detail.paperOnlyLabel).toBe("Research only");
+    expect(detail.paperOnlyLabel).toBe("Paper trading only");
   });
 
   it("previews cost, payout, and remaining paper balance", () => {

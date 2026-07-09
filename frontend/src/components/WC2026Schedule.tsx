@@ -181,7 +181,7 @@ export function WC2026Schedule() {
                     href={marketHref(homeMarket.slug)}
                     className="rounded-md border border-border px-2.5 py-1 text-[11px] font-black text-text transition hover:border-accent"
                   >
-                    Analyze {match.home_team.split(" ").pop()}
+                    Trade {match.home_team.split(" ").pop()}
                   </Link>
                 )}
                 {drawMarket && (
@@ -189,7 +189,7 @@ export function WC2026Schedule() {
                     href={marketHref(drawMarket.slug)}
                     className="rounded-md border border-border px-2.5 py-1 text-[11px] font-black text-text transition hover:border-accent"
                   >
-                    Analyze Draw
+                    Trade Draw
                   </Link>
                 )}
                 {awayMarket && (
@@ -197,7 +197,7 @@ export function WC2026Schedule() {
                     href={marketHref(awayMarket.slug)}
                     className="rounded-md border border-border px-2.5 py-1 text-[11px] font-black text-text transition hover:border-accent"
                   >
-                    Analyze {match.away_team.split(" ").pop()}
+                    Trade {match.away_team.split(" ").pop()}
                   </Link>
                 )}
               </div>

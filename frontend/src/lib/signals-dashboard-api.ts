@@ -1,7 +1,7 @@
 import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "./alphaedge-api";
 
 export const SIGNALS_DISCLAIMER =
-  "Research only — not financial advice. No bets placed in-app. Simulation APIs remain paper-only.";
+  "Research only — not financial advice. Verify resolution terms. Paper trading only.";
 
 export type SignalFeedItem = {
   id: string;

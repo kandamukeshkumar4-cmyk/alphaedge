@@ -29,14 +29,14 @@ export function QuestHero() {
         </h1>
         <p className="relative max-w-md text-sm text-muted">
           Live match markets mirrored from Kalshi &amp; Polymarket — with AI briefs,
-          whale signals and a public track record. Research only — no bets in-app.
+          whale signals and a public track record. Paper trading only.
         </p>
         <div className="relative mt-1 flex gap-2">
           <Link
             href="/markets?topic=sports"
             className="rounded-lg bg-accent-bright px-4 py-2 text-sm font-semibold text-bg transition hover:bg-accent"
           >
-            Browse WC2026
+            Trade WC2026
           </Link>
           <Link
             href="/research"
