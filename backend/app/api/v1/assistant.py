@@ -68,6 +68,24 @@ _anon_window: dict[str, tuple[int, float]] = {}
 _ANON_PRUNE_THRESHOLD = 100
 
 
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP behind HF / Vercel proxies.
+
+    HF Spaces and Vercel rewrites share one edge IP on ``request.client.host``,
+    which collapses the anon chat budget for every visitor. Prefer the first
+    X-Forwarded-For hop when present.
+    """
+    forwarded = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    real = request.headers.get("x-real-ip") or request.headers.get("X-Real-IP")
+    if real and real.strip():
+        return real.strip()
+    return request.client.host if request.client else "unknown"
+
+
 def _anon_allowed(ip: str, limit: int) -> bool:
     """Fixed-window per-IP counter. Returns True when the request is allowed."""
     now = time.monotonic()
@@ -433,7 +451,7 @@ async def assistant_chat(
     working while preventing unbounded abuse.
     """
     if current_user is None:
-        ip = request.client.host if request.client else "unknown"
+        ip = _client_ip(request)
         limit = get_settings().assistant_anon_rate_per_min
         if not _anon_allowed(ip, limit):
             raise HTTPException(

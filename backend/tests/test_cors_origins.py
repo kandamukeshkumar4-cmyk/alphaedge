@@ -35,9 +35,16 @@ def test_allows_azure_swa_pr_preview_origin():
     )
 
 
+def test_allows_vercel_production_origin():
+    rx = _regex()
+    assert rx.fullmatch("https://alphaedge-frontend-three.vercel.app")
+    assert rx.fullmatch("https://alphaedge-frontend.vercel.app")
+
+
 def test_rejects_foreign_azure_static_site():
     rx = _regex()
     # A different app on azurestaticapps.net must NOT be allowed (no open
     # wildcard — credentials are enabled).
     assert not rx.fullmatch("https://evil-app.7.azurestaticapps.net")
     assert not rx.fullmatch("https://proud-meadow-evil.attacker.net")
+    assert not rx.fullmatch("https://evil-app.vercel.app")

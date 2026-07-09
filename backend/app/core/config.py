@@ -58,8 +58,10 @@ class Settings(BaseSettings):
     )
     # Per-IP rate limit for the anonymous (no-token) assistant chat path.
     # Authenticated requests bypass this; anon demo traffic is bounded.
+    # Higher default: HF/Vercel edges still occasionally share IPs even after
+    # X-Forwarded-For parsing; 10/min was too tight for the public demo.
     assistant_anon_rate_per_min: int = Field(
-        default=10, alias="ASSISTANT_ANON_RATE_PER_MIN"
+        default=60, alias="ASSISTANT_ANON_RATE_PER_MIN"
     )
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
@@ -312,6 +314,7 @@ class Settings(BaseSettings):
         return (
             r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
             r"|https://proud-meadow-01b42b810(-\d+)?(\.[a-z0-9-]+)+\.azurestaticapps\.net"
+            r"|https://alphaedge-frontend(-[a-z0-9-]+)?\.vercel\.app"
         )
 
     @property
