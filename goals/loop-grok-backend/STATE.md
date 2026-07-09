@@ -71,7 +71,7 @@ only. Vendored clones stay in `E:\polymarket-vendor` and never enter the repo.
 
 ## TICKETS (in order; one per iteration)
 
-### G00 — Vendor study pass (TODO)
+### G00 — Vendor study pass (DONE 2026-07-09)
 Clone the Tier-1 repos (+ skim Tier-2 READMEs) into `E:\polymarket-vendor\`.
 For each: record license, architecture sketch, and the 3–5 concrete ideas we
 will adapt, in `goals/loop-grok-backend/VENDOR-NOTES.md` mapped to tickets
@@ -140,3 +140,4 @@ tools' underlying services. Read-only. Tests with fixtures.
 
 | iter | date | ticket | result | proof |
 |------|------|--------|--------|-------|
+| 1 | 2026-07-09 | G00 | DONE | Tier-1 cloned under `E:\polymarket-vendor\` (pmxt, PredictOS, polymarket-agents, prediction-market-analysis, prediction-market-backtester); all five MIT. Tier-2 README/license skimmed. `VENDOR-NOTES.md` + `API-NOTES.md` (no API delta). No `backend/**` code changes. Gate: `1155 passed, 28 skipped`; ruff `All checks passed`. AutoLab: not applicable (no iterative measure) |
