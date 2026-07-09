@@ -96,7 +96,7 @@ endpoint with `confidence`, `spread_bps`, `legs`, `stale` flag. Hand-labelled
 fixture set of 20 pairs in tests; target ≥16/20 matched, 0 false positives.
 AutoLab benchmark = matcher accuracy on that fixture set.
 
-### G03 — News→Mispricing signal (TODO)
+### G03 — News→Mispricing signal (DONE 2026-07-09)
 New signal type `news:mispricing`: fresh news item moves model p while market
 price hasn't followed (|model_p − market_p| ≥ threshold within N min of news
 timestamp) → emit signal citing the news item id/url. Reuse news_signal
@@ -144,3 +144,4 @@ tools' underlying services. Read-only. Tests with fixtures.
 | 1b | 2026-07-09 | G00 | DONE (complete inventory) | Cloned remaining Tier-2 + official SDKs → **20 repos** in `E:\polymarket-vendor\`. Every repo license-checked and mapped to G01–G07 in `VENDOR-NOTES.md`. No `backend/**` changes. Gate: `1155 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a |
 | 2 | 2026-07-09 | G01 | DONE | `app/services/venues/` protocol + Polymarket/Kalshi adapters wrapping existing connectors + registry. Fixture tests in `tests/test_venue_adapters.py` (+ `tests/fixtures/venues/`). `ATTRIBUTIONS.md` for pmxt MIT idea credit. No new HTTP endpoints. Gate: `1160 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a (adapter seam; matcher accuracy is G02) |
 | 3 | 2026-07-09 | G02 | DONE | Hard date reject in `match_resolution_terms`; `match_venue_markets` + `VenueMatchService` + `VenueMarketMatch` table (alembic 034). Additive arb fields `confidence`/`spread_bps`/`legs` (+ existing `stale`). Fixture `match_pairs_20.json` + `test_arb_g02_matcher.py`. Gate: `1165 passed, 28 skipped`; ruff clean. AutoLab: baseline=1160 pytest | benchmark=≥16/20 match, 0 FP | iterations=1 (16/16 TP, 0 FP) | budget=1/3 | outcome=improved |
+| 4 | 2026-07-09 | G03 | DONE | `news:mispricing` evaluator + scan task + scheduler flag (default on). NewsSignal citation fields; fixture tests. Gate: `1168 passed, 28 skipped`; ruff clean. AutoLab: n/a (signal emit correctness via fixtures) |

@@ -1,0 +1,112 @@
+"""News→mispricing signal (G03): model moved, market hasn't followed.
+
+Analysis only — emits ``news:mispricing`` SignalEvents. Never places orders.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+NEWS_MISPRICING_SIGNAL_TYPE = "news:mispricing"
+
+
+@dataclass(frozen=True)
+class NewsMispricingInput:
+    market_slug: str
+    platform: str
+    model_p: float
+    market_p: float
+    news_id: str | None
+    news_url: str | None
+    news_ts: datetime
+    headline: str = ""
+
+
+@dataclass(frozen=True)
+class NewsMispricingResult:
+    emit: bool
+    gap: float
+    reason: str
+
+
+def evaluate_news_mispricing(
+    *,
+    model_p: float,
+    market_p: float,
+    news_ts: datetime,
+    now: datetime,
+    threshold: float = 0.05,
+    window_sec: float = 900.0,
+) -> NewsMispricingResult:
+    """Return whether a news item should emit a mispricing signal.
+
+    Conditions:
+    - news_ts is within ``window_sec`` of ``now`` (not in the future beyond
+      a 60s clock skew allowance)
+    - ``abs(model_p - market_p) >= threshold``
+    """
+    ts = news_ts if news_ts.tzinfo is not None else news_ts.replace(tzinfo=UTC)
+    current = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    age = (current - ts).total_seconds()
+    if age < -60:
+        return NewsMispricingResult(emit=False, gap=0.0, reason="news_in_future")
+    if age > window_sec:
+        return NewsMispricingResult(emit=False, gap=0.0, reason="news_stale")
+    gap = abs(float(model_p) - float(market_p))
+    if gap < threshold:
+        return NewsMispricingResult(emit=False, gap=gap, reason="gap_below_threshold")
+    return NewsMispricingResult(emit=True, gap=gap, reason="mispriced")
+
+
+def news_mispricing_to_events(
+    items: list[NewsMispricingInput],
+    *,
+    now: datetime | None = None,
+    threshold: float = 0.05,
+    window_sec: float = 900.0,
+) -> list[dict[str, Any]]:
+    """Pure map: candidate rows → SignalEvent-ready dicts (network-free)."""
+    current = now or datetime.now(UTC)
+    events: list[dict[str, Any]] = []
+    for item in items:
+        verdict = evaluate_news_mispricing(
+            model_p=item.model_p,
+            market_p=item.market_p,
+            news_ts=item.news_ts,
+            now=current,
+            threshold=threshold,
+            window_sec=window_sec,
+        )
+        if not verdict.emit:
+            continue
+        events.append(
+            {
+                "signal_type": NEWS_MISPRICING_SIGNAL_TYPE,
+                "platform": item.platform,
+                "market_id": item.market_slug,
+                "headline_eligible": verdict.gap >= max(threshold, 0.10),
+                "payload": {
+                    "paper_trading_only": True,
+                    "disclaimer": (
+                        "Research signal only. Model vs market gap after news. "
+                        "No execution. Simulated funds only."
+                    ),
+                    "signal_type": NEWS_MISPRICING_SIGNAL_TYPE,
+                    "model_p": round(item.model_p, 4),
+                    "market_p": round(item.market_p, 4),
+                    "gap": round(verdict.gap, 4),
+                    "threshold": threshold,
+                    "window_sec": window_sec,
+                    "news_id": item.news_id,
+                    "news_url": item.news_url,
+                    "news_ts": item.news_ts.astimezone(UTC).isoformat(),
+                    "headline": item.headline,
+                    "fresh_until": (
+                        item.news_ts.astimezone(UTC) + timedelta(seconds=window_sec)
+                    ).isoformat(),
+                },
+            }
+        )
+    return events

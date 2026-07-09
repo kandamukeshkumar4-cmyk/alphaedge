@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -242,6 +243,10 @@ async def exa_news_brief(topic: str) -> NewsSignal | None:
     total = max(sum(1 for t in tones if t != 0), 1)
     sentiment = round(sum(tones) / total, 4)
     headline = next((title for title, _ in scored if title), topic)
+    top = next((r for r in results if isinstance(r, dict)), {})
+    news_id = str(top.get("id") or top.get("url") or "") or None
+    news_url = str(top.get("url") or "") or None
+    published_at = _parse_published_at(top.get("publishedDate") or top.get("published_at"))
     return NewsSignal(
         topic=topic,
         sentiment_score=max(-1.0, min(1.0, sentiment)),
@@ -249,4 +254,21 @@ async def exa_news_brief(topic: str) -> NewsSignal | None:
         polymarket_consensus=None,
         headline=headline[:200],
         sources_count=len(scored),
+        news_id=news_id,
+        news_url=news_url,
+        published_at=published_at,
     )
+
+
+def _parse_published_at(value: object) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None

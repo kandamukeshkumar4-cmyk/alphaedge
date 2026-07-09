@@ -1,0 +1,43 @@
+{
+  "now": "2026-07-09T18:00:00Z",
+  "threshold": 0.05,
+  "window_sec": 900,
+  "cases": [
+    {
+      "id": "emit-gap",
+      "expect_emit": true,
+      "market_slug": "pm-will-lakers-beat-celtics",
+      "platform": "polymarket",
+      "model_p": 0.62,
+      "market_p": 0.50,
+      "news_id": "news-lal-injury-1",
+      "news_url": "https://example.test/news/lal-injury",
+      "news_ts": "2026-07-09T17:50:00Z",
+      "headline": "Lakers star ruled out"
+    },
+    {
+      "id": "no-emit-small-gap",
+      "expect_emit": false,
+      "market_slug": "pm-fed-cut-rates",
+      "platform": "polymarket",
+      "model_p": 0.52,
+      "market_p": 0.50,
+      "news_id": "news-fed-1",
+      "news_url": "https://example.test/news/fed",
+      "news_ts": "2026-07-09T17:55:00Z",
+      "headline": "Fed speakers mixed"
+    },
+    {
+      "id": "no-emit-stale",
+      "expect_emit": false,
+      "market_slug": "pm-btc-100k",
+      "platform": "polymarket",
+      "model_p": 0.70,
+      "market_p": 0.40,
+      "news_id": "news-btc-old",
+      "news_url": "https://example.test/news/btc-old",
+      "news_ts": "2026-07-09T12:00:00Z",
+      "headline": "Old bitcoin headline"
+    }
+  ]
+}

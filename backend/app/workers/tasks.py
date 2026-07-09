@@ -235,6 +235,104 @@ async def run_news_scan(session) -> dict[str, str]:
     return results
 
 
+NEWS_MISPRICING_JOB_NAME = "news_mispricing_scan_task"
+
+
+async def news_mispricing_scan_task(ctx: dict) -> dict:
+    """G03: emit ``news:mispricing`` when model_p diverges from market_p after
+    fresh news. Analysis only — no order path.
+    """
+    from app.core.config import get_settings
+    from app.db.session import AsyncSessionLocal
+
+    settings = get_settings()
+    if not settings.news_mispricing_enabled:
+        return {"scanned": 0, "emitted": 0, "skipped": "disabled"}
+
+    async with AsyncSessionLocal() as session:
+        emitted = await run_news_mispricing_scan(session)
+        await session.commit()
+    return {"scanned": emitted.get("scanned", 0), "emitted": emitted.get("emitted", 0)}
+
+
+async def run_news_mispricing_scan(session) -> dict:
+    """Core of news_mispricing_scan_task (testable; inject news via monkeypatch)."""
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+
+    from sqlalchemy import select as _select
+
+    from app.core.config import get_settings
+    from app.db.models import Market as _Market
+    from app.db.models import MarketStatus as _MarketStatus
+    from app.db.models import OddsSnapshot, SignalEvent
+    from app.services.forecast_service import ForecastService
+    from app.signals.news_mispricing import (
+        NewsMispricingInput,
+        news_mispricing_to_events,
+    )
+    from app.signals.news_signal import fetch_news_signal
+
+    settings = get_settings()
+    now = _dt.now(_UTC)
+    rows = (
+        await session.execute(
+            _select(_Market.slug, _Market.title, _Market.source)
+            .where(
+                _Market.status == _MarketStatus.OPEN,
+                _Market.source.in_(("polymarket", "kalshi")),
+            )
+            .order_by(_Market.volume.desc())
+            .limit(_NEWS_SCAN_TOP_N)
+        )
+    ).all()
+
+    candidates: list[NewsMispricingInput] = []
+    for slug, title, source in rows:
+        try:
+            signal = await fetch_news_signal(title)
+            if signal is None:
+                continue
+            market_p = await session.scalar(
+                _select(OddsSnapshot.implied_yes)
+                .where(OddsSnapshot.market_slug == slug)
+                .order_by(OddsSnapshot.captured_at.desc())
+                .limit(1)
+            )
+            if market_p is None:
+                continue
+            market_p_f = float(market_p)
+            forecast = ForecastService.predict(slug, implied_yes=market_p_f)
+            if forecast is None:
+                continue
+            news_ts = signal.published_at or now
+            candidates.append(
+                NewsMispricingInput(
+                    market_slug=slug,
+                    platform=str(source or "polymarket"),
+                    model_p=forecast.model_prob,
+                    market_p=market_p_f,
+                    news_id=signal.news_id,
+                    news_url=signal.news_url,
+                    news_ts=news_ts,
+                    headline=signal.headline,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - per-market isolation
+            logger.warning("news mispricing scan failed for %s: %s", slug, exc)
+
+    events = news_mispricing_to_events(
+        candidates,
+        now=now,
+        threshold=settings.news_mispricing_threshold,
+        window_sec=settings.news_mispricing_window_sec,
+    )
+    for event in events:
+        session.add(SignalEvent(**event))
+    await session.flush()
+    return {"scanned": len(rows), "emitted": len(events)}
+
+
 WEATHER_SCAN_JOB_NAME = "weather_scan_task"
 
 
@@ -751,6 +849,7 @@ class WorkerSettings:
         run_backtest_task,
         fetch_news_signals_task,
         news_scan_task,
+        news_mispricing_scan_task,
         wc2026_resolve_task,
         refresh_whales_task,
         snapshot_whale_positions_task,
@@ -766,6 +865,7 @@ class WorkerSettings:
         cron(ingest_odds_task, hour={12}, minute=0),
         cron(fetch_news_signals_task, minute={30}),  # every hour at :30
         cron(news_scan_task, minute={35}),  # B04: news -> news_arrival events hourly
+        cron(news_mispricing_scan_task, minute={45}),  # G03: news -> news:mispricing
         cron(weather_scan_task, minute={40}),  # O04: NWS-vs-Kalshi weather edges hourly
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
