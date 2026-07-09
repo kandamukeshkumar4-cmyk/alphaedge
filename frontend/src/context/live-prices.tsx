@@ -50,7 +50,11 @@ const LivePricesContext = createContext<LivePricesContextValue>({
 
 // Plan 007: catalog poll was 1s and fetched the FULL catalog. Now a single
 // lightweight poll loop fetches only subscribed/priority slugs at 5s.
+// HARD CAP: every QuestMarketCard calls useLivePrice → subscribe. Without a
+// max, a 300-card /markets board fires ~300 HF requests / 5s via the Vercel
+// rewrite and the free-tier Space ELB 429s the whole API (incl. /signals).
 const POLL_MS = 5000;
+const MAX_POLL_SLUGS = 24;
 const FLASH_MS = 600;
 
 function ingestMarketPrices(markets: Market[], apply: (slug: string, price: number) => void) {
@@ -99,11 +103,25 @@ export class SubscriptionRegistry {
   }
 }
 
-/** Dedup priority + dynamically subscribed slugs into the single poll list. */
-export function selectPollSlugs(priority: string[], subscribed: string[]): string[] {
+/** Dedup priority + dynamically subscribed slugs into the single poll list.
+ * Priority wins; subscribed fill remaining slots up to `max` (default 24). */
+export function selectPollSlugs(
+  priority: string[],
+  subscribed: string[],
+  max: number = MAX_POLL_SLUGS,
+): string[] {
   const set = new Set<string>();
-  for (const s of priority) if (s) set.add(s);
-  for (const s of subscribed) if (s) set.add(s);
+  const limit = Math.max(0, max);
+  for (const s of priority) {
+    if (!s) continue;
+    set.add(s);
+    if (set.size >= limit) return [...set];
+  }
+  for (const s of subscribed) {
+    if (!s) continue;
+    set.add(s);
+    if (set.size >= limit) return [...set];
+  }
   return [...set];
 }
 
