@@ -239,12 +239,23 @@ async def test_whale_activity_never_raises_on_db_error():
 async def test_gather_market_tools_runs_all_three(db_session):
     await _make_market(db_session, "gather-mkt")
     out = await gather_market_tools(db_session, "gather-mkt")
-    assert set(out) == {"order_book", "price_history", "whale_activity", "tools_used"}
+    assert set(out) == {
+        "order_book",
+        "price_history",
+        "whale_activity",
+        "depth_skew",
+        "whale_concentration",
+        "trade_intensity",
+        "tools_used",
+    }
     names = {t["tool"] for t in out["tools_used"]}
     assert names == {
         "get_order_book_summary",
         "get_price_history",
         "get_whale_activity",
+        "get_depth_skew",
+        "get_whale_concentration",
+        "get_trade_intensity",
     }
 
 
@@ -383,6 +394,9 @@ def test_brief_schema_carries_tools_used_when_market_tools_ran():
         "get_order_book_summary",
         "get_price_history",
         "get_whale_activity",
+        "get_depth_skew",
+        "get_whale_concentration",
+        "get_trade_intensity",
     }
     spread_entry = next(
         t for t in dumped["tools_used"] if t["tool"] == "get_order_book_summary"

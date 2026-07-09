@@ -24,11 +24,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Market, OddsSnapshot, WalletPositionSnapshot
+from app.db.models import Fill, Market, OddsSnapshot, WalletPositionSnapshot
 from app.signals.smart_money import WhalePositionState, diff_whale_positions
 
 # A "large" position change (in shares) that qualifies as whale activity.
 _WHALE_MIN_SIZE_CHANGE = Decimal("100")
+
+# Ideas adapted (clean-room) from vendor-study MCP READMEs — see docs/ATTRIBUTIONS.md.
+# Depth skew / holders concentration / trade intensity; never paste vendor source.
 
 
 def _aware(dt: datetime) -> datetime:
@@ -215,11 +218,145 @@ async def get_whale_activity(
         return {"error": str(exc), "tool": name}
 
 
+async def get_depth_skew(
+    session: AsyncSession,
+    slug: str,
+    *,
+    connector: Any | None = None,
+    depth: int = 5,
+) -> dict[str, Any]:
+    """Bid vs ask size imbalance from the L2 book (MCP order-book idea, clean-room).
+
+    ``skew`` in [-1, 1]: positive = more bid size (buy pressure), negative = ask-heavy.
+    """
+    name = "get_depth_skew"
+    try:
+        book = await get_order_book_summary(
+            session, slug, connector=connector, depth=depth
+        )
+        if book.get("error"):
+            return {"error": book["error"], "tool": name}
+        yes = (book.get("depth") or {}).get("yes") or {}
+        bids = yes.get("bids") or []
+        asks = yes.get("asks") or []
+
+        def _size(levels: list[Any]) -> float:
+            total = 0.0
+            for lvl in levels:
+                if isinstance(lvl, dict):
+                    total += float(lvl.get("size") or lvl.get("quantity") or 0)
+            return total
+
+        bid_size = _size(bids)
+        ask_size = _size(asks)
+        denom = bid_size + ask_size
+        skew = round((bid_size - ask_size) / denom, 4) if denom > 0 else 0.0
+        return {
+            "tool": name,
+            "slug": slug,
+            "bid_size": round(bid_size, 4),
+            "ask_size": round(ask_size, 4),
+            "skew": skew,
+            "levels": min(len(bids), len(asks), depth),
+        }
+    except Exception as exc:  # noqa: BLE001 - tools must never raise
+        return {"error": str(exc), "tool": name}
+
+
+async def get_whale_concentration(
+    session: AsyncSession,
+    slug: str,
+    *,
+    top_n: int = 5,
+) -> dict[str, Any]:
+    """Share of open interest held by the top-N wallets (holders idea, clean-room)."""
+    name = "get_whale_concentration"
+    try:
+        rows = (
+            await session.execute(
+                select(WalletPositionSnapshot)
+                .where(WalletPositionSnapshot.market_slug == slug)
+                .order_by(WalletPositionSnapshot.captured_at.desc())
+                .limit(500)
+            )
+        ).scalars().all()
+        # Latest snapshot per wallet (rows are newest-first).
+        latest: dict[str, Decimal] = {}
+        for row in rows:
+            if row.wallet_address in latest:
+                continue
+            latest[row.wallet_address] = abs(Decimal(row.size or 0))
+
+        sizes = sorted(latest.values(), reverse=True)
+        total = sum(sizes, Decimal("0"))
+        top = sizes[: max(1, top_n)]
+        top_sum = sum(top, Decimal("0"))
+        pct = float(top_sum / total) if total > 0 else 0.0
+        return {
+            "tool": name,
+            "slug": slug,
+            "wallet_count": len(sizes),
+            "top_n": top_n,
+            "top_share": round(pct, 4),
+            "total_size": float(total),
+        }
+    except Exception as exc:  # noqa: BLE001 - tools must never raise
+        return {"error": str(exc), "tool": name}
+
+
+async def get_trade_intensity(
+    session: AsyncSession,
+    slug: str,
+    hours: int = 24,
+) -> dict[str, Any]:
+    """Paper fill count + notional in a window (recent-trades idea, clean-room)."""
+    name = "get_trade_intensity"
+    try:
+        market = await session.scalar(select(Market).where(Market.slug == slug))
+        if market is None:
+            return {
+                "tool": name,
+                "slug": slug,
+                "hours": hours,
+                "fill_count": 0,
+                "notional": 0.0,
+                "fills_per_hour": 0.0,
+            }
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
+        fills = (
+            await session.execute(
+                select(Fill)
+                .where(Fill.market_id == market.id, Fill.created_at >= cutoff)
+                .order_by(Fill.created_at.desc())
+                .limit(500)
+            )
+        ).scalars().all()
+        notional = sum(
+            (Decimal(f.price) * Decimal(f.quantity) for f in fills),
+            Decimal("0"),
+        )
+        count = len(fills)
+        per_hour = round(count / max(hours, 1), 4)
+        return {
+            "tool": name,
+            "slug": slug,
+            "hours": hours,
+            "fill_count": count,
+            "notional": float(round(notional, 4)),
+            "fills_per_hour": per_hour,
+        }
+    except Exception as exc:  # noqa: BLE001 - tools must never raise
+        return {"error": str(exc), "tool": name}
+
+
 def summarize_tools_used(result: dict[str, Any]) -> list[dict[str, Any]]:
     """Compact per-tool summary (name + key figures) for the research brief payload."""
     ob = result.get("order_book") or {}
     ph = result.get("price_history") or {}
     wh = result.get("whale_activity") or {}
+    ds = result.get("depth_skew") or {}
+    wc = result.get("whale_concentration") or {}
+    ti = result.get("trade_intensity") or {}
     return [
         {
             "tool": "get_order_book_summary",
@@ -239,6 +376,22 @@ def summarize_tools_used(result: dict[str, Any]) -> list[dict[str, Any]]:
             "whale_count": wh.get("whale_count"),
             "error": wh.get("error"),
         },
+        {
+            "tool": "get_depth_skew",
+            "skew": ds.get("skew"),
+            "error": ds.get("error"),
+        },
+        {
+            "tool": "get_whale_concentration",
+            "top_share": wc.get("top_share"),
+            "error": wc.get("error"),
+        },
+        {
+            "tool": "get_trade_intensity",
+            "fill_count": ti.get("fill_count"),
+            "fills_per_hour": ti.get("fills_per_hour"),
+            "error": ti.get("error"),
+        },
     ]
 
 
@@ -249,27 +402,43 @@ async def gather_market_tools(
     hours: int = 24,
     connector: Any | None = None,
 ) -> dict[str, Any]:
-    """Run all three market-data tools CONCURRENTLY and return their combined dict.
+    """Run market-data tools CONCURRENTLY and return their combined dict.
 
     Never raises: each tool already returns an error dict on failure, and the gather
     itself is failure-isolated so one slow/broken tool cannot break the others.
     """
     try:
-        order_book, price_history, whale_activity = await asyncio.gather(
+        (
+            order_book,
+            price_history,
+            whale_activity,
+            depth_skew,
+            whale_concentration,
+            trade_intensity,
+        ) = await asyncio.gather(
             get_order_book_summary(session, slug, connector=connector),
             get_price_history(session, slug, hours=hours),
             get_whale_activity(session, slug),
+            get_depth_skew(session, slug, connector=connector),
+            get_whale_concentration(session, slug),
+            get_trade_intensity(session, slug, hours=hours),
         )
     except Exception as exc:  # noqa: BLE001 - defensive; gather should not raise
         err = {"error": str(exc)}
         order_book = {**err, "tool": "get_order_book_summary"}
         price_history = {**err, "tool": "get_price_history"}
         whale_activity = {**err, "tool": "get_whale_activity"}
+        depth_skew = {**err, "tool": "get_depth_skew"}
+        whale_concentration = {**err, "tool": "get_whale_concentration"}
+        trade_intensity = {**err, "tool": "get_trade_intensity"}
 
     result: dict[str, Any] = {
         "order_book": order_book,
         "price_history": price_history,
         "whale_activity": whale_activity,
+        "depth_skew": depth_skew,
+        "whale_concentration": whale_concentration,
+        "trade_intensity": trade_intensity,
     }
     result["tools_used"] = summarize_tools_used(result)
     return result

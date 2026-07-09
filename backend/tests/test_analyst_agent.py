@@ -95,6 +95,9 @@ async def test_run_analyst_fallback_generator_persists_brief(db_session):
         "get_order_book_summary",
         "get_price_history",
         "get_whale_activity",
+        "get_depth_skew",
+        "get_whale_concentration",
+        "get_trade_intensity",
     }
     briefs = await db_session.scalar(
         select(func.count()).select_from(AnalystBrief).where(
