@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { API_BASE, ensureApiBase } from "@/lib/alphaedge-api";
+import {
+  fetchArbOpportunities,
+  type ArbOpportunitiesPage,
+} from "@/lib/arb-api";
 import { cn } from "@/lib/cn";
 import { fetchSignalsDashboard } from "@/lib/signals-dashboard-api";
 import { buildSignalsDashboardView } from "@/lib/signals-dashboard-view-model";
@@ -18,6 +23,7 @@ export default function SignalsPage() {
   const apiConfigured = Boolean(API_BASE);
   const [loading, setLoading] = useState(apiConfigured);
   const [dashboard, setDashboard] = useState<Awaited<ReturnType<typeof fetchSignalsDashboard>>>(null);
+  const [arb, setArb] = useState<ArbOpportunitiesPage | null>(null);
 
   const view = useMemo(() => buildSignalsDashboardView(dashboard), [dashboard]);
 
@@ -34,8 +40,12 @@ export default function SignalsPage() {
     setLoading(true);
     setNotice(null);
     try {
-      const next = await fetchSignalsDashboard({ apiBase: base });
+      const [next, arbPage] = await Promise.all([
+        fetchSignalsDashboard({ apiBase: base }),
+        fetchArbOpportunities(8),
+      ]);
       setDashboard(next);
+      setArb(arbPage);
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Failed to load signals dashboard.";
@@ -97,6 +107,68 @@ export default function SignalsPage() {
           <p>{view.llmExplanation}</p>
         </section>
       ) : null}
+
+      <section className="mb-8">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-black text-text">Cross-market arb</h2>
+          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+            Signal only / paper
+          </span>
+        </div>
+        {!arb || arb.opportunities.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+            No cross-platform arb signals right now
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {arb.opportunities.map((opp) => (
+              <article
+                key={opp.id}
+                className={cn(
+                  "rounded-2xl border border-border bg-surface p-4",
+                  opp.stale && "opacity-60",
+                )}
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.06em] text-accent">
+                  Polymarket ↔ Kalshi
+                  {opp.stale ? " · Stale" : ""}
+                </p>
+                <p className="mt-1 text-sm font-bold text-text">{opp.pm_title}</p>
+                <p className="text-xs text-muted">{opp.kalshi_title}</p>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <dt className="text-[10px] font-bold uppercase text-muted">Edge</dt>
+                    <dd className="font-mono font-bold text-text">{opp.theoretical_edge}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-bold uppercase text-muted">Match</dt>
+                    <dd className="font-mono font-bold text-text">
+                      {Math.round(opp.match_confidence * 100)}%
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <Link
+                    href={`/markets/view?slug=${encodeURIComponent(opp.pm_market_id)}`}
+                    className="font-semibold text-accent hover:underline"
+                  >
+                    PM market
+                  </Link>
+                  <Link
+                    href={`/markets/view?slug=${encodeURIComponent(opp.kalshi_market_id)}`}
+                    className="font-semibold text-accent hover:underline"
+                  >
+                    Kalshi market
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+        {arb?.note ? (
+          <p className="mt-2 text-xs text-muted">{arb.note}</p>
+        ) : null}
+      </section>
 
       <section className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -186,8 +258,7 @@ export default function SignalsPage() {
               {view.clvRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                    No resolved CLV records yet — CLV appears after markets resolve and
-                    forecasts reconcile against closing prices.
+                    No resolved CLV records yet — appears after markets resolve.
                   </td>
                 </tr>
               ) : (

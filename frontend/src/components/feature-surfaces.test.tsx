@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { MARKETS, type Market } from "../lib/mock-data";
 import { AIForecastPanel } from "./AIForecastPanel";
+import { BriefEvidencePanel } from "./BriefEvidencePanel";
 import { SimilarPastMarketsView } from "./SimilarPastMarkets";
+import type { AnalystBrief } from "../lib/polyscout-api";
 import type { AgentMemoryRow } from "../lib/alphaedge-api";
 
 // loop6 — the three new surfaces must each render when the backend supplies the
@@ -104,10 +106,73 @@ describe("Memory surface (SimilarPastMarketsView)", () => {
     expect(html).toContain("0.1444");
   });
 
-  it("renders nothing (no error) when there are no memories", () => {
+  it("renders honest empty when there are no memories", () => {
     const html = renderToStaticMarkup(
-      React.createElement(SimilarPastMarketsView, { category: "Sports", rows: [] }),
+      React.createElement(SimilarPastMarketsView, {
+        category: "Sports",
+        rows: [],
+        loaded: true,
+      }),
     );
+    expect(html).toContain("Similar past markets");
+    expect(html).toContain("No agent memories yet");
+    expect(html).not.toContain("Failed to fetch");
+  });
+});
+
+describe("Brief evidence surface", () => {
+  const baseBrief: AnalystBrief = {
+    id: "b1",
+    market_slug: "pm-bitcoin",
+    headline: "Bitcoin moved",
+    body_markdown: "Rationale",
+    citations: [{ kind: "model", ref: "model p=0.630 edge=+0.025" }],
+    model_version: "unknown",
+    prompt_version: "v1",
+    generator: "llm",
+    kind: "brief",
+    persona: null,
+    latency_ms: 1200,
+    created_at: "2026-07-08T17:48:09Z",
+    claim: null,
+  };
+
+  it("renders model-vs-market metrics derived from the brief citation", () => {
+    const html = renderToStaticMarkup(React.createElement(BriefEvidencePanel, { brief: baseBrief }));
+
+    expect(html).toContain("Model vs market");
+    expect(html).toContain("63.0%");
+    expect(html).toContain("60.5%");
+    expect(html).toContain("+2.5%");
+  });
+
+  it("renders ensemble and tools when optional payload fields are present", () => {
+    const brief: AnalystBrief = {
+      ...baseBrief,
+      ensemble: {
+        n_models: 3,
+        stdev: 0.04,
+        spread_flag: false,
+        per_model: [{ provider: "primary:nim", prob: 0.52, rationale: "slight lean" }],
+      },
+      tools_used: [
+        { tool: "get_order_book_summary", spread: 0.02 },
+        { tool: "get_price_history", points: 50 },
+      ],
+    };
+    const html = renderToStaticMarkup(React.createElement(BriefEvidencePanel, { brief }));
+
+    expect(html).toContain("3 models");
+    expect(html).toContain("±4.0pt");
+    expect(html).toContain("Per-model rationales (1)");
+    expect(html).toContain("get_order_book_summary spread 0.020");
+    expect(html).toContain("get_price_history 50 pts");
+  });
+
+  it("renders nothing when no evidence fields are present", () => {
+    const brief: AnalystBrief = { ...baseBrief, citations: [] };
+    const html = renderToStaticMarkup(React.createElement(BriefEvidencePanel, { brief }));
+
     expect(html).toBe("");
   });
 });

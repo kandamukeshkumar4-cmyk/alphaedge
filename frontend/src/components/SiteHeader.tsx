@@ -13,31 +13,16 @@ import { cn } from "@/lib/cn";
 import { MARKETS } from "@/lib/mock-data";
 
 /*
- * QuestFlow-app nav model: a flat product-level tab row (Feed | Markets |
- * Signals | Forecast | Mirror | Leaderboard | Portfolio) with an active
- * underline indicator, plus a category chip bar on discovery pages.
+ * QuestFlow nav: Discover | Trade | Markets | Signals | Clones | Portfolio
+ * (Leaderboard stays reachable from Discover Intelligence + /leaderboard).
  */
 const NAV = [
-  { label: "Feed", href: "/" },
+  { label: "Discover", href: "/" },
+  { label: "Trade", href: "/trade" },
   { label: "Markets", href: "/markets" },
-  { label: "Discover", href: "/discover" },
   { label: "Signals", href: "/signals" },
-  { label: "Forecast", href: "/forecast" },
-  { label: "Mirror", href: "/mirror" },
-  { label: "Leaderboard", href: "/leaderboard" },
+  { label: "Clones", href: "/clones" },
   { label: "Portfolio", href: "/portfolio" },
-];
-
-const CATEGORY_TABS = [
-  { label: "All", href: "/" },
-  { label: "Sports", href: "/markets?cat=Sports" },
-  { label: "Politics", href: "/markets?cat=Politics" },
-  { label: "Crypto", href: "/markets?cat=Crypto" },
-  { label: "Culture", href: "/markets?cat=Culture" },
-  { label: "Economics", href: "/markets?cat=Economics" },
-  { label: "Tech", href: "/markets?cat=Tech" },
-  { label: "World", href: "/markets?cat=Politics" },
-  { label: "Paper trading", href: "/portfolio" },
 ];
 
 function formatPaperBalance(value: number): string {
@@ -75,7 +60,6 @@ export function SiteHeader() {
   const { token, email, paperBalance, logout, isReady } = useAuth();
   const [open, setOpen] = useState(false);
   const { alerts, unreadCount, markRead } = useSignalAlerts();
-  const showCategoryBar = pathname === "/" || pathname.startsWith("/markets");
   const catalogSlugs = useMemo(() => MARKETS.map((m) => m.slug), []);
   const isLoggedIn = isReady && !!token;
   const onSignalsNav = pathname === "/signals" || pathname.startsWith("/signals/");
@@ -83,13 +67,13 @@ export function SiteHeader() {
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[60px] max-w-[1440px] items-center gap-4 px-4 sm:px-5">
+        <div className="mx-auto flex h-[56px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="AlphaEdge home">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent font-mono text-sm font-black text-bg shadow-glow">
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-mono text-xs font-black text-bg shadow-glow">
               AE
             </span>
             <span className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-text">AlphaEdge</span>
+              <span className="text-[15px] font-black tracking-tight text-text">AlphaEdge</span>
               <span className="hidden rounded border border-primary/25 bg-primary-dim/55 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-primary xl:inline">
                 Sim
               </span>
@@ -110,7 +94,7 @@ export function SiteHeader() {
                   aria-current={active ? "page" : undefined}
                   onClick={item.label === "Signals" ? () => markRead() : undefined}
                   className={cn(
-                    "relative flex items-center px-3 text-[12px] font-bold uppercase tracking-[0.08em] transition",
+                    "relative flex items-center px-2.5 text-[13px] font-semibold transition",
                     active ? "text-text" : "text-muted hover:text-text",
                   )}
                 >
@@ -119,49 +103,45 @@ export function SiteHeader() {
                     unreadCount={item.label === "Signals" ? unreadCount : undefined}
                   />
                   {active && (
-                    <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-primary shadow-[0_0_12px_rgba(45,212,191,0.75)]" />
+                    <span className="absolute inset-x-1.5 bottom-0 h-[2px] rounded-full bg-primary shadow-[0_0_12px_rgba(45,212,191,0.75)]" />
                   )}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[430px]">
-            <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-primary/45 focus-within:bg-surface-2">
+          <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[380px]">
+            <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-primary/45 focus-within:bg-surface-2">
               <SearchIcon />
               <input
                 className="w-full bg-transparent text-sm font-medium text-text placeholder:text-muted-2 focus:outline-none"
-                placeholder="Search markets or signals"
-                aria-label="Search markets or signals"
+                placeholder="Search markets or clones..."
+                aria-label="Search markets or clones"
               />
-              <span className="hidden rounded border border-border-light px-1.5 py-0.5 font-mono text-[10px] text-muted-2 xl:inline">
-                /
-              </span>
             </label>
           </div>
 
           <div className="flex items-center gap-2">
             <Link
               href="/portfolio"
-              className="grid h-10 w-11 place-items-center rounded-xl bg-accent text-bg transition hover:bg-primary"
+              className="hidden h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"
               aria-label="Add paper funds"
               title="Add paper funds (simulated)"
             >
-              <DepositIcon />
+              Deposit
             </Link>
             {isLoggedIn ? (
               <>
                 {paperBalance !== null ? (
                   <span
-                    className="hidden items-center gap-1.5 rounded-xl border border-primary/35 px-3 py-2 font-mono text-sm font-bold text-primary sm:inline-flex"
+                    className="hidden items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 font-mono text-sm font-bold text-text sm:inline-flex"
                     title="Unified paper portfolio balance"
                   >
-                    <WalletSparkIcon />
                     {formatPaperBalance(paperBalance)}
                   </span>
                 ) : null}
                 <span
-                  className="hidden max-w-[160px] truncate text-sm font-semibold text-muted sm:inline"
+                  className="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline"
                   title={email ?? undefined}
                 >
                   {email ? truncateEmail(email) : "Account"}
@@ -180,7 +160,7 @@ export function SiteHeader() {
             )}
             <NotificationBell slugs={catalogSlugs} />
             <button
-              className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
               aria-label="Menu"
               onClick={() => setOpen((v) => !v)}
             >
@@ -188,33 +168,6 @@ export function SiteHeader() {
             </button>
           </div>
         </div>
-
-        {showCategoryBar && (
-          <div className="border-t border-border/70">
-            <div className="no-scrollbar mx-auto flex max-w-[1440px] items-center gap-2 overflow-x-auto px-4 py-2.5 text-sm sm:px-5">
-              {CATEGORY_TABS.map((tab, i) => (
-                <Link
-                  key={tab.label}
-                  href={tab.href}
-                  className={cn(
-                    "flex shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
-                    i === 0
-                      ? "border-primary/60 text-primary"
-                      : "border-border bg-surface text-muted hover:border-border-light hover:text-text",
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              ))}
-              <Link
-                href="/markets"
-                className="ml-auto hidden shrink-0 rounded-full border border-border px-4 py-1.5 text-xs font-black text-text transition hover:border-primary hover:text-primary xl:block"
-              >
-                View all
-              </Link>
-            </div>
-          </div>
-        )}
 
         {open && (
           <div className="border-t border-border bg-surface px-4 py-3 lg:hidden">
@@ -263,19 +216,3 @@ function MenuIcon() {
   );
 }
 
-function DepositIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-      <path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function WalletSparkIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
-      <path d="M19.5 3l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5L17.5 5l1.5-.5.5-1.5z" />
-    </svg>
-  );
-}

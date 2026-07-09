@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { QuestArenaHero } from "@/components/quest/QuestArenaHero";
@@ -19,6 +20,14 @@ import {
 } from "@/lib/kalshi-topics";
 import { cn } from "@/lib/cn";
 import { type Market } from "@/lib/mock-data";
+
+const INTELLIGENCE_LINKS = [
+  { href: "/clones", label: "Clones", blurb: "Paper agent clones" },
+  { href: "/backtest", label: "Backtest", blurb: "Replay paper fills" },
+  { href: "/track-record", label: "Track record", blurb: "Analyst scoreboard" },
+  { href: "/feed", label: "Feed", blurb: "Live activity stream" },
+  { href: "/leaderboard", label: "Leaderboard", blurb: "Paper P&L ranks" },
+] as const;
 
 type MainTab = "markets" | "feed";
 
@@ -89,6 +98,27 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
     <LivePricesProvider markets={markets} prioritySlugs={prioritySlugs}>
       <div className="min-w-0">
         <QuestArenaHero />
+
+        <section className="mt-5 rounded-2xl border border-border bg-surface px-4 py-4">
+          <h2 className="text-sm font-black uppercase tracking-[0.08em] text-muted">
+            Intelligence
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Report Tier-1 surfaces — paper simulation only.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {INTELLIGENCE_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="rounded-xl border border-border bg-bg/40 px-3 py-2 transition hover:border-primary/50 hover:text-primary"
+              >
+                <span className="block text-sm font-bold text-text">{link.label}</span>
+                <span className="block text-[11px] text-muted">{link.blurb}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <div className="mt-5 flex items-center gap-1 border-b border-border">
           {(

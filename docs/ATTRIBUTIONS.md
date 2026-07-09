@@ -52,3 +52,16 @@ This file records source-code attributions per the Loop C §G4 license policy.
   no-lookahead enforcement from T08's ClaimScorerService pattern and a bespoke
   realistic fill model in `fill_model.py`.
 - **Ticket**: U10 — Backtest replay + realistic fills
+
+## PolyMarket-MCP / polymarket-mcp / polymarket-agents (MIT / ideas)
+
+- **Repos**: guangxiangdebizi/PolyMarket-MCP (MIT), berlinbra/polymarket-mcp,
+  artvandelay/polymarket-agents
+- **License**: MIT where declared; README/tool-name study only otherwise
+- **Used in**: `backend/app/agents/tools.py`
+- **What was adapted (Loop 8)**: Clean-room read-only tools inspired by MCP
+  surfaces — `get_depth_skew` (order-book imbalance), `get_whale_concentration`
+  (holders top-share), `get_trade_intensity` (recent fill rate). No vendor
+  source pasted; all use AlphaEdge CLOB/snapshots/fills. Existing
+  `get_order_book_summary` / `get_price_history` / `get_whale_activity` remain.
+- **Ticket**: Loop 8 L8-T4 — vendor-study MCP gap-fill

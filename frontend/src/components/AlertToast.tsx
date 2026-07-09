@@ -7,6 +7,11 @@ import { cn } from "@/lib/cn";
 import type { SignalAlert } from "@/hooks/useSignalAlerts";
 
 const TOAST_LIFETIME_MS = 5_000;
+const MAX_VISIBLE_TOASTS = 2;
+
+// Module-level so SiteHeader / ATLAS remounts do not re-fire the same alerts
+// (shownIds on a remounted component would otherwise be empty again).
+const shownToastIds = new Set<string>();
 
 type VisibleToast = SignalAlert & { dismissing: boolean };
 
@@ -22,18 +27,19 @@ type AlertToastProps = {
 };
 
 export function AlertToast({ alerts }: AlertToastProps) {
-  const shownIdsRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<Map<string, number>>(new Map());
   const [visible, setVisible] = useState<VisibleToast[]>([]);
 
   useEffect(() => {
-    const fresh = alerts.filter((alert) => !shownIdsRef.current.has(alert.id));
+    const fresh = alerts
+      .filter((alert) => !shownToastIds.has(alert.id))
+      .slice(0, MAX_VISIBLE_TOASTS);
     if (fresh.length === 0) {
       return;
     }
 
     fresh.forEach((alert) => {
-      shownIdsRef.current.add(alert.id);
+      shownToastIds.add(alert.id);
       const fadeTimer = window.setTimeout(() => {
         setVisible((prev) =>
           prev.map((item) => (item.id === alert.id ? { ...item, dismissing: true } : item)),
@@ -43,13 +49,17 @@ export function AlertToast({ alerts }: AlertToastProps) {
       const removeTimer = window.setTimeout(() => {
         setVisible((prev) => prev.filter((item) => item.id !== alert.id));
         timersRef.current.delete(alert.id);
+        timersRef.current.delete(`${alert.id}:remove`);
       }, TOAST_LIFETIME_MS);
 
       timersRef.current.set(alert.id, fadeTimer);
       timersRef.current.set(`${alert.id}:remove`, removeTimer);
     });
 
-    setVisible((prev) => [...prev, ...fresh.map((alert) => ({ ...alert, dismissing: false }))]);
+    setVisible((prev) => {
+      const next = [...prev, ...fresh.map((alert) => ({ ...alert, dismissing: false }))];
+      return next.slice(-MAX_VISIBLE_TOASTS);
+    });
   }, [alerts]);
 
   useEffect(() => {
