@@ -88,7 +88,7 @@ title/close_time) and adapters wrapping the EXISTING Polymarket + Kalshi
 ingest code (refactor, don't duplicate). Registry keyed by venue id. All
 existing tests stay green; add adapter tests with recorded fixtures.
 
-### G02 — Matched-market cross-venue arb engine (TODO)
+### G02 — Matched-market cross-venue arb engine (DONE 2026-07-09)
 On top of G01: matcher between `pm-` and `ks-` markets (entity/title/date
 fuzzy match with confidence score; different resolution dates NEVER match).
 Persist matches. Compute spread net of fee assumptions; feed the existing arb
@@ -143,3 +143,4 @@ tools' underlying services. Read-only. Tests with fixtures.
 | 1 | 2026-07-09 | G00 | DONE | Tier-1 cloned + studied; notes written. Gate: `1155 passed, 28 skipped`; ruff clean. AutoLab: n/a |
 | 1b | 2026-07-09 | G00 | DONE (complete inventory) | Cloned remaining Tier-2 + official SDKs → **20 repos** in `E:\polymarket-vendor\`. Every repo license-checked and mapped to G01–G07 in `VENDOR-NOTES.md`. No `backend/**` changes. Gate: `1155 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a |
 | 2 | 2026-07-09 | G01 | DONE | `app/services/venues/` protocol + Polymarket/Kalshi adapters wrapping existing connectors + registry. Fixture tests in `tests/test_venue_adapters.py` (+ `tests/fixtures/venues/`). `ATTRIBUTIONS.md` for pmxt MIT idea credit. No new HTTP endpoints. Gate: `1160 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a (adapter seam; matcher accuracy is G02) |
+| 3 | 2026-07-09 | G02 | DONE | Hard date reject in `match_resolution_terms`; `match_venue_markets` + `VenueMatchService` + `VenueMarketMatch` table (alembic 034). Additive arb fields `confidence`/`spread_bps`/`legs` (+ existing `stale`). Fixture `match_pairs_20.json` + `test_arb_g02_matcher.py`. Gate: `1165 passed, 28 skipped`; ruff clean. AutoLab: baseline=1160 pytest | benchmark=≥16/20 match, 0 FP | iterations=1 (16/16 TP, 0 FP) | budget=1/3 | outcome=improved |
