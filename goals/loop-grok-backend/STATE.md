@@ -39,15 +39,47 @@ uv run --extra dev ruff check app tests
 ```
 Both green. New features need new tests (fixtures, no network in tests).
 
-## REFERENCE REPOS (ideas only — study in E:\polymarket-vendor)
+## REFERENCE REPOS (study in E:\polymarket-vendor — G00 clones them)
 
-- pmxt-dev/pmxt — unified cross-venue interface pattern (CCXT-style)
-- PredictionXBT/PredictOS — arb bots, whale tracking, agent patterns
-- Polymarket/agents (MIT) — RAG/news-driven forecasting agent patterns
-- jon-becker/prediction-market-analysis — dataset/backtest structure
-- ImMike/polymarket-arbitrage, realfishsam/prediction-market-arbitrage-bot
+Tier 1 (clone first):
+- pmxt-dev/pmxt — "CCXT for prediction markets": unified fetchMarkets/
+  orderbook/spreads/matched markets across Polymarket+Kalshi → G01, G02
+- PredictionXBT/PredictOS — all-in-one: multi-agent AI, Polymarket↔Kalshi
+  arb bots (Vanilla + Ladder), wallet/whale tracking → G02, G07
+- Polymarket/agents (MIT) — official agent framework: RAG (LangChain+Chroma),
+  news/web connectors, market tools → G03
+- jon-becker/prediction-market-analysis — largest public PM+Kalshi dataset +
+  analysis framework; pair with Quentin-Piot/prediction-market-backtester →
+  G05, G06
+
+Tier 2 (study as needed):
+- aarora4/Awesome-Prediction-Market-Tools — master index; mine it for extra
+  whale/alert/data components
+- ashercn97/predmarket — unified asyncio Python SDK for Kalshi+Polymarket
+- ImMike/polymarket-arbitrage (10k+ market watcher),
+  realfishsam/prediction-market-arbitrage-bot (pmxt-based, fee-aware) → G02
+- Official starters: Polymarket py-sdk/ts-sdk/polymarket-cli,
+  Kalshi/kalshi-starter-code-python, arshka/pykalshi,
+  TexasCoding/kalshi-python-sdk
+
+LICENSE RULES (hard): check each repo's LICENSE before reading its code for
+reuse. MIT/Apache-2.0/BSD → may adapt small parts WITH attribution in
+`backend/ATTRIBUTIONS.md`. No license file or restrictive/AGPL → ideas only,
+zero code copy. Their "order execution" / live-trading code is NEVER ported —
+our only order path is RiskService → OrderIntent → OrderBookService, paper
+only. Vendored clones stay in `E:\polymarket-vendor` and never enter the repo.
 
 ## TICKETS (in order; one per iteration)
+
+### G00 — Vendor study pass (TODO)
+Clone the Tier-1 repos (+ skim Tier-2 READMEs) into `E:\polymarket-vendor\`.
+For each: record license, architecture sketch, and the 3–5 concrete ideas we
+will adapt, in `goals/loop-grok-backend/VENDOR-NOTES.md` mapped to tickets
+G01–G07 (e.g. pmxt's adapter interface → G01; PredictOS arb-bot matching +
+fee handling → G02; Polymarket/agents news connector patterns → G03;
+jon-becker dataset schema → G05/G06). No production code changes in this
+ticket. Gate: notes file exists, licenses recorded, pytest+ruff still green
+(nothing should have changed).
 
 ### G01 — Venue adapter layer (pmxt idea, clean-room) (TODO)
 Introduce `backend/app/services/venues/` with a small `VenueAdapter` protocol
