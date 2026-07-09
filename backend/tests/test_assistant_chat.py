@@ -380,6 +380,17 @@ def test_assistant_chat_anon_rate_limited_beyond_limit(client: TestClient, monke
     assert "rate limit" in third.json()["detail"].lower()
 
 
+def test_assistant_client_ip_prefers_x_forwarded_for() -> None:
+    from unittest.mock import MagicMock
+
+    from app.api.v1.assistant import _client_ip
+
+    req = MagicMock()
+    req.headers = {"x-forwarded-for": "203.0.113.9, 10.0.0.1"}
+    req.client.host = "10.0.0.1"
+    assert _client_ip(req) == "203.0.113.9"
+
+
 def test_assistant_chat_valid_anon_request_within_limit_200(client: TestClient, monkeypatch) -> None:
     """A valid anonymous request within the limit still gets 200."""
     from app.api.v1.assistant import _reset_anon_rate_limiter
