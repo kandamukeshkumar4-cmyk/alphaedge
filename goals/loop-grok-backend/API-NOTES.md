@@ -32,3 +32,38 @@ book = pm.fetch_orderbook_summary("will-lakers-beat-celtics")
 ```
 
 Frontend loop: no contract change yet; G02 will add additive arb fields.
+
+## G02 (2026-07-09)
+
+Additive fields on `GET /api/v1/arb/opportunities` (and detect→ingest path).
+Existing fields unchanged. Analysis only — `signal_only` always true.
+
+New optional fields per opportunity:
+
+| field | type | notes |
+|-------|------|-------|
+| `confidence` | float | alias of `match_confidence` |
+| `spread_bps` | int | net spread in basis points (`net_spread * 10000`) |
+| `legs` | array | `[{platform, market_id, outcome, price, fee}, ...]` |
+| `stale` | bool | already existed |
+
+Example opportunity fragment:
+
+```json
+{
+  "pm_market_id": "pm-will-lakers-beat-celtics",
+  "kalshi_market_id": "ks-kxnba-lalbos-26jan15",
+  "match_confidence": 0.9,
+  "confidence": 0.9,
+  "spread_bps": 120,
+  "stale": false,
+  "signal_only": true,
+  "legs": [
+    {"platform": "polymarket", "market_id": "pm-will-lakers-beat-celtics", "outcome": "YES", "price": "0.4000", "fee": "0.0000"},
+    {"platform": "kalshi", "market_id": "ks-kxnba-lalbos-26jan15", "outcome": "NO", "price": "0.5500", "fee": "0.02"}
+  ]
+}
+```
+
+Internal: matches persist in `venue_market_matches` (pm_slug, ks_slug, confidence,
+reasons). Different UTC resolution dates never match.

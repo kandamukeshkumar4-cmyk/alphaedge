@@ -39,6 +39,14 @@ _arb_service = ArbOpportunityService(ttl_seconds=DEFAULT_ARB_TTL_SECONDS)
 # Response schemas
 # ---------------------------------------------------------------------------
 
+class ArbLegOut(BaseModel):
+    platform: str
+    market_id: str
+    outcome: str
+    price: str
+    fee: str
+
+
 class ArbOpportunityOut(BaseModel):
     id: str
     pm_market_id: str
@@ -57,6 +65,10 @@ class ArbOpportunityOut(BaseModel):
     stale: bool
     signal_only: bool
     seconds_until_stale: int
+    # G02 additive fields (optional for older clients)
+    confidence: float | None = None
+    spread_bps: int = 0
+    legs: list[ArbLegOut] = []
 
 
 class ArbOpportunitiesPage(BaseModel):
@@ -146,6 +158,16 @@ async def detect_arb(
 
 def _to_out(opp: ArbOpportunity, now: datetime) -> ArbOpportunityOut:
     remaining = max(0, int((opp.expires_at - now).total_seconds()))
+    legs = [
+        ArbLegOut(
+            platform=str(leg.get("platform", "")),
+            market_id=str(leg.get("market_id", "")),
+            outcome=str(leg.get("outcome", "")),
+            price=str(leg.get("price", "")),
+            fee=str(leg.get("fee", "")),
+        )
+        for leg in opp.legs
+    ]
     return ArbOpportunityOut(
         id=opp.id,
         pm_market_id=opp.pm_market_id,
@@ -164,4 +186,7 @@ def _to_out(opp: ArbOpportunity, now: datetime) -> ArbOpportunityOut:
         stale=opp.stale,
         signal_only=opp.signal_only,
         seconds_until_stale=remaining,
+        confidence=opp.effective_confidence,
+        spread_bps=opp.spread_bps,
+        legs=legs,
     )

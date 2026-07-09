@@ -90,6 +90,19 @@ class TestArbEdgeComputation:
         assert isinstance(opp.combined_price, Decimal)
         assert isinstance(opp.theoretical_edge, Decimal)
 
+    def test_g02_additive_spread_bps_legs_confidence(self):
+        """G02: opportunities expose spread_bps, legs, and confidence alias."""
+        pm = _pm_quote(yes_price="0.40", no_price="0.60")
+        kal = _kalshi_quote(yes_price="0.45", no_price="0.55")
+        result = detect_arb_opportunities([pm], [kal], now=_BASE)
+        assert len(result.opportunities) == 1
+        opp = result.opportunities[0]
+        assert opp.confidence == opp.match_confidence
+        assert isinstance(opp.spread_bps, int)
+        assert len(opp.legs) == 2
+        assert {leg["outcome"] for leg in opp.legs} == {"YES", "NO"}
+        assert all("fee" in leg and "price" in leg for leg in opp.legs)
+
     def test_no_arb_when_combined_price_above_one(self):
         """Combined price > 1.0 means no arb; is_arbitrage should be False."""
         pm = _pm_quote(yes_price="0.55", no_price="0.45")

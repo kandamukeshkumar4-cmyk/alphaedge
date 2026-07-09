@@ -33,8 +33,9 @@ from decimal import Decimal
 from typing import Optional
 
 from app.signals.arbitrage import (
-    BinaryMarketQuote,
+    ArbitrageLeg,
     BinaryArbitrageSignal,
+    BinaryMarketQuote,
     SignalCosts,
     find_binary_arbitrage,
 )
@@ -73,12 +74,20 @@ class ArbOpportunity:
     expires_at: datetime
     stale: bool = False
     signal_only: bool = True  # INVARIANT — never False
+    # G02 additive fields (optional for older callers / tests)
+    spread_bps: int = 0
+    legs: tuple[dict, ...] = ()
+    confidence: float | None = None  # alias of match_confidence when set
 
     def refresh_staleness(self, now: Optional[datetime] = None) -> None:
         """Mark as stale if the TTL has elapsed."""
         ts = now or datetime.now(timezone.utc)
         if ts >= self.expires_at:
             self.stale = True
+
+    @property
+    def effective_confidence(self) -> float:
+        return self.match_confidence if self.confidence is None else self.confidence
 
 
 @dataclass
@@ -155,6 +164,11 @@ def detect_arb_opportunities(
 
             combined = signal.yes_leg.price + signal.no_leg.price
             edge = Decimal("1.0000") - signal.net_cost
+            legs = (
+                _leg_dict(signal.yes_leg),
+                _leg_dict(signal.no_leg),
+            )
+            spread_bps = int((signal.net_spread * Decimal("10000")).to_integral_value())
 
             opp = ArbOpportunity(
                 id=str(uuid.uuid4()),
@@ -173,6 +187,9 @@ def detect_arb_opportunities(
                 expires_at=expires_at,
                 stale=False,
                 signal_only=True,  # INVARIANT
+                spread_bps=spread_bps,
+                legs=legs,
+                confidence=match.confidence,
             )
             opportunities.append(opp)
 
@@ -225,6 +242,9 @@ class ArbOpportunityService:
                     expires_at=opp.expires_at,
                     stale=False,
                     signal_only=True,
+                    spread_bps=opp.spread_bps,
+                    legs=opp.legs,
+                    confidence=opp.confidence if opp.confidence is not None else opp.match_confidence,
                 )
                 self._store[key] = refreshed
             else:
@@ -307,3 +327,13 @@ def _dec(value: object) -> Decimal:
         return Decimal(str(value))
     except Exception:
         return Decimal("0.5000")
+
+
+def _leg_dict(leg: ArbitrageLeg) -> dict:
+    return {
+        "platform": leg.market.platform,
+        "market_id": leg.market.market_id,
+        "outcome": leg.outcome,
+        "price": str(leg.price),
+        "fee": str(leg.fee),
+    }

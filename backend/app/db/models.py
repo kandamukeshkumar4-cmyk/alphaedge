@@ -449,6 +449,31 @@ class SignalEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class VenueMarketMatch(Base):
+    """Persisted Polymarket↔Kalshi market match (G02). Analysis only — no orders."""
+
+    __tablename__ = "venue_market_matches"
+    __table_args__ = (
+        UniqueConstraint("pm_slug", "ks_slug", name="uq_venue_market_match_pair"),
+        Index("ix_venue_market_matches_confidence", "confidence"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pm_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    ks_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    pm_title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    ks_title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    reasons: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    stale: Mapped[bool] = mapped_column(Boolean, default=False)
+    matched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class WeatherForecastLog(Base):
     """O05: one row per (city, target_date) recording the NWS forecast high and
     the sigma the bucket model used, so the observed high can be filled in later
