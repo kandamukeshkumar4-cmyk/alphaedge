@@ -79,11 +79,12 @@ gh workflow run "Deploy Backend to HF Space" \
 
 ## NEXT
 
-- Loop 8 (`8-vendor`) DONE — report-parity gaps closed on prod FE.
+- **Ship sync 2026-07-09:** product FE committed + pushed `loop3-agent-memory`
+  (`8136ad3`); Vercel redeploy `dpl_58zmVZ77utZHiLczrK42uBaNcz77`. Backend
+  already on HF tip `07a6340` (tools + loops). Left uncommitted: agent skills
+  inventory / RECON frames / local logs only — not user-facing.
 - Owner runs BLOCKED #2 (prod admin seed resolve); then verify memories +
   deployed "Similar past markets" card (honest empty until then).
-- Confirm HF deploy run for `07a6340` green after smoke re-run; then trigger
-  one prod brief and confirm new `tools_used` chips when Space is healthy.
 - Cron `demo-uptime.yml` will fail the workflow on any `verify_prod.py`
   regression — watch Actions email / GitHub notifications.
 
