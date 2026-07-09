@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -10,6 +11,7 @@ from app.core import markets_cache
 from app.core.broadcast import hub
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
+from app.data.connectors.catalog_map import CATALOG_MAP
 from app.db.models import JobRun, Market, MarketResolution, PaperOrder, User
 from app.db.session import get_db
 from app.schemas.admin_markets import (
@@ -20,6 +22,9 @@ from app.schemas.admin_markets import (
     ResolveMarketRequest,
 )
 from app.services.market_service import CATALOG_SLUGS
+from app.services.forecast_service import ForecastService
+from app.services.memory_service import store_resolution
+from app.services.order_book_service import OrderBookService
 from app.services.settlement_service import settle_market
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-markets"])
@@ -82,6 +87,42 @@ async def _settle_paper_orders(
 
     await db.flush()
     return len(orders)
+
+
+def _best_yes_price(book_side: dict, fallback: float) -> float:
+    asks = book_side.get("asks") or []
+    bids = book_side.get("bids") or []
+    if asks:
+        return round(float(asks[0]["price"]), 4)
+    if bids:
+        return round(float(bids[0]["price"]), 4)
+    return round(float(fallback), 4)
+
+
+async def _remember_seed_resolution(
+    db: AsyncSession,
+    market: Market,
+    winning_outcome: str,
+) -> None:
+    """Store one resolved-market memory for admin-resolved catalog markets.
+
+    Memory is learning context only. It must never block market resolution or
+    touch the RiskService -> OrderIntent -> OrderBookService order path.
+    """
+    catalog_entry = CATALOG_MAP.get(market.slug)
+    fallback = catalog_entry.spec_price if catalog_entry is not None else 0.5
+    try:
+        book = await OrderBookService(db).get_l2(market.id, depth=1)
+        market_prob = _best_yes_price(book.get("yes", {}), fallback)
+    except Exception:  # noqa: BLE001 - memory must not block resolution
+        market_prob = round(float(fallback), 4)
+
+    forecast_result = ForecastService.predict(market.slug, implied_yes=market_prob)
+    forecast = SimpleNamespace(
+        predicted_prob=forecast_result.model_prob if forecast_result is not None else None,
+        market_prob=market_prob,
+    )
+    await store_resolution(db, market, forecast, winning_outcome)
 
 
 @router.get("/markets", response_model=list[AdminMarketListItem])
@@ -151,6 +192,10 @@ async def resolve_market(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     paper_orders_settled = await _settle_paper_orders(db, slug, winning_outcome)
+
+    market = await db.scalar(select(Market).where(Market.slug == slug))
+    if market is not None:
+        await _remember_seed_resolution(db, market, winning_outcome)
 
     resolution = MarketResolution(slug=slug, outcome=winning_outcome)
     db.add(resolution)

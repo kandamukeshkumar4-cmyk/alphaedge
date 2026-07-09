@@ -13,7 +13,7 @@ Stop condition: all tickets DONE/BLOCKED-ON-USER; K=3 no-progress → reorganize
 | S03 | Full gates (BE+FE) | DONE | BE 1044p/5s ruff clean; FE lint+typecheck+61 tests+build green |
 | S04 | Review uncommitted + branch hygiene | DONE | tree clean; session diff reviewed (no runtime findings; 1 cosmetic nit noted) |
 | S05 | Push origin + mirror gitlab | DONE | pushed origin+gitlab; codex/alphaedge-base IS the default branch so push = prod-branch update (no self-PR) |
-| S06 | Deploy frontend Vercel prod | DONE | Vercel prod Ready: https://frontend-kappa-drab-22.vercel.app (all pages 200, /weather serves) |
+| S06 | Deploy frontend Vercel prod | DONE | Vercel prod Ready: https://alphaedge-frontend-three.vercel.app (project `alphaedge-frontend`; verified 200, title "AlphaEdge — AI Prediction Markets"). NOTE 2026-07-07: old URL frontend-kappa-drab-22.vercel.app was reclaimed by the JobReach AI project — the Vercel project literally named `frontend` belongs to JobReach (owns jobreach.online). AlphaEdge now has its own uniquely-named project so the two can't collide. Never deploy AlphaEdge to a project named `frontend`. |
 | S07 | Backend prod reachable | BLOCKED-ON-USER | Koyeb service dead ("No active service") — needs owner login to reactivate or a new host token; frontend already points at https://alphaedge-api.koyeb.app |
 | S08 | Post-deploy smoke | PARTIAL | frontend smoke PASS (200s); full smoke waits on S07 backend |
 

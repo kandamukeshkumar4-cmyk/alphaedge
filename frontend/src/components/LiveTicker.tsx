@@ -14,14 +14,14 @@ type Tick = {
 };
 
 const USERS = [
-  "alpha_quant",
-  "edgeHunter",
-  "marketGuru",
-  "brierBeast",
-  "kelly_max",
-  "lineMover",
-  "sharpKing",
-  "deltaOne",
+  "demo-trader-1",
+  "demo-trader-2",
+  "demo-trader-3",
+  "demo-trader-4",
+  "demo-trader-5",
+  "demo-trader-6",
+  "demo-trader-7",
+  "demo-trader-8",
 ];
 
 // Deterministic seed so the first paint matches between server and client.

@@ -46,10 +46,11 @@ truth) and every tab reskins automatically.
 | Leaderboard (Trader Arena) | `/leaderboard` | Human + AI performance ranking |
 | Unified portfolio (GDP-style stats) | `/portfolio` + header balance chip | One balance across all market types |
 
-Top nav is a flat uppercase tab row — **Feed | Markets | Signals | Forecast |
-Mirror | Leaderboard | Portfolio** — with a neon-green glowing underline on
-the active tab (see `SiteHeader.tsx`). Discovery pages keep the category chip
-bar (All / Sports / Politics / Crypto / …).
+Top nav matches the QuestFlow video — **Discover | Trade | Leaderboard |
+Markets | Signals | GDP** — with a neon-teal glowing underline on the active
+tab (see `SiteHeader.tsx`). Discover (`/`) hosts Markets/Feed sub-tabs; Trade
+(`/trade`) is the chart + order book + reports terminal; GDP maps to
+`/portfolio`. Persistent **ATLAS** right rail is the AI placement surface.
 
 ## Color tokens (dark-only terminal)
 

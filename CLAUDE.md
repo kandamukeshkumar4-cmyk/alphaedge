@@ -4,6 +4,35 @@
 > This file gives Claude Code the same context as Codex and Cursor in
 > `E:\polymarket clone`.
 
+## Orchestration Constitution (binding)
+
+Read `orchestration/ORCHESTRATION.md` before your first edit. Key laws:
+done = `py -3.13 orchestration/gate.py` exit 0 with output pasted; 3 failed
+attempts at one error = write `orchestration/ESCALATION.md` and stop; the
+advisor model is called at most once per task and never implements; extra
+scope is a defect; deploy-affecting work must pass
+`py -3.13 scripts/verify_prod.py` against production.
+
+## Codex First Skill
+
+Load `.agents/skills/codex-first/SKILL.md` for any non-trivial implementation,
+refactor, bug fix, CI fix, dependency/tooling change, test-writing pass, or bulk
+codebase exploration. Claude writes the spec/work order, delegates hands-on work
+to Codex when the skill says to, and then performs the diff review and
+verification itself. Do not delegate design judgment, destructive operations,
+secrets/MCP work, releases, pushes, GitHub mutations, or review of Codex output.
+
+## Automatic Skill Use
+
+Repo-local skills are installed in `.agents/skills/<skill-name>/SKILL.md`.
+Claude shims in `.claude/skills/<skill-name>` point to those same folders. Before
+planning, coding, reviewing, researching, operating tools, or preparing a
+handoff, match the task against local skill `name` and `description` metadata and
+load the relevant skills automatically. The user should not need to invoke a
+slash command. Load only the smallest relevant set, keep AGENTS.md guardrails
+higher priority, and skip platform-specific skills unless the task and current
+environment actually match them.
+
 ## Truth-First Defaults
 
 - Treat user claims, diagnoses, and plans as unverified until checked against

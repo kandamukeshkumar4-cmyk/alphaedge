@@ -5,28 +5,27 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // QuestFlow-terminal shell (docs/QUESTFLOW_DESIGN_SYSTEM.md): true
-        // near-black canvas, neon signal green brand (#2DD4BF), agentic violet
-        // accent (#14B8A6), cyan secondary. Green/red = YES/NO + up/down.
-        bg: "#0C1210",
-        surface: "#121A17",
-        "surface-2": "#182220",
-        "surface-3": "#1F2B27",
-        border: "#243430",
-        "border-light": "#32463F",
+        // Pixel-pass tokens sampled from QuestFlow video frames (frame-001):
+        // canvas ~#070B0A, surface ~#132320, mint brand #00E8B0, danger #FF5A5F.
+        bg: "#070B0A",
+        surface: "#0E1614",
+        "surface-2": "#132320",
+        "surface-3": "#1A2A26",
+        border: "#1C2C28",
+        "border-light": "#2A3F39",
         text: "#F2F4F8",
-        muted: "#9BB0A9",
-        "muted-2": "#61756E",
-        primary: "#2DD4BF",
-        "primary-dim": "#12322C",
-        danger: "#F1585C",
+        muted: "#8FA8A0",
+        "muted-2": "#5A6F68",
+        primary: "#00E8B0",
+        "primary-dim": "#0A2E26",
+        danger: "#FF5A5F",
         "danger-dim": "#331A1C",
-        accent: "#14B8A6",
-        "accent-dim": "#0E2925",
+        accent: "#00C9A0",
+        "accent-dim": "#0A2420",
         secondary: "#4B9EFF",
         "secondary-dim": "#14243D",
-        up: "#2DD4BF",
-        down: "#F1585C",
+        up: "#00E8B0",
+        down: "#FF5A5F",
         gold: "#F6C244",
       },
       fontFamily: {
@@ -70,6 +69,10 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateX(110%)" },
           "100%": { opacity: "1", transform: "translateX(0)" },
         },
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both",
@@ -79,6 +82,7 @@ const config: Config = {
         "pulse-soft": "pulse-soft 1.8s ease-in-out infinite",
         "ticker-in": "ticker-in 0.4s ease-out both",
         "slide-in-right": "slide-in-right 0.35s cubic-bezier(0.22,1,0.36,1) both",
+        marquee: "marquee 60s linear infinite",
       },
     },
   },

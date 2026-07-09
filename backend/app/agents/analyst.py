@@ -414,10 +414,13 @@ async def persist_publish(session: AsyncSession, state: AnalystState, settings) 
     from app.db.models import AnalystBrief, BriefClaim
     from app.observability.metrics import record_brief_generated
     from app.schemas.brief import AnalystBriefModel
+    from app.agents.tools import gather_market_tools
 
     citations = build_citations(state)
     claim = extract_claim(state)
     latency_ms = round((time.perf_counter() - state.started_perf) * 1000.0, 2)
+    market_tools = await gather_market_tools(session, state.market_slug)
+    tools_used = market_tools.get("tools_used") if isinstance(market_tools, dict) else None
 
     # Validate through the pydantic schema (raises if <1 citation / bad claim).
     model = AnalystBriefModel(
@@ -431,6 +434,7 @@ async def persist_publish(session: AsyncSession, state: AnalystState, settings) 
         prompt_version=getattr(settings, "prompt_version", "v1"),
         generator=state.generator,
         latency_ms=latency_ms,
+        tools_used=tools_used,
     )
 
     from decimal import Decimal
@@ -441,6 +445,11 @@ async def persist_publish(session: AsyncSession, state: AnalystState, settings) 
         headline=model.headline,
         body_markdown=model.body_markdown,
         citations=[c.model_dump() for c in model.citations],
+        tools_used=(
+            [tool.model_dump(mode="json") for tool in model.tools_used]
+            if model.tools_used is not None
+            else None
+        ),
         model_version=model.model_version,
         prompt_version=model.prompt_version,
         generator=model.generator,

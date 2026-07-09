@@ -38,10 +38,11 @@ async def _client(db_session):
         app.dependency_overrides.clear()
 
 
-async def _seed_brief(db, slug="pm-a", kind="brief", with_claim=True):
+async def _seed_brief(db, slug="pm-a", kind="brief", with_claim=True, tools_used=None):
     brief = AnalystBrief(
         id=uuid4(), market_slug=slug, kind=kind, headline=f"{slug} headline",
         body_markdown="body", citations=[{"kind": "model", "ref": "m"}],
+        tools_used=tools_used,
         generator="fallback", model_version="lgbm-1", prompt_version="v1",
         created_at=NOW,
     )
@@ -123,6 +124,27 @@ async def test_get_brief_by_id_and_404(db_session):
         missing = await client.get(f"/api/v1/briefs/{uuid4()}")
     assert found.status_code == 200 and found.json()["market_slug"] == "pm-a"
     assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_brief_api_exposes_tools_used_when_persisted(db_session):
+    tools_used = [
+        {"tool": "get_order_book_summary", "spread": 0.02},
+        {"tool": "get_price_history", "points": 5},
+    ]
+    brief = await _seed_brief(
+        db_session,
+        "pm-a",
+        with_claim=False,
+        tools_used=tools_used,
+    )
+    async with _client(db_session) as client:
+        found = await client.get(f"/api/v1/briefs/{brief.id}")
+        listing = await client.get("/api/v1/briefs")
+
+    assert found.status_code == 200
+    assert found.json()["tools_used"] == tools_used
+    assert listing.json()["items"][0]["tools_used"] == tools_used
 
 
 @pytest.mark.asyncio

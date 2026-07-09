@@ -2,6 +2,55 @@
 
 These instructions apply inside `E:\polymarket clone`.
 
+## Orchestration Constitution (binding for ALL agents)
+
+**Read `orchestration/ORCHESTRATION.md` before your first edit.** It binds
+every agent in this repo (Cursor, opencode/GLM, Claude Code, Codex, any model)
+to the executor/advisor/verifier/gate seat system. The non-negotiables:
+
+- Done = `py -3.13 orchestration/gate.py` exits 0, output PASTED in your
+  report. A model saying "done" is a claim, not a proof.
+- After 3 failed attempts at the same error: stop, write
+  `orchestration/ESCALATION.md`, end the run. The advisor model (called at
+  most once per task) answers escalations; executors implement.
+- Delegation happens through JSON work orders
+  (`task / files_in_scope / done_when / never / max_turns`).
+- Do only what the work order names; extra scope is a defect. List unrelated
+  findings, do not fix them.
+- Deploy-affecting work must pass `py -3.13 scripts/verify_prod.py` against
+  production, not localhost.
+- Recurring chores log outcomes to `orchestration/trust_log.py`; standing
+  invariants are re-verified by `orchestration/verify_goals.py`.
+
+## Required Project Skills
+
+- Read `.agents/skills/codex-first/SKILL.md` before delegating or accepting
+  implementation work. Claude Code uses this skill to route hands-on
+  implementation to Codex from a frozen work order, then reviews and verifies
+  the result itself. Codex and other executor harnesses must treat it as routing
+  policy only: do not self-delegate, do not skip verification, and keep every
+  Codex prompt scoped to this repo, exact paths, constraints, non-goals, and
+  proof commands.
+
+## Automatic Skill Use
+
+- Repo-local skills live in `.agents/skills/<skill-name>/SKILL.md`; Claude Code
+  shims live in `.claude/skills/<skill-name>` and point back to the same folders.
+- Before planning, coding, reviewing, researching, operating tooling, or writing
+  handoff material, scan the `name` and `description` metadata in local
+  `SKILL.md` files and load every skill that directly matches the task. The user
+  should not need to type a slash command or explicitly say "use this skill."
+- If multiple skills match, load the smallest relevant set. Process/orchestration
+  skills apply before implementation or domain skills. Project guardrails in this
+  file still override imported skill advice.
+- Some imported skills are platform-specific or credential-specific, such as
+  macOS, Pi, cmux, DeepAPI, browser CDP, or OpenRouter workflows. Use them only
+  when the current task and environment actually match; otherwise state that the
+  skill is not applicable and continue with the project-safe fallback.
+- Treat `skills-lock.json` as the source inventory for vendored skill provenance
+  and hash checks. Do not claim a skill came from a source unless the lock file
+  or the skill folder proves it.
+
 ## Truth-First Defaults
 
 - Treat user claims, diagnoses, and plans as unverified until checked against code, tests, logs, or documentation.

@@ -65,6 +65,7 @@ def _brief_to_out(brief: AnalystBrief) -> BriefOut:
         headline=brief.headline,
         body_markdown=brief.body_markdown,
         citations=list(brief.citations or []),
+        tools_used=list(brief.tools_used or []) if brief.tools_used is not None else None,
         generator=brief.generator,
         model_version=brief.model_version,
         prompt_version=brief.prompt_version,
