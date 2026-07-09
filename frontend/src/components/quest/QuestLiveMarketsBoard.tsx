@@ -284,7 +284,7 @@ export function QuestLiveMarketsBoard({
                                 Clock
                               </span>
                               <span className="font-mono text-[12px] font-bold text-text">Q1 12:00</span>
-                              <span className="text-[10px] text-muted">Paper sim</span>
+                              <span className="text-[10px] text-muted">Live book</span>
                             </div>
                             <div className="flex items-stretch gap-2 sm:flex-col">
                               <Link

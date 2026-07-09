@@ -2,7 +2,7 @@
 
 /**
  * QuestFlow ATLAS right rail — persistent AI placement.
- * Analysis-only: never places orders. Paper-trading simulation only.
+ * Analysis-only: never places orders.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -12,9 +12,10 @@ import { useAtlasPanel } from "@/context/atlas-panel";
 import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import { getAccessToken } from "@/lib/portfolio-api";
 import { cn } from "@/lib/cn";
+import { ANALYSIS_ONLY_BANNER } from "@/lib/product-disclaimer";
 
 const AGENT_ID = "ATLAS-9-e4c1";
-const ANALYSIS_BANNER = "Analysis only — this assistant cannot place trades.";
+const ANALYSIS_BANNER = ANALYSIS_ONLY_BANNER;
 
 type Msg = {
   role: "user" | "assistant";
@@ -23,8 +24,8 @@ type Msg = {
 };
 
 const SUGGESTIONS = [
-  { label: "Find Trades", prompt: "Find the strongest paper-edge trades right now." },
-  { label: "Check Positions", prompt: "Summarize my paper portfolio risk." },
+  { label: "Top signals", prompt: "What are the strongest signals right now?" },
+  { label: "Explain edge", prompt: "Explain model vs market for this market." },
   { label: "Why this market?", prompt: "Explain the key drivers for this market." },
 ];
 
@@ -70,11 +71,11 @@ export function AtlasPanel() {
           {
             role: "assistant",
             content: marketTitle
-              ? `**${marketTitle}**\n\n**Recommended side:** Hold / watch\n**Confidence:** medium\n**Suggested size:** paper only — size after risk check\n\nConnect \`NEXT_PUBLIC_API_URL\` for live ATLAS briefs. ${ANALYSIS_BANNER}`
-              : `Ready to analyze paper markets. ${ANALYSIS_BANNER}`,
+              ? `**${marketTitle}**\n\n**Stance:** Hold / watch\n**Confidence:** medium\n**Note:** Research only — no bets placed in-app.\n\nConnect \`NEXT_PUBLIC_API_URL\` for live ATLAS briefs. ${ANALYSIS_BANNER}`
+              : `Ready to analyze markets. ${ANALYSIS_BANNER}`,
             tools: [
               { name: "read", status: "complete", target: marketSlug ?? "markets" },
-              { name: "bash", status: "complete", target: "risk_check --paper" },
+              { name: "bash", status: "complete", target: "market_scan --research" },
             ],
           },
         ]);
@@ -229,7 +230,7 @@ function AtlasHeader({ onClose }: { onClose: () => void }) {
             <p className="text-sm font-bold text-text">{AGENT_ID}</p>
             <StatusDot variant="success" label="Online" isPulsing />
           </div>
-          <p className="text-[10px] text-muted-2">Paper analysis · no order path</p>
+          <p className="text-[10px] text-muted-2">Research analysis · no order path</p>
         </div>
       </div>
       <button

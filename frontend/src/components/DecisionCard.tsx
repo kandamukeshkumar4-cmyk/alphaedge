@@ -376,7 +376,7 @@ export function DecisionCard({ slug, className, deviationMessage }: Props) {
     return (
       <section className={cn("rounded-2xl border border-border bg-surface p-4", className)}>
         <p className="text-sm text-muted">AI advisor unavailable.</p>
-        <p className="mt-1 text-xs text-muted-2">Paper trading only.</p>
+        <p className="mt-1 text-xs text-muted-2">Research only — no bets in-app.</p>
       </section>
     );
   }
@@ -539,7 +539,7 @@ export function DecisionCard({ slug, className, deviationMessage }: Props) {
 
         {/* ── Paper trading only footer ── */}
         <p className="text-center text-[11px] font-medium text-muted-2">
-          Paper trading only — simulated funds, no real money
+          Research only — not financial advice. No bets placed in-app.
         </p>
       </div>
     </section>

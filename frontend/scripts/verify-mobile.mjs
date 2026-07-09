@@ -8,7 +8,7 @@ async function main() {
   const results = [];
   for (const [name, url, sel] of [
     ["homepage", `${FE}/`, null],
-    ["market-detail", `${FE}/markets/${MKT}`, 'button:has-text("Buy YES")'],
+    ["market-detail", `${FE}/markets/${MKT}`, 'button:has-text("AI Analyze")'],
     ["portfolio", `${FE}/portfolio`, null],
   ]) {
     const page = await ctx.newPage();

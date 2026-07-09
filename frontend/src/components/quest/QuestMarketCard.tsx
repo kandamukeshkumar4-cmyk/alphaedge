@@ -67,20 +67,13 @@ export function QuestMarketCard({ market }: { market: Market }) {
         )}
       </div>
 
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
         <button
           type="button"
-          onClick={() => router.push(`/trade?slug=${encodeURIComponent(market.slug)}&side=yes`)}
+          onClick={() => router.push(`/trade?slug=${encodeURIComponent(market.slug)}`)}
           className="rounded-md border border-primary/25 bg-primary-dim px-1.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary hover:text-bg"
         >
-          ↑ Long
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push(`/trade?slug=${encodeURIComponent(market.slug)}&side=no`)}
-          className="rounded-md border border-danger/25 bg-danger-dim px-1.5 py-1 text-[11px] font-semibold text-danger transition hover:bg-danger hover:text-bg"
-        >
-          ↓ Short
+          Analyze
         </button>
         <button
           type="button"
@@ -89,7 +82,7 @@ export function QuestMarketCard({ market }: { market: Market }) {
               mode: "analyze",
               marketSlug: market.slug,
               marketTitle: market.title,
-              seedPrompt: `Analyze ${market.title} for a paper trade. Current YES ~${pricePct}¢.`,
+              seedPrompt: `Analyze ${market.title}. Current YES ~${pricePct}¢.`,
             })
           }
           className="whitespace-nowrap rounded-md border border-primary/35 bg-primary-dim/50 px-1 py-1 text-[10px] font-semibold text-primary transition hover:bg-primary hover:text-bg"

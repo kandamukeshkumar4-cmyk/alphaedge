@@ -155,7 +155,7 @@ export function QuestFeed({ markets }: { markets: Market[] }) {
                           href={`/trade?slug=${encodeURIComponent(item.market.slug)}`}
                           className="flex flex-1 items-center justify-center rounded-lg bg-primary px-3.5 py-1.5 text-center text-[11px] font-bold text-bg transition hover:brightness-110"
                         >
-                          Trade
+                          Analyze
                         </Link>
                         <button
                           type="button"
@@ -164,7 +164,7 @@ export function QuestFeed({ markets }: { markets: Market[] }) {
                               mode: "analyze",
                               marketSlug: item.market.slug,
                               marketTitle: item.market.title,
-                              seedPrompt: `Analyze ${item.market.title} for a paper trade. Stance was ${item.stance}.`,
+                              seedPrompt: `Analyze ${item.market.title}. Stance was ${item.stance}.`,
                             })
                           }
                           className="flex flex-1 items-center justify-center rounded-lg border border-border bg-surface-2 px-3.5 py-1.5 text-[11px] font-bold text-muted transition hover:border-primary/40 hover:text-primary"

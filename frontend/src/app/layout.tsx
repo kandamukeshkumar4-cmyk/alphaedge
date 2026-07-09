@@ -10,9 +10,9 @@ import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
 import { QuestLiveTicker } from "@/components/quest/QuestLiveTicker";
-import { PortfolioBanner } from "@/components/PortfolioBanner";
 import { AtlasPanel } from "@/components/quest/AtlasPanel";
 import { AtlasPanelProvider } from "@/context/atlas-panel";
+import { PRODUCT_DISCLAIMER } from "@/lib/product-disclaimer";
 
 // QuestFlow uses a rounded geometric sans; Figtree is the closest match.
 const inter = Figtree({
@@ -28,12 +28,9 @@ const mono = IBM_Plex_Mono({
   display: "swap",
 });
 
-const DISCLAIMER =
-  "AlphaEdge is a paper-trading simulation for sports and election markets using simulated funds for research and portfolio demonstration only.";
-
 export const metadata: Metadata = {
-  title: "AlphaEdge — AI Prediction Markets",
-  description: DISCLAIMER,
+  title: "AlphaEdge — Prediction Market Analysis",
+  description: PRODUCT_DISCLAIMER,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -45,7 +42,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ToastProvider>
               <HealthBanner />
               <SiteHeader />
-              <PortfolioBanner />
               <div className="flex min-h-[calc(100vh-7rem)] w-full">
                 <div className="min-w-0 flex-1 pb-20 lg:pb-0">{children}</div>
                 <AtlasPanel />
@@ -54,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <BottomNav />
               <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
                 <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
-                  {DISCLAIMER}
+                  {PRODUCT_DISCLAIMER}
                 </p>
               </footer>
             </ToastProvider>

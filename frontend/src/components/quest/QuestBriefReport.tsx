@@ -198,7 +198,7 @@ export function QuestBriefReport({
         <div className="overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="flex border-b border-border">
             <span className="flex-1 border-b-2 border-primary py-2.5 text-center text-xs font-bold text-primary">
-              Trade
+              Analyze
             </span>
             <Link
               href={marketHref(brief.market_slug)}

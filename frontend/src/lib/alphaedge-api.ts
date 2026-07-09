@@ -429,7 +429,7 @@ export const canonicalMarket: Market = {
 export const fallbackSnapshot: MarketSnapshot = {
   paper_trading_only: true,
   disclaimer:
-    "This project is a paper-trading simulation for sports and election markets using simulated funds for research and portfolio demonstration only.",
+    "AlphaEdge is an analysis assistant for prediction markets — research only, not financial advice. No bets are placed in-app. Any remaining simulation APIs use paper funds only.",
   market: canonicalMarket,
   book: {
     yes: {

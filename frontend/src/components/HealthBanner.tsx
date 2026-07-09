@@ -84,7 +84,7 @@ export function HealthBanner() {
   // the poll loop keeps running so recovery clears the banner automatically.
   const isDown = status === "down" || status === "fetch_fail";
   const message = isDown
-    ? "AlphaEdge API is unavailable. Showing sample data — paper trading data is not live."
+    ? "AlphaEdge API is unavailable. Showing sample data — live market data is unavailable."
     : "AlphaEdge API is degraded. Some features may be limited.";
 
   return (

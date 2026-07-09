@@ -41,7 +41,7 @@ export default function SignupPage() {
       }
       const body = (await response.json()) as { access_token: string };
       saveAuthSession(body.access_token, email);
-      router.replace("/portfolio");
+      router.replace("/signals");
     } catch {
       toast({
         title: "Signup failed",
@@ -57,7 +57,7 @@ export default function SignupPage() {
     <main className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-10">
       <div className="rounded-2xl border border-border bg-surface p-6">
         <h1 className="text-2xl font-black text-text">Join AlphaEdge</h1>
-        <p className="mt-1 text-sm text-muted">Start with $100,000 in paper money.</p>
+        <p className="mt-1 text-sm text-muted">Create an account to save research preferences.</p>
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
           <Field label="Email">
@@ -112,7 +112,7 @@ export default function SignupPage() {
               onChange={(e) => setAgree(e.target.checked)}
               className="mt-0.5 accent-[#14B8A6]"
             />
-            I agree to the Terms and understand this is a paper-trading simulation.
+            I agree to the Terms and understand AlphaEdge is research-only — no bets are placed in-app.
           </label>
 
           <button

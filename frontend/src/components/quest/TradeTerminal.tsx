@@ -1,43 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { TabList, Tab } from "@astryxdesign/core/TabList";
 import { ChartDrawingToolbar } from "@/components/quest/ChartDrawingToolbar";
 import { PriceChart } from "@/components/PriceChart";
 import { OrderBook } from "@/components/OrderBook";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
-import { useAuth } from "@/hooks/useAuth";
-import { API_BASE, fetchMarkets, fetchMarketDetail, hasLiveApi } from "@/lib/alphaedge-api";
-import { fetchOrderHistory, fetchPortfolio, type OrderHistoryItem } from "@/lib/portfolio-api";
+import { fetchMarkets, fetchMarketDetail, hasLiveApi } from "@/lib/alphaedge-api";
 import { formatCompactUSD, getMarket, type Market } from "@/lib/mock-data";
 import { marketHref } from "@/lib/market-href";
 import { cn } from "@/lib/cn";
-
-type ReportTab =
-  | "positions"
-  | "balances"
-  | "open-orders"
-  | "trade-history"
-  | "order-history";
+import { PAPER_ONLY_NOTE } from "@/lib/product-disclaimer";
 
 type FeedTab = "for-you" | "this-market" | "following" | "news";
-
-const REPORT_TABS: { id: ReportTab; label: string }[] = [
-  { id: "positions", label: "Positions" },
-  { id: "balances", label: "Balances" },
-  { id: "open-orders", label: "Open Orders" },
-  { id: "trade-history", label: "Trade History" },
-  { id: "order-history", label: "Order History" },
-];
 
 const FALLBACK_MARKET = getMarket("nba-2025-01-15-lal-bos") ?? null;
 const LIVE_API = hasLiveApi();
 
 export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
-  const { token, paperBalance } = useAuth();
   const { openPanel, setMarket } = useAtlasPanel();
   // Prefer empty/loading when a live API is configured — never paint the seed
   // Lakers market as if it were production data.
@@ -46,14 +27,9 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
   const [market, setMarketState] = useState<Market | null>(null);
   const [loadingMarkets, setLoadingMarkets] = useState(LIVE_API);
   const [rightTab, setRightTab] = useState<"book" | "trades">("book");
-  const [panelTab, setPanelTab] = useState<"trade" | "chat">("trade");
-  const [reportTab, setReportTab] = useState<ReportTab>("order-history");
+  const [panelTab, setPanelTab] = useState<"analyze" | "chat">("analyze");
   const [feedTab, setFeedTab] = useState<FeedTab>("this-market");
   const [drawTool, setDrawTool] = useState("cursor");
-  const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
-  const [positions, setPositions] = useState<
-    { market_slug: string; outcome: string; quantity: number; unrealized_pnl?: number | null }[]
-  >([]);
 
   useEffect(() => {
     let dead = false;
@@ -71,7 +47,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
                 ? [FALLBACK_MARKET]
                 : [];
         // Prefer open markets — API volume sort often puts resolved 0¢ markets first,
-        // which makes Trade look empty (flat chart, empty book).
+        // which makes Analyze look empty (flat chart, empty book).
         const openFirst = [
           ...list.filter((m) => m.status === "open" || m.status == null),
           ...list.filter((m) => m.status === "locked"),
@@ -119,38 +95,6 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync ATLAS context on slug
   }, [slug]);
 
-  const loadReports = useCallback(async () => {
-    if (!token) {
-      setOrders([]);
-      setPositions([]);
-      return;
-    }
-    try {
-      const [hist, port] = await Promise.all([
-        fetchOrderHistory(token, { apiBase: API_BASE }),
-        fetchPortfolio(token, { apiBase: API_BASE }),
-      ]);
-      setOrders(hist);
-      setPositions(
-        port.positions
-          .filter((p) => !p.settled)
-          .map((p) => ({
-            market_slug: p.market_slug,
-            outcome: p.outcome,
-            quantity: p.quantity,
-            unrealized_pnl: p.unrealized_pnl,
-          })),
-      );
-    } catch {
-      setOrders([]);
-      setPositions([]);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    void loadReports();
-  }, [loadReports]);
-
   const yesPct = Math.round((market?.outcomes[0]?.price ?? 0.5) * 1000) / 10;
 
   const picker = useMemo(() => markets.slice(0, 40), [markets]);
@@ -194,7 +138,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
                 mode: "analyze",
                 marketSlug: slug,
                 marketTitle: market?.title ?? null,
-                seedPrompt: `Deep-dive ${market?.title ?? slug} for a paper trade. Current YES ${yesPct}%.`,
+                seedPrompt: `Deep-dive ${market?.title ?? slug}. Current YES ${yesPct}%. Research only — no bets.`,
               })
             }
             className="rounded-lg border border-primary/40 bg-primary-dim px-3 py-2 text-sm font-bold text-primary shadow-glow transition hover:bg-primary hover:text-bg"
@@ -233,7 +177,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
           <div className="flex-1 overflow-y-auto p-3">
             <p className="text-center text-xs text-muted-2">
               {feedTab === "this-market"
-                ? "No quests for this market yet."
+                ? "No briefs for this market yet."
                 : "Feed empty — open AI Analyze to start a brief."}
             </p>
           </div>
@@ -257,7 +201,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
               <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-2">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                  Paper · live
+                  Analysis · live
                 </span>
                 <span>·</span>
                 <span>2 outcomes</span>
@@ -291,13 +235,13 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
           )}
         </section>
 
-        {/* Right: book + trade/chat */}
+        {/* Right: book + analyze/chat */}
         <aside className="flex min-h-0 flex-col overflow-hidden">
           <div className="flex border-b border-border">
             {(
               [
                 ["book", "Order Book"],
-                ["trades", "Trades"],
+                ["trades", "Prints"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -321,14 +265,14 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
                 <OrderBook market={market} />
               </div>
             ) : (
-              <p className="py-6 text-center text-xs text-muted-2">No recent trades.</p>
+              <p className="py-6 text-center text-xs text-muted-2">No recent prints.</p>
             )}
           </div>
 
           <div className="flex border-b border-border">
             {(
               [
-                ["trade", "Trade"],
+                ["analyze", "Analyze"],
                 ["chat", "Chat"],
               ] as const
             ).map(([id, label]) => (
@@ -369,7 +313,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
                       mode: "chat",
                       marketSlug: slug,
                       marketTitle: market?.title ?? null,
-                      seedPrompt: `What is the paper edge on ${market?.title ?? slug}?`,
+                      seedPrompt: `What are the key drivers on ${market?.title ?? slug}?`,
                     })
                   }
                   className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-bg"
@@ -392,128 +336,18 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
         </aside>
       </div>
 
-      {/* Bottom reports */}
-      <div className="border-t border-border bg-surface">
-        <div className="flex items-center gap-2 overflow-x-auto px-3 pt-2">
-          <TabList
-            value={reportTab}
-            onChange={(v) => setReportTab(v as ReportTab)}
-            size="sm"
-            hasDivider
-          >
-            {REPORT_TABS.map((t) => (
-              <Tab key={t.id} value={t.id} label={t.label} />
-            ))}
-          </TabList>
-          <div className="ml-auto flex gap-2 pb-1">
-            <span className="rounded border border-border px-2 py-0.5 text-[10px] font-bold text-muted">
-              Polymarket
-            </span>
-            <span className="rounded border border-border px-2 py-0.5 text-[10px] font-bold text-muted-2">
-              Kalshi
-            </span>
-          </div>
-        </div>
-        <div className="max-h-36 overflow-y-auto px-4 py-3">
-          <ReportBody
-            tab={reportTab}
-            orders={orders}
-            positions={positions}
-            balance={paperBalance}
-            loggedIn={!!token}
-          />
+      {/* Bottom research note */}
+      <div className="border-t border-border bg-surface px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded border border-border px-2 py-0.5 text-[10px] font-bold text-muted">
+            Polymarket
+          </span>
+          <span className="rounded border border-border px-2 py-0.5 text-[10px] font-bold text-muted-2">
+            Kalshi
+          </span>
+          <p className="ml-auto text-[11px] text-muted-2">{PAPER_ONLY_NOTE}</p>
         </div>
       </div>
     </div>
-  );
-}
-
-function ReportBody({
-  tab,
-  orders,
-  positions,
-  balance,
-  loggedIn,
-}: {
-  tab: ReportTab;
-  orders: OrderHistoryItem[];
-  positions: { market_slug: string; outcome: string; quantity: number; unrealized_pnl?: number | null }[];
-  balance: number | null;
-  loggedIn: boolean;
-}) {
-  if (!loggedIn) {
-    return (
-      <p className="text-sm text-muted-2">
-        Log in to see paper {tab.replace("-", " ")}.{" "}
-        <Link href="/auth/login" className="text-primary hover:underline">
-          Log in
-        </Link>
-      </p>
-    );
-  }
-
-  if (tab === "balances") {
-    return (
-      <p className="font-mono text-sm text-text">
-        Available:{" "}
-        <span className="font-bold text-primary">
-          {balance != null ? `$${balance.toFixed(2)}` : "—"}
-        </span>{" "}
-        <span className="text-muted-2">(simulated)</span>
-      </p>
-    );
-  }
-
-  if (tab === "positions") {
-    if (positions.length === 0) {
-      return <p className="text-sm text-muted-2">No open positions.</p>;
-    }
-    return (
-      <ul className="space-y-1.5">
-        {positions.map((p) => (
-          <li
-            key={`${p.market_slug}-${p.outcome}`}
-            className="flex justify-between font-mono text-xs text-text"
-          >
-            <span>
-              {p.market_slug} · {p.outcome.toUpperCase()} ×{p.quantity}
-            </span>
-            <span className={cn((p.unrealized_pnl ?? 0) >= 0 ? "text-primary" : "text-danger")}>
-              {p.unrealized_pnl != null ? `$${p.unrealized_pnl.toFixed(2)}` : "—"}
-            </span>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  if (orders.length === 0) {
-    return (
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="text-sm text-muted-2"
-      >
-        No open orders.
-      </motion.p>
-    );
-  }
-
-  return (
-    <ul className="space-y-1.5">
-      {orders.slice(0, 12).map((o, i) => (
-        <li
-          key={`${o.slug}-${o.created_at}-${i}`}
-          className="flex justify-between font-mono text-xs text-muted"
-        >
-          <span>
-            {o.slug} · {o.side} {o.outcome}
-          </span>
-          <span className="text-text">
-            {o.shares} @ {Math.round(o.price * 100)}¢
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }

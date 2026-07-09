@@ -57,7 +57,7 @@ export default function PortfolioPage() {
     const token = getAccessToken();
     if (!token) {
       setPortfolio(null);
-      setError("Log in to view your paper portfolio.");
+      setError("Log in to view optional research history.");
       setLoading(false);
       return;
     }
@@ -114,9 +114,9 @@ export default function PortfolioPage() {
   return (
     <PageShell width="medium">
       <PageHeader
-        kicker="Unified paper portfolio"
-        title="Portfolio"
-        subtitle="Gross desk performance — paper balance, open positions, and risk across every market type."
+        kicker="Optional research history"
+        title="Research history"
+        subtitle="Optional log of prior simulation activity — not a live betting desk. Analysis stays on Markets, Signals, and ATLAS."
         actions={
           <button
             type="button"
@@ -206,9 +206,9 @@ export default function PortfolioPage() {
             {activeTab === "positions" ? (
               empty ? (
                 <div className="py-10 text-center">
-                  <p className="text-lg font-semibold text-text">No paper trades yet</p>
+                  <p className="text-lg font-semibold text-text">No research history yet</p>
                   <p className="mt-2 text-sm text-muted">
-                    Place a paper trade on a market to see positions here.
+                    Browse markets, signals, and ATLAS — this page is an optional log, not a betting desk.
                   </p>
                   <Link
                     href="/markets"
@@ -301,7 +301,7 @@ export default function PortfolioPage() {
 
       <footer className="mt-8 rounded-2xl border border-border bg-surface p-4 text-xs leading-relaxed text-muted">
         {portfolio?.disclaimer ??
-          "Research only — not financial advice. Verify resolution terms. Paper trading only."}
+          "Research only — not financial advice. No bets placed in-app. Simulation APIs remain paper-only."}
       </footer>
     </PageShell>
   );

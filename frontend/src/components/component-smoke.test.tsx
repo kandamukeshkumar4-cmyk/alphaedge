@@ -46,14 +46,24 @@ vi.mock("@/lib/alphaedge-api", () => ({
   fetchMarketCandles: vi.fn(async () => null),
 }));
 
+vi.mock("@/context/atlas-panel", () => ({
+  useAtlasPanel: () => ({
+    openPanel: vi.fn(),
+    closePanel: vi.fn(),
+    open: false,
+  }),
+}));
+
 describe("critical component smoke tests", () => {
   const market = MARKETS[0];
 
-  it("renders the trade panel logged-out state", () => {
+  it("renders the analysis panel (no order submit)", () => {
     const html = renderToStaticMarkup(React.createElement(TradePanel, { market }));
 
-    expect(html).toContain("Log in to trade");
-    expect(html).toContain("/auth/login");
+    expect(html).toContain("AI Analyze");
+    expect(html).toContain("no bets placed in-app");
+    expect(html).not.toContain("Buy Yes");
+    expect(html).not.toContain("Placing order");
   });
 
   it("renders order book bid and ask levels", () => {

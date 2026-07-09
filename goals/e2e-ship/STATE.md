@@ -71,13 +71,14 @@ gh workflow run "Deploy Backend to HF Space" \
 
 ## NEXT
 
-- **Ship sync 2026-07-09:** product FE committed + pushed `loop3-agent-memory`
-  (`8136ad3`); Vercel redeploy `dpl_58zmVZ77utZHiLczrK42uBaNcz77`. Backend
-  already on HF tip `07a6340` (tools + loops). Left uncommitted: agent skills
-  inventory / RECON frames / local logs only — not user-facing.
-- Owner runs BLOCKED #2 (prod admin seed resolve); then verify memories +
-  deployed "Similar past markets" card (honest empty until then).
+- **UX reposition 2026-07-09:** AlphaEdge FE is analysis-assistant first (no
+  Deposit / Buy YES-NO primary UX). Trade → Analyze terminal; Portfolio soft-
+  hidden as research history; disclaimer research-only. Deploy
+  `dpl_Den5YNN5ZoT3oHrNuQ8taKQZ3aNN` → `alphaedge-frontend-three.vercel.app`.
+  `PAPER_TRADING_ONLY` unchanged (backend guard still true). Left uncommitted:
+  unrelated backend assistant/cors WIP if present.
 - Cron `demo-uptime.yml` will fail the workflow on any `verify_prod.py`
   regression — watch Actions email / GitHub notifications.
 
-A user visiting the production URL sees live Polymarket/Kalshi markets, can complete the full paper-trading journey, and all intelligence surfaces are fed by production data.
+A user visiting the production URL sees live Polymarket/Kalshi markets, signals,
+briefs, and ATLAS as a research assistant — no in-app bet placement UX.

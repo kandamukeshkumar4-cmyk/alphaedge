@@ -189,13 +189,13 @@ export default function ForecastMirrorPage() {
             AlphaEdge Mirror
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Research and paper simulation only. No betting execution, payments,
+            Research only — analysis assistant. No betting execution, payments,
             account scraping, or copy trading.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.08em]">
-            <StatusPill label="Mode" value={mode} />
+            <StatusPill label="Mode" value="research" />
             <StatusPill label="Profile" value={profileLabel} />
-            <StatusPill label="Paper" value={dashboard?.paper_trading_only ? "on" : "only"} />
+            <StatusPill label="Guard" value={dashboard?.paper_trading_only ? "paper-only APIs" : "paper-only"} />
           </div>
         </div>
 

@@ -48,7 +48,7 @@ export function buildSignalsDashboardView(
     paperPnlLabel: money(dashboard.paper_pnl.total_pnl),
     winRateLabel: pct(dashboard.paper_pnl.win_rate),
     betCountLabel: String(dashboard.paper_pnl.n_bets),
-    paperOnlyNote: "Paper trading only — simulated funds",
+    paperOnlyNote: "Research only — no bets placed in-app",
     llmExplanation: dashboard.llm_explanation,
     signalCards: dashboard.signals.map(signalCard),
     clvRows: dashboard.clv_records.map(clvRow),
@@ -130,11 +130,11 @@ function clvRow(record: CLVRecord): CLVRowView {
 function emptyView(): SignalsDashboardView {
   return {
     disclaimer:
-      "Research only — not financial advice. Verify resolution terms. Paper trading only.",
+      "Research only — not financial advice. No bets placed in-app. Simulation APIs remain paper-only.",
     paperPnlLabel: "$0.00",
     winRateLabel: "0%",
     betCountLabel: "0",
-    paperOnlyNote: "Paper trading only — simulated funds",
+    paperOnlyNote: "Research only — no bets placed in-app",
     llmExplanation: null,
     signalCards: [],
     clvRows: [],

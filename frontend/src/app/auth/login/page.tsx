@@ -35,7 +35,7 @@ export default function LoginPage() {
       }
       const body = (await response.json()) as { access_token: string };
       saveAuthSession(body.access_token, email);
-      router.replace("/portfolio");
+      router.replace("/signals");
     } catch {
       toast({
         title: "Login failed",
@@ -51,7 +51,7 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-10">
       <div className="rounded-2xl border border-border bg-surface p-6">
         <h1 className="text-2xl font-black text-text">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted">Log in to your paper-trading account.</p>
+        <p className="mt-1 text-sm text-muted">Log in to save research preferences and history.</p>
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
           <div>

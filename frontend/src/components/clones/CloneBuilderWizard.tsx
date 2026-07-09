@@ -240,7 +240,7 @@ export function CloneBuilderWizard({ token }: CloneBuilderWizardProps) {
             <div><span className="font-semibold text-text">Edge threshold:</span> {edgeThreshold}%</div>
             <div><span className="font-semibold text-text">Cooldown:</span> {cooldown}m</div>
             <div className="mt-2 rounded-lg bg-secondary/10 px-3 py-1.5 font-semibold text-secondary">
-              Paper trading only — no real funds are used.
+              Research only — clones use simulated data; no bets placed in-app.
             </div>
           </div>
 

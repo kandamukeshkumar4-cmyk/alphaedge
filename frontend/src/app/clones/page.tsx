@@ -46,10 +46,11 @@ function ClonesPageInner() {
           )}
         </div>
 
-        {/* Paper trading notice */}
+        {/* Research notice */}
         <div className="mb-6 rounded-xl border border-secondary/30 bg-secondary/5 px-4 py-3 text-xs text-secondary">
-          <span className="font-semibold">Paper trading only</span> — clones run on simulated data
-          and cannot place real orders. All results are provisional until{" "}
+          <span className="font-semibold">Research only</span> — clones run on simulated data
+          for backtests and track-record study, not live betting, and cannot place real orders.
+          All results are provisional until{" "}
           <span className="font-mono">clv_gate_passed=true</span>.
         </div>
 
