@@ -1,4 +1,4 @@
-import { API_BASE } from "./alphaedge-api";
+import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "./alphaedge-api";
 
 export type LeaderboardEntry = {
   rank: number;
@@ -13,11 +13,12 @@ export type LeaderboardResponse = {
 };
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return [];
   }
 
-  const response = await fetch(`${API_BASE}/api/v1/leaderboard`, {
+  const response = await fetch(apiUrl("/api/v1/leaderboard", base), {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -89,18 +90,20 @@ export type CloneScorecardResponse = {
 export async function fetchCloneLeaderboard(
   sortBy: "brier" | "pnl" = "brier",
 ): Promise<CloneLeaderboardResponse> {
-  if (!API_BASE) {
-    return {
-      leaderboard: [],
-      count: 0,
-      sort_by: sortBy,
-      disclaimer: "All results are paper-traded and calibration-scored.",
-      provisional_min: 30,
-    };
+  const empty: CloneLeaderboardResponse = {
+    leaderboard: [],
+    count: 0,
+    sort_by: sortBy,
+    disclaimer: "All results are paper-traded and calibration-scored.",
+    provisional_min: 30,
+  };
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
+    return empty;
   }
 
   const response = await fetch(
-    `${API_BASE}/api/v1/clones/leaderboard?sort_by=${sortBy}`,
+    apiUrl(`/api/v1/clones/leaderboard?sort_by=${sortBy}`, base),
     { cache: "no-store" },
   );
   if (!response.ok) {
@@ -112,10 +115,11 @@ export async function fetchCloneLeaderboard(
 export async function fetchCloneScorecard(
   cloneId: string,
 ): Promise<CloneScorecardResponse | null> {
-  if (!API_BASE) return null;
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return null;
 
   const response = await fetch(
-    `${API_BASE}/api/v1/clones/${cloneId}/scorecard`,
+    apiUrl(`/api/v1/clones/${cloneId}/scorecard`, base),
     { cache: "no-store" },
   );
   if (response.status === 404) return null;

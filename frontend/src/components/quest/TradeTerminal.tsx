@@ -10,7 +10,7 @@ import { OrderBook } from "@/components/OrderBook";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
 import { useAuth } from "@/hooks/useAuth";
-import { API_BASE, fetchMarkets, fetchMarketDetail } from "@/lib/alphaedge-api";
+import { API_BASE, fetchMarkets, fetchMarketDetail, hasLiveApi } from "@/lib/alphaedge-api";
 import { fetchOrderHistory, fetchPortfolio, type OrderHistoryItem } from "@/lib/portfolio-api";
 import { formatCompactUSD, getMarket, type Market } from "@/lib/mock-data";
 import { marketHref } from "@/lib/market-href";
@@ -34,7 +34,7 @@ const REPORT_TABS: { id: ReportTab; label: string }[] = [
 ];
 
 const FALLBACK_MARKET = getMarket("nba-2025-01-15-lal-bos") ?? null;
-const LIVE_API = Boolean(API_BASE);
+const LIVE_API = hasLiveApi();
 
 export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
   const { token, paperBalance } = useAuth();
@@ -70,11 +70,19 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
               : FALLBACK_MARKET
                 ? [FALLBACK_MARKET]
                 : [];
-        setMarkets(list);
+        // Prefer open markets — API volume sort often puts resolved 0¢ markets first,
+        // which makes Trade look empty (flat chart, empty book).
+        const openFirst = [
+          ...list.filter((m) => m.status === "open" || m.status == null),
+          ...list.filter((m) => m.status === "locked"),
+          ...list.filter((m) => m.status === "resolved"),
+        ];
+        const ordered = openFirst.length > 0 ? openFirst : list;
+        setMarkets(ordered);
         const pick =
-          (initialSlug && list.find((m) => m.slug === initialSlug)) ||
+          (initialSlug && ordered.find((m) => m.slug === initialSlug)) ||
           (initialSlug && rows.find((m) => m.slug === initialSlug)) ||
-          list[0] ||
+          ordered[0] ||
           FALLBACK_MARKET;
         if (pick) {
           setSlug(pick.slug);
@@ -119,8 +127,8 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
     }
     try {
       const [hist, port] = await Promise.all([
-        fetchOrderHistory(token, { apiBase: API_BASE || "http://localhost:8000" }),
-        fetchPortfolio(token, { apiBase: API_BASE || "http://localhost:8000" }),
+        fetchOrderHistory(token, { apiBase: API_BASE }),
+        fetchPortfolio(token, { apiBase: API_BASE }),
       ]);
       setOrders(hist);
       setPositions(

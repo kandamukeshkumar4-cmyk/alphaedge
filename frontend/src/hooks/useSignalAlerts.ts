@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { API_BASE } from "@/lib/alphaedge-api";
+import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import type { SignalFeedItem } from "@/lib/signals-dashboard-api";
 
 const LAST_SIGNAL_TS_KEY = "alphaedge.lastSignalTs";
@@ -49,10 +49,11 @@ function isUnread(item: SignalFeedItem, lastTs: string | null): boolean {
 }
 
 async function fetchSignalFeed(): Promise<SignalFeedItem[]> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return [];
   }
-  const response = await fetch(`${API_BASE}/api/v1/signals/feed`, {
+  const response = await fetch(apiUrl("/api/v1/signals/feed", base), {
     cache: "no-store",
   });
   if (!response.ok) {

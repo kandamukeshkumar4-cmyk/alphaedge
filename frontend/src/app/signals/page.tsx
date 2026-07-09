@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { API_BASE, ensureApiBase } from "@/lib/alphaedge-api";
+import { ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import {
   fetchArbOpportunities,
   type ArbOpportunitiesPage,
@@ -20,7 +20,7 @@ type Notice = {
 
 export default function SignalsPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
-  const apiConfigured = Boolean(API_BASE);
+  const apiConfigured = hasLiveApi();
   const [loading, setLoading] = useState(apiConfigured);
   const [dashboard, setDashboard] = useState<Awaited<ReturnType<typeof fetchSignalsDashboard>>>(null);
   const [arb, setArb] = useState<ArbOpportunitiesPage | null>(null);
@@ -29,7 +29,7 @@ export default function SignalsPage() {
 
   async function loadDashboard() {
     const base = await ensureApiBase();
-    if (!base) {
+    if (!hasLiveApi(base)) {
       setNotice({
         tone: "muted",
         text: "Set NEXT_PUBLIC_API_URL to load live signal and CLV data.",
@@ -51,7 +51,7 @@ export default function SignalsPage() {
         error instanceof Error ? error.message : "Failed to load signals dashboard.";
       setNotice({
         tone: "error",
-        text: `${detail} (${base}) — showing last loaded data. Retry below.`,
+        text: `${detail} (${base || "same-origin"}) — showing last loaded data. Retry below.`,
       });
     } finally {
       setLoading(false);

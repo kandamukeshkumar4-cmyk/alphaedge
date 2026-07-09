@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "@/lib/alphaedge-api";
+import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 
 // "live"  = backend reachable and healthy → surfaces show real data
 // "demo"  = backend unreachable / unconfigured → surfaces show sample data
@@ -11,8 +11,9 @@ export type ApiHealth = "checking" | "live" | "demo";
 // Pure classifier for the health probe, extracted so the live/demo decision is
 // unit-testable without a React renderer (the test env is node, no jsdom).
 // `res` is null when the fetch threw (backend unreachable).
+// Empty apiBase is valid in browser prod (same-origin Vercel → HF rewrite).
 export function classifyHealth(apiBase: string, res: { ok: boolean } | null): ApiHealth {
-  if (!apiBase) return "demo";
+  if (!hasLiveApi(apiBase)) return "demo";
   if (res === null) return "demo";
   return res.ok ? "live" : "demo";
 }
@@ -23,19 +24,20 @@ export function useApiHealth(pollMs = 30_000): ApiHealth {
   const [health, setHealth] = useState<ApiHealth>("checking");
 
   useEffect(() => {
-    if (!API_BASE) {
-      setHealth("demo");
-      return;
-    }
     let dead = false;
 
     const check = async () => {
+      const base = await ensureApiBase();
+      if (!hasLiveApi(base)) {
+        if (!dead) setHealth("demo");
+        return;
+      }
       try {
-        const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+        const res = await fetch(apiUrl("/health", base), { cache: "no-store" });
         if (dead) return;
-        setHealth(classifyHealth(API_BASE, res));
+        setHealth(classifyHealth(base, res));
       } catch {
-        if (!dead) setHealth(classifyHealth(API_BASE, null));
+        if (!dead) setHealth(classifyHealth(base, null));
       }
     };
 

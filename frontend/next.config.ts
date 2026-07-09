@@ -10,9 +10,31 @@ const staticExport =
   process.env.STATIC_EXPORT === "1" ||
   process.env.npm_lifecycle_event === "build:static";
 
+// Browser → Vercel → HF. HF free-tier often answers with CORS-less 429 HTML;
+// same-origin rewrites keep health/markets/ATLAS readable in the browser.
+const HF_PROD_API =
+  (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "") ||
+  "https://mukeshkumar007-alphaedge-api.hf.space";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   ...(staticExport ? { output: "export" as const } : {}),
+  ...(!staticExport
+    ? {
+        async rewrites() {
+          return [
+            {
+              source: "/api/:path*",
+              destination: `${HF_PROD_API}/api/:path*`,
+            },
+            {
+              source: "/health",
+              destination: `${HF_PROD_API}/health`,
+            },
+          ];
+        },
+      }
+    : {}),
 };
 
 export default nextConfig;

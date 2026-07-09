@@ -3,26 +3,40 @@ import { mergeApiSnapshotForDetail } from "./api-market-detail-adapter";
 import { MARKETS, type Market as CardMarket } from "./mock-data";
 import type { Market, MarketSnapshot } from "./market-view-model";
 
-// Resolve the backend the deployed static site talks to.
+// Resolve the backend the deployed site talks to.
 //
-// A static-exported SPA has NO backend at its own origin, so an empty base
-// ("") makes every /api/v1 call hit the static host, fail, and drop the whole
-// UI into sample-data fallback — the "everything is mock data" failure. So we
-// ALWAYS resolve to a real backend: the NEXT_PUBLIC_API_URL build var when set,
-// otherwise the known production API (prod build) or localhost (dev).
+// Production browser: empty base = same-origin Vercel rewrite → HF Space
+// (see next.config.ts). HF free-tier often returns CORS-less 429 HTML; a
+// cross-origin fetch then looks like a hard outage (health down, markets
+// refresh fail, ATLAS "Could not reach"). Same-origin keeps status readable.
 //
+// Production SSR / Node: absolute HF URL (rewrites are browser-facing).
 // Dev without NEXT_PUBLIC_API_URL: probe localhost:8000/health once; if the
-// local API is down, fall back to the HF Space prod URL (matches local.config.json
-// policy — only repoint after health passes).
+// local API is down, fall back to the HF Space prod URL.
 const HF_PROD_API = "https://mukeshkumar007-alphaedge-api.hf.space";
 const LOCAL_DEV_API = "http://localhost:8000";
+/** Empty string — browser production uses Vercel /api + /health rewrites. */
+const SAME_ORIGIN = "";
 
 function readEnvApiUrl(): string {
-  return (process.env.NEXT_PUBLIC_API_URL || "").trim();
+  return (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
+}
+
+function isHfSpaceUrl(url: string): boolean {
+  return /(?:^|\.)hf\.space$/i.test(url.replace(/^https?:\/\//, "").split("/")[0] ?? "");
+}
+
+/** Browser prod should not call HF cross-origin (CORS-less 429 HTML). */
+function browserProdBase(env: string): string {
+  if (!env || isHfSpaceUrl(env)) return SAME_ORIGIN;
+  return env;
 }
 
 function syncDefaultBase(): string {
   const env = readEnvApiUrl();
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return browserProdBase(env);
+  }
   if (env) return env;
   if (process.env.NODE_ENV === "production") return HF_PROD_API;
   return LOCAL_DEV_API;
@@ -33,6 +47,10 @@ let _probePromise: Promise<string> | null = null;
 
 export async function resolveApiBase(): Promise<string> {
   const env = readEnvApiUrl();
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    _resolvedBase = browserProdBase(env);
+    return _resolvedBase;
+  }
   if (env) {
     _resolvedBase = env;
     return env;
@@ -41,7 +59,7 @@ export async function resolveApiBase(): Promise<string> {
     _resolvedBase = HF_PROD_API;
     return HF_PROD_API;
   }
-  if (_resolvedBase) return _resolvedBase;
+  if (_resolvedBase !== null) return _resolvedBase;
   if (_probePromise) return _probePromise;
 
   _probePromise = (async () => {
@@ -55,7 +73,7 @@ export async function resolveApiBase(): Promise<string> {
       _resolvedBase = HF_PROD_API;
     }
     _probePromise = null;
-    return _resolvedBase;
+    return _resolvedBase!;
   })();
 
   return _probePromise;
@@ -66,13 +84,31 @@ export let API_BASE = syncDefaultBase();
 
 export let WS_BASE =
   (process.env.NEXT_PUBLIC_WS_URL || "").trim() ||
-  API_BASE.replace(/^http/, "ws");
+  (API_BASE ? API_BASE.replace(/^http/, "ws") : "");
+
+/** True when live API calls should run (incl. same-origin proxy with API_BASE=""). */
+export function hasLiveApi(base: string = API_BASE): boolean {
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return true;
+  }
+  if (readEnvApiUrl()) return true;
+  if (process.env.NODE_ENV === "production") return true;
+  return Boolean(base);
+}
+
+/** Join API_BASE + path. Empty base → same-origin `/api/...`. */
+export function apiUrl(path: string, base: string = API_BASE): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (!base) return p;
+  return `${base.replace(/\/+$/, "")}${p}`;
+}
 
 export async function ensureApiBase(): Promise<string> {
   const base = await resolveApiBase();
   API_BASE = base;
   WS_BASE =
-    (process.env.NEXT_PUBLIC_WS_URL || "").trim() || base.replace(/^http/, "ws");
+    (process.env.NEXT_PUBLIC_WS_URL || "").trim() ||
+    (base ? base.replace(/^http/, "ws") : "");
   return base;
 }
 export const PAPER_BALANCE = 100_000;
@@ -121,10 +157,14 @@ export async function fetchMarketHistory(
   slug: string,
   days = 7,
 ): Promise<HistoryPoint[]> {
-  if (!API_BASE) return [];
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return [];
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/history?days=${days}`,
+      apiUrl(
+        `/api/v1/markets/${encodeURIComponent(slug)}/history?days=${days}`,
+        base,
+      ),
       { cache: "no-store" },
     );
     if (!response.ok) return [];
@@ -140,10 +180,11 @@ export type OrderBookSide = { bids: OrderBookLevel[]; asks: OrderBookLevel[] };
 export type OrderBookResponse = { yes: OrderBookSide; no: OrderBookSide };
 
 export async function fetchOrderBook(slug: string): Promise<OrderBookResponse | null> {
-  if (!API_BASE) return null;
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return null;
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/book`,
+      apiUrl(`/api/v1/markets/${encodeURIComponent(slug)}/book`, base),
       { cache: "no-store" },
     );
     if (!response.ok) return null;
@@ -162,13 +203,14 @@ export type LivePrice = {
 };
 
 export async function fetchLatestPrice(slug: string): Promise<LivePrice | null> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/prices/latest`,
+      apiUrl(`/api/v1/markets/${encodeURIComponent(slug)}/prices/latest`, base),
       { cache: "no-store" },
     );
     if (!response.ok) {
@@ -200,16 +242,17 @@ export async function fetchMemories(
   limit = 8,
 ): Promise<AgentMemoryRow[]> {
   const base = (await ensureApiBase()) || API_BASE;
-  if (!base) {
+  if (!hasLiveApi(base)) {
     return [];
   }
   const params = new URLSearchParams();
   if (category) params.set("category", category);
   params.set("limit", String(limit));
   try {
-    const response = await fetch(`${base}/api/v1/memories?${params.toString()}`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      apiUrl(`/api/v1/memories?${params.toString()}`, base),
+      { cache: "no-store" },
+    );
     if (!response.ok) {
       return [];
     }
@@ -224,13 +267,17 @@ export async function fetchMarketCandles(
   slug: string,
   points = 90,
 ): Promise<Candle[] | null> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      apiUrl(
+        `/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+        base,
+      ),
       { cache: "no-store" },
     );
     if (!response.ok) {
@@ -247,10 +294,14 @@ export async function fetchMarketCandlesMeta(
   slug: string,
   points = 90,
 ): Promise<{ candles: Candle[]; source: string } | null> {
-  if (!API_BASE) return null;
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return null;
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      apiUrl(
+        `/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+        base,
+      ),
       { cache: "no-store" },
     );
     if (!response.ok) return null;
@@ -460,11 +511,14 @@ export function toApiCategory(category: string): string | undefined {
 
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
   const apiBase = await ensureApiBase();
-  if (!apiBase) {
+  if (!hasLiveApi(apiBase)) {
     return [];
   }
 
-  const url = new URL(`${apiBase}/api/v1/markets`);
+  const origin =
+    apiBase ||
+    (typeof window !== "undefined" ? window.location.origin : HF_PROD_API);
+  const url = new URL(apiUrl("/api/v1/markets", apiBase), origin);
   if (params?.category && params.category !== "all") {
     const apiCategory = toApiCategory(params.category);
     if (apiCategory) {
@@ -474,7 +528,9 @@ export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMar
   if (params?.sort) url.searchParams.set("sort", params.sort);
   if (params?.q) url.searchParams.set("q", params.q);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  // Relative fetch when same-origin proxy is active (keeps cookies/origin clean).
+  const href = apiBase ? url.toString() : `${url.pathname}${url.search}`;
+  const response = await fetch(href, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Markets HTTP ${response.status}`);
   }
@@ -514,14 +570,16 @@ export async function patchMe(
 }
 
 export async function fetchMarketSnapshot(slug: string): Promise<MarketSnapshot> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return fallbackForSlug(slug);
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/v1/markets/${slug}/snapshot`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      apiUrl(`/api/v1/markets/${slug}/snapshot`, base),
+      { cache: "no-store" },
+    );
     if (!response.ok) {
       return fallbackForSlug(slug);
     }
@@ -561,14 +619,16 @@ export type MarketDetailApi = {
 export async function fetchMarketDetailApi(
   slug: string,
 ): Promise<MarketDetailApi | null> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/v1/markets/${slug}/detail`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      apiUrl(`/api/v1/markets/${slug}/detail`, base),
+      { cache: "no-store" },
+    );
     if (!response.ok) {
       return null;
     }
@@ -584,7 +644,8 @@ export async function fetchMarketDetail(slug: string): Promise<CardMarket | null
     return mergeApiDetailForCards(detail, MARKETS);
   }
 
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 

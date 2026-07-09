@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { API_BASE, ensureApiBase } from "@/lib/alphaedge-api";
+import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 
 type DetailedHealth = {
   status: "ok" | "degraded" | "down";
@@ -16,14 +16,14 @@ const POLL_MS = 30_000;
 const FAILURES_BEFORE_DOWN = 2;
 const RETRY_AFTER_FAILURE_MS = 5_000;
 
-async function probe(): Promise<ProbeResult> {
+async function probe(base: string): Promise<ProbeResult> {
   try {
-    const response = await fetch(`${API_BASE}/api/v1/health/detailed`, {
+    const response = await fetch(apiUrl("/api/v1/health/detailed", base), {
       cache: "no-store",
     });
     if (!response.ok) {
       // 429 = rate limited, not an outage — the API is alive.
-      return response.status === 429 ? "degraded" : "degraded";
+      return "degraded";
     }
     const body = (await response.json()) as DetailedHealth;
     return body.status;
@@ -42,12 +42,12 @@ export function HealthBanner() {
 
     async function loadHealth() {
       const base = await ensureApiBase();
-      if (!base) {
+      if (!hasLiveApi(base)) {
         if (!cancelled) setStatus("degraded");
         return;
       }
 
-      const result = await probe();
+      const result = await probe(base);
       if (cancelled) return;
 
       if (result === "fetch_fail" || result === "down") {

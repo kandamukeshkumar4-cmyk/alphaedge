@@ -1,4 +1,4 @@
-import { API_BASE } from "./alphaedge-api";
+import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "./alphaedge-api";
 
 export type Market = {
   id: string;
@@ -71,7 +71,8 @@ export async function fetchMarkets(
   filter?: "open" | "resolved",
   category?: MarketCategory,
 ): Promise<Market[]> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return [];
   }
 
@@ -80,9 +81,9 @@ export async function fetchMarkets(
     params.set("category", category);
   }
   const query = params.toString();
-  const url = query ? `${API_BASE}/api/v1/markets?${query}` : `${API_BASE}/api/v1/markets`;
+  const path = query ? `/api/v1/markets?${query}` : "/api/v1/markets";
 
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(path, base), {
     cache: "no-store",
   });
   if (!response.ok) {

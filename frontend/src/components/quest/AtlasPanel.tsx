@@ -9,7 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { useAtlasPanel } from "@/context/atlas-panel";
-import { API_BASE } from "@/lib/alphaedge-api";
+import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
+import { getAccessToken } from "@/lib/portfolio-api";
 import { cn } from "@/lib/cn";
 
 const AGENT_ID = "ATLAS-9-e4c1";
@@ -61,7 +62,8 @@ export function AtlasPanel() {
     ]);
 
     try {
-      if (!API_BASE) {
+      const base = await ensureApiBase();
+      if (!hasLiveApi(base)) {
         await new Promise((r) => setTimeout(r, 900));
         setMessages((m) => [
           ...m,
@@ -79,16 +81,25 @@ export function AtlasPanel() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/v1/assistant/chat`, {
+      const token = getAccessToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(apiUrl("/api/v1/assistant/chat", base), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           message: trimmed,
           market_slug: marketSlug,
-          paper_trading_only: true,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const detail =
+          res.status === 429
+            ? "ATLAS is rate-limited right now — try again in a minute, or sign in."
+            : `Could not reach ATLAS (HTTP ${res.status}).`;
+        throw new Error(detail);
+      }
       const data = (await res.json()) as {
         reply?: string;
         tools_used?: string[];
@@ -106,12 +117,13 @@ export function AtlasPanel() {
           })),
         },
       ]);
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Could not reach ATLAS.";
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
-          content: `Could not reach ATLAS. ${ANALYSIS_BANNER}`,
+          content: `${detail} ${ANALYSIS_BANNER}`,
         },
       ]);
     } finally {

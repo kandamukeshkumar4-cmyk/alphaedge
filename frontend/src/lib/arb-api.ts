@@ -1,4 +1,4 @@
-import { API_BASE, ensureApiBase } from "@/lib/alphaedge-api";
+import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 
 /** Live GET /api/v1/arb/opportunities — signal-only, never auto-trades. */
 export type ArbOpportunity = {
@@ -36,11 +36,12 @@ export async function fetchArbOpportunities(
     signal_only: true,
     note: "These are cross-platform signal observations only.",
   };
+  // Empty base is valid in browser prod (same-origin Vercel → HF rewrite).
   const base = (await ensureApiBase()) || API_BASE;
-  if (!base) return empty;
+  if (!hasLiveApi(base)) return empty;
   try {
     const res = await fetch(
-      `${base}/api/v1/arb/opportunities?include_stale=true`,
+      apiUrl("/api/v1/arb/opportunities?include_stale=true", base),
       { cache: "no-store" },
     );
     if (!res.ok) return empty;

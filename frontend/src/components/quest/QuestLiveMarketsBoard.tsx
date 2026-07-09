@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useAtlasPanel } from "@/context/atlas-panel";
-import { API_BASE, fetchMarkets } from "@/lib/alphaedge-api";
+import { fetchMarkets, hasLiveApi } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatCompactUSD, MARKETS, type Market } from "@/lib/mock-data";
 import { marketHref } from "@/lib/market-href";
 
 const FETCH_MS = 8000;
-const LIVE_API = Boolean(API_BASE);
+const LIVE_API = hasLiveApi();
 
 async function loadMarketsOrFallback(): Promise<Market[]> {
   try {
