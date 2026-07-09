@@ -87,7 +87,7 @@ the diff against these guardrails. Verifier verdict goes in Notes.
 
 | ID | Ticket | Status | Notes |
 |----|--------|--------|-------|
-| P01 | **Markets fetch dedup**: single shared client cache/store for `fetchMarkets` (TTL ~3–5s, in-flight coalesce). Wire QuestSignalRail, QuestLiveTicker, QuestDiscoverShell, QuestMarketsBoard, TradeTerminal, SimilarMarkets through it. Prove homepage request rate drops under load (Network tab or count). | TODO | Highest leverage vs 429s. Reuse patterns from `LivePricesProvider` / `markets_cache.py` spirit — client side. |
+| P01 | **Markets fetch dedup**: single shared client cache/store for `fetchMarkets` (TTL ~3–5s, in-flight coalesce). Wire QuestSignalRail, QuestLiveTicker, QuestDiscoverShell, QuestMarketsBoard, TradeTerminal, SimilarMarkets through it. Prove homepage request rate drops under load (Network tab or count). | DONE (2026-07-09) | Implemented inside `fetchMarkets` (alphaedge-api.ts): module-level TTL 4s cache + in-flight coalescing keyed by category/sort/q; failures never cached. All 8 consumers dedup automatically, zero call-site changes. Evidence: dev server localhost:3210, homepage load = **1** `/api/v1/markets` request (was 3+ concurrent consumers), 4 total after 54s of polling; zero console errors; page renders live data. Gate: typecheck ✓ lint ✓ vitest 100/100 ✓ build ✓ (4 new tests in `markets-fetch-cache.test.ts`). Verifier (fresh context): PASS — scope fence clean, no guardrail hits; noted low-severity SSR-staleness + "|" key-separator nits, non-blocking. |
 | P02 | **Wire header search → `GET /api/v1/search`**: command-palette or typeahead results (markets + briefs if API returns them); keyboard `/` focus optional. Empty/error states honest. | TODO | Backend U01 already shipped. Biggest discoverability win. |
 | P03 | **Restore Live/Demo chip** via existing `useApiHealth` in Quest/Site header. Green Live / amber Demo; never show demo fixtures as live. | TODO | Hook + tests exist (`useApiHealth.ts` / `.test.ts`). Mount only. |
 | P04 | **More menu / nav restore**: Research, Alerts, Feed, Track record, Weather, Macro, Eval, Backtest ≤1 click from header (desktop More + mobile). Quest tokens. | TODO | Closes E14 regression. Do not bloat primary 6 tabs — use More. |
@@ -137,6 +137,7 @@ the diff against these guardrails. Verifier verdict goes in Notes.
 ## AutoLab log
 
 - 2026-07-09 bootstrap: baseline = E2E/UI/Ship/Opus loops closed; quant phases DONE; HF API live with `generator=llm` | benchmark = discoverability (≤1 click) + homepage `/markets` request rate + honest empty/live states | iterations=0 | budget=12 tickets | outcome=LOOP AUTHORED — first implementer picks P01.
+- 2026-07-09 P01 (opus-polish worktree): AutoLab: baseline=homepage fired one `/api/v1/markets` per consumer (3+ on load, SlowAPI 429 risk) | benchmark=browser network count of `/api/v1/markets` on homepage | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — 1 request on load, 4 in 54s of polling; gate green (typecheck/lint/100 tests/build); verifier PASS.
 
 ## Post-mortem (fill only if K=3 no-progress)
 

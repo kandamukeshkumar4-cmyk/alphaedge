@@ -509,7 +509,42 @@ export function toApiCategory(category: string): string | undefined {
   return map[normalized];
 }
 
+// Shared client cache for market catalog fetches. Many surfaces (signal rail,
+// live ticker, discover, markets board, trade terminal, similar markets) poll
+// the same GET /markets; without coalescing the homepage alone can fire 5+
+// identical requests per cycle and trip SlowAPI 429s on the free-tier API.
+const MARKETS_CACHE_TTL_MS = 4000;
+type MarketsCacheEntry = { promise: Promise<CardMarket[]>; expiresAt: number };
+const marketsCache = new Map<string, MarketsCacheEntry>();
+
+function marketsCacheKey(params?: MarketFilterParams): string {
+  return [params?.category ?? "", params?.sort ?? "", params?.q ?? ""].join("|");
+}
+
+/** Test hook: reset the shared markets cache. */
+export function __clearMarketsCache(): void {
+  marketsCache.clear();
+}
+
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
+  const key = marketsCacheKey(params);
+  const now = Date.now();
+  const cached = marketsCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+  const promise = fetchMarketsUncached(params);
+  marketsCache.set(key, { promise, expiresAt: now + MARKETS_CACHE_TTL_MS });
+  // Never cache failures — the next caller should retry the network.
+  promise.catch(() => {
+    if (marketsCache.get(key)?.promise === promise) {
+      marketsCache.delete(key);
+    }
+  });
+  return promise;
+}
+
+async function fetchMarketsUncached(params?: MarketFilterParams): Promise<CardMarket[]> {
   const apiBase = await ensureApiBase();
   if (!hasLiveApi(apiBase)) {
     return [];
