@@ -67,7 +67,7 @@ export default function SignalsPage() {
       <PageHeader
         kicker="Signal intelligence"
         title="Signals & CLV track record"
-        subtitle="Live arb, dutch, smart-money, and forecast signals with honest CLV reconciliation. FanDuel remains manual capture only in the extension."
+        subtitle="Paper-trading alerts for price moves and forecasts. Edge only shows when there's enough history to back it up."
         actions={
           <button
             type="button"
@@ -183,7 +183,7 @@ export default function SignalsPage() {
           </div>
         ) : view.signalCards.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
-            No signals detected yet. Headline-eligible arb, dutch, and forecast signals appear here.
+            No signals yet. When the system spots a move worth watching, it shows up here.
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
@@ -207,7 +207,7 @@ export default function SignalsPage() {
                         : "bg-surface-2 text-muted",
                     )}
                   >
-                    {card.isEdge ? "Edge" : "Blocked"}
+                    {card.statusLabel}
                   </span>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -221,12 +221,12 @@ export default function SignalsPage() {
                     <dt className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
                       Sample
                     </dt>
-                    <dd className="font-mono font-bold text-text">{card.sampleSize}</dd>
+                    <dd className="font-mono font-bold text-text">{card.sampleSizeLabel}</dd>
                   </div>
                 </dl>
-                {card.provisional ? (
+                {card.provisionalNote ? (
                   <p className="mt-3 rounded-lg bg-gold/10 px-3 py-2 text-xs font-semibold text-gold">
-                    Provisional — N &lt; 30 resolved
+                    {card.provisionalNote}
                   </p>
                 ) : null}
                 {card.blockedLabel ? (
@@ -258,7 +258,7 @@ export default function SignalsPage() {
               {view.clvRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                    No resolved CLV records yet — appears after markets resolve.
+                    No resolved track-record rows yet — they appear after markets settle.
                   </td>
                 </tr>
               ) : (
