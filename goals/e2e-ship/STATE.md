@@ -50,19 +50,11 @@ cd frontend && npx vercel --prod --yes
 
 ### 2) Prod admin key — seed resolve to populate agent memories
 
-Local `.env` `ADMIN_API_KEY` is rejected by the HF Space (`401 Invalid admin API key`).
-Resolve one open SEED market with the **prod** key:
-
-```bash
-ADMIN_API_KEY=<prod secret from HF Space / GitHub ADMIN_API_KEY>
-curl -sS -X POST \
-  -H "X-Admin-API-Key: $ADMIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"winning_outcome":"YES"}' \
-  https://mukeshkumar007-alphaedge-api.hf.space/api/v1/admin/markets/crypto-btc-friday-5pm/resolve
-
-curl -sS 'https://mukeshkumar007-alphaedge-api.hf.space/api/v1/memories?limit=10'
-```
+**UNBLOCKED 2026-07-09:** owner provided working prod admin key; Space
+`ADMIN_API_KEY` + GitHub `ADMIN_API_KEY`/`HF_TOKEN` synced; seed resolve
+`crypto-btc-friday-5pm` → YES returned 200; prod
+`GET /api/v1/memories?limit=10` → `total:1` (memory id `23c2cade-…`).
+Keep rotating via HF Space secrets / GitHub Actions secrets — never commit.
 
 ### 3) LLM secret sync (only if briefs regress to `generator=fallback`)
 
