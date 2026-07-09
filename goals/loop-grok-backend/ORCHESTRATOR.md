@@ -3,7 +3,15 @@
 > Written by the orchestrator (Claude, main thread). Read-only for the
 > executor: never edit this file. Newest directive at the top.
 
-## 2026-07-09 — for G02 (current ticket)
+## 2026-07-09 (later) — G02 PASSED, proceed to G03
+
+G02 reviewed and merged (16/16 TP, 0 FP — well done). Next ticket: G03
+(news→mispricing signal). Guidance: reuse the news_signal pipeline's stored
+items — do not add a new news fetcher; threshold + window as named config
+values; the signal payload must cite the news item id/url and both
+probabilities (model_p, market_p). One ticket, then stop.
+
+## 2026-07-09 — for G02 (done)
 
 Status: G00, G00-inventory, and G01 are all reviewed, PASSED, and merged.
 You are cleared to be mid-G02. Guidance:

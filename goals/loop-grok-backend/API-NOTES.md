@@ -67,3 +67,33 @@ Example opportunity fragment:
 
 Internal: matches persist in `venue_market_matches` (pm_slug, ks_slug, confidence,
 reasons). Different UTC resolution dates never match.
+
+## G03 (2026-07-09)
+
+New persisted signal type (no new HTTP route — surfaces via existing
+`GET /api/v1/activity/signals/events` and feed):
+
+| field | value |
+|-------|-------|
+| `signal_type` | `news:mispricing` |
+| config | `NEWS_MISPRICING_ENABLED=true` (default), threshold `0.05`, window `900s` |
+| scheduler | `SCHEDULER_NEWS_MISPRICING_ENABLED=true` (default) |
+
+Example payload:
+
+```json
+{
+  "signal_type": "news:mispricing",
+  "platform": "polymarket",
+  "market_id": "pm-will-lakers-beat-celtics",
+  "payload": {
+    "paper_trading_only": true,
+    "model_p": 0.62,
+    "market_p": 0.5,
+    "gap": 0.12,
+    "news_id": "news-lal-injury-1",
+    "news_url": "https://example.test/news/lal-injury",
+    "headline": "Lakers star ruled out"
+  }
+}
+```

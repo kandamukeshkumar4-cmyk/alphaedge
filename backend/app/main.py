@@ -152,6 +152,18 @@ async def _news_scan_loop() -> None:
             logger.error("News scan loop failed", exc_info=True)
 
 
+async def _news_mispricing_loop() -> None:
+    """Hourly news→mispricing scan (mirrors ``cron(news_mispricing_scan_task)``)."""
+    from app.workers.tasks import news_mispricing_scan_task
+
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await news_mispricing_scan_task({})
+        except Exception:
+            logger.error("News mispricing loop failed", exc_info=True)
+
+
 async def _weather_scan_loop() -> None:
     """Hourly weather scan (mirrors ``cron(weather_scan_task, minute={40})``)."""
     from app.workers.tasks import weather_scan_task
@@ -223,6 +235,8 @@ async def lifespan(app: FastAPI):
     # Each is flag-gated and self-isolating; see the loop docstrings above.
     if settings.scheduler_news_scan_enabled:
         asyncio.create_task(_news_scan_loop())
+    if settings.scheduler_news_mispricing_enabled:
+        asyncio.create_task(_news_mispricing_loop())
     if settings.scheduler_weather_scan_enabled:
         asyncio.create_task(_weather_scan_loop())
     if settings.scheduler_morning_research_enabled:
