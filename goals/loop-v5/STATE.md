@@ -98,3 +98,4 @@ walk-forward A/B harness readout (still never auto-flips the default model).
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | J01 | done | watchlist store+API (POST/DELETE/GET /api/v1/watchlist), table via Alembic `035_watchlist` (single head). Gate: pytest 1222 passed, 28 skipped; ruff clean. AutoLab: baseline=full suite green | benchmark=test_watchlist_api.py (6 cases: auth-401, add/list/remove, dedupe, honest-404, per-user isolation) + 5xx guard | iterations=1 (green first slice) | budget=1/3 | outcome=improved |

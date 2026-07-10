@@ -114,6 +114,23 @@ class PaperOrder(Base):
     user: Mapped["User"] = relationship(back_populates="paper_orders")
 
 
+class Watchlist(Base):
+    """J01: a JWT-user's watched market slugs. Notify/track only — never an
+    order path. One row per (user, slug); the unique constraint makes repeat
+    adds idempotent (dedupe)."""
+
+    __tablename__ = "watchlists"
+    __table_args__ = (
+        UniqueConstraint("user_id", "slug", name="uq_watchlist_user_slug"),
+        Index("ix_watchlists_user_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class MarketResolution(Base):
     __tablename__ = "market_resolutions"
 

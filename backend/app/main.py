@@ -46,6 +46,7 @@ from app.api.v1.desk import router as desk_router
 from app.api.v1.track_record import router as track_record_router
 from app.api.v1.profile import router as profile_router
 from app.api.v1.system import router as system_router
+from app.api.v1.watchlist import router as watchlist_router
 from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -419,6 +420,7 @@ app.include_router(smart_money_router)
 app.include_router(desk_router)
 app.include_router(profile_router)
 app.include_router(system_router)
+app.include_router(watchlist_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
