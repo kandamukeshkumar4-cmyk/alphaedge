@@ -49,6 +49,18 @@ The gaps called out in the technical report are now implemented:
 scope and will not be developed, packaged, or documented further. See
 [`REMAINING-OWNER-ACTIONS.md`](REMAINING-OWNER-ACTIONS.md).
 
+## Next build loop (post E2E) — 2026-07-09
+
+Quant phases and the E2E/UI/Ship/Opus loops are closed. The active improvement
+queue is **[`build-loop-polish/STATE.md`](build-loop-polish/STATE.md)**
+(P01–P12): surface what already shipped (search, Live badge, More nav,
+screeners/dutching/weather on feed), dedupe `/markets` polls, Quest-theme
+secondary pages, real calibration bins, arb honesty, then data-gated LightGBM
+A/B. Runner: Grok 4.5 Cursor (or stronger). One ticket per iteration. Do not
+greenfield — improve existing features. Owner blockers remain in
+[`REMAINING-OWNER-ACTIONS.md`](REMAINING-OWNER-ACTIONS.md) (FIFA CSVs, ~100
+resolves for model A/B, election dataset for instability).
+
 ## Rules that override speed
 
 - Never weaken `PAPER_TRADING_ONLY`, the order path, or any deploy/safety gate to close a goal.
