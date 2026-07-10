@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
+import { ApiHealthChip } from "@/components/ApiHealthChip";
 import { HeaderSearch } from "@/components/HeaderSearch";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
@@ -80,6 +81,8 @@ export function SiteHeader() {
               </span>
             </span>
           </Link>
+
+          <ApiHealthChip className="hidden shrink-0 sm:inline-flex" />
 
           <nav className="hidden h-full items-stretch gap-0.5 self-stretch lg:flex">
             {NAV.map((item) => {
@@ -165,6 +168,9 @@ export function SiteHeader() {
 
         {open && (
           <div className="border-t border-border bg-surface px-4 py-3 lg:hidden">
+            <div className="mb-2 flex items-center px-2 sm:hidden">
+              <ApiHealthChip />
+            </div>
             <nav className="flex flex-col gap-1 text-sm font-semibold">
               {NAV.map((item) => (
                 <Link
