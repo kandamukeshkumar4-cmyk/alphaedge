@@ -120,7 +120,11 @@ async def _from_paper_orders(db: AsyncSession) -> tuple[list[float], list[int], 
         )
     )
     rows = result.all()
-    by_slug: dict[str, tuple[list[float], list[int], datetime | None]] = {}
+    # Mutable buckets: a tuple here would raise on the ``bucket[2] = ...``
+    # resolved_at update below (TypeError: tuple does not support item
+    # assignment) whenever a resolved market has a paper order with a
+    # populated resolved_at — the real prod 500 on this endpoint.
+    by_slug: dict[str, list] = {}
     for order, market in rows:
         if market.winning_outcome is None:
             raise HTTPException(
@@ -137,7 +141,7 @@ async def _from_paper_orders(db: AsyncSession) -> tuple[list[float], list[int], 
             continue
         outcome = _yes_outcome(market.winning_outcome)
         resolved_at = market.resolved_at
-        bucket = by_slug.setdefault(order.slug, ([], [], None))
+        bucket = by_slug.setdefault(order.slug, [[], [], None])
         bucket[0].append(predicted)
         bucket[1].append(outcome)
         if resolved_at is not None:
@@ -174,18 +178,6 @@ async def _collect_calibration_data(
 
 @router.get("/calibration/latest", response_model=CalibrationResponse)
 async def get_latest_calibration(db: AsyncSession = Depends(get_db)) -> CalibrationResponse:
-    try:
-        return await _get_latest_calibration_impl(db)
-    except Exception as exc:  # TEMP DIAG — surface real prod traceback
-        import traceback as _tb
-
-        raise HTTPException(
-            status_code=599,
-            detail=f"{type(exc).__name__}: {exc} :: {_tb.format_exc()[-800:]}",
-        ) from exc
-
-
-async def _get_latest_calibration_impl(db: AsyncSession) -> CalibrationResponse:
     predictions, outcomes, last_updated = await _collect_calibration_data(db)
     markets_evaluated = len(predictions)
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -183,18 +183,6 @@ def _clv_summary(clv_values: list[float]) -> TrackRecordClvSummary:
 
 @router.get("/track-record", response_model=TrackRecordResponse)
 async def get_track_record(db: AsyncSession = Depends(get_db)) -> TrackRecordResponse:
-    try:
-        return await _get_track_record_impl(db)
-    except Exception as exc:  # TEMP DIAG — surface real prod traceback
-        import traceback as _tb
-
-        raise HTTPException(
-            status_code=599,
-            detail=f"{type(exc).__name__}: {exc} :: {_tb.format_exc()[-800:]}",
-        ) from exc
-
-
-async def _get_track_record_impl(db: AsyncSession) -> TrackRecordResponse:
     rows = await _resolved_forecast_rows(db)
     if rows:
         source = "forecast_scores"
