@@ -196,3 +196,26 @@ Example (2 resolutions, thin data):
 
 (`calibration_bins` always contains all 10 bins and `clv.histogram` all 10
 buckets; the example above is truncated for readability.)
+
+## G06 (2026-07-09)
+
+No new HTTP endpoints. Internal admin/script harness only:
+
+- Module: `backend/app/ml/ab_harness.py` (run readout via
+  `python -m app.ml.ab_harness` from `backend/`).
+- `count_resolved_outcomes(session)` / `resolved_count_readout(session)` —
+  resolved-count watcher; same real-resolution sources as
+  `GET /api/v1/track-record`'s `n`.
+- `run_walk_forward_ab(df, artifact_dir, resolved_count=..., ...)` — LightGBM
+  vs XGBoost walk-forward A/B. Gate: runs ONLY when `resolved_count >= 100`;
+  below 100 it returns `{"ran": false, "reason":
+  "insufficient_resolved_outcomes", "resolved_count": n}` without touching the
+  trainer. At/above the gate it records BOTH walk-forward Briers
+  (`arms.xgboost.model_brier`, `arms.lightgbm.model_brier`,
+  `brier_delta_lightgbm_minus_xgboost`). `arms.lightgbm.used_fallback_xgboost`
+  is true when the optional lightgbm dep is absent (honest — no fabricated
+  LightGBM result). `default_model` / `default_model_changed=false`: the
+  harness NEVER flips `ML_MODEL_TYPE` (still `xgboost`).
+- Additive trainer change: `train_walk_forward_xgboost_model` /
+  `train_walk_forward_xgboost_from_feature_matrix` accept optional
+  `model_type` (default None → `ML_MODEL_TYPE`, behavior unchanged).
