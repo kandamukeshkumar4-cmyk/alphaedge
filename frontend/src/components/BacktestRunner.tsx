@@ -16,6 +16,7 @@ import {
   type BacktestRunResult,
   type BacktestRunRequest,
 } from "@/lib/alphaedge-api";
+import { useAuth } from "@/hooks/useAuth";
 
 interface BacktestRunnerProps {
   onResult: (result: BacktestRunResult) => void;
@@ -34,6 +35,7 @@ const _TODAY = _isoDate(0);
 const _SEVEN_DAYS_AGO = _isoDate(-7);
 
 export function BacktestRunner({ onResult }: BacktestRunnerProps) {
+  const { token } = useAuth();
   const [slug, setSlug] = useState(CANONICAL_SLUG);
   const [startDate, setStartDate] = useState(_SEVEN_DAYS_AGO);
   const [endDate, setEndDate] = useState(_TODAY);
@@ -43,6 +45,10 @@ export function BacktestRunner({ onResult }: BacktestRunnerProps) {
   const [error, setError] = useState<string | null>(null);
 
   async function handleRun() {
+    if (!token) {
+      setError("Log in to run a backtest replay (auth required).");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -55,7 +61,7 @@ export function BacktestRunner({ onResult }: BacktestRunnerProps) {
         initial_equity: 10_000,
         stake: 100,
       };
-      const result = await triggerBacktestRun(req);
+      const result = await triggerBacktestRun(req, token);
       if (!result) {
         setError("Replay failed — check that the backend is running and the market slug exists.");
       } else {

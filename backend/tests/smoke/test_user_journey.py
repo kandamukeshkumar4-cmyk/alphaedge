@@ -154,8 +154,10 @@ def test_portfolio_risk_and_summary(client: httpx.Client, auth_token: str) -> No
 # ── 4. AI analysis surface ──────────────────────────────────────────────────
 
 
-def test_analyst_run_produces_brief_with_claim(client: httpx.Client) -> None:
-    response = client.post(f"/api/v1/analyst/run?market_slug={CANONICAL_SLUG}")
+def test_analyst_run_produces_brief_with_claim(client: httpx.Client, auth_token: str) -> None:
+    response = client.post(
+        f"/api/v1/analyst/run?market_slug={CANONICAL_SLUG}", headers=_auth(auth_token)
+    )
     assert response.status_code == 200, response.text
     brief = response.json()
     assert brief["market_slug"] == CANONICAL_SLUG

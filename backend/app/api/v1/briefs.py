@@ -5,6 +5,7 @@ globally by SlowAPIMiddleware. This is the contract the UI-build loop consumes.
 """
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import UUID
@@ -23,6 +24,7 @@ from app.db.models import (
     MarketStatus,
     OddsSnapshot,
 )
+from app.api.v1.deps import get_current_user
 from app.db.session import get_db
 from app.services.live_market_ingest import categorize
 from app.schemas.analyst_api import (
@@ -37,6 +39,8 @@ from app.schemas.analyst_api import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["analyst"])
+
+logger = logging.getLogger(__name__)
 
 _LIVE_SOURCES = frozenset({"polymarket", "kalshi"})
 
@@ -144,6 +148,7 @@ async def run_analyst_on_demand(
         description="E13 analyst lens: macro | whale-flow | news (default: general desk)",
     ),
     db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),  # H-SEC-03: LLM run + market auto-create must not be anonymous
 ):
     """Run the analyst pipeline on one market, on demand (the "ask the analyst"
     interaction). Research-only: produces a brief + claim, never an order. If
@@ -181,7 +186,8 @@ async def run_analyst_on_demand(
         result = await run_analyst(db, market_slug, persona=persona)
     except Exception as error:  # noqa: BLE001 - surface as API error, no partial state
         await db.rollback()
-        raise HTTPException(status_code=502, detail=f"Analyst failed: {error}") from error
+        logger.exception("Analyst run failed for %s", market_slug)
+        raise HTTPException(status_code=502, detail="Analyst failed") from error
 
     if result is None:
         # Cooldown (or validation) suppressed a new brief — return the latest one.

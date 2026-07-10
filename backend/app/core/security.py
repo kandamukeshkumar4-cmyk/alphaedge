@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -41,7 +42,7 @@ def verify_access_token(token: str) -> str | None:
 
 async def verify_admin_api_key(x_admin_api_key: str = Header(..., alias="X-Admin-API-Key")) -> str:
     settings = get_settings()
-    if x_admin_api_key != settings.admin_api_key:
+    if not secrets.compare_digest(x_admin_api_key, settings.admin_api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid admin API key",

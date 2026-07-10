@@ -48,6 +48,20 @@ describe("closePaperPosition", () => {
     expect(JSON.parse(String(init.body))).toEqual(input);
   });
 
+  it("forwards a caller-held idempotency key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await closePaperPosition(
+      "test-token",
+      { slug: "nba-2025-01-15-lal-bos", outcome: "yes" as const, shares: 1, price: 0.5 },
+      "stable-key-123",
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({ "Idempotency-Key": "stable-key-123" });
+  });
+
   it("surfaces backend detail on error", async () => {
     vi.stubGlobal(
       "fetch",

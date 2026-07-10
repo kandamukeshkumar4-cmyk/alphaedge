@@ -327,3 +327,27 @@ async def test_portfolio_summary_excludes_closed_positions(db_session):
         )
     app.dependency_overrides.clear()
     assert summary.json()["open_positions"] == 0
+
+
+@pytest.mark.asyncio
+async def test_close_idempotency_key_replays_first_close(db_session):
+    """Audit H-RACE-02: a retried close with the same Idempotency-Key must
+    return the original SELL and credit the balance exactly once."""
+    _override_db(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "close-idem@example.com")
+        await MarketService(db_session).seed_catalog_markets()
+        await _buy_yes(client, token)  # 10 shares at 0.4 → balance 99_996
+        headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": "close-retry-1"}
+        payload = {"slug": CANONICAL_SLUG, "outcome": "yes", "shares": 4, "price": 0.5}
+        first = await client.post("/api/v1/positions/close", headers=headers, json=payload)
+        second = await client.post("/api/v1/positions/close", headers=headers, json=payload)
+        me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["order_id"] == first.json()["order_id"]
+    assert second.json()["remaining_shares"] == 6.0
+    # credited once: 99_996 + 4*0.5 = 99_998 (not 100_000)
+    assert me.json()["paper_balance"] == pytest.approx(99_998.0)

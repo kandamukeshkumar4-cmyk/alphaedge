@@ -54,6 +54,9 @@ jobs:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          # C-SEC-03: without an explicit JWT secret + APP_ENV the Space boots
+          # with the published dev default and anyone can forge user tokens.
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           # Optional AI/data keys — synced only when set, so the deployed demo
           # gets real LLM analysis instead of the deterministic fallback.
           LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
@@ -115,6 +118,7 @@ jobs:
           hf_token = require("HF_TOKEN")
           neon_database_url = require("NEON_DATABASE_URL")
           admin_api_key = require("ADMIN_API_KEY")
+          jwt_secret_key = require("JWT_SECRET_KEY")
           neon_database_url_sync = os.environ.get("NEON_DATABASE_URL_SYNC", "").strip()
 
           database_url = to_async_pg_url(neon_database_url)
@@ -153,6 +157,9 @@ jobs:
               "DATABASE_URL": database_url,
               "DATABASE_URL_SYNC": database_url_sync,
               "ADMIN_API_KEY": admin_api_key,
+              "JWT_SECRET_KEY": jwt_secret_key,
+              # Turns on the config validator that refuses default secrets.
+              "APP_ENV": "production",
           }.items():
               add_space_secret_with_retry(key, value)
               synced.append(key)

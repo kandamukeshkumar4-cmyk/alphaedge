@@ -5,10 +5,12 @@
 // the canonical detail view (/research/brief?id=…). When no brief exists yet,
 // offers to run the analyst on demand (optionally through a persona lens) and
 // forwards to the fresh brief when it lands.
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { fetchBriefs } from "@/lib/polyscout-api";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 
 const PERSONAS = [
@@ -21,6 +23,7 @@ const PERSONAS = [
 export default function BriefBySlugClient({ slug: slugProp }: { slug?: string } = {}) {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
+  const { token } = useAuth();
   const slug = slugProp ?? params?.slug ?? "";
   const [state, setState] = useState<"resolving" | "none" | "running" | "failed">("resolving");
   const [persona, setPersona] = useState<string>("");
@@ -50,7 +53,10 @@ export default function BriefBySlugClient({ slug: slugProp }: { slug?: string } 
     try {
       const qs = new URLSearchParams({ market_slug: slug });
       if (persona) qs.set("persona", persona);
-      const res = await fetch(`${API_BASE}/api/v1/analyst/run?${qs}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/v1/analyst/run?${qs}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { detail?: string };
         throw new Error(body.detail ?? `Analyst failed (HTTP ${res.status})`);
@@ -104,13 +110,22 @@ export default function BriefBySlugClient({ slug: slugProp }: { slug?: string } 
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={() => void runAnalyst()}
-                className="mt-4 rounded-lg bg-accent-bright px-4 py-2 text-sm font-semibold text-bg transition hover:bg-accent"
-              >
-                ✦ Run the analyst now
-              </button>
+              {token ? (
+                <button
+                  type="button"
+                  onClick={() => void runAnalyst()}
+                  className="mt-4 rounded-lg bg-accent-bright px-4 py-2 text-sm font-semibold text-bg transition hover:bg-accent"
+                >
+                  ✦ Run the analyst now
+                </button>
+              ) : (
+                <Link
+                  href="/auth/login"
+                  className="mt-4 inline-flex rounded-lg bg-accent-bright px-4 py-2 text-sm font-semibold text-bg transition hover:bg-accent"
+                >
+                  Log in to run the analyst
+                </Link>
+              )}
             </>
           )}
 

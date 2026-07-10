@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { closePaperPosition } from "@/lib/orders-api";
 import { useToast } from "./ToastProvider";
@@ -34,6 +34,8 @@ export function PositionCard({
 }) {
   const { toast } = useToast();
   const [closing, setClosing] = useState(false);
+  // One Idempotency-Key per close intent — see TradePanel for the pattern.
+  const idemKeyRef = useRef<string | null>(null);
 
   const currentPrice = position.current_price ?? position.avg_cost;
   const pnl = position.unrealized_pnl ?? 0;
@@ -42,17 +44,24 @@ export function PositionCard({
 
   async function closePosition() {
     setClosing(true);
+    idemKeyRef.current ??= crypto.randomUUID();
     try {
-      const result = await closePaperPosition(token, {
-        slug: position.market_slug,
-        outcome: position.outcome.toLowerCase() === "yes" ? "yes" : "no",
-        shares: position.shares,
-        price: Math.min(Math.max(currentPrice, 0.01), 0.99),
-      });
+      const result = await closePaperPosition(
+        token,
+        {
+          slug: position.market_slug,
+          outcome: position.outcome.toLowerCase() === "yes" ? "yes" : "no",
+          shares: position.shares,
+          price: Math.min(Math.max(currentPrice, 0.01), 0.99),
+        },
+        idemKeyRef.current,
+      );
+      idemKeyRef.current = null;
       const pnlText = `${result.realized_pnl >= 0 ? "+" : ""}$${result.realized_pnl.toFixed(2)}`;
       toast({ title: "Position closed", body: `Realized P&L ${pnlText}`, tone: "success" });
       onClosed?.();
     } catch (err) {
+      if (!(err instanceof TypeError)) idemKeyRef.current = null;
       toast({
         title: "Close failed",
         body: err instanceof Error ? err.message : "Unable to close position",

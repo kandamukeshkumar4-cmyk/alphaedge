@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { API_BASE, fetchLatestPrice } from "@/lib/alphaedge-api";
 import { placePaperOrder } from "@/lib/orders-api";
@@ -41,6 +41,8 @@ export function MarketTradingPanel({
   const [outcome, setOutcome] = useState<"yes" | "no">("yes");
   const [amount, setAmount] = useState(10);
   const [submitting, setSubmitting] = useState(false);
+  // One Idempotency-Key per trade intent — see TradePanel for the pattern.
+  const idemKeyRef = useRef<string | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
   const [positionLoading, setPositionLoading] = useState(false);
 
@@ -101,8 +103,14 @@ export function MarketTradingPanel({
       return;
     }
     setSubmitting(true);
+    idemKeyRef.current ??= crypto.randomUUID();
     try {
-      const result = await placePaperOrder(token, { slug, side: "buy", outcome, shares: amount, price });
+      const result = await placePaperOrder(
+        token,
+        { slug, side: "buy", outcome, shares: amount, price },
+        idemKeyRef.current,
+      );
+      idemKeyRef.current = null;
       await Promise.all([refreshBalance(), refreshPosition()]);
       markTradePlaced();
       toast({
@@ -111,6 +119,7 @@ export function MarketTradingPanel({
         tone: "success",
       });
     } catch (err) {
+      if (!(err instanceof TypeError)) idemKeyRef.current = null;
       toast({
         title: "Order rejected",
         body: err instanceof Error ? err.message : "Unable to place order",

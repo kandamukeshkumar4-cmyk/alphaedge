@@ -9,6 +9,7 @@ Skipped unless DEMO_RICHNESS=1 so the regular smoke suite stays fast.
 """
 
 import os
+import uuid
 from collections.abc import Iterator
 
 import httpx
@@ -28,6 +29,20 @@ CANONICAL_SLUG = "nba-2025-01-15-lal-bos"
 def client(base_url: str) -> Iterator[httpx.Client]:
     with httpx.Client(base_url=base_url, timeout=60.0) as c:
         yield c
+
+
+@pytest.fixture(scope="module")
+def auth_token(client: httpx.Client) -> str:
+    """Analyst runs require a logged-in user (audit H-SEC-03)."""
+    email = f"smoke-{uuid.uuid4().hex[:12]}@alphaedge-smoke.com"
+    response = client.post(
+        "/api/v1/auth/signup",
+        json={"email": email, "password": "SmokeTest-123!", "name": "Smoke Richness"},
+    )
+    assert response.status_code in {200, 201}, response.text
+    token = response.json().get("access_token")
+    assert token, "signup did not return an access token"
+    return token
 
 
 def test_markets_at_least_n(client: httpx.Client) -> None:
@@ -103,8 +118,11 @@ def test_portfolio_endpoint_200(client: httpx.Client) -> None:
     assert resp.status_code in {200, 401}, resp.text
 
 
-def test_analyst_run_produces_brief(client: httpx.Client) -> None:
-    resp = client.post(f"/api/v1/analyst/run?market_slug={CANONICAL_SLUG}")
+def test_analyst_run_produces_brief(client: httpx.Client, auth_token: str) -> None:
+    resp = client.post(
+        f"/api/v1/analyst/run?market_slug={CANONICAL_SLUG}",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
     assert resp.status_code == 200, resp.text
     brief = resp.json()
     assert brief["headline"], "Analyst produced an empty headline"

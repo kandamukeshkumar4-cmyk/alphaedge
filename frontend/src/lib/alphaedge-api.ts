@@ -361,12 +361,16 @@ export type BacktestRunRequest = {
 
 export async function triggerBacktestRun(
   req: BacktestRunRequest,
+  token: string,
 ): Promise<BacktestRunResult | null> {
   if (!API_BASE) return null;
   try {
     const response = await fetch(`${API_BASE}/api/v1/backtest/run`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(req),
       cache: "no-store",
     });

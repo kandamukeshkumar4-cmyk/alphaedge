@@ -57,6 +57,23 @@ def _order_response(order: PaperOrder, remaining_balance: Decimal) -> PaperOrder
     )
 
 
+async def _close_replay(db: AsyncSession, user_id, order: PaperOrder) -> PositionCloseResponse:
+    """Replay a deduplicated close: report the original SELL plus current state."""
+    position = await get_open_paper_position(db, user_id, order.slug, order.outcome)
+    balance = await db.scalar(select(User.paper_balance).where(User.id == user_id))
+    return PositionCloseResponse(
+        order_id=order.id,
+        slug=order.slug,
+        outcome=order.outcome,  # type: ignore[arg-type]
+        shares_sold=float(order.shares),
+        proceeds=round(float(order.cost), 4),
+        realized_pnl=round(float(order.realized_pnl or 0), 4),
+        remaining_shares=float(position.net_shares),
+        remaining_balance=float(balance if balance is not None else 0),
+        paper_trading_only=True,
+    )
+
+
 async def _reject_offmarket_price(
     db: AsyncSession, slug: str, outcome: str, price: Decimal
 ) -> None:
@@ -284,6 +301,8 @@ async def close_paper_position(
 
     body: PositionCloseRequest,
 
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
+
     current_user: User = Depends(get_current_user),
 
     db: AsyncSession = Depends(get_db),
@@ -330,6 +349,16 @@ async def close_paper_position(
 
     await _reject_offmarket_price(db, body.slug, body.outcome, Decimal(str(body.price)))
 
+    if idempotency_key:
+        existing = await db.scalar(
+            select(PaperOrder).where(
+                PaperOrder.user_id == current_user.id,
+                PaperOrder.idempotency_key == idempotency_key,
+            )
+        )
+        if existing is not None:
+            return await _close_replay(db, current_user.id, existing)
+
     await db.execute(
         select(PaperOrder).where(
             PaperOrder.user_id == current_user.id,
@@ -360,13 +389,22 @@ async def close_paper_position(
 
     realized = shares * (price - position.avg_cost)
 
-
-
-    current_user.paper_balance += proceeds
+    # Audit H-RACE-02: atomic credit on the user row, mirroring the buy path —
+    # no read-modify-write on a possibly stale ORM balance.
+    user_id = current_user.id
+    credited = await db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(paper_balance=User.paper_balance + proceeds)
+        .returning(User.paper_balance)
+        .execution_options(synchronize_session=False)
+    )
+    new_balance = credited.scalar_one()
+    current_user.paper_balance = new_balance
 
     order = PaperOrder(
 
-        user_id=current_user.id,
+        user_id=user_id,
 
         slug=body.slug,
 
@@ -384,13 +422,27 @@ async def close_paper_position(
 
         realized_pnl=realized,
 
+        idempotency_key=idempotency_key,
+
     )
 
     db.add(order)
 
-    await db.flush()
-
-
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Concurrent close with the same Idempotency-Key won: undo this
+        # attempt (rollback reverts the credit) and replay the winner.
+        await db.rollback()
+        winner = await db.scalar(
+            select(PaperOrder).where(
+                PaperOrder.user_id == user_id,
+                PaperOrder.idempotency_key == idempotency_key,
+            )
+        )
+        if winner is None:
+            raise
+        return await _close_replay(db, user_id, winner)
 
     return PositionCloseResponse(
 
@@ -408,7 +460,7 @@ async def close_paper_position(
 
         remaining_shares=float(position.net_shares - shares),
 
-        remaining_balance=float(current_user.paper_balance),
+        remaining_balance=float(new_balance),
 
         paper_trading_only=True,
 

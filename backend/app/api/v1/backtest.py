@@ -35,6 +35,7 @@ from app.db.models import (
     ForecastMode,
     ForecastScore,
 )
+from app.api.v1.deps import get_current_user
 from app.db.session import get_db
 from app.forecasting import ANCHOR_EPSILON, BRIER_MIN_SAMPLE
 from app.forecasting.scoring import synthetic_pnl as compute_synthetic_pnl
@@ -137,6 +138,7 @@ def _db_row_to_response(row: BacktestRun) -> BacktestRunResponse:
 async def trigger_backtest_run(
     req: BacktestRunRequest,
     session: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),  # M-SEC-01: sync replay is compute-heavy — no anonymous runs
 ) -> BacktestRunResponse:
     """Run a backtest replay synchronously and persist the result.
 
@@ -161,7 +163,7 @@ async def trigger_backtest_run(
         logger.error("Backtest replay failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Replay failed: {exc}",
+            detail="Replay failed",
         ) from exc
 
     # Persist to backtest_runs.

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { formatUSD, type Market } from "@/lib/mock-data";
 import { placePaperOrder } from "@/lib/orders-api";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +22,9 @@ export function TradePanel({
   const [outcome, setOutcome] = useState<"yes" | "no">("yes");
   const [shares, setShares] = useState(10);
   const [submitting, setSubmitting] = useState(false);
+  // One Idempotency-Key per trade intent: kept until the server answers so a
+  // network retry replays the same order instead of creating a duplicate.
+  const idemKeyRef = useRef<string | null>(null);
 
   const staticYes = market.outcomes[0]?.price ?? 0.5;
   const price =
@@ -43,14 +46,20 @@ export function TradePanel({
     }
 
     setSubmitting(true);
+    idemKeyRef.current ??= crypto.randomUUID();
     try {
-      const result = await placePaperOrder(token, {
-        slug: market.slug,
-        side: "buy",
-        outcome,
-        shares,
-        price,
-      });
+      const result = await placePaperOrder(
+        token,
+        {
+          slug: market.slug,
+          side: "buy",
+          outcome,
+          shares,
+          price,
+        },
+        idemKeyRef.current,
+      );
+      idemKeyRef.current = null;
       await refreshBalance();
       toast({
         title: "Order placed",
@@ -58,6 +67,9 @@ export function TradePanel({
         tone: "success",
       });
     } catch (error) {
+      // Server answered (HTTP error) → the intent is settled, next click is a
+      // new one. A network failure (TypeError) keeps the key for a safe retry.
+      if (!(error instanceof TypeError)) idemKeyRef.current = null;
       toast({
         title: "Order rejected",
         body: error instanceof Error ? error.message : "Unable to place order",

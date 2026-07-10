@@ -23,6 +23,10 @@ export type PaperOrderResponse = {
 export async function placePaperOrder(
   token: string,
   order: PaperOrderInput,
+  // Server dedupes on (user, key): callers should hold ONE key per trade
+  // intent (useRef) so a retry replays the original order instead of
+  // double-debiting. A fresh key per call defeats the dedupe.
+  idempotencyKey?: string,
 ): Promise<PaperOrderResponse> {
   const apiBase = API_BASE;
   const response = await fetch(`${apiBase}/api/v1/orders`, {
@@ -30,9 +34,7 @@ export async function placePaperOrder(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      // Server dedupes on (user, key): a retried/replayed POST returns the
-      // original order instead of double-debiting the paper balance.
-      "Idempotency-Key": crypto.randomUUID(),
+      "Idempotency-Key": idempotencyKey ?? crypto.randomUUID(),
     },
     body: JSON.stringify(order),
   });
@@ -71,6 +73,7 @@ export type PositionCloseResponse = {
 export async function closePaperPosition(
   token: string,
   input: PositionCloseInput,
+  idempotencyKey?: string,
 ): Promise<PositionCloseResponse> {
   const apiBase = API_BASE;
   const response = await fetch(`${apiBase}/api/v1/positions/close`, {
@@ -78,6 +81,7 @@ export async function closePaperPosition(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey ?? crypto.randomUUID(),
     },
     body: JSON.stringify(input),
   });

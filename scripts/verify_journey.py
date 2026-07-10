@@ -270,8 +270,11 @@ def main() -> int:
         slug = str(state.get("slug") or "")
         if not slug:
             _fail("slug missing from market step")
+        token = str(state.get("token") or "")
+        if not token:
+            _fail("token missing before analyst step (H-SEC-03: analyst/run requires auth)")
         url = f"{api}/api/v1/analyst/run?{urllib.parse.urlencode({'market_slug': slug})}"
-        status, brief = _post_json(url, timeout=75)
+        status, brief = _post_json(url, token=token, timeout=75)
         _assert_status("POST /api/v1/analyst/run", status, brief)
         if not isinstance(brief, dict):
             _fail("analyst response is not an object")
@@ -343,12 +346,15 @@ def main() -> int:
 
     step("1 browse markets", browse_and_pick)
     step("2 snapshot and live candles", pick_live_market)
-    step("3 AI analysis brief", analyst)
     if args.readonly:
+        # analyst/run requires a JWT (H-SEC-03) and writes a brief, so it is a
+        # write step too — skipped alongside signup/order on the readonly cron.
+        print("SKIP  3 AI analysis brief - --readonly (requires auth; writes a brief)")
         print("SKIP  4 signup user - --readonly (no junk accounts on cron)")
         print("SKIP  5 paper order and portfolio - --readonly (no junk orders on cron)")
     else:
-        step("4 signup user", signup)
+        step("3 signup user", signup)
+        step("4 AI analysis brief", analyst)
         step("5 paper order and portfolio", order_and_portfolio)
 
     slug = state.get("slug")
