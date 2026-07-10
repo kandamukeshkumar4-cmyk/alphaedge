@@ -109,3 +109,53 @@ Honest empty (HTTP 200): `families: {}`, `top_movers: []`, `total: 0`, with
 Tests: `backend/tests/test_alerts_digest_api.py` — family counts + window
 filter, wider-window inclusion, top-movers ordering, slug filter, honest empty,
 default/invalid/out-of-range window handling; plus the I01 5xx guard sweep.
+
+---
+
+## L03 — `GET /api/v1/notify/prefs` + `PUT /api/v1/notify/prefs`
+
+Per-user opt-in set of alert families. **AUTHED (JWT — 401 when anonymous).**
+
+**HARD GUARDRAIL:** this is a preference STORE only. Prefs are stored and read
+in-app to decide which alert families a user surfaces — there is **NO external
+delivery of any kind** (no email/SMS/webhook). Nothing here sends a notification.
+
+Storage: new table `notify_prefs` (Alembic revision **`036_notify_prefs`**,
+chains from the single prior head `035_watchlist`; head remains single). One row
+per user (`uq_notify_prefs_user`); `families` JSON = the list of ENABLED family
+keys. **No row = default: all families on.**
+
+Family keys (same canonical set as the L02 digest): `news:mispricing`,
+`anomaly:unusual_flow`, `delta:*`, `screener:*`, `arb`.
+
+`GET /api/v1/notify/prefs` → the caller's prefs. `source` is `"default"` (no
+stored row, all on) or `"stored"`.
+
+`PUT /api/v1/notify/prefs` — body `{"families": ["news:mispricing", "arb"]}` —
+replaces the caller's enabled set (upsert). Unknown family names are **rejected
+with 422** (request-body validator). Empty list is valid = opt out of all.
+Returns the same shape as GET with `source:"stored"`.
+
+Response (`NotifyPrefsResponse`, both GET and PUT):
+
+```json
+{
+  "families": {"news:mispricing": true, "anomaly:unusual_flow": false,
+               "delta:*": false, "screener:*": false, "arb": true},
+  "enabled": ["news:mispricing", "arb"],
+  "all_families": ["news:mispricing", "anomaly:unusual_flow", "delta:*",
+                   "screener:*", "arb"],
+  "source": "stored",
+  "paper_trading_only": true,
+  "disclaimer": "Notification preferences are STORED and applied in-app only. ..."
+}
+```
+
+`families` covers every known family (bool enabled) so the UI can render every
+toggle; `enabled` lists the enabled keys in canonical family order.
+
+Anon → `401` (both GET and PUT).
+
+Tests: `backend/tests/test_notify_prefs_api.py` — 401 anon (GET+PUT),
+default-all-on first read, PUT round-trip (canonical-order echo), empty opt-out,
+invalid family → 422, per-user isolation.

@@ -131,6 +131,27 @@ class Watchlist(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class NotifyPref(Base):
+    """L03: a JWT-user's opt-in set of alert families. STORED + read in-app only
+    — there is NO external delivery (no email/SMS/webhook). One row per user; the
+    absence of a row means the default (all families on). ``families`` is the list
+    of ENABLED family keys (e.g. ``news:mispricing``, ``delta:*``)."""
+
+    __tablename__ = "notify_prefs"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_notify_prefs_user"),
+        Index("ix_notify_prefs_user_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    families: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class MarketResolution(Base):
     __tablename__ = "market_resolutions"
 
