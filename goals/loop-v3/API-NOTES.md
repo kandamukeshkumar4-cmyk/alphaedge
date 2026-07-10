@@ -94,3 +94,63 @@ Notes:
   builder) — the two surfaces can never disagree.
 - `arb` is the highest-confidence persisted `VenueMarketMatch` (G02) whose
   `pm_slug` or `ks_slug` equals the requested slug; `null` when none.
+
+## H02 — `GET /api/v1/backtest/summary` (2026-07-10)
+
+Walk-forward Brier + flat-stake ROI over resolved external markets. Read-only,
+no params. Computed from the SAME real-resolution source as
+`GET /api/v1/track-record` and the G06 resolved-count watcher: scored LIVE
+forecasts (`ForecastLog` × `ForecastScore`) on RESOLVED `ExternalMarket` rows.
+
+ROI is a deterministic flat-stake (1-contract) paper strategy consistent with
+`app.forecasting.scoring.synthetic_pnl`: bet the model's disagreement with the
+market, filled at the market implied price. A forecast within the anchor
+epsilon (0.02) of the market, or with no implied price, places NO bet (it still
+counts toward Brier). `roi = total_pnl / total_staked`.
+
+| field | type | notes |
+|-------|------|-------|
+| `n` | int | resolved scored forecasts behind the summary; 0 with no data |
+| `thin_data` | bool | `n < thin_data_threshold` — UI must caveat when true |
+| `thin_data_threshold` | int | 30 (`BRIER_MIN_SAMPLE`) |
+| `brier_score` | float\|null | overall mean user Brier; null when `n == 0` |
+| `market_brier_score` | float\|null | mean market Brier over rows with an implied price; null when none |
+| `roi` | float\|null | `total_pnl / total_staked`; null when no bet was placed |
+| `n_bets` | int | rows that placed a bet (`|edge| ≥ 0.02` and a price exists) |
+| `total_pnl` | float | summed flat-stake paper P&L |
+| `total_staked` | float | summed cost basis of the bets |
+| `walk_forward` | array | per-resolution points ordered by `scored_at`: `{seq, scored_at, brier, cumulative_brier, cumulative_roi}` (`cumulative_roi` null until the first bet) |
+| `source` | string | `"forecast_scores"` \| `"none"` |
+| `last_updated` | datetime\|null | newest resolution timestamp |
+| `paper_trading_only` | bool | always true |
+| `signal_only` | bool | always true |
+| `disclaimer` | string | research-only wording |
+
+Honest empties: with zero resolutions returns `n=0`, `thin_data=true`,
+`source="none"`, null metrics, `walk_forward=[]`. Never fabricates an equity
+curve or a resolution.
+
+Example (2 resolutions):
+
+```json
+{
+  "n": 2,
+  "thin_data": true,
+  "thin_data_threshold": 30,
+  "brier_score": 0.09,
+  "market_brier_score": 0.25,
+  "roi": 1.0,
+  "n_bets": 2,
+  "total_pnl": 1.0,
+  "total_staked": 1.0,
+  "walk_forward": [
+    {"seq": 1, "scored_at": "2026-07-10T16:00:00Z", "brier": 0.09, "cumulative_brier": 0.09, "cumulative_roi": 1.0},
+    {"seq": 2, "scored_at": "2026-07-10T17:00:00Z", "brier": 0.09, "cumulative_brier": 0.09, "cumulative_roi": 1.0}
+  ],
+  "source": "forecast_scores",
+  "last_updated": "2026-07-10T17:00:00Z",
+  "paper_trading_only": true,
+  "signal_only": true,
+  "disclaimer": "Walk-forward research metrics from REAL resolutions only …"
+}
+```

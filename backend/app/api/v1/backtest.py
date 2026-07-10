@@ -13,6 +13,7 @@ HARD GUARDRAILS:
 """
 from __future__ import annotations
 
+import math
 import uuid
 import logging
 from datetime import UTC, datetime
@@ -26,8 +27,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.backtesting.fill_model import DEFAULT_SLIPPAGE_PER_UNIT, DEFAULT_SPREAD
 from app.backtesting.snapshot_replay import run_snapshot_replay
-from app.db.models import BacktestRun
+from app.db.models import (
+    BacktestRun,
+    ExternalMarket,
+    ExternalMarketStatus,
+    ForecastLog,
+    ForecastMode,
+    ForecastScore,
+)
 from app.db.session import get_db
+from app.forecasting import ANCHOR_EPSILON, BRIER_MIN_SAMPLE
+from app.forecasting.scoring import synthetic_pnl as compute_synthetic_pnl
 
 logger = logging.getLogger(__name__)
 
@@ -241,3 +251,172 @@ async def get_backtest_run(
     if row is None:
         raise HTTPException(status_code=404, detail="Backtest run not found")
     return _db_row_to_response(row)
+
+
+# ---------------------------------------------------------------------------
+# H02 — Walk-forward backtest summary over resolved external markets
+# ---------------------------------------------------------------------------
+
+BACKTEST_SUMMARY_DISCLAIMER = (
+    "Walk-forward research metrics from REAL resolutions only — same resolved "
+    "external markets as the track-record surface. ROI is a flat-stake paper "
+    "strategy (bet the model's disagreement with the market, filled at the "
+    "market implied price). Signal only; paper trading only — simulated funds, "
+    "no execution."
+)
+
+
+class BacktestSummaryPoint(BaseModel):
+    seq: int
+    scored_at: Optional[datetime]
+    brier: float
+    cumulative_brier: float
+    cumulative_roi: Optional[float]
+
+
+class BacktestSummaryResponse(BaseModel):
+    n: int
+    thin_data: bool
+    thin_data_threshold: int
+    brier_score: Optional[float]
+    market_brier_score: Optional[float]
+    roi: Optional[float]
+    n_bets: int
+    total_pnl: float
+    total_staked: float
+    walk_forward: list[BacktestSummaryPoint]
+    source: str
+    last_updated: Optional[datetime]
+    paper_trading_only: bool
+    signal_only: bool
+    disclaimer: str
+
+
+async def _resolved_scored_rows(
+    session: AsyncSession,
+) -> list[tuple[float, Optional[float], int, Optional[datetime]]]:
+    """(user_p, market_implied_p, outcome, scored_at) for every scored LIVE
+    forecast on a RESOLVED external market — the SAME real-resolution source
+    as ``GET /api/v1/track-record`` and the G06 resolved-count watcher.
+
+    Non-finite probabilities (Postgres NUMERIC 'NaN') are dropped so the
+    downstream Brier / ROI math never raises.
+    """
+    result = await session.execute(
+        select(
+            ForecastLog.user_probability,
+            ForecastLog.market_implied_probability,
+            ForecastScore.actual_outcome,
+            ForecastScore.scored_at,
+        )
+        .join(ForecastScore, ForecastScore.forecast_id == ForecastLog.id)
+        .join(ExternalMarket, ExternalMarket.id == ForecastLog.external_market_id)
+        .where(
+            ForecastLog.mode == ForecastMode.LIVE,
+            ExternalMarket.status == ExternalMarketStatus.RESOLVED,
+        )
+    )
+    rows: list[tuple[float, Optional[float], int, Optional[datetime]]] = []
+    for user_p, implied_p, outcome, scored_at in result.all():
+        if user_p is None or outcome is None:
+            continue
+        up = float(user_p)
+        if not math.isfinite(up):
+            continue
+        ip: Optional[float] = None
+        if implied_p is not None:
+            ipf = float(implied_p)
+            if math.isfinite(ipf):
+                ip = ipf
+        rows.append((up, ip, int(outcome), scored_at))
+    return rows
+
+
+def _bet_stake_and_pnl(
+    user_p: float, implied_p: Optional[float], outcome: int
+) -> Optional[tuple[float, float]]:
+    """Flat-stake (1 contract) paper bet consistent with
+    ``app.forecasting.scoring.synthetic_pnl``. Returns ``(staked, pnl)`` or
+    ``None`` when no bet is placed (anchored within epsilon, or no price)."""
+    if implied_p is None:
+        return None
+    diff = user_p - implied_p
+    if abs(diff) < ANCHOR_EPSILON:
+        return None
+    # Buy YES at implied when user > market; buy NO at (1 - implied) otherwise.
+    staked = implied_p if diff > 0 else (1.0 - implied_p)
+    if staked <= 0:
+        return None
+    pnl = compute_synthetic_pnl(user_p, implied_p, outcome)
+    return staked, pnl
+
+
+@router.get("/summary", response_model=BacktestSummaryResponse)
+async def get_backtest_summary(
+    session: AsyncSession = Depends(get_db),
+) -> BacktestSummaryResponse:
+    """Walk-forward Brier + ROI over resolved external markets (H02).
+
+    Read-only aggregate composed from the same resolved-forecast source as the
+    track-record endpoint. Honest empties when there are no resolutions
+    (``n=0``, ``source="none"``, null metrics, empty series). Never fabricates
+    an equity curve or a resolution.
+    """
+    rows = await _resolved_scored_rows(session)
+    ordered = sorted(rows, key=lambda r: (r[3] is None, r[3] or datetime.min))
+
+    n = len(ordered)
+    source = "forecast_scores" if n else "none"
+    last_updated = max((r[3] for r in ordered if r[3] is not None), default=None)
+
+    walk_forward: list[BacktestSummaryPoint] = []
+    brier_sum = 0.0
+    market_brier_sum = 0.0
+    market_brier_n = 0
+    cum_staked = 0.0
+    cum_pnl = 0.0
+    n_bets = 0
+
+    for seq, (user_p, implied_p, outcome, scored_at) in enumerate(ordered, start=1):
+        point_brier = (user_p - outcome) ** 2
+        brier_sum += point_brier
+        if implied_p is not None:
+            market_brier_sum += (implied_p - outcome) ** 2
+            market_brier_n += 1
+        bet = _bet_stake_and_pnl(user_p, implied_p, outcome)
+        if bet is not None:
+            staked, pnl = bet
+            cum_staked += staked
+            cum_pnl += pnl
+            n_bets += 1
+        walk_forward.append(
+            BacktestSummaryPoint(
+                seq=seq,
+                scored_at=scored_at,
+                brier=round(point_brier, 6),
+                cumulative_brier=round(brier_sum / seq, 6),
+                cumulative_roi=(
+                    round(cum_pnl / cum_staked, 6) if cum_staked > 0 else None
+                ),
+            )
+        )
+
+    return BacktestSummaryResponse(
+        n=n,
+        thin_data=n < BRIER_MIN_SAMPLE,
+        thin_data_threshold=BRIER_MIN_SAMPLE,
+        brier_score=round(brier_sum / n, 6) if n else None,
+        market_brier_score=(
+            round(market_brier_sum / market_brier_n, 6) if market_brier_n else None
+        ),
+        roi=round(cum_pnl / cum_staked, 6) if cum_staked > 0 else None,
+        n_bets=n_bets,
+        total_pnl=round(cum_pnl, 6),
+        total_staked=round(cum_staked, 6),
+        walk_forward=walk_forward,
+        source=source,
+        last_updated=last_updated,
+        paper_trading_only=True,
+        signal_only=True,
+        disclaimer=BACKTEST_SUMMARY_DISCLAIMER,
+    )
