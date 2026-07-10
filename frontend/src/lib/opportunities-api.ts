@@ -136,7 +136,12 @@ function citationEvidence(signal: OpportunityTopSignal | null): NewsEvidence | n
   };
 }
 
-function buildRowView(row: OpportunityRow): OpportunityRowView {
+/**
+ * Build one renderable opportunity row view. Exported so the S02 category
+ * dashboard renders the SAME row shape (from O02's `top_opportunities`) as the
+ * R01 scanner — the two never diverge.
+ */
+export function buildOpportunityRowView(row: OpportunityRow): OpportunityRowView {
   const edge = isFiniteNum(row.edge) ? Math.abs(row.edge) : 0;
   const direction: "YES" | "NO" = row.direction === "NO" ? "NO" : "YES";
   return {
@@ -168,7 +173,7 @@ export function buildOpportunitiesView(
 ): OpportunitiesView {
   const disclaimer = raw?.disclaimer || FALLBACK_DISCLAIMER;
   const rowsRaw = raw && Array.isArray(raw.opportunities) ? raw.opportunities : [];
-  const all = rowsRaw.map(buildRowView);
+  const all = rowsRaw.map(buildOpportunityRowView);
   const direction = opts?.direction ?? "all";
   const minLiquidity = isFiniteNum(opts?.minLiquidity) ? Math.max(0, opts!.minLiquidity!) : 0;
   const rows = all.filter((r) => {

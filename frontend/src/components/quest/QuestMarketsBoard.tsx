@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QuestArenaHero } from "@/components/quest/QuestArenaHero";
 import {
@@ -115,6 +116,17 @@ export function QuestMarketsBoard({
             </button>
           ))}
         </div>
+
+        {topic !== "trending" && !query ? (
+          <div className="mt-3">
+            <Link
+              href={`/categories/${encodeURIComponent(topic)}`}
+              className="inline-flex items-center gap-1.5 rounded-pill border border-accent/40 bg-accent/10 px-3.5 py-1.5 text-xs font-bold text-accent transition hover:border-accent hover:bg-accent/15"
+            >
+              {KALSHI_TOPICS.find((t) => t.id === topic)?.label ?? topic} intelligence dashboard →
+            </Link>
+          </div>
+        ) : null}
 
         {error && (
           <p className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-dim px-4 py-2.5 text-xs text-danger">
