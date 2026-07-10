@@ -18,19 +18,35 @@ import {
   buildAlertGroups,
   familyLabel,
   fetchAlertsFeed,
+  fetchWatchlistAlerts,
   newestAlertTs,
   type AlertEventItem,
 } from "@/lib/alerts-api";
 import type { SignalCategory } from "@/lib/signals-dashboard-view-model";
 
+type ScopeTab = "all" | "watchlist";
+
 export default function AlertsPage() {
   const { token, isReady } = useAuth();
   const [items, setItems] = useState<AlertEventItem[] | null>(null);
   const [filter, setFilter] = useState<SignalCategory | "all">("all");
+  const [scope, setScope] = useState<ScopeTab>("all");
 
   useEffect(() => {
+    if (!isReady) return;
+    // X03 — the "Your watchlist" tab calls the K03 watchlist-scoped feed when
+    // authed; anon falls back to a sign-in prompt (handled in render).
+    if (scope === "watchlist" && !token) {
+      setItems([]);
+      return;
+    }
     let dead = false;
-    void fetchAlertsFeed({ limit: 60 }).then((data) => {
+    setItems(null);
+    const load =
+      scope === "watchlist"
+        ? fetchWatchlistAlerts(token, { limit: 60 })
+        : fetchAlertsFeed({ limit: 60 });
+    void load.then((data) => {
       if (dead) return;
       setItems(data);
       // Mark everything currently visible as seen so the header bell clears.
@@ -43,15 +59,17 @@ export default function AlertsPage() {
     return () => {
       dead = true;
     };
-  }, []);
+  }, [scope, token, isReady]);
 
   const families = useMemo(() => (items ? alertFamilies(items) : []), [items]);
   const groups = useMemo(() => (items ? buildAlertGroups(items, filter) : []), [items, filter]);
 
   const scopeNote =
-    isReady && token
-      ? "Scoped to your watchlist."
-      : "Public signal stream — sign in to scope alerts to your watchlist.";
+    scope === "watchlist"
+      ? "Scoped to the markets on your watchlist."
+      : isReady && token
+        ? "Public signal stream — switch to Your watchlist to scope alerts."
+        : "Public signal stream — sign in to scope alerts to your watchlist.";
 
   return (
     <PageShell width="medium">
@@ -61,12 +79,49 @@ export default function AlertsPage() {
         subtitle={`Model mispricings, unusual flow, screener and cross-venue signals grouped by market. ${scopeNote} Research only — notify only, never trades.`}
       />
 
-      {items === null ? (
+      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Alert scope">
+        <ScopeTabButton
+          label="All signals"
+          active={scope === "all"}
+          onClick={() => {
+            setScope("all");
+            setFilter("all");
+          }}
+        />
+        <ScopeTabButton
+          label="Your watchlist"
+          active={scope === "watchlist"}
+          onClick={() => {
+            setScope("watchlist");
+            setFilter("all");
+          }}
+        />
+      </div>
+
+      {scope === "watchlist" && isReady && !token ? (
+        <div className="rounded-xl border border-border bg-surface p-8 text-center">
+          <p className="text-sm font-semibold text-text">Sign in to scope alerts to your watchlist</p>
+          <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted">
+            Your watchlist is saved to your account. Sign in, then track markets to see only their
+            alerts here.
+          </p>
+          <Link
+            href="/auth/login?next=/alerts"
+            className="mt-4 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-bg shadow-glow transition hover:brightness-110"
+          >
+            Sign in
+          </Link>
+        </div>
+      ) : items === null ? (
         <ListSkeleton />
       ) : items.length === 0 ? (
         <EmptyState
-          title="No alerts yet"
-          body="Alerts land here as the pipeline flags model mispricings, unusual flow, and screener hits. Track markets on your watchlist to scope them to what you care about."
+          title={scope === "watchlist" ? "No alerts on your watchlist yet" : "No alerts yet"}
+          body={
+            scope === "watchlist"
+              ? "None of the markets you track have fired an alert recently. Track more markets, or switch to All signals to see the public stream."
+              : "Alerts land here as the pipeline flags model mispricings, unusual flow, and screener hits. Track markets on your watchlist to scope them to what you care about."
+          }
         />
       ) : (
         <>
@@ -130,6 +185,31 @@ export default function AlertsPage() {
         </>
       )}
     </PageShell>
+  );
+}
+
+function ScopeTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "rounded-lg px-3 py-1.5 text-sm font-bold transition",
+        active ? "bg-accent text-white" : "text-muted hover:text-text",
+      )}
+    >
+      {label}
+    </button>
   );
 }
 

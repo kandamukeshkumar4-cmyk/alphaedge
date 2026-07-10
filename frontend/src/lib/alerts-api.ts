@@ -21,10 +21,54 @@ export type AlertEventItem = {
 };
 
 export type AlertsResponse = {
-  items?: AlertEventItem[];
-  scope?: "watchlist" | "public";
+  items?: RawAlertItem[];
+  scope?: string;
   paper_trading_only?: boolean;
 };
+
+/**
+ * Raw item as returned by the backend J02/K03 feed. The feed keys the market by
+ * `slug` and carries H03 citation fields in a `citation` object; older/legacy
+ * callers used `market_id`. `normalizeAlertItems` reconciles both into the
+ * `AlertEventItem` the pure view-model consumes.
+ */
+export type RawAlertItem = {
+  id?: string;
+  signal_type?: string;
+  platform?: string;
+  slug?: string;
+  market_id?: string;
+  payload?: Record<string, unknown> | null;
+  citation?: Record<string, unknown> | null;
+  created_at?: string;
+};
+
+/**
+ * Pure: normalize raw feed items into `AlertEventItem`. Maps `slug` → `market_id`
+ * (the feed's canonical market key) and folds any `citation` fields into the
+ * payload as a fallback so evidence renders even when a field lives only on the
+ * citation. Drops items missing an id/market/timestamp. Never fabricates.
+ */
+export function normalizeAlertItems(raw: RawAlertItem[] | null | undefined): AlertEventItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: AlertEventItem[] = [];
+  for (const it of raw) {
+    const marketId = (it.market_id ?? it.slug ?? "").trim();
+    const id = it.id;
+    const createdAt = it.created_at;
+    if (!id || !marketId || !createdAt) continue;
+    const payload: Record<string, unknown> = { ...(it.citation ?? {}), ...(it.payload ?? {}) };
+    out.push({
+      id,
+      signal_type: it.signal_type ?? "",
+      platform: it.platform ?? "",
+      market_id: marketId,
+      payload,
+      created_at: createdAt,
+    });
+  }
+  return out;
+}
 
 export type AlertRowView = {
   id: string;
@@ -179,7 +223,37 @@ export async function fetchAlertsFeed(opts?: {
     });
     if (!res.ok) return [];
     const data = (await res.json()) as AlertsResponse;
-    return Array.isArray(data.items) ? data.items : [];
+    return normalizeAlertItems(data.items);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * X03 — fetch the caller's watchlist-scoped alerts (backend K03,
+ * GET /api/v1/watchlist/alerts). AUTHED: requires a JWT — returns [] with no
+ * token / no live API / on error. The backend pre-filters the J02 feed to the
+ * caller's watchlist slugs so the UI needs a single call. Notify/read only.
+ */
+export async function fetchWatchlistAlerts(
+  token: string | null,
+  opts?: { since?: string; limit?: number },
+): Promise<AlertEventItem[]> {
+  if (!token) return [];
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return [];
+  const params = new URLSearchParams();
+  if (opts?.since) params.set("since", opts.since);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  try {
+    const res = await fetch(apiUrl(`/api/v1/watchlist/alerts${qs ? `?${qs}` : ""}`, base), {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as AlertsResponse;
+    return normalizeAlertItems(data.items);
   } catch {
     return [];
   }

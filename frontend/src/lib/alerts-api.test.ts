@@ -3,6 +3,7 @@ import {
   alertFamilies,
   buildAlertGroups,
   newestAlertTs,
+  normalizeAlertItems,
   relativeTime,
   unreadAlertCount,
   type AlertEventItem,
@@ -71,6 +72,47 @@ describe("buildAlertGroups", () => {
 
   it("returns [] for no items", () => {
     expect(buildAlertGroups([], "all", NOW)).toEqual([]);
+  });
+});
+
+describe("normalizeAlertItems", () => {
+  it("maps the feed `slug` to `market_id` and folds citation into payload", () => {
+    const [item] = normalizeAlertItems([
+      {
+        id: "9",
+        signal_type: "news:mispricing",
+        platform: "polymarket",
+        slug: "pm-lal-bos",
+        payload: { model_p: 0.6 },
+        citation: { headline: "Star out", news_url: "http://x", market_p: 0.5 },
+        created_at: "2026-07-10T17:00:00Z",
+      },
+    ]);
+    expect(item.market_id).toBe("pm-lal-bos");
+    // payload wins over citation on conflicts, citation fills the gaps.
+    expect(item.payload).toMatchObject({ model_p: 0.6, headline: "Star out", market_p: 0.5 });
+    // it renders through buildAlertGroups (slug-only feed previously grouped empty).
+    const groups = buildAlertGroups([item], "all", NOW);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].rows[0].evidence?.kind).toBe("news");
+  });
+
+  it("prefers an explicit market_id when both are present", () => {
+    const [item] = normalizeAlertItems([
+      { id: "1", slug: "s", market_id: "m", created_at: "2026-07-10T17:00:00Z" },
+    ]);
+    expect(item.market_id).toBe("m");
+  });
+
+  it("drops items missing id/market/timestamp and tolerates non-arrays", () => {
+    expect(normalizeAlertItems(null)).toEqual([]);
+    expect(
+      normalizeAlertItems([
+        { signal_type: "arb", slug: "s", created_at: "2026-07-10T17:00:00Z" },
+        { id: "2", created_at: "2026-07-10T17:00:00Z" },
+        { id: "3", slug: "s3" },
+      ]),
+    ).toEqual([]);
   });
 });
 

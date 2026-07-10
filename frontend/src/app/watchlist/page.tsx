@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { PageHeader, PageShell } from "@/components/ui/kit";
+import { WatchlistAlerts } from "@/components/WatchlistAlerts";
 import { WatchlistStar } from "@/components/WatchlistStar";
 import { useAuth } from "@/hooks/useAuth";
 import { useWatchlist } from "@/hooks/useWatchlist";
@@ -110,6 +111,8 @@ export default function WatchlistPage() {
           ))}
         </ul>
       )}
+
+      {token && rows.length > 0 ? <WatchlistAlerts token={token} /> : null}
     </PageShell>
   );
 }
