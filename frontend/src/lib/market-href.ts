@@ -13,6 +13,13 @@ export function marketHref(slug: string, params?: Record<string, string>): strin
   return `/markets/view?${query.toString()}`;
 }
 
+// D03: deep-link to the market detail Intelligence panel (desk aggregate).
+// Same static/live split as marketHref; the #intelligence anchor id is
+// rendered by DeskIntelligencePanel on both detail routes.
+export function marketIntelHref(slug: string): string {
+  return `${marketHref(slug)}#intelligence`;
+}
+
 // Same split for AI-brief entry points: catalog slugs have prerendered
 // /research/brief/[slug] pages; live slugs resolve via /research/brief?slug=.
 export function briefHref(slug: string): string {

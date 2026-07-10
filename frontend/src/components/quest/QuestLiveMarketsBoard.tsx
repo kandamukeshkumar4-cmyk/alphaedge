@@ -7,7 +7,7 @@ import { useAtlasPanel } from "@/context/atlas-panel";
 import { fetchMarkets, hasLiveApi } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatCompactUSD, MARKETS, type Market } from "@/lib/mock-data";
-import { marketHref } from "@/lib/market-href";
+import { marketHref, marketIntelHref } from "@/lib/market-href";
 
 const FETCH_MS = 8000;
 const LIVE_API = hasLiveApi();
@@ -244,9 +244,16 @@ export function QuestLiveMarketsBoard({
                             <span className="rounded bg-danger/15 px-1.5 py-0.5 text-danger">LIVE</span>
                           ) : null}
                           <span className="text-muted-2">{formatCompactUSD(m.volume)} Vol.</span>
+                          {/* D03: deep-link to the desk Intelligence anchor */}
+                          <Link
+                            href={marketIntelHref(m.slug)}
+                            className="ml-auto text-[11px] font-semibold normal-case tracking-normal text-muted transition hover:text-primary"
+                          >
+                            Intel ↗
+                          </Link>
                           <Link
                             href={`/trade?slug=${encodeURIComponent(m.slug)}`}
-                            className="ml-auto text-[11px] font-semibold normal-case tracking-normal text-muted transition hover:text-primary"
+                            className="text-[11px] font-semibold normal-case tracking-normal text-muted transition hover:text-primary"
                           >
                             Game View ↗
                           </Link>

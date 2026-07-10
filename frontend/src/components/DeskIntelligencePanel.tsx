@@ -226,9 +226,19 @@ export function DeskIntelligencePanel({ slug }: { slug: string }) {
         )}
       </div>
 
+      {/* D03: cross-links to the sibling intelligence surfaces */}
       <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1 border-t border-border pt-3">
+        <Link
+          href={`/smart-money?slug=${encodeURIComponent(view.slug)}`}
+          className="text-[11px] font-semibold text-accent hover:underline"
+        >
+          Smart money →
+        </Link>
+        <Link href="/arb" className="text-[11px] font-semibold text-accent hover:underline">
+          Arb desk →
+        </Link>
         <Link href="/track-record" className="text-[11px] font-semibold text-accent hover:underline">
-          Model track record →
+          Track record →
         </Link>
       </div>
 
