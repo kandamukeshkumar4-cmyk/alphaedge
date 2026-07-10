@@ -11,7 +11,6 @@ Read-only derived signals: no order path, no LLM in the compute path.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
@@ -280,11 +279,6 @@ async def persist_deltas(
             )
         )
         await bus.emit(f"delta.{d.kind.value}", {"market_slug": d.market_slug, **payload})
-
-
-def delta_from_mapping(market_slug: str, source: str, mapping: Mapping[str, Any]) -> None:
-    """Reserved for T05/T06 to inject whale/news DeltaEvents (kept for vocabulary)."""
-    raise NotImplementedError  # implemented by T05/T06
 
 
 # Process-level singleton used by the live stream wiring.
