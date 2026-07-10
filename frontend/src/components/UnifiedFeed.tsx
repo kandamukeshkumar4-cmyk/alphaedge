@@ -5,6 +5,8 @@ import { marketHref } from "@/lib/market-href";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { fetchFeed, subscribeFeedWS, type FeedItem, type FeedItemType } from "@/lib/feed-api";
+import { extractSignalEvidence } from "@/lib/signal-evidence";
+import { SignalEvidenceBlock } from "@/components/SignalEvidence";
 
 // ---------------------------------------------------------------------------
 // Type icon
@@ -130,6 +132,12 @@ function FeedCard({ item }: { item: FeedItem }) {
   const [expanded, setExpanded] = useState(false);
   const marketLink = marketHref(item.market_slug);
   const hasDetail = Object.keys(item.payload).length > 0;
+  // F04: structured evidence for news:mispricing / anomaly:unusual_flow items.
+  // Prefer an explicit payload signal_type, else infer from the feed item type.
+  const evidence = extractSignalEvidence(
+    String(item.payload.signal_type ?? item.item_type),
+    item.payload,
+  );
 
   return (
     <div className="rounded-xl border border-border bg-surface transition hover:border-border-light">
@@ -178,6 +186,8 @@ function FeedCard({ item }: { item: FeedItem }) {
               {item.market_slug}
             </Link>
           )}
+
+          {evidence && <SignalEvidenceBlock evidence={evidence} />}
 
           {hasDetail && (
             <button

@@ -1,4 +1,5 @@
 import type { CLVRecord, SignalFeedItem, SignalsDashboard } from "./signals-dashboard-api";
+import { evidenceKey, type SignalEvidence } from "./signal-evidence";
 
 // P05: signal families used by the /signals filter pills. Specialised signal
 // types collapse into one of these so screener/weather/dutching/news/anomaly
@@ -15,6 +16,8 @@ export type SignalCategory =
 export type SignalCardView = {
   id: string;
   marketName: string;
+  marketId: string;
+  platform: string;
   signalType: string;
   category: SignalCategory;
   signalTypeLabel: string;
@@ -25,6 +28,8 @@ export type SignalCardView = {
   statusLabel: string;
   isEdge: boolean;
   blockedLabel: string | null;
+  /** F04: news/catalyst evidence merged from GET /api/v1/signals/events. */
+  evidence: SignalEvidence | null;
 };
 
 /**
@@ -69,6 +74,7 @@ const PROVISIONAL_THRESHOLD = 30;
 
 export function buildSignalsDashboardView(
   dashboard: SignalsDashboard | null,
+  evidenceIndex?: Map<string, SignalEvidence>,
 ): SignalsDashboardView {
   if (!dashboard) {
     return emptyView();
@@ -81,7 +87,7 @@ export function buildSignalsDashboardView(
     betCountLabel: String(dashboard.paper_pnl.n_bets),
     paperOnlyNote: "Paper trading only — simulated funds",
     llmExplanation: dashboard.llm_explanation,
-    signalCards: dashboard.signals.map(signalCard),
+    signalCards: dashboard.signals.map((item) => signalCard(item, evidenceIndex)),
     clvRows: dashboard.clv_records.map(clvRow),
     empty: dashboard.signals.length === 0 && dashboard.clv_records.length === 0,
   };
@@ -115,7 +121,10 @@ export function formatSignalTypeLabel(value: string): string {
     .join(" ");
 }
 
-function signalCard(item: SignalFeedItem): SignalCardView {
+function signalCard(
+  item: SignalFeedItem,
+  evidenceIndex?: Map<string, SignalEvidence>,
+): SignalCardView {
   const provisional =
     item.provisional || (item.sample_size > 0 && item.sample_size < PROVISIONAL_THRESHOLD);
   const statusLabel = item.is_edge
@@ -124,9 +133,14 @@ function signalCard(item: SignalFeedItem): SignalCardView {
       ? "Needs more history"
       : "No edge yet";
 
+  const evidence =
+    evidenceIndex?.get(evidenceKey(item.platform, item.market_id, item.signal_type)) ?? null;
+
   return {
     id: item.id,
     marketName: formatMarketLabel(item.market_name),
+    marketId: item.market_id,
+    platform: item.platform,
     signalType: item.signal_type,
     category: categorizeSignal(item.signal_type),
     signalTypeLabel: formatSignalTypeLabel(item.signal_type),
@@ -144,6 +158,7 @@ function signalCard(item: SignalFeedItem): SignalCardView {
       : provisional
         ? null
         : "No edge detected yet — track record has not cleared the honesty check.",
+    evidence,
   };
 }
 

@@ -4,12 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
+import { fetchSignalEvents, type SignalEventItem } from "@/lib/activity-api";
 import {
   fetchArbOpportunities,
   type ArbOpportunitiesPage,
 } from "@/lib/arb-api";
 import { cn } from "@/lib/cn";
+import { buildEvidenceIndex } from "@/lib/signal-evidence";
 import { fetchSignalsDashboard } from "@/lib/signals-dashboard-api";
+import { SignalEvidenceBlock } from "@/components/SignalEvidence";
 import {
   buildSignalsDashboardView,
   type SignalCategory,
@@ -51,9 +54,14 @@ export default function SignalsPage() {
   const [loading, setLoading] = useState(apiConfigured);
   const [dashboard, setDashboard] = useState<Awaited<ReturnType<typeof fetchSignalsDashboard>>>(null);
   const [arb, setArb] = useState<ArbOpportunitiesPage | null>(null);
+  const [events, setEvents] = useState<SignalEventItem[]>([]);
   const [signalFilter, setSignalFilter] = useState<SignalCategory | "all">("all");
 
-  const view = useMemo(() => buildSignalsDashboardView(dashboard), [dashboard]);
+  const evidenceIndex = useMemo(() => buildEvidenceIndex(events), [events]);
+  const view = useMemo(
+    () => buildSignalsDashboardView(dashboard, evidenceIndex),
+    [dashboard, evidenceIndex],
+  );
 
   const filterCounts = useMemo(() => {
     const counts: Record<string, number> = { all: view.signalCards.length };
@@ -87,12 +95,14 @@ export default function SignalsPage() {
     setLoading(true);
     setNotice(null);
     try {
-      const [next, arbPage] = await Promise.all([
+      const [next, arbPage, eventItems] = await Promise.all([
         fetchSignalsDashboard({ apiBase: base }),
         fetchArbOpportunities(8),
+        fetchSignalEvents({ limit: 100 }),
       ]);
       setDashboard(next);
       setArb(arbPage);
+      setEvents(eventItems);
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Failed to load signals dashboard.";
@@ -337,6 +347,7 @@ export default function SignalsPage() {
                     <dd className="font-mono font-bold text-text">{card.sampleSizeLabel}</dd>
                   </div>
                 </dl>
+                {card.evidence ? <SignalEvidenceBlock evidence={card.evidence} /> : null}
                 {card.provisionalNote ? (
                   <p className="mt-3 rounded-lg bg-gold/10 px-3 py-2 text-xs font-semibold text-gold">
                     {card.provisionalNote}
