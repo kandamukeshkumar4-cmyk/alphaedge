@@ -24,6 +24,7 @@ import pytest
 EXPECTED_NEW_LOOPS = {
     "_news_scan_loop",
     "_news_mispricing_loop",
+    "_unusual_flow_loop",
     "_weather_scan_loop",
     "_morning_research_loop",
     "_whale_refresh_loop",
@@ -84,6 +85,7 @@ async def test_inprocess_scheduler_registers_all_new_background_tasks(monkeypatc
     for fn_name in (
         "news_scan_task",
         "news_mispricing_scan_task",
+        "unusual_flow_scan_task",
         "weather_scan_task",
         "morning_research_task",
         "refresh_whales_task",
@@ -142,6 +144,7 @@ async def test_inprocess_scheduler_respects_disabled_flags(monkeypatch):
     for fn_name in (
         "news_scan_task",
         "news_mispricing_scan_task",
+        "unusual_flow_scan_task",
         "weather_scan_task",
         "morning_research_task",
         "refresh_whales_task",

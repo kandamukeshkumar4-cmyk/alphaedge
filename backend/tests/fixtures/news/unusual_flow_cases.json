@@ -1,0 +1,41 @@
+{
+  "window_sec": 900,
+  "cases": [
+    {
+      "id": "no-emit-jump-with-news",
+      "expect_emit": false,
+      "market_slug": "pm-will-lakers-beat-celtics",
+      "platform": "polymarket",
+      "kind": "price_jump",
+      "direction": "up",
+      "magnitude": 0.08,
+      "occurred_ts": "2026-07-09T18:00:00Z",
+      "news_ts": "2026-07-09T17:52:00Z",
+      "headline": "Lakers star ruled out"
+    },
+    {
+      "id": "emit-jump-no-news",
+      "expect_emit": true,
+      "market_slug": "pm-fed-cut-rates",
+      "platform": "polymarket",
+      "kind": "price_jump",
+      "direction": "down",
+      "magnitude": 0.06,
+      "occurred_ts": "2026-07-09T18:00:00Z",
+      "news_ts": null,
+      "headline": ""
+    },
+    {
+      "id": "emit-volume-spike-stale-news",
+      "expect_emit": true,
+      "market_slug": "pm-btc-100k",
+      "platform": "polymarket",
+      "kind": "volume_surge",
+      "direction": "up",
+      "magnitude": 25000.0,
+      "occurred_ts": "2026-07-09T18:00:00Z",
+      "news_ts": "2026-07-09T12:00:00Z",
+      "headline": "Old bitcoin headline"
+    }
+  ]
+}

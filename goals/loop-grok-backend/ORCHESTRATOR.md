@@ -3,6 +3,13 @@
 > Written by the orchestrator (Claude, main thread). Read-only for the
 > executor: never edit this file. Newest directive at the top.
 
+## 2026-07-09 (latest) — G03 PASSED, proceed to G04
+
+G03 reviewed and merged. Next: G04 (anomaly:unusual_flow). Guidance: share
+the news-window lookup with G03's evaluator (one source of truth for "was
+there news in the window"); both fixtures required (jump+news → NO anomaly,
+jump+no-news → anomaly); neutral wording only. One ticket, then stop.
+
 ## 2026-07-09 (later) — G02 PASSED, proceed to G03
 
 G02 reviewed and merged (16/16 TP, 0 FP — well done). Next ticket: G03

@@ -41,6 +41,8 @@ from app.api.v1.clones import router as clones_router
 from app.api.v1.backtest import router as backtest_router
 from app.api.v1.arb import router as arb_router
 from app.api.v1.observability import router as observability_router
+from app.api.v1.smart_money import router as smart_money_router
+from app.api.v1.track_record import router as track_record_router
 from app.api.v1.profile import router as profile_router
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -164,6 +166,18 @@ async def _news_mispricing_loop() -> None:
             logger.error("News mispricing loop failed", exc_info=True)
 
 
+async def _unusual_flow_loop() -> None:
+    """Hourly unusual-flow anomaly scan (mirrors ``cron(unusual_flow_scan_task)``)."""
+    from app.workers.tasks import unusual_flow_scan_task
+
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await unusual_flow_scan_task({})
+        except Exception:
+            logger.error("Unusual flow loop failed", exc_info=True)
+
+
 async def _weather_scan_loop() -> None:
     """Hourly weather scan (mirrors ``cron(weather_scan_task, minute={40})``)."""
     from app.workers.tasks import weather_scan_task
@@ -237,6 +251,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_news_scan_loop())
     if settings.scheduler_news_mispricing_enabled:
         asyncio.create_task(_news_mispricing_loop())
+    if settings.scheduler_unusual_flow_enabled:
+        asyncio.create_task(_unusual_flow_loop())
     if settings.scheduler_weather_scan_enabled:
         asyncio.create_task(_weather_scan_loop())
     if settings.scheduler_morning_research_enabled:
@@ -373,6 +389,8 @@ app.include_router(clones_router)
 app.include_router(backtest_router)
 app.include_router(arb_router)
 app.include_router(observability_router)
+app.include_router(track_record_router)
+app.include_router(smart_money_router)
 app.include_router(profile_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)

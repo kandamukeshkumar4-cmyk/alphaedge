@@ -83,6 +83,7 @@ def train_walk_forward_xgboost_model(
     selection_bias_trials: int = 1,
     cpcv_group_count: int | None = None,
     cpcv_eval_group_count: int = 1,
+    model_type: str | None = None,
 ) -> dict[str, Any]:
     return train_walk_forward_xgboost_from_feature_matrix(
         _training_dataset(fixtures_dir),
@@ -98,6 +99,7 @@ def train_walk_forward_xgboost_model(
         selection_bias_trials=selection_bias_trials,
         cpcv_group_count=cpcv_group_count,
         cpcv_eval_group_count=cpcv_eval_group_count,
+        model_type=model_type,
     )
 
 
@@ -116,6 +118,7 @@ def train_walk_forward_xgboost_from_feature_matrix(
     selection_bias_trials: int = 1,
     cpcv_group_count: int | None = None,
     cpcv_eval_group_count: int = 1,
+    model_type: str | None = None,
 ) -> dict[str, Any]:
     df = df.sort_values("captured_at").reset_index(drop=True)
     feature_columns = _feature_columns(df)
@@ -141,6 +144,7 @@ def train_walk_forward_xgboost_from_feature_matrix(
             train_df,
             eval_df,
             feature_columns,
+            model_type=model_type,
         )
         raw_probs = model.predict_proba(eval_df[feature_columns].values)[:, 1]
         calibrated_probs = calibrator.predict(raw_probs)
@@ -194,6 +198,7 @@ def train_walk_forward_xgboost_from_feature_matrix(
         df,
         df,
         feature_columns,
+        model_type=model_type,
     )
     paths = _persist_artifacts(model, calibrator, artifact_dir)
     evaluation = evaluate_forecasts_against_closing(comparisons)
@@ -380,6 +385,8 @@ def _fit_calibrated_model(
     train_df: pd.DataFrame,
     eval_df: pd.DataFrame,
     feature_columns: list[str],
+    *,
+    model_type: str | None = None,
 ):
     X_train = train_df[feature_columns].values
     y_train = train_df["winner_yes"].values
@@ -391,7 +398,7 @@ def _fit_calibrated_model(
         from app.core.config import get_settings
         from app.ml.model_registry import build_classifier
 
-        model = build_classifier(get_settings().ml_model_type)
+        model = build_classifier(model_type or get_settings().ml_model_type)
         model.fit(X_train, y_train)
     train_probs = model.predict_proba(X_train)[:, 1]
     probs = model.predict_proba(X_eval)[:, 1]

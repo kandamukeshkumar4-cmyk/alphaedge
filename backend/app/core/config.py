@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     scheduler_news_mispricing_enabled: bool = Field(
         default=True, alias="SCHEDULER_NEWS_MISPRICING_ENABLED"
     )
+    scheduler_unusual_flow_enabled: bool = Field(
+        default=True, alias="SCHEDULER_UNUSUAL_FLOW_ENABLED"
+    )
     scheduler_weather_scan_enabled: bool = Field(
         default=True, alias="SCHEDULER_WEATHER_SCAN_ENABLED"
     )
@@ -221,6 +224,16 @@ class Settings(BaseSettings):
     news_mispricing_threshold: float = Field(default=0.05, alias="NEWS_MISPRICING_THRESHOLD")
     news_mispricing_window_sec: float = Field(
         default=900.0, alias="NEWS_MISPRICING_WINDOW_SEC"
+    )
+    # Unusual-flow anomaly (G04): price jump / volume spike with no news in window
+    unusual_flow_enabled: bool = Field(default=True, alias="ANOMALY_UNUSUAL_FLOW_ENABLED")
+    unusual_flow_window_sec: float = Field(
+        default=900.0, alias="ANOMALY_UNUSUAL_FLOW_WINDOW_SEC"
+    )
+    # How far back the scan looks for recent delta:price_jump / delta:volume_surge
+    # events (also the per-market anomaly dedupe horizon).
+    unusual_flow_lookback_sec: float = Field(
+        default=3600.0, alias="ANOMALY_UNUSUAL_FLOW_LOOKBACK_SEC"
     )
     # Analyst agent (T07)
     analyst_enabled: bool = Field(default=True, alias="ANALYST_ENABLED")

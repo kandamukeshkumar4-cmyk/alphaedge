@@ -333,6 +333,152 @@ async def run_news_mispricing_scan(session) -> dict:
     return {"scanned": len(rows), "emitted": len(events)}
 
 
+UNUSUAL_FLOW_JOB_NAME = "unusual_flow_scan_task"
+
+
+async def unusual_flow_scan_task(ctx: dict) -> dict:
+    """G04: emit ``anomaly:unusual_flow`` when a price jump / volume spike has
+    NO matching news item in the window. Analysis only — no order path.
+    """
+    from app.core.config import get_settings
+    from app.db.session import AsyncSessionLocal
+
+    settings = get_settings()
+    if not settings.unusual_flow_enabled:
+        return {"scanned": 0, "emitted": 0, "skipped": "disabled"}
+
+    async with AsyncSessionLocal() as session:
+        result = await run_unusual_flow_scan(session)
+        await session.commit()
+    return {"scanned": result.get("scanned", 0), "emitted": result.get("emitted", 0)}
+
+
+async def run_unusual_flow_scan(session) -> dict:
+    """Core of unusual_flow_scan_task (testable; inject news via monkeypatch).
+
+    Candidates come from the diff engine's persisted ``delta:price_jump`` /
+    ``delta:volume_surge`` SignalEvents (single source of truth for "the market
+    moved"); the news-window check is shared with G03 via
+    ``news_in_window`` inside ``evaluate_unusual_flow``.
+    """
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from sqlalchemy import select as _select
+
+    from app.core.config import get_settings
+    from app.db.models import Market as _Market
+    from app.db.models import SignalEvent
+    from app.signals.news_signal import fetch_news_signal
+    from app.signals.unusual_flow import (
+        ANOMALY_UNUSUAL_FLOW_SIGNAL_TYPE,
+        UnusualFlowInput,
+        unusual_flow_to_events,
+    )
+
+    settings = get_settings()
+    now = _dt.now(_UTC)
+    cutoff = now - _td(seconds=settings.unusual_flow_lookback_sec)
+
+    delta_rows = (
+        (
+            await session.execute(
+                _select(SignalEvent)
+                .where(
+                    SignalEvent.signal_type.in_(
+                        ("delta:price_jump", "delta:volume_surge")
+                    ),
+                    SignalEvent.created_at >= cutoff,
+                )
+                .order_by(SignalEvent.created_at.desc())
+                .limit(200)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Per-market anomaly dedupe: one anomaly per market per lookback horizon.
+    already_flagged = set(
+        (
+            await session.execute(
+                _select(SignalEvent.market_id).where(
+                    SignalEvent.signal_type == ANOMALY_UNUSUAL_FLOW_SIGNAL_TYPE,
+                    SignalEvent.created_at >= cutoff,
+                )
+            )
+        ).scalars()
+    )
+
+    # Newest delta per market wins (rows are newest-first).
+    latest_by_market: dict[str, SignalEvent] = {}
+    for row in delta_rows:
+        if row.market_id in already_flagged:
+            continue
+        latest_by_market.setdefault(row.market_id, row)
+
+    candidates: list[UnusualFlowInput] = []
+    for slug, delta in latest_by_market.items():
+        try:
+            title = await session.scalar(
+                _select(_Market.title).where(_Market.slug == slug)
+            )
+            if not title:
+                continue  # unjoinable slug — no title to search news for
+            payload = delta.payload if isinstance(delta.payload, dict) else {}
+            occurred_ts = _parse_occurred_ts(payload.get("occurred_ts")) or (
+                delta.created_at
+                if delta.created_at.tzinfo is not None
+                else delta.created_at.replace(tzinfo=_UTC)
+            )
+            signal = await fetch_news_signal(title)
+            if signal is not None and signal.published_at is None:
+                # News exists but carries no timestamp: conservatively assume
+                # it is a fresh catalyst — never flag an anomaly on ambiguity.
+                continue
+            candidates.append(
+                UnusualFlowInput(
+                    market_slug=slug,
+                    platform=delta.platform or "stream",
+                    kind=str(payload.get("kind") or delta.signal_type.split(":")[-1]),
+                    direction=str(payload.get("direction") or ""),
+                    magnitude=float(payload.get("magnitude") or 0.0),
+                    occurred_ts=occurred_ts,
+                    news_ts=signal.published_at if signal is not None else None,
+                    headline=signal.headline if signal is not None else "",
+                    detail=(
+                        payload.get("detail")
+                        if isinstance(payload.get("detail"), dict)
+                        else {}
+                    ),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - per-market isolation
+            logger.warning("unusual flow scan failed for %s: %s", slug, exc)
+
+    events = unusual_flow_to_events(
+        candidates, window_sec=settings.unusual_flow_window_sec
+    )
+    for event in events:
+        session.add(SignalEvent(**event))
+    await session.flush()
+    return {"scanned": len(latest_by_market), "emitted": len(events)}
+
+
+def _parse_occurred_ts(value: object):
+    """Parse an ISO occurred_ts from a delta payload; None when absent/invalid."""
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = _dt.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=_UTC)
+
+
 WEATHER_SCAN_JOB_NAME = "weather_scan_task"
 
 
@@ -850,6 +996,7 @@ class WorkerSettings:
         fetch_news_signals_task,
         news_scan_task,
         news_mispricing_scan_task,
+        unusual_flow_scan_task,
         wc2026_resolve_task,
         refresh_whales_task,
         snapshot_whale_positions_task,
@@ -866,6 +1013,7 @@ class WorkerSettings:
         cron(fetch_news_signals_task, minute={30}),  # every hour at :30
         cron(news_scan_task, minute={35}),  # B04: news -> news_arrival events hourly
         cron(news_mispricing_scan_task, minute={45}),  # G03: news -> news:mispricing
+        cron(unusual_flow_scan_task, minute={55}),  # G04: move w/o news -> anomaly
         cron(weather_scan_task, minute={40}),  # O04: NWS-vs-Kalshi weather edges hourly
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
