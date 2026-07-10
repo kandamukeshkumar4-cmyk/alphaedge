@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { PageHeader, PageShell } from "@/components/ui/kit";
+import { ModelAbCard } from "@/components/ModelAbCard";
 const API = API_BASE;
 
 type EvalAggregates = Record<string, number>;
@@ -169,6 +170,9 @@ export default function EvalDashboard() {
           </div>
         )}
       </section>
+
+      {/* ── W03 LightGBM-vs-XGBoost walk-forward A/B readout ── */}
+      <ModelAbCard />
     </PageShell>
   );
 }

@@ -8,6 +8,7 @@ import { AlertToast } from "@/components/AlertToast";
 import { ApiHealthChip } from "@/components/ApiHealthChip";
 import { HeaderMoreMenu, MORE_NAV } from "@/components/HeaderMoreMenu";
 import { HeaderSearch } from "@/components/HeaderSearch";
+import { AlertsBell } from "@/components/AlertsBell";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -157,6 +158,7 @@ export function SiteHeader() {
                 />
               </>
             )}
+            <AlertsBell />
             <NotificationBell slugs={catalogSlugs} />
             <button
               className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"

@@ -21,6 +21,7 @@ import { ResolutionBanner } from "@/components/ResolutionBanner";
 import { PredictionWidget } from "@/components/PredictionWidget";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
 import { LatencyBadge } from "@/components/LatencyBadge";
+import { WatchlistStar } from "@/components/WatchlistStar";
 import { OrderbookDepthChart } from "@/components/OrderbookDepthChart";
 import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChart";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
@@ -149,6 +150,7 @@ export default function MarketDetailClient({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+          <WatchlistStar slug={market.slug} />
           <button
             type="button"
             onClick={() =>
