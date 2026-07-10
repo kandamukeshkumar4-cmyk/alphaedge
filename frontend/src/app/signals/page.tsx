@@ -31,6 +31,20 @@ const SIGNAL_FILTERS: { value: SignalCategory | "all"; label: string }[] = [
   { value: "anomaly", label: "Unusual flow" },
 ];
 
+// P09: explain honestly WHY there is no arb signal, from the page counts.
+function arbEmptyReason(arb: ArbOpportunitiesPage | null): string {
+  if (!arb) {
+    return "Live arb data not reached — start the backend or set NEXT_PUBLIC_API_URL.";
+  }
+  if (arb.stale_count > 0 && arb.fresh_count === 0) {
+    return `${arb.stale_count} matched pair${arb.stale_count === 1 ? "" : "s"} found, but every quote is past its freshness window (stale) — waiting on fresh books.`;
+  }
+  if (arb.total === 0) {
+    return "No matched pair — the matcher found no entity- and date-aligned Polymarket ↔ Kalshi market to compare.";
+  }
+  return "Matched pairs exist but none cleared the confidence and spread bar for a signal.";
+}
+
 export default function SignalsPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const apiConfigured = hasLiveApi();
@@ -149,8 +163,13 @@ export default function SignalsPage() {
           </span>
         </div>
         {!arb || arb.opportunities.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted">
-            No cross-platform arb signals right now
+          <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-6 text-sm text-muted">
+            <p className="font-semibold text-text">No cross-venue arb signal right now.</p>
+            <p className="mt-1">{arbEmptyReason(arb)}</p>
+            <p className="mt-2 text-xs text-muted-2">
+              Signal only — no order is ever placed. A matched pair must be entity- and
+              date-aligned, clear the confidence bar, and have a fresh quote to surface here.
+            </p>
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
@@ -168,18 +187,40 @@ export default function SignalsPage() {
                 </p>
                 <p className="mt-1 text-sm font-bold text-text">{opp.pm_title}</p>
                 <p className="text-xs text-muted">{opp.kalshi_title}</p>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
                   <div>
                     <dt className="text-[10px] font-bold uppercase text-muted">Edge</dt>
                     <dd className="font-mono font-bold text-text">{opp.theoretical_edge}</dd>
                   </div>
                   <div>
+                    <dt className="text-[10px] font-bold uppercase text-muted">Spread</dt>
+                    <dd className="font-mono font-bold text-text">{opp.spread_bps} bps</dd>
+                  </div>
+                  <div>
                     <dt className="text-[10px] font-bold uppercase text-muted">Match</dt>
                     <dd className="font-mono font-bold text-text">
-                      {Math.round(opp.match_confidence * 100)}%
+                      {Math.round((opp.confidence ?? opp.match_confidence) * 100)}%
                     </dd>
                   </div>
                 </dl>
+                {opp.legs.length > 0 ? (
+                  <ul className="mt-3 space-y-1 border-t border-border/70 pt-2">
+                    {opp.legs.map((leg, i) => (
+                      <li
+                        key={`${leg.platform}-${leg.market_id}-${i}`}
+                        className="flex items-center justify-between gap-2 font-mono text-[11px] text-muted"
+                      >
+                        <span className="truncate">
+                          {leg.platform} · {leg.outcome}
+                        </span>
+                        <span className="shrink-0 text-text">
+                          {leg.price}
+                          {Number(leg.fee) ? ` · fee ${leg.fee}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   <Link
                     href={`/markets/view?slug=${encodeURIComponent(opp.pm_market_id)}`}
