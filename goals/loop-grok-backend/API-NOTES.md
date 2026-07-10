@@ -97,3 +97,41 @@ Example payload:
   }
 }
 ```
+
+## G04 (2026-07-09)
+
+New persisted signal type (no new HTTP route — surfaces via existing
+`GET /api/v1/activity/signals/events` and feed). Inverse of G03: the market
+moved but no news item exists in the window. Neutral wording only — "no public
+catalyst found" is an observation, never an accusation.
+
+| field | value |
+|-------|-------|
+| `signal_type` | `anomaly:unusual_flow` |
+| config | `ANOMALY_UNUSUAL_FLOW_ENABLED=true` (default), window `900s`, lookback `3600s` |
+| scheduler | `SCHEDULER_UNUSUAL_FLOW_ENABLED=true` (default) |
+| sources | candidates = diff-engine `delta:price_jump` / `delta:volume_surge` events; news check shared with G03 via `news_in_window` |
+
+Example payload:
+
+```json
+{
+  "signal_type": "anomaly:unusual_flow",
+  "platform": "polymarket",
+  "market_id": "pm-will-lakers-beat-celtics",
+  "payload": {
+    "paper_trading_only": true,
+    "kind": "price_jump",
+    "direction": "up",
+    "magnitude": 0.08,
+    "occurred_ts": "2026-07-09T18:00:00+00:00",
+    "window_sec": 900.0,
+    "catalyst": "none_found",
+    "note": "No public catalyst found in the news window.",
+    "no_news_reason": "no_news_found",
+    "last_news_ts": null,
+    "headline": "",
+    "detail": {"prev": 0.5, "curr": 0.58, "bps": 800.0}
+  }
+}
+```

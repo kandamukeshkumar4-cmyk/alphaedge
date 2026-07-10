@@ -11,6 +11,34 @@ from typing import Any
 
 NEWS_MISPRICING_SIGNAL_TYPE = "news:mispricing"
 
+# Clock-skew allowance: a news timestamp slightly in the future (feed clock
+# drift) still counts as "now", anything further ahead is rejected.
+NEWS_FUTURE_SKEW_SEC = 60.0
+
+
+def news_in_window(
+    news_ts: datetime,
+    *,
+    now: datetime,
+    window_sec: float,
+    future_skew_sec: float = NEWS_FUTURE_SKEW_SEC,
+) -> tuple[bool, str]:
+    """Single source of truth for "was there news in the window" (G03/G04).
+
+    Returns ``(in_window, reason)`` where reason is one of ``fresh`` /
+    ``news_in_future`` / ``news_stale``. ``now`` is the reference instant the
+    window is anchored to (scan time for G03; the price/volume move time for
+    G04's inverse check).
+    """
+    ts = news_ts if news_ts.tzinfo is not None else news_ts.replace(tzinfo=UTC)
+    current = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    age = (current - ts).total_seconds()
+    if age < -future_skew_sec:
+        return False, "news_in_future"
+    if age > window_sec:
+        return False, "news_stale"
+    return True, "fresh"
+
 
 @dataclass(frozen=True)
 class NewsMispricingInput:
@@ -47,13 +75,11 @@ def evaluate_news_mispricing(
       a 60s clock skew allowance)
     - ``abs(model_p - market_p) >= threshold``
     """
-    ts = news_ts if news_ts.tzinfo is not None else news_ts.replace(tzinfo=UTC)
-    current = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
-    age = (current - ts).total_seconds()
-    if age < -60:
-        return NewsMispricingResult(emit=False, gap=0.0, reason="news_in_future")
-    if age > window_sec:
-        return NewsMispricingResult(emit=False, gap=0.0, reason="news_stale")
+    in_window, window_reason = news_in_window(
+        news_ts, now=now, window_sec=window_sec
+    )
+    if not in_window:
+        return NewsMispricingResult(emit=False, gap=0.0, reason=window_reason)
     gap = abs(float(model_p) - float(market_p))
     if gap < threshold:
         return NewsMispricingResult(emit=False, gap=gap, reason="gap_below_threshold")

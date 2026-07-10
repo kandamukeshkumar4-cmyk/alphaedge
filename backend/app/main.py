@@ -164,6 +164,18 @@ async def _news_mispricing_loop() -> None:
             logger.error("News mispricing loop failed", exc_info=True)
 
 
+async def _unusual_flow_loop() -> None:
+    """Hourly unusual-flow anomaly scan (mirrors ``cron(unusual_flow_scan_task)``)."""
+    from app.workers.tasks import unusual_flow_scan_task
+
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await unusual_flow_scan_task({})
+        except Exception:
+            logger.error("Unusual flow loop failed", exc_info=True)
+
+
 async def _weather_scan_loop() -> None:
     """Hourly weather scan (mirrors ``cron(weather_scan_task, minute={40})``)."""
     from app.workers.tasks import weather_scan_task
@@ -237,6 +249,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_news_scan_loop())
     if settings.scheduler_news_mispricing_enabled:
         asyncio.create_task(_news_mispricing_loop())
+    if settings.scheduler_unusual_flow_enabled:
+        asyncio.create_task(_unusual_flow_loop())
     if settings.scheduler_weather_scan_enabled:
         asyncio.create_task(_weather_scan_loop())
     if settings.scheduler_morning_research_enabled:

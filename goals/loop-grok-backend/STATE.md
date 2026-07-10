@@ -103,7 +103,7 @@ timestamp) → emit signal citing the news item id/url. Reuse news_signal
 pipeline + ForecastService. Fixture-driven tests. Registered in scheduler
 behind a config flag (default on).
 
-### G04 — Unusual-activity (anomaly) signal (TODO)
+### G04 — Unusual-activity (anomaly) signal (DONE 2026-07-09)
 Inverse of G03: `anomaly:unusual_flow` — price jump / volume spike with NO
 matching news item in the window. Neutral wording ("no public catalyst
 found"). Fixture tests: jump+news → NO anomaly; jump+no-news → anomaly.
@@ -145,3 +145,4 @@ tools' underlying services. Read-only. Tests with fixtures.
 | 2 | 2026-07-09 | G01 | DONE | `app/services/venues/` protocol + Polymarket/Kalshi adapters wrapping existing connectors + registry. Fixture tests in `tests/test_venue_adapters.py` (+ `tests/fixtures/venues/`). `ATTRIBUTIONS.md` for pmxt MIT idea credit. No new HTTP endpoints. Gate: `1160 passed, 28 skipped`; ruff `All checks passed`. AutoLab: n/a (adapter seam; matcher accuracy is G02) |
 | 3 | 2026-07-09 | G02 | DONE | Hard date reject in `match_resolution_terms`; `match_venue_markets` + `VenueMatchService` + `VenueMarketMatch` table (alembic 034). Additive arb fields `confidence`/`spread_bps`/`legs` (+ existing `stale`). Fixture `match_pairs_20.json` + `test_arb_g02_matcher.py`. Gate: `1165 passed, 28 skipped`; ruff clean. AutoLab: baseline=1160 pytest | benchmark=≥16/20 match, 0 FP | iterations=1 (16/16 TP, 0 FP) | budget=1/3 | outcome=improved |
 | 4 | 2026-07-09 | G03 | DONE | `news:mispricing` evaluator + scan task + scheduler flag (default on). NewsSignal citation fields; fixture tests. Gate: `1168 passed, 28 skipped`; ruff clean. AutoLab: n/a (signal emit correctness via fixtures) |
+| 5 | 2026-07-09 | G04 | DONE | `anomaly:unusual_flow` — shared `news_in_window` extracted from G03 (single source of truth); candidates from diff-engine `delta:price_jump`/`delta:volume_surge` events; neutral wording ("no public catalyst found"); per-market dedupe; scheduler flag `SCHEDULER_UNUSUAL_FLOW_ENABLED` (default on). Fixture tests: jump+news → NO anomaly, jump+no-news → anomaly, stale-news → anomaly, dedupe, disabled flag. Gate: `1173 passed, 28 skipped`; ruff `All checks passed`. AutoLab: not applicable (no iterative measure) |
