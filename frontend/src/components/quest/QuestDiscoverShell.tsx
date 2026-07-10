@@ -25,6 +25,7 @@ const INTELLIGENCE_LINKS = [
   { href: "/clones", label: "Clones", blurb: "Paper agent clones" },
   { href: "/backtest", label: "Backtest", blurb: "Replay paper fills" },
   { href: "/track-record", label: "Track record", blurb: "Analyst scoreboard" },
+  { href: "/smart-money", label: "Smart money", blurb: "Whale flow & concentration" },
   { href: "/feed", label: "Feed", blurb: "Live activity stream" },
   { href: "/leaderboard", label: "Leaderboard", blurb: "Paper P&L ranks" },
 ] as const;
