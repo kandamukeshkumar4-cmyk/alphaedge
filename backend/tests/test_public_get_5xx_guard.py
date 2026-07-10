@@ -48,6 +48,7 @@ MUST_COVER = (
     "/api/v1/backtest/summary",
     "/api/v1/alerts/feed",
     "/api/v1/alerts/digest",
+    "/api/v1/home",
 )
 
 # Public GETs that authenticate *optionally* (get_optional_user) carry an
@@ -56,6 +57,7 @@ MUST_COVER = (
 # force-included: they are genuinely public and must survive edge-case data.
 OPTIONAL_AUTH_PUBLIC_GETS = (
     "/api/v1/alerts/feed",
+    "/api/v1/home",
 )
 
 

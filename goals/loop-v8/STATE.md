@@ -99,3 +99,4 @@ new heavy read paths. All in-app, no external rails.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | M01 | done | `GET /api/v1/home` personalized aggregate (signals+H03 citations, L02 digest, model-A/B readiness, top markets; authed watchlist enrichment). test_home_api.py 3/3 + I01 guard; full: 1261 passed, 28 skipped; ruff clean. AutoLab: not applicable (no iterative measure) — one-shot additive read-only composition. |
