@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
 import { ChartDrawingToolbar } from "@/components/quest/ChartDrawingToolbar";
+import { DecisionCard } from "@/components/DecisionCard";
 import { PriceChart } from "@/components/PriceChart";
 import { OrderBook } from "@/components/OrderBook";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
@@ -378,12 +379,15 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
                 </button>
               </div>
             ) : market ? (
-              <div className="[&>div]:rounded-lg [&>div]:border-border">
+              <div className="space-y-3 [&>div]:rounded-lg [&>div]:border-border">
                 <MarketTradingPanel
                   slug={market.slug}
                   title={market.title}
                   initialYesPrice={market.outcomes[0]?.price ?? 0.5}
                 />
+                {/* P08: reuse the advisory DecisionCard (verdict + edge + CLV gate)
+                    on the primary trade surface — analysis only, no order path. */}
+                <DecisionCard slug={market.slug} />
               </div>
             ) : (
               <div className="skeleton h-48 w-full rounded-lg" />
