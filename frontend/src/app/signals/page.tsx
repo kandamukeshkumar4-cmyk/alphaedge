@@ -10,7 +10,10 @@ import {
 } from "@/lib/arb-api";
 import { cn } from "@/lib/cn";
 import { fetchSignalsDashboard } from "@/lib/signals-dashboard-api";
-import { buildSignalsDashboardView } from "@/lib/signals-dashboard-view-model";
+import {
+  buildSignalsDashboardView,
+  type SignalCategory,
+} from "@/lib/signals-dashboard-view-model";
 import { PageHeader, PageShell } from "@/components/ui/kit";
 
 type Notice = {
@@ -18,14 +21,44 @@ type Notice = {
   text: string;
 };
 
+// P05: filter pills for the specialised signal families the backend emits.
+const SIGNAL_FILTERS: { value: SignalCategory | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "screener", label: "Screeners" },
+  { value: "weather", label: "Weather edge" },
+  { value: "dutching", label: "Dutching" },
+  { value: "news", label: "News" },
+  { value: "anomaly", label: "Unusual flow" },
+];
+
 export default function SignalsPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const apiConfigured = hasLiveApi();
   const [loading, setLoading] = useState(apiConfigured);
   const [dashboard, setDashboard] = useState<Awaited<ReturnType<typeof fetchSignalsDashboard>>>(null);
   const [arb, setArb] = useState<ArbOpportunitiesPage | null>(null);
+  const [signalFilter, setSignalFilter] = useState<SignalCategory | "all">("all");
 
   const view = useMemo(() => buildSignalsDashboardView(dashboard), [dashboard]);
+
+  const filterCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: view.signalCards.length };
+    for (const card of view.signalCards) {
+      counts[card.category] = (counts[card.category] ?? 0) + 1;
+    }
+    return counts;
+  }, [view.signalCards]);
+
+  const visibleSignalCards = useMemo(
+    () =>
+      signalFilter === "all"
+        ? view.signalCards
+        : view.signalCards.filter((card) => card.category === signalFilter),
+    [view.signalCards, signalFilter],
+  );
+
+  const activeFilterLabel =
+    SIGNAL_FILTERS.find((f) => f.value === signalFilter)?.label ?? "matching";
 
   async function loadDashboard() {
     const base = await ensureApiBase();
@@ -175,6 +208,29 @@ export default function SignalsPage() {
           <h2 className="text-lg font-black text-text">Signal feed</h2>
           <span className="text-xs text-muted">{view.signalCards.length} signals</span>
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          {SIGNAL_FILTERS.map((filter) => {
+            const count = filterCounts[filter.value] ?? 0;
+            const active = signalFilter === filter.value;
+            return (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setSignalFilter(filter.value)}
+                aria-pressed={active}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                  active
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-border bg-surface text-muted hover:border-border-light hover:text-text",
+                )}
+              >
+                {filter.label}
+                <span className="ml-1.5 font-mono text-[10px] text-muted-2">{count}</span>
+              </button>
+            );
+          })}
+        </div>
         {loading && view.signalCards.length === 0 ? (
           <div className="grid gap-4 md:grid-cols-2" aria-hidden>
             {Array.from({ length: 4 }, (_, i) => (
@@ -185,9 +241,20 @@ export default function SignalsPage() {
           <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
             No signals yet. When the system spots a move worth watching, it shows up here.
           </div>
+        ) : visibleSignalCards.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-10 text-center text-sm text-muted">
+            No {activeFilterLabel.toLowerCase()} signals in the current feed.{" "}
+            <button
+              type="button"
+              onClick={() => setSignalFilter("all")}
+              className="font-semibold text-accent underline hover:no-underline"
+            >
+              Show all
+            </button>
+          </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {view.signalCards.map((card) => (
+            {visibleSignalCards.map((card) => (
               <article
                 key={card.id}
                 className="rounded-2xl border border-border bg-surface p-4 shadow-sm"

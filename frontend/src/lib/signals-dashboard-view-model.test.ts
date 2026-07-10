@@ -2,9 +2,30 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSignalsDashboardView,
+  categorizeSignal,
   formatMarketLabel,
   formatSignalTypeLabel,
 } from "./signals-dashboard-view-model";
+
+describe("categorizeSignal", () => {
+  it("maps the specialised backend signal types to filter families", () => {
+    expect(categorizeSignal("screener:momentum")).toBe("screener");
+    expect(categorizeSignal("screener:expiry_fade")).toBe("screener");
+    expect(categorizeSignal("delta:weather_edge")).toBe("weather");
+    expect(categorizeSignal("dutching")).toBe("dutching");
+    expect(categorizeSignal("delta:news_arrival")).toBe("news");
+    expect(categorizeSignal("news:mispricing")).toBe("news");
+    expect(categorizeSignal("anomaly:unusual_flow")).toBe("anomaly");
+    expect(categorizeSignal("delta:price_jump")).toBe("anomaly");
+  });
+
+  it("routes anything else to 'other'", () => {
+    expect(categorizeSignal("alignment")).toBe("other");
+    expect(categorizeSignal("whale_delta")).toBe("other");
+    expect(categorizeSignal("arbitrage")).toBe("other");
+    expect(categorizeSignal("forecast")).toBe("other");
+  });
+});
 
 describe("formatMarketLabel", () => {
   it("keeps human titles as-is", () => {
