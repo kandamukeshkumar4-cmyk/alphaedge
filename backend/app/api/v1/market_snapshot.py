@@ -113,6 +113,42 @@ def _smart_money_note(summary: dict[str, Any]) -> str | None:
     return "; ".join(parts) + "."
 
 
+async def build_share_snapshot_core(db: AsyncSession, slug: str) -> dict[str, Any]:
+    """The compact per-market snapshot core reused by M02 and the O03 compare
+    surface: ``{found, slug, title, yes_price, edge, top_signal, arb_matched,
+    smart_money_note}``. An unknown slug returns an honest ``found: false`` with
+    null fields — never fabricated data, never raises."""
+    svc = MarketService(db)
+    market_model = await svc.get_market_by_slug(slug)
+    market = await svc.get_public_market_by_slug(slug)
+    if market_model is None or market is None:
+        return {
+            "found": False,
+            "slug": slug,
+            "title": None,
+            "yes_price": None,
+            "edge": None,
+            "top_signal": None,
+            "arb_matched": False,
+            "smart_money_note": None,
+        }
+
+    book = await OrderBookService(db).get_l2(market_model.id, depth=10)
+    edge = await _latest_edge(db, slug, book)
+    arb = await _arb_match(db, slug)
+    smart_money = await build_smart_money_summary(db, slug)
+    return {
+        "found": True,
+        "slug": slug,
+        "title": market.title,
+        "yes_price": market.yes_price,
+        "edge": _edge_oneliner(edge, book),
+        "top_signal": await _top_signal(db, slug),
+        "arb_matched": arb is not None,
+        "smart_money_note": _smart_money_note(smart_money),
+    }
+
+
 @router.get("/markets/{slug}/share-snapshot")
 async def get_market_share_snapshot(
     slug: str,
@@ -126,46 +162,9 @@ async def get_market_share_snapshot(
             # hit and a fresh build of the same content share one validator.
             return etag_json_response(request, {**cached_body, "cached": True})
 
-    svc = MarketService(db)
-    market_model = await svc.get_market_by_slug(slug)
-    market = await svc.get_public_market_by_slug(slug)
-    found = market_model is not None and market is not None
-
-    if not found:
-        # Honest 200 for an unknown slug — never a 404, never fabricated data.
-        response: dict[str, Any] = {
-            "found": False,
-            "slug": slug,
-            "title": None,
-            "yes_price": None,
-            "edge": None,
-            "top_signal": None,
-            "arb_matched": False,
-            "smart_money_note": None,
-            "paper_trading_only": settings.paper_trading_only,
-            "signal_only": True,
-            "disclaimer": SNAPSHOT_DISCLAIMER,
-            "generated_at": datetime.now(UTC).isoformat(),
-            "cached": False,
-        }
-        if settings.desk_cache_enabled:
-            snapshot_cache.put(slug, response)
-        return etag_json_response(request, response)
-
-    book = await OrderBookService(db).get_l2(market_model.id, depth=10)
-    edge = await _latest_edge(db, slug, book)
-    arb = await _arb_match(db, slug)
-    smart_money = await build_smart_money_summary(db, slug)
-
-    response = {
-        "found": True,
-        "slug": slug,
-        "title": market.title,
-        "yes_price": market.yes_price,
-        "edge": _edge_oneliner(edge, book),
-        "top_signal": await _top_signal(db, slug),
-        "arb_matched": arb is not None,
-        "smart_money_note": _smart_money_note(smart_money),
+    core = await build_share_snapshot_core(db, slug)
+    response: dict[str, Any] = {
+        **core,
         "paper_trading_only": settings.paper_trading_only,
         "signal_only": True,
         "disclaimer": SNAPSHOT_DISCLAIMER,

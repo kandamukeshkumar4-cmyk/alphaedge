@@ -150,3 +150,63 @@ Tests: `backend/tests/test_category_summary_api.py` — known-category aggregate
 accuracy), unknown honest, empty/whitespace honest; plus the I01 5xx guard sweep.
 
 ---
+
+## O03 — `GET /api/v1/compare?slugs=a,b[,c,d]`
+
+Side-by-side compact intelligence for 2-4 markets. Each entry reuses the M02
+share-snapshot **core** builder (`build_share_snapshot_core`, extracted from
+`market_snapshot.py` so the compare columns and the `/markets/{slug}/share-
+snapshot` card never diverge). **PUBLIC GET**, read-only.
+
+Query param:
+
+- **`slugs`** (optional) — comma-separated market slugs. Blanks and duplicates
+  are dropped (order preserved). More than 4 slugs are **clamped** to the first
+  4 (`clamped: true`). No slugs → honest empty `{entries: [], count: 0}`.
+
+Each entry (share-snapshot core shape):
+
+| field | type | notes |
+|-------|------|-------|
+| `found` | bool | `false` for an unknown slug — that entry only, never a 404 |
+| `slug` | string | the requested slug |
+| `title` | string\|null | market title (null when not found) |
+| `yes_price` | float\|null | latest odds-snapshot YES price |
+| `edge` | object\|null | `{model_p, market_p, edge}` one-liner, or null when no model prediction |
+| `top_signal` | object\|null | most-recent alert-family signal (`family`, `signal_type`, `created_at`, H03 `citation`) |
+| `arb_matched` | bool | a cross-venue arb match touches this slug |
+| `smart_money_note` | string\|null | short G07 smart-money one-liner, or null |
+
+Envelope: `{entries, count, requested (parsed slugs), clamped (bool), max_slugs
+(4), paper_trading_only, signal_only, disclaimer, generated_at}`. An unknown
+slug degrades to `{found:false}` for that entry only — the other columns still
+render. Swept by the I01 5xx guard (`/api/v1/compare`, optional `slugs` → honest
+empty under the sweep, in `MUST_COVER`).
+
+Response:
+
+```json
+{
+  "entries": [
+    {"found": true, "slug": "mkt-a", "title": "Market mkt-a", "yes_price": 0.5,
+     "edge": {"model_p": 0.62, "market_p": 0.5, "edge": 0.12},
+     "top_signal": null, "arb_matched": false, "smart_money_note": null},
+    {"found": false, "slug": "does-not-exist", "title": null, "yes_price": null,
+     "edge": null, "top_signal": null, "arb_matched": false,
+     "smart_money_note": null}
+  ],
+  "count": 2,
+  "requested": ["mkt-a", "does-not-exist"],
+  "clamped": false,
+  "max_slugs": 4,
+  "paper_trading_only": true,
+  "signal_only": true,
+  "disclaimer": "Market comparison — …",
+  "generated_at": "2026-07-10T…Z"
+}
+```
+
+Tests: `backend/tests/test_compare_api.py` — 2-market compare, unknown-per-entry
+honest, >4 clamp, no-slugs honest empty, dedupe/blank skip; plus the M02
+share-snapshot regression (`test_market_share_snapshot_api.py`) and the I01 5xx
+guard sweep.

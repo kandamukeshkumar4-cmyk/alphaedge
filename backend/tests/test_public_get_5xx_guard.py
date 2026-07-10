@@ -58,6 +58,7 @@ MUST_COVER = (
     "/api/v1/opportunities",
     "/api/v1/resolved",
     f"/api/v1/categories/{KNOWN_CATEGORY}/summary",
+    "/api/v1/compare",
 )
 
 # Public GETs that authenticate *optionally* (get_optional_user) carry an
