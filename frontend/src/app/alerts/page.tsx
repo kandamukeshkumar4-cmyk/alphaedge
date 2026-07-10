@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { AlertsDigest } from "@/components/AlertsDigest";
 import { MotionReveal } from "@/components/MotionReveal";
 import { SignalEvidenceBlock } from "@/components/SignalEvidence";
 import { PageHeader, PageShell } from "@/components/ui/kit";
@@ -80,6 +81,8 @@ export default function AlertsPage() {
         title="Signal alerts"
         subtitle={`Model mispricings, unusual flow, screener and cross-venue signals grouped by market. ${scopeNote} Research only — notify only, never trades.`}
       />
+
+      <AlertsDigest />
 
       <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Alert scope">
         <ScopeTabButton
