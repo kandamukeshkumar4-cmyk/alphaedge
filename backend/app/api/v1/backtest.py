@@ -333,22 +333,35 @@ async def _resolved_scored_rows(
 
 
 def _bet_stake_and_pnl(
-    user_p: float, implied_p: Optional[float], outcome: int
+    user_p: float,
+    implied_p: Optional[float],
+    outcome: int,
+    *,
+    edge_threshold: Optional[float] = None,
+    stake: float = 1.0,
 ) -> Optional[tuple[float, float]]:
-    """Flat-stake (1 contract) paper bet consistent with
+    """Flat-stake paper bet consistent with
     ``app.forecasting.scoring.synthetic_pnl``. Returns ``(staked, pnl)`` or
-    ``None`` when no bet is placed (anchored within epsilon, or no price)."""
+    ``None`` when no bet is placed (edge below the gate, or no price).
+
+    Defaults (``edge_threshold=None``, ``stake=1.0``) reproduce the original
+    1-contract behavior exactly: the bet gate is ``ANCHOR_EPSILON`` and both
+    ``staked`` and ``pnl`` are unscaled. ``edge_threshold`` only RAISES the gate
+    (floored at ``ANCHOR_EPSILON`` so near-zero-edge noise bets are never
+    fabricated); ``stake`` scales both ``staked`` and ``pnl`` by the same factor
+    (so ROI, which cancels the factor, is stake-invariant)."""
     if implied_p is None:
         return None
     diff = user_p - implied_p
-    if abs(diff) < ANCHOR_EPSILON:
+    gate = ANCHOR_EPSILON if edge_threshold is None else max(ANCHOR_EPSILON, edge_threshold)
+    if abs(diff) < gate:
         return None
     # Buy YES at implied when user > market; buy NO at (1 - implied) otherwise.
     staked = implied_p if diff > 0 else (1.0 - implied_p)
     if staked <= 0:
         return None
     pnl = compute_synthetic_pnl(user_p, implied_p, outcome)
-    return staked, pnl
+    return staked * stake, pnl * stake
 
 
 @router.get("/summary", response_model=BacktestSummaryResponse)
@@ -432,6 +445,17 @@ async def get_backtest_summary(
 BACKTEST_RUN_MIN_SAMPLE = 3
 # Hard cap on rows processed so a single public GET can never do unbounded work.
 BACKTEST_RUN_MAX_ROWS = 5_000
+
+# L01 — sane clamp ranges for the OPTIONAL self-serve strategy params. Out-of-range
+# inputs clamp (never 422/5xx) so the public GET stays robust under the I01 sweep.
+BACKTEST_RUN_EDGE_MIN = 0.0
+BACKTEST_RUN_EDGE_MAX = 1.0
+BACKTEST_RUN_STAKE_MIN = 0.01
+BACKTEST_RUN_STAKE_MAX = 1000.0
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, value))
 
 BACKTEST_RUN_DISCLAIMER = (
     "Self-serve walk-forward research metrics for ONE market's REAL resolved "
@@ -543,19 +567,46 @@ async def _resolved_scored_rows_for_market(
 @router.get("/run", response_model=BacktestRunSlugResponse)
 async def run_backtest_for_market(
     slug: str = Query(..., description="Market external_id to backtest"),
+    edge_threshold: Optional[float] = Query(
+        None,
+        description=(
+            "L01 OPTIONAL: minimum |model - market| edge to place a paper bet. "
+            f"Clamped to [{BACKTEST_RUN_EDGE_MIN}, {BACKTEST_RUN_EDGE_MAX}] and "
+            "floored at the anchor epsilon. Omit to reproduce K01 exactly."
+        ),
+    ),
+    stake: float = Query(
+        1.0,
+        description=(
+            "L01 OPTIONAL: flat stake per bet (scales pnl and staked equally; "
+            f"ROI is stake-invariant). Clamped to [{BACKTEST_RUN_STAKE_MIN}, "
+            f"{BACKTEST_RUN_STAKE_MAX}]. Default 1.0 reproduces K01 exactly."
+        ),
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> BacktestRunSlugResponse:
     """Deterministic walk-forward Brier + flat-stake ROI for ONE market's
-    resolved forecast history (K01).
+    resolved forecast history (K01, extended by L01).
 
     PUBLIC GET, read-only, bounded compute. ANY failure degrades to an honest
     ``{ran: false, reason, slug}`` at HTTP 200 — never a 5xx (this route is
     swept by the I01 public-GET guard). Reuses the same resolved-forecast
     source and bet math as ``/backtest/summary``.
+
+    L01: OPTIONAL ``edge_threshold`` and ``stake`` tune the paper-bet strategy.
+    Both clamp to sane ranges; omitting BOTH reproduces K01's body byte-for-byte.
+    Brier metrics are over ALL scored forecasts and are unaffected by these
+    params — only the bet count / staked / pnl / roi respond.
     """
     slug = (slug or "").strip()
     if not slug:
         return _not_ran(slug, "empty_slug")
+    # Clamp the OPTIONAL strategy params to sane ranges (never 422/5xx).
+    if edge_threshold is not None:
+        edge_threshold = _clamp(
+            float(edge_threshold), BACKTEST_RUN_EDGE_MIN, BACKTEST_RUN_EDGE_MAX
+        )
+    stake = _clamp(float(stake), BACKTEST_RUN_STAKE_MIN, BACKTEST_RUN_STAKE_MAX)
     try:
         market_exists, rows = await _resolved_scored_rows_for_market(session, slug)
         if not market_exists:
@@ -583,7 +634,13 @@ async def run_backtest_for_market(
             if implied_p is not None:
                 market_brier_sum += (implied_p - outcome) ** 2
                 market_brier_n += 1
-            bet = _bet_stake_and_pnl(user_p, implied_p, outcome)
+            bet = _bet_stake_and_pnl(
+                user_p,
+                implied_p,
+                outcome,
+                edge_threshold=edge_threshold,
+                stake=stake,
+            )
             if bet is not None:
                 staked, pnl = bet
                 cum_staked += staked

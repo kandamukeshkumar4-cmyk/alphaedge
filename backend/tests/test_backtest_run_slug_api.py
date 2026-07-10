@@ -165,3 +165,76 @@ async def test_run_empty_slug_is_honest_not_ran():
     body = response.json()
     assert body["ran"] is False
     assert body["reason"] == "empty_slug"
+
+
+# ---------------------------------------------------------------------------
+# L01 — OPTIONAL edge_threshold + stake strategy params (additive, clamped).
+# ---------------------------------------------------------------------------
+
+_L01_SPECS = [(0.7, 0.5, 1), (0.8, 0.6, 1), (0.9, 0.5, 1)]  # diffs 0.2, 0.2, 0.4
+
+
+@pytest.mark.asyncio
+async def test_default_params_reproduce_k01_byte_for_byte(db_session):
+    """Omitting BOTH params (and passing the documented defaults) must yield the
+    exact same K01 body — the additive params never perturb default output."""
+    await _seed_market(db_session, "mkt-good", _L01_SPECS)
+    plain = (await _get("/api/v1/backtest/run?slug=mkt-good")).json()
+    with_defaults = (
+        await _get("/api/v1/backtest/run?slug=mkt-good&stake=1.0")
+    ).json()
+    assert plain == with_defaults
+    # And still the documented K01 numbers.
+    assert plain["n_bets"] == 3
+    assert plain["total_staked"] == pytest.approx(1.6, abs=1e-9)
+    assert plain["total_pnl"] == pytest.approx(1.4, abs=1e-9)
+    assert plain["brier_score"] == pytest.approx(0.046667, abs=1e-5)
+
+
+@pytest.mark.asyncio
+async def test_edge_threshold_filters_bets(db_session):
+    """A higher edge gate places fewer bets; Brier (over ALL forecasts) is
+    unchanged. edge_threshold=0.3 → only the diff-0.4 forecast bets."""
+    await _seed_market(db_session, "mkt-good", _L01_SPECS)
+    body = (
+        await _get("/api/v1/backtest/run?slug=mkt-good&edge_threshold=0.3")
+    ).json()
+    assert body["ran"] is True
+    assert body["n"] == 3
+    assert body["n_bets"] == 1  # only diff 0.4 >= 0.3
+    assert body["total_staked"] == pytest.approx(0.5, abs=1e-9)
+    assert body["total_pnl"] == pytest.approx(0.5, abs=1e-9)
+    assert body["roi"] == pytest.approx(1.0, abs=1e-9)
+    # Brier is over all scored forecasts, not the bet subset — unchanged.
+    assert body["brier_score"] == pytest.approx(0.046667, abs=1e-5)
+
+
+@pytest.mark.asyncio
+async def test_stake_scales_pnl_and_staked_roi_invariant(db_session):
+    """A flat stake scales pnl and staked by the same factor; ROI is invariant."""
+    await _seed_market(db_session, "mkt-good", _L01_SPECS)
+    body = (await _get("/api/v1/backtest/run?slug=mkt-good&stake=10")).json()
+    assert body["n_bets"] == 3
+    assert body["total_staked"] == pytest.approx(16.0, abs=1e-6)  # 1.6 * 10
+    assert body["total_pnl"] == pytest.approx(14.0, abs=1e-6)  # 1.4 * 10
+    assert body["roi"] == pytest.approx(1.4 / 1.6, abs=1e-6)  # invariant
+
+
+@pytest.mark.asyncio
+async def test_out_of_range_params_clamp(db_session):
+    """Out-of-range params clamp (never 422/5xx). stake=99999 → 1000;
+    edge_threshold=5 → 1.0 (no diff reaches 1.0, so zero bets)."""
+    await _seed_market(db_session, "mkt-good", _L01_SPECS)
+    hi = (
+        await _get(
+            "/api/v1/backtest/run?slug=mkt-good&stake=99999&edge_threshold=5"
+        )
+    ).json()
+    assert hi["ran"] is True
+    assert hi["n_bets"] == 0  # edge_threshold clamped to 1.0 → no bets
+    assert hi["total_staked"] == pytest.approx(0.0, abs=1e-9)
+    assert hi["roi"] is None
+    # A tiny/negative stake clamps up to the floor (0.01), still runs.
+    lo = (await _get("/api/v1/backtest/run?slug=mkt-good&stake=0")).json()
+    assert lo["n_bets"] == 3
+    assert lo["total_staked"] == pytest.approx(1.6 * 0.01, abs=1e-9)

@@ -93,3 +93,4 @@ send (email/SMS/webhook) which would breach the no-external-rails guardrail.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | L01 | green | pytest 10 passed (backtest_run_slug + 5xx guard), ruff clean. edge_threshold+stake OPTIONAL params, clamped, default==K01 byte-for-byte. AutoLab: baseline=K01 green | benchmark=test_default_params_reproduce_k01_byte_for_byte | iterations=1 (params additive, no perturbation) | budget=1/3 | outcome=improved |
