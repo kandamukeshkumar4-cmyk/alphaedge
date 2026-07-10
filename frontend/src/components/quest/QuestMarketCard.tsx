@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatCompactUSD, type Market } from "@/lib/mock-data";
 import { marketHref } from "@/lib/market-href";
 import { useAtlasPanel } from "@/context/atlas-panel";
+import { WatchlistStar } from "@/components/WatchlistStar";
 
 // Questflow-style grid card: name, live price, 24h change, volume, sparkline,
 // then Long / Short / AI Analyze action row.
@@ -24,12 +25,12 @@ export function QuestMarketCard({ market }: { market: Market }) {
   return (
     <div
       className={cn(
-        "group flex flex-col rounded-[10px] border border-border bg-surface p-3 transition hover:border-border-light hover:shadow-card",
+        "group relative flex flex-col rounded-[10px] border border-border bg-surface p-3 transition hover:border-border-light hover:shadow-card",
         live.flash === "up" && "animate-flash-green",
         live.flash === "down" && "animate-flash-red",
       )}
     >
-      <Link href={marketHref(market.slug)} className="flex items-start gap-2">
+      <Link href={marketHref(market.slug)} className="flex items-start gap-2 pr-9">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-3 text-sm">
           {market.icon || "◆"}
         </span>
@@ -44,6 +45,7 @@ export function QuestMarketCard({ market }: { market: Market }) {
           </p>
         </div>
       </Link>
+      <WatchlistStar slug={market.slug} size="sm" className="absolute right-2 top-2" />
 
       <div className="mt-2 flex items-end justify-between">
         <p className="font-mono text-xl font-semibold tabular-nums text-text">
