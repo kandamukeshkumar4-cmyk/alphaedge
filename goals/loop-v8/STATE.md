@@ -100,3 +100,4 @@ new heavy read paths. All in-app, no external rails.
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
 | 1 | 2026-07-10 | BE | M01 | done | `GET /api/v1/home` personalized aggregate (signals+H03 citations, L02 digest, model-A/B readiness, top markets; authed watchlist enrichment). test_home_api.py 3/3 + I01 guard; full: 1261 passed, 28 skipped; ruff clean. AutoLab: not applicable (no iterative measure) — one-shot additive read-only composition. |
+| 2 | 2026-07-10 | BE | M02 | done | `GET /api/v1/markets/{slug}/share-snapshot` compact shareable snapshot (title, yes_price, edge one-liner, top_signal+citation, arb flag, smart_money_note; snapshot_cache TTL + `cached` flag). Path chosen to avoid collision with the locked full `/snapshot`. test_market_share_snapshot_api.py 4/4 + I01 guard; full: 1265 passed, 28 skipped; ruff clean. AutoLab: not applicable (no iterative measure). |
