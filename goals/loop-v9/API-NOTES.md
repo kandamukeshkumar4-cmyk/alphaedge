@@ -159,3 +159,73 @@ Tests: `backend/tests/test_market_drivers_api.py` — known slug with seeded
 prediction + news signal (gap driver + signal driver, directions, citation),
 unknown honest 200, known slug with no drivers honest empty; plus the I01 5xx
 guard sweep.
+
+---
+
+## N03 — `GET /api/v1/markets/{slug}/edge-history`
+
+A bounded time series of `{t, model_p, market_p, edge}` for ONE market, for
+charting the model-vs-market edge over time. **PUBLIC GET.** Composed READ-ONLY
+from the existing prediction + price logs.
+
+Query params:
+
+- **`window`** (default `7d`) — lenient `<n>h` / `<n>d`, bounded `1h..30d`
+  (reuses the L02 `_resolve_window_hours`; an unparseable value falls back to
+  the default, never a 422). Only points with `predicted_at >= now − window`
+  are returned.
+
+Fields:
+
+- **`found`** — bool. Unknown slug → honest **200** `{found:false, series:[]}`.
+- **`window`** / **`window_hours`** — the normalized window echo + its hours.
+- **`series`** — ascending-by-`t` list, each point:
+
+  | field | type | notes |
+  |-------|------|-------|
+  | `t` | datetime | the `PredictionLog.predicted_at` instant |
+  | `model_p` | float | `PredictionLog.predicted_prob` at `t` |
+  | `market_p` | float\|null | newest `OddsSnapshot.implied_yes` at-or-before `t`; `null` when no snapshot exists yet |
+  | `edge` | float\|null | `model_p − market_p` (SIGNED — shows which side the model leaned and when it flipped); `null` when `market_p` is null |
+
+- **`count`** / **`max_points`** — series length and the bound (`200`). When more
+  predictions fall in the window than the bound, the MOST RECENT `max_points`
+  are kept.
+
+Honest empties: unknown slug OR a known market with no predictions →
+`series: []`, `count: 0`. Cacheable (desk-cache TTL, `app/core/opportunities_cache.py`,
+key `("edge-history", slug, window)`; additive `cached` flag) and served with the
+M03 weak-ETag helper (`ETag` header on 200, `If-None-Match` → 304 empty body;
+`generated_at`/`cached` stripped from the hash so a cache hit and a fresh rebuild
+of the same content share one validator). Swept by the I01 5xx guard
+(auto-covered `{slug}` public GET).
+
+> Note: `edge` here is SIGNED (`model_p − market_p`) for the history chart,
+> whereas the N01 scanner row `edge` is the ABSOLUTE gap used as the rank key.
+
+Response:
+
+```json
+{
+  "found": true,
+  "slug": "nba-2025-01-15-lal-bos",
+  "window": "7d",
+  "window_hours": 168,
+  "series": [
+    {"t": "2026-07-10T14:00:00+00:00", "model_p": 0.62, "market_p": 0.5, "edge": 0.12},
+    {"t": "2026-07-10T16:00:00+00:00", "model_p": 0.7, "market_p": 0.55, "edge": 0.15}
+  ],
+  "count": 2,
+  "max_points": 200,
+  "paper_trading_only": true,
+  "signal_only": true,
+  "disclaimer": "Model-vs-market edge history — …",
+  "generated_at": "2026-07-10T…Z",
+  "cached": false
+}
+```
+
+Tests: `backend/tests/test_edge_history_api.py` — series shape + ascending order
++ at-or-before market_p join (incl. honest null before the first snapshot),
+window bound drops old points, honest empty (unknown slug + known-no-history),
+weak-ETag + `If-None-Match` → 304; plus the I01 5xx guard sweep.
