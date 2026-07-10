@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchAlertsFeed, unreadAlertCount, type AlertEventItem } from "@/lib/alerts-api";
+import {
+  buildNotifyPrefsView,
+  fetchNotifyPrefs,
+  filterItemsByPrefs,
+} from "@/lib/notify-prefs-api";
+import { ACCESS_TOKEN_KEY } from "@/lib/portfolio-api";
 
 export const ALERTS_LAST_SEEN_KEY = "alphaedge.alertsLastSeenTs";
 export const ALERTS_SEEN_EVENT = "alphaedge:alerts-seen";
@@ -22,6 +28,9 @@ function readLastSeen(): number {
 export function AlertsBell() {
   const [items, setItems] = useState<AlertEventItem[]>([]);
   const [lastSeen, setLastSeen] = useState(0);
+  // Y03 — enabled families from stored notify prefs (null = no constraint / anon
+  // → the bell counts every family, matching the /alerts feed behaviour).
+  const [enabledFamilies, setEnabledFamilies] = useState<string[] | null>(null);
 
   useEffect(() => {
     setLastSeen(readLastSeen());
@@ -29,6 +38,16 @@ export function AlertsBell() {
     void fetchAlertsFeed({ limit: 50 }).then((data) => {
       if (!dead) setItems(data);
     });
+    // When signed in, respect the user's notify prefs so the badge and the
+    // /alerts feed count the same families. Defensive: any failure = no filter.
+    const token = typeof window !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
+    if (token) {
+      void fetchNotifyPrefs(token).then((raw) => {
+        if (dead) return;
+        const view = buildNotifyPrefsView(raw, true);
+        setEnabledFamilies(view.reachable ? view.enabled : null);
+      });
+    }
     const onSeen = () => setLastSeen(readLastSeen());
     window.addEventListener(ALERTS_SEEN_EVENT, onSeen);
     return () => {
@@ -37,7 +56,7 @@ export function AlertsBell() {
     };
   }, []);
 
-  const unread = unreadAlertCount(items, lastSeen);
+  const unread = unreadAlertCount(filterItemsByPrefs(items, enabledFamilies), lastSeen);
 
   return (
     <Link

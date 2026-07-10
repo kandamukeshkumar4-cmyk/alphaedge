@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { AlertsDigest } from "@/components/AlertsDigest";
 import { MotionReveal } from "@/components/MotionReveal";
+import { NotifyPrefs } from "@/components/NotifyPrefs";
 import { SignalEvidenceBlock } from "@/components/SignalEvidence";
 import { PageHeader, PageShell } from "@/components/ui/kit";
 import { ALERTS_LAST_SEEN_KEY, ALERTS_SEEN_EVENT } from "@/components/AlertsBell";
@@ -25,6 +26,7 @@ import {
   newestAlertTs,
   type AlertEventItem,
 } from "@/lib/alerts-api";
+import { filterItemsByPrefs } from "@/lib/notify-prefs-api";
 import type { SignalCategory } from "@/lib/signals-dashboard-view-model";
 
 type ScopeTab = "all" | "watchlist";
@@ -34,6 +36,9 @@ export default function AlertsPage() {
   const [items, setItems] = useState<AlertEventItem[] | null>(null);
   const [filter, setFilter] = useState<SignalCategory | "all">("all");
   const [scope, setScope] = useState<ScopeTab>("all");
+  // Y03 — enabled families from stored notify prefs (null = no constraint /
+  // anon / prefs unavailable → the feed shows every family honestly).
+  const [enabledFamilies, setEnabledFamilies] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!isReady) return;
@@ -64,8 +69,17 @@ export default function AlertsPage() {
     };
   }, [scope, token, isReady]);
 
-  const families = useMemo(() => (items ? alertFamilies(items) : []), [items]);
-  const groups = useMemo(() => (items ? buildAlertGroups(items, filter) : []), [items, filter]);
+  // Constrain the feed to the families the user opted into (when authed with
+  // stored prefs); a pass-through when enabledFamilies is null.
+  const visibleItems = useMemo(
+    () => (items ? filterItemsByPrefs(items, enabledFamilies) : items),
+    [items, enabledFamilies],
+  );
+  const families = useMemo(() => (visibleItems ? alertFamilies(visibleItems) : []), [visibleItems]);
+  const groups = useMemo(
+    () => (visibleItems ? buildAlertGroups(visibleItems, filter) : []),
+    [visibleItems, filter],
+  );
 
   const scopeNote =
     scope === "watchlist"
@@ -83,6 +97,8 @@ export default function AlertsPage() {
       />
 
       <AlertsDigest />
+
+      <NotifyPrefs onEnabledChange={setEnabledFamilies} />
 
       <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Alert scope">
         <ScopeTabButton
@@ -143,7 +159,10 @@ export default function AlertsPage() {
           </div>
 
           {groups.length === 0 ? (
-            <EmptyState title="Nothing in this family" body="No alerts match the selected filter right now." />
+            <EmptyState
+              title="Nothing in this family"
+              body="No alerts match the current filter or your notification preferences right now."
+            />
           ) : (
             <ul className="space-y-3">
               {groups.map((group, i) => (
