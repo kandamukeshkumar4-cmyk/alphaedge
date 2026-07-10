@@ -83,3 +83,70 @@ correct rows + accuracy + mean_brier, honest empty, pagination offset/limit;
 plus the I01 5xx guard sweep.
 
 ---
+
+## O02 — `GET /api/v1/categories/{category}/summary`
+
+A PUBLIC GET per-category intelligence aggregate, composed READ-ONLY from
+existing surfaces. The category is matched via the app's EXISTING taxonomy
+(`MarketService._catalog_category_filter` — the same filter Discover/markets
+use). The path segment is case-sensitive to the taxonomy: lowercase API slugs
+(`sports`, `politics`, `crypto`, `culture`, `economics`, `weather`, `tech`,
+`nfl`) and capitalized legacy values (`NBA`, `FIFA WC2026`, `Elections`) are
+recognized; any other string falls back to an exact `Market.category` match.
+
+Fields:
+
+| field | type | notes |
+|-------|------|-------|
+| `category` | string | the requested category (echoed, trimmed) |
+| `found` | bool | `true` when the category has ≥1 local market OR ≥1 resolved market; else honest `false` |
+| `market_count` | int | local catalog markets in the category |
+| `mean_abs_edge` | float\|null | mean absolute model-vs-market edge across the category's OPEN markets that have both a model prob and a market price; `null` when none |
+| `top_opportunities` | list | up to 3 N01 opportunity rows (same shape: `slug/title/model_p/market_p/edge/direction/yes_price/liquidity/top_signal`), ranked by edge |
+| `recent_signal_count` | int | alert-family `signal_events` on the category's markets in the last 7 days |
+| `resolved_n` | int | resolved markets in the category (O01 review filtered by `ExternalMarket.category`, case-insensitive) |
+| `resolved_accuracy` | float\|null | model accuracy over those resolved markets; `null` when `resolved_n=0` |
+
+Note on taxonomy: the local catalog and the resolved-market (`ExternalMarket`)
+category fields are independent freeform strings. A category that matches BOTH
+(e.g. `"NBA"`) yields non-zero `market_count` AND `resolved_n`; a lowercase API
+alias like `"sports"` scopes the local catalog but only matches resolved markets
+whose `ExternalMarket.category` is literally `"sports"`. No fabrication — each
+side is scoped honestly and independently.
+
+Unknown/empty category → honest `{found:false, market_count:0, mean_abs_edge:
+null, top_opportunities:[], recent_signal_count:0, resolved_n:0, resolved_
+accuracy:null}`. Cacheable (desk-cache TTL via `opportunities_cache`, key
+`("category-summary", category.lower())`; additive `cached` flag). Swept by the
+I01 5xx guard (the guard now satisfies `{category}` with a known + unknown
+category; `/api/v1/categories/Sports/summary` is in `MUST_COVER`).
+
+Response (known category):
+
+```json
+{
+  "category": "NBA",
+  "found": true,
+  "market_count": 1,
+  "mean_abs_edge": 0.3,
+  "top_opportunities": [
+    {"slug": "nba-cat-lal-bos", "title": "Lakers vs Celtics", "model_p": 0.8,
+     "market_p": 0.5, "edge": 0.3, "direction": "YES", "yes_price": 0.5,
+     "liquidity": 5000, "top_signal": {"family": "news:mispricing", "citation": {…}}}
+  ],
+  "recent_signal_count": 1,
+  "resolved_n": 1,
+  "resolved_accuracy": 1.0,
+  "paper_trading_only": true,
+  "signal_only": true,
+  "disclaimer": "Category intelligence — …",
+  "generated_at": "2026-07-10T…Z",
+  "cached": false
+}
+```
+
+Tests: `backend/tests/test_category_summary_api.py` — known-category aggregate
+(market_count, mean_abs_edge, top opportunity, recent signals, resolved n +
+accuracy), unknown honest, empty/whitespace honest; plus the I01 5xx guard sweep.
+
+---

@@ -39,6 +39,12 @@ from app.main import app
 RESOLVED_SLUG = "guard-resolved-lal-bos"
 NO_CANDLES_SLUG = "guard-open-no-candles"
 
+# Category path params ({category}) are satisfied with a KNOWN category (the
+# seeded guard markets default to "Sports") and an UNKNOWN one (honest
+# found:false path). Both must survive edge-case data without a 5xx.
+KNOWN_CATEGORY = "Sports"
+UNKNOWN_CATEGORY = "guard-no-such-category"
+
 # Routes the sweep must always cover — a refactor that silently drops these
 # from the sweep (renamed path, accidental security marker) must fail loudly,
 # because they are the exact endpoints the prod 500 hit.
@@ -51,6 +57,7 @@ MUST_COVER = (
     "/api/v1/home",
     "/api/v1/opportunities",
     "/api/v1/resolved",
+    f"/api/v1/categories/{KNOWN_CATEGORY}/summary",
 )
 
 # Public GETs that authenticate *optionally* (get_optional_user) carry an
@@ -138,17 +145,25 @@ def _collect_public_get_urls() -> tuple[list[str], list[str]]:
             for p in op.get("parameters", [])
             if p.get("in") == "path"
         ]
-        if any(name != "slug" for name in path_params):
+        # {slug} and {category} are satisfiable from seeded/known values; any
+        # other path param cannot be filled from the seed data → skip honestly.
+        if any(name not in ("slug", "category") for name in path_params):
             skipped.append(f"{path} (unsatisfiable path params: {path_params})")
             continue
 
+        candidates = [path]
         if "{slug}" in path:
             candidates = [
-                path.replace("{slug}", RESOLVED_SLUG),
-                path.replace("{slug}", NO_CANDLES_SLUG),
+                c.replace("{slug}", seeded)
+                for c in candidates
+                for seeded in (RESOLVED_SLUG, NO_CANDLES_SLUG)
             ]
-        else:
-            candidates = [path]
+        if "{category}" in path:
+            candidates = [
+                c.replace("{category}", cat)
+                for c in candidates
+                for cat in (KNOWN_CATEGORY, UNKNOWN_CATEGORY)
+            ]
 
         # Fill any REQUIRED slug query param from the seeded markets so the
         # handler actually runs (422 short-circuits would hide 500s there).
