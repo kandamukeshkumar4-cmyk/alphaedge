@@ -99,3 +99,4 @@ market history for charting.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | N01 | opportunity scanner: `GET /api/v1/opportunities` ranked read-only view by \|model_p−market_p\|, liquidity floor, direction filter, honest exclusions, desk-cache, in 5xx guard | pytest 1278 passed / 28 skipped; ruff clean; 9 N01+guard tests green. AutoLab: not applicable (no iterative measure) |

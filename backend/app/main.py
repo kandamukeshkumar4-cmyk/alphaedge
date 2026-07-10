@@ -52,6 +52,7 @@ from app.api.v1.alerts_feed import router as alerts_feed_router
 from app.api.v1.notify_prefs import router as notify_prefs_router
 from app.api.v1.home import router as home_router
 from app.api.v1.market_snapshot import router as market_snapshot_router
+from app.api.v1.opportunities import router as opportunities_router
 from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -431,6 +432,7 @@ app.include_router(alerts_feed_router)
 app.include_router(notify_prefs_router)
 app.include_router(home_router)
 app.include_router(market_snapshot_router)
+app.include_router(opportunities_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)

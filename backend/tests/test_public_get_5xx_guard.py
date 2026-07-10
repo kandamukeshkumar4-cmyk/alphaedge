@@ -49,6 +49,7 @@ MUST_COVER = (
     "/api/v1/alerts/feed",
     "/api/v1/alerts/digest",
     "/api/v1/home",
+    "/api/v1/opportunities",
 )
 
 # Public GETs that authenticate *optionally* (get_optional_user) carry an
