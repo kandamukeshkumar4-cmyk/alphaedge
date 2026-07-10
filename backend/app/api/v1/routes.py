@@ -541,12 +541,23 @@ def _paper_account_id_from_token(token: str) -> UUID:
         raise HTTPException(status_code=400, detail="Invalid paper account token") from e
 
 
+def _tokenless_shared_accounts_allowed() -> bool:
+    """Audit H-SEC-01: the tokenless system/smoke bypass is a local-dev and
+    test convenience only — in prod/staging the shared bankrolls would be
+    world-writable (the default account ids are public)."""
+    return settings.app_env.strip().lower() not in {"prod", "production", "staging"}
+
+
 def _verify_paper_account_token(account_id: UUID, token: str | None) -> None:
     if not token:
-        if str(account_id) in {
-            settings.system_account_id,
-            settings.smoke_account_id,
-        }:
+        if (
+            str(account_id)
+            in {
+                settings.system_account_id,
+                settings.smoke_account_id,
+            }
+            and _tokenless_shared_accounts_allowed()
+        ):
             return
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
