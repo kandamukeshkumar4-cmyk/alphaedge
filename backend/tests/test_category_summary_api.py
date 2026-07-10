@@ -169,3 +169,60 @@ async def test_category_empty_string_is_honest():
     body = response.json()
     assert body["found"] is False
     assert body["market_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_top_signal_resolved_only_for_top_three(db_session, monkeypatch):
+    """Perf regression guard (V12 Q02): top_signal is one query per market but is
+    only surfaced on the top 3 opportunities, so it is resolved for at most three
+    rows even when more markets are scored (was one lookup per candidate)."""
+    from decimal import Decimal
+
+    import app.api.v1.categories as cat_mod
+    from app.db.models import OddsSnapshot
+
+    now = datetime.now(UTC)
+    for i in range(5):
+        slug = f"perf-cat-{i}"
+        db_session.add(
+            Market(
+                slug=slug,
+                title=f"Perf market {i}",
+                question="?",
+                category="PERF",
+                volume=1000 + i,
+                status=MarketStatus.OPEN,
+            )
+        )
+        await db_session.flush()
+        db_session.add(
+            PredictionLog(
+                market_slug=slug,
+                predicted_prob=Decimal(str(0.60 + i * 0.05)),
+                predicted_at=now,
+            )
+        )
+        db_session.add(
+            OddsSnapshot(
+                market_slug=slug,
+                implied_yes=Decimal("0.50"),
+                captured_at=now,
+            )
+        )
+    await db_session.flush()
+
+    calls: list[str] = []
+    original = cat_mod._top_signal
+
+    async def _counting(db, slug):
+        calls.append(slug)
+        return await original(db, slug)
+
+    monkeypatch.setattr(cat_mod, "_top_signal", _counting)
+    response = await _get("/api/v1/categories/PERF/summary")
+    assert response.status_code == 200
+    body = response.json()
+    # Five markets scored, mean edge over all five, but only the top 3 surfaced.
+    assert body["market_count"] == 5
+    assert len(body["top_opportunities"]) == 3
+    assert len(calls) == 3

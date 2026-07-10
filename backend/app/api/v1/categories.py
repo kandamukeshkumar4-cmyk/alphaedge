@@ -94,7 +94,6 @@ async def _opportunity_rows_for_markets(
                 "direction": "YES" if model_p > market_p else "NO",
                 "yes_price": m.yes_price,
                 "liquidity": int(m.volume or 0),
-                "top_signal": await _top_signal(db, m.slug),
             }
         )
     rows.sort(key=lambda r: (-r["edge"], -r["liquidity"], r["slug"]))
@@ -135,6 +134,13 @@ async def get_category_summary(
     edges = [r["edge"] for r in opp_rows]
     mean_abs_edge = round(sum(edges) / len(edges), 4) if edges else None
 
+    # Perf (V12 Q02): top_signal is one query per market and is only ever
+    # surfaced on the top 3 rows, so resolve it there instead of for every
+    # scored candidate (was up to _MAX_CANDIDATES lookups, now ≤3).
+    top_opportunities = opp_rows[:3]
+    for row in top_opportunities:
+        row["top_signal"] = await _top_signal(db, row["slug"])
+
     recent_signal_count = await _recent_signal_count(db, slugs)
 
     resolved_rows = await resolved_review_rows(db, category=cat) if cat else []
@@ -148,7 +154,7 @@ async def get_category_summary(
         "found": found,
         "market_count": market_count,
         "mean_abs_edge": mean_abs_edge,
-        "top_opportunities": opp_rows[:3],
+        "top_opportunities": top_opportunities,
         "recent_signal_count": recent_signal_count,
         "resolved_n": resolved_summary["n"],
         "resolved_accuracy": resolved_summary["accuracy"],

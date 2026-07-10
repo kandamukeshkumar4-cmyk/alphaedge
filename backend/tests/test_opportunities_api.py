@@ -192,3 +192,27 @@ async def test_honest_empty(db_session):
     body = r.json()
     assert body["opportunities"] == []
     assert body["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_top_signal_resolved_only_for_returned_rows(db_session, monkeypatch):
+    """Perf regression guard (V12 Q02): the per-slug top_signal lookup runs once
+    per RETURNED row, never once per scored candidate. Four markets survive
+    scoring; at limit=2 exactly two lookups happen (was four pre-deferral)."""
+    import app.api.v1.opportunities as opp_mod
+
+    await _seed(db_session)
+    calls: list[str] = []
+    original = opp_mod._top_signal
+
+    async def _counting(db, slug):
+        calls.append(slug)
+        return await original(db, slug)
+
+    monkeypatch.setattr(opp_mod, "_top_signal", _counting)
+    r = await _get("/api/v1/opportunities?limit=2")
+    assert r.status_code == 200
+    rows = r.json()["opportunities"]
+    assert len(rows) == 2
+    assert calls == [row["slug"] for row in rows]
+    assert len(calls) == 2

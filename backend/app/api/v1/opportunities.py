@@ -176,7 +176,6 @@ async def get_opportunities(
                 "direction": row_direction,
                 "yes_price": m.yes_price,
                 "liquidity": liquidity,
-                "top_signal": await _top_signal(db, m.slug),
             }
         )
 
@@ -184,6 +183,12 @@ async def get_opportunities(
     # stable deterministic order.
     rows.sort(key=lambda r: (-r["edge"], -r["liquidity"], r["slug"]))
     rows = rows[:limit]
+
+    # Perf (V12 Q02): the top_signal lookup is one query per market and does NOT
+    # affect ranking, so resolve it ONLY for the ≤limit rows we actually return
+    # instead of every scored candidate (was up to _MAX_CANDIDATES lookups).
+    for row in rows:
+        row["top_signal"] = await _top_signal(db, row["slug"])
 
     response: dict[str, Any] = {
         "opportunities": rows,
