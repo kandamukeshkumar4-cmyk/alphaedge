@@ -10,6 +10,7 @@ import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { useAuth } from "@/hooks/useAuth";
 import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
 import { ExposurePanel } from "@/components/ExposurePanel";
+import { PortfolioClvPanel } from "@/components/PortfolioClvPanel";
 import { PortfolioRiskPanel } from "@/components/PortfolioRiskPanel";
 import { TraderProfileCard } from "@/components/TraderProfileCard";
 import { API_BASE } from "@/lib/alphaedge-api";
@@ -166,6 +167,8 @@ export default function PortfolioPage() {
               tone={portfolio.realized_pnl >= 0 ? "positive" : "negative"}
             />
           </section>
+
+          <PortfolioClvPanel token={token} />
 
           {token ? <ExposurePanel token={token} /> : null}
 
