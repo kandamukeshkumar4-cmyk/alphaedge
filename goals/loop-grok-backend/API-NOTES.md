@@ -219,3 +219,65 @@ No new HTTP endpoints. Internal admin/script harness only:
 - Additive trainer change: `train_walk_forward_xgboost_model` /
   `train_walk_forward_xgboost_from_feature_matrix` accept optional
   `model_type` (default None → `ML_MODEL_TYPE`, behavior unchanged).
+
+## G07 (2026-07-09)
+
+New endpoint `GET /api/v1/smart-money` — per-market smart-money aggregate
+composed from the existing agent tool services (`get_whale_concentration`,
+`get_whale_activity`, `get_depth_skew`, `get_trade_intensity`). READ-ONLY
+analysis surface: `signal_only` always true; no order-path imports
+(test-enforced). Distinct from the existing `GET /api/v1/signals/smart-money`
+(wallet-signal endpoint), which is unchanged.
+
+Query params:
+
+| param | type | default | notes |
+|-------|------|---------|-------|
+| `slug` | string | required | market slug (local `pm-`/`ks-`/seed slugs) |
+| `hours` | int | 24 | trade-intensity window, 1–168 |
+| `top_n` | int | 5 | wallets in the top-holder share, 1–25 |
+
+Response (unknown slug → 200 with `market_found=false` and honest zero/empty
+sections; each section carries its own `error` field, null on success):
+
+```json
+{
+  "slug": "pm-will-lakers-beat-celtics",
+  "hours": 24,
+  "market_found": true,
+  "paper_trading_only": true,
+  "signal_only": true,
+  "disclaimer": "Research signal only — aggregated whale/flow observations, not advice. Paper trading only; simulated funds, no execution.",
+  "top_holders": {
+    "wallet_count": 3,
+    "top_n": 5,
+    "top_share": 0.9091,
+    "total_size": 1650.0,
+    "error": null
+  },
+  "recent_large_flows": {
+    "whale_count": 1,
+    "deltas": [
+      {"wallet": "0xwhaleA…", "action": "add", "outcome": "YES", "direction": "buy", "size_change": 500.0}
+    ],
+    "error": null
+  },
+  "depth_skew": {
+    "bid_size": 0.0,
+    "ask_size": 0.0,
+    "skew": 0.0,
+    "levels": 0,
+    "error": null
+  },
+  "trade_intensity": {
+    "fill_count": 0,
+    "notional": 0.0,
+    "fills_per_hour": 0.0,
+    "error": null
+  },
+  "generated_at": "2026-07-09T18:00:00+00:00"
+}
+```
+
+Notes: wallet addresses are always truncated (`0xwhaleA…`), never returned in
+full. `deltas` is capped at 10, largest `size_change` first (>= 100 shares).

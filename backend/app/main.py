@@ -41,6 +41,7 @@ from app.api.v1.clones import router as clones_router
 from app.api.v1.backtest import router as backtest_router
 from app.api.v1.arb import router as arb_router
 from app.api.v1.observability import router as observability_router
+from app.api.v1.smart_money import router as smart_money_router
 from app.api.v1.track_record import router as track_record_router
 from app.api.v1.profile import router as profile_router
 from app.observability.metrics import router as metrics_router
@@ -389,6 +390,7 @@ app.include_router(backtest_router)
 app.include_router(arb_router)
 app.include_router(observability_router)
 app.include_router(track_record_router)
+app.include_router(smart_money_router)
 app.include_router(profile_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
