@@ -25,7 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.data.streams.runner import background_loop_plan
 from app.db.session import get_db
-from app.ml.ab_harness import MIN_RESOLVED_FOR_AB, count_resolved_outcomes
+from app.ml.ab_harness import (
+    LIGHTGBM_AVAILABLE,
+    MIN_RESOLVED_FOR_AB,
+    count_resolved_outcomes,
+    run_walk_forward_ab,
+)
 from app.observability.loop_state import LOOP_INTERVALS, snapshot
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
@@ -93,3 +98,75 @@ async def get_resolved_count(db: AsyncSession = Depends(get_db)) -> dict[str, An
         "model_default": settings.ml_model_type,
         "paper_trading_only": settings.paper_trading_only,
     }
+
+
+@router.get("/model-ab")
+async def get_model_ab(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """J03 — walk-forward LightGBM-vs-XGBoost A/B readout (analysis only).
+
+    Below the resolve gate this returns ``ready: false`` with the progress
+    numbers. At/above the gate it trains both model types walk-forward on the
+    SAME resolved-snapshot folds and reports both Briers plus the delta and a
+    non-binding ``which_would_win`` — the deployed default model is NEVER
+    changed (``applied`` is always false). If lightgbm is missing from the
+    image, ``lightgbm_available`` is false and the harness reports its honest
+    xgboost-fallback arm. Any compute failure degrades to ``ready: false`` with
+    an honest note rather than a 5xx (public GET; must never 500).
+    """
+    settings = get_settings()
+    resolved_count = await count_resolved_outcomes(db)
+    base: dict[str, Any] = {
+        "ready": False,
+        "resolved_count": resolved_count,
+        "threshold": MIN_RESOLVED_FOR_AB,
+        "lightgbm_available": LIGHTGBM_AVAILABLE,
+        "model_default": settings.ml_model_type,
+        "applied": False,
+        "paper_trading_only": settings.paper_trading_only,
+    }
+    if resolved_count < MIN_RESOLVED_FOR_AB:
+        return base
+
+    # Gate met — attempt the walk-forward A/B. Kept defensive so a data/compute
+    # hiccup never turns a public GET into a 500.
+    try:
+        import tempfile
+        from pathlib import Path
+
+        from app.ml.snapshot_dataset import load_resolved_snapshot_feature_matrix
+
+        df = await load_resolved_snapshot_feature_matrix(db)
+        with tempfile.TemporaryDirectory(prefix="model_ab_") as tmp:
+            result = run_walk_forward_ab(
+                df,
+                Path(tmp),
+                resolved_count=resolved_count,
+                # Canonical feature-matrix walk-forward windows (see
+                # backtesting.replay._phase3_feature_matrix_forecast_gate).
+                train_window_size=4,
+                eval_window_size=2,
+            )
+    except Exception as exc:  # noqa: BLE001 - honest degrade, never 5xx
+        base["note"] = f"ab_compute_unavailable: {type(exc).__name__}"
+        return base
+
+    if not result.get("ran"):
+        base["note"] = result.get("reason", "not_ran")
+        return base
+
+    arms = result.get("arms", {})
+    xgb_brier = arms.get("xgboost", {}).get("model_brier")
+    lgbm_brier = arms.get("lightgbm", {}).get("model_brier")
+    which = None
+    if isinstance(xgb_brier, (int, float)) and isinstance(lgbm_brier, (int, float)):
+        which = "lightgbm" if lgbm_brier < xgb_brier else "xgboost"
+    base.update(
+        {
+            "ready": True,
+            "xgb_brier": xgb_brier,
+            "lgbm_brier": lgbm_brier,
+            "delta": result.get("brier_delta_lightgbm_minus_xgboost"),
+            "which_would_win": which,
+        }
+    )
+    return base

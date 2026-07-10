@@ -121,3 +121,24 @@ families `delta:*` and `screener:*`. Newest first.
   `OPTIONAL_AUTH_PUBLIC_GETS` + `MUST_COVER`, since `get_optional_user` marks
   the op with an optional HTTPBearer that the generic sweep would otherwise
   skip).
+
+## J03 — GET /api/v1/system/model-ab (2026-07-10)
+
+Public read-only walk-forward LightGBM-vs-XGBoost A/B readout. Analysis only —
+`applied` is ALWAYS false; the deployed default model is never changed. Below
+the resolve gate returns `ready:false` with progress; at/above the gate returns
+both Briers. Any compute failure degrades to `ready:false` + `note` (never 5xx).
+
+Below threshold:
+```json
+{"ready": false, "resolved_count": 1, "threshold": 100,
+ "lightgbm_available": false, "model_default": "xgboost", "applied": false,
+ "paper_trading_only": true}
+```
+Ready (>=100 resolves):
+```json
+{"ready": true, "resolved_count": 100, "threshold": 100,
+ "lightgbm_available": true, "model_default": "xgboost", "applied": false,
+ "xgb_brier": 0.19, "lgbm_brier": 0.18, "delta": -0.01,
+ "which_would_win": "lightgbm", "paper_trading_only": true}
+```
