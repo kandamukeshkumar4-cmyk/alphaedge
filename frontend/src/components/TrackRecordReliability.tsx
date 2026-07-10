@@ -13,6 +13,8 @@ import {
   type TrackRecordView,
 } from "@/lib/track-record-api";
 import { cn } from "@/lib/cn";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { MotionReveal } from "@/components/MotionReveal";
 
 function ReliabilityCurve({ points }: { points: ReliabilityPoint[] }) {
   const size = 220;
@@ -174,7 +176,9 @@ export function TrackRecordReliability() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="rounded-xl border border-border bg-surface-2/60 px-3.5 py-2">
           <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">Resolved</p>
-          <p className="font-mono text-xl font-black text-text">n={view.n}</p>
+          <p className="font-mono text-xl font-black text-text">
+            n=<AnimatedNumber value={view.n} format={(v) => String(Math.round(v))} />
+          </p>
         </div>
         <div className="rounded-xl border border-border bg-surface-2/60 px-3.5 py-2">
           <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">Brier</p>
@@ -206,31 +210,37 @@ export function TrackRecordReliability() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Reliability" hint="Predicted vs observed — dots on the diagonal are well-calibrated.">
-          {view.hasReliability ? (
-            <div className="flex justify-center">
-              <ReliabilityCurve points={view.reliabilityPoints} />
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-muted">No filled calibration bins yet.</p>
-          )}
-        </Card>
-        <Card title="Brier over time" hint="Cumulative Brier per resolution — lower is better.">
-          {view.hasBrierSeries ? (
-            <BrierLine series={view.brierSeries} />
-          ) : (
-            <p className="py-8 text-center text-sm text-muted">
-              No per-resolution timeline on this data source yet.
-            </p>
-          )}
-        </Card>
-        <Card title="CLV distribution" hint={`Closing-line value across resolutions — ${view.clvPositiveShareLabel} positive.`}>
-          {view.hasClv ? (
-            <ClvHistogram buckets={view.clvBuckets} />
-          ) : (
-            <p className="py-8 text-center text-sm text-muted">No CLV samples yet.</p>
-          )}
-        </Card>
+        <MotionReveal delay={0}>
+          <Card title="Reliability" hint="Predicted vs observed — dots on the diagonal are well-calibrated.">
+            {view.hasReliability ? (
+              <div className="flex justify-center">
+                <ReliabilityCurve points={view.reliabilityPoints} />
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted">No filled calibration bins yet.</p>
+            )}
+          </Card>
+        </MotionReveal>
+        <MotionReveal delay={0.08}>
+          <Card title="Brier over time" hint="Cumulative Brier per resolution — lower is better.">
+            {view.hasBrierSeries ? (
+              <BrierLine series={view.brierSeries} />
+            ) : (
+              <p className="py-8 text-center text-sm text-muted">
+                No per-resolution timeline on this data source yet.
+              </p>
+            )}
+          </Card>
+        </MotionReveal>
+        <MotionReveal delay={0.16}>
+          <Card title="CLV distribution" hint={`Closing-line value across resolutions — ${view.clvPositiveShareLabel} positive.`}>
+            {view.hasClv ? (
+              <ClvHistogram buckets={view.clvBuckets} />
+            ) : (
+              <p className="py-8 text-center text-sm text-muted">No CLV samples yet.</p>
+            )}
+          </Card>
+        </MotionReveal>
       </div>
     </div>
   );

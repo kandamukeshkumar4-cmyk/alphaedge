@@ -15,6 +15,8 @@ import {
   type SmartMoneyView,
 } from "@/lib/smart-money-api";
 import { cn } from "@/lib/cn";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { MotionReveal } from "@/components/MotionReveal";
 import { PageHeader, PageShell, Panel, StatRow, StatTile } from "@/components/ui/kit";
 
 type Pick = { slug: string; title: string };
@@ -192,7 +194,12 @@ function SmartMoneyDesk({
       <StatRow cols={4}>
         <StatTile
           label="Whale concentration"
-          value={view.concentrationLabel}
+          value={
+            <AnimatedNumber
+              value={view.concentrationRatio * 100}
+              format={(v) => `${v.toFixed(1)}%`}
+            />
+          }
           hint={`${view.walletCountLabel} wallets · top holders' share`}
           accent
         />
@@ -206,15 +213,18 @@ function SmartMoneyDesk({
         <StatTile label="Fills / hour" value={view.fillsPerHourLabel} hint={`${view.fillCountLabel} fills · ${view.notionalLabel}`} />
       </StatRow>
 
-      <Panel title="Trade intensity">
-        <IntensityBar ratio={view.intensityRatio} />
-        <p className="mt-2 text-xs text-muted">
-          {view.fillsPerHourLabel} fills/hour over the last {view.hoursLabel} ({view.fillCountLabel}{" "}
-          fills, {view.notionalLabel} notional).
-        </p>
-      </Panel>
+      <MotionReveal>
+        <Panel title="Trade intensity">
+          <IntensityBar ratio={view.intensityRatio} />
+          <p className="mt-2 text-xs text-muted">
+            {view.fillsPerHourLabel} fills/hour over the last {view.hoursLabel} ({view.fillCountLabel}{" "}
+            fills, {view.notionalLabel} notional).
+          </p>
+        </Panel>
+      </MotionReveal>
 
-      <Panel title="Recent large flows">
+      <MotionReveal delay={0.06}>
+        <Panel title="Recent large flows">
         {view.hasFlows ? (
           <ul className="divide-y divide-border/60">
             {view.flows.map((f, i) => (
@@ -244,7 +254,8 @@ function SmartMoneyDesk({
             No large whale flows (≥100 shares) in this window.
           </p>
         )}
-      </Panel>
+        </Panel>
+      </MotionReveal>
 
       {view.errors.length > 0 ? (
         <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted-2">

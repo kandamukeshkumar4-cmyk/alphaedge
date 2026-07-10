@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
 
 export function MotionReveal({
@@ -12,6 +12,13 @@ export function MotionReveal({
   delay?: number;
   className?: string;
 }) {
+  const reduced = useReducedMotion();
+
+  // Respect prefers-reduced-motion: render statically, no transform/opacity anim.
+  if (reduced) {
+    return <div className={className}>{children}</div>;
+  }
+
   return (
     <motion.div
       className={className}

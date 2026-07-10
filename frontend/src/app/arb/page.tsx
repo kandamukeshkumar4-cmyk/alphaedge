@@ -13,7 +13,11 @@ import {
   type ArbOpportunity,
 } from "@/lib/arb-api";
 import { cn } from "@/lib/cn";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { MotionReveal } from "@/components/MotionReveal";
 import { PageHeader, PageShell, StatRow, StatTile } from "@/components/ui/kit";
+
+const intFmt = (n: number) => String(Math.round(n));
 
 function Chip({
   label,
@@ -161,9 +165,19 @@ export default function ArbPage() {
       />
 
       <StatRow cols={3} className="mb-6">
-        <StatTile label="Matched pairs" value={page?.total ?? "—"} />
-        <StatTile label="Fresh" value={page?.fresh_count ?? "—"} deltaTone="up" accent />
-        <StatTile label="Stale" value={page?.stale_count ?? "—"} />
+        <StatTile
+          label="Matched pairs"
+          value={page ? <AnimatedNumber value={page.total} format={intFmt} /> : "—"}
+        />
+        <StatTile
+          label="Fresh"
+          value={page ? <AnimatedNumber value={page.fresh_count} format={intFmt} /> : "—"}
+          accent
+        />
+        <StatTile
+          label="Stale"
+          value={page ? <AnimatedNumber value={page.stale_count} format={intFmt} /> : "—"}
+        />
       </StatRow>
 
       {!loaded ? (
@@ -183,8 +197,10 @@ export default function ArbPage() {
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {page.opportunities.map((opp) => (
-            <ArbCard key={opp.id} opp={opp} />
+          {page.opportunities.map((opp, i) => (
+            <MotionReveal key={opp.id} delay={Math.min(i * 0.05, 0.3)}>
+              <ArbCard opp={opp} />
+            </MotionReveal>
           ))}
         </div>
       )}
