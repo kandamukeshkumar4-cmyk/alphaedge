@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
 import { ApiHealthChip } from "@/components/ApiHealthChip";
+import { HeaderMoreMenu, MORE_NAV } from "@/components/HeaderMoreMenu";
 import { HeaderSearch } from "@/components/HeaderSearch";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
@@ -112,6 +113,7 @@ export function SiteHeader() {
                 </Link>
               );
             })}
+            <HeaderMoreMenu />
           </nav>
 
           <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[380px]">
@@ -188,6 +190,21 @@ export function SiteHeader() {
                     label={item.label}
                     unreadCount={item.label === "Signals" ? unreadCount : undefined}
                   />
+                </Link>
+              ))}
+            </nav>
+            <p className="mt-3 px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">
+              More
+            </p>
+            <nav className="mt-1 grid grid-cols-2 gap-1 text-sm font-semibold">
+              {MORE_NAV.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className="rounded-md px-2 py-2 text-muted transition hover:bg-surface-2 hover:text-text"
+                >
+                  {item.label}
                 </Link>
               ))}
             </nav>
