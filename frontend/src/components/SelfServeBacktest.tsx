@@ -6,8 +6,9 @@
 // walk-forward result in the BacktestWalkForward SVG style, BESIDE the aggregate.
 // Honest not-ran / thin-data / unknown-slug states — never a fabricated curve.
 // Read-only compute: nothing is persisted and no order path is touched.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 import {
   buildBacktestRunView,
   EDGE_THRESHOLD_MAX,
@@ -66,7 +67,17 @@ function WalkForwardLine({
   );
 }
 
-function Tile({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
+function Tile({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+  tone?: string;
+}) {
   return (
     <div className="rounded-xl border border-border bg-surface-2/60 px-3.5 py-2">
       <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">{label}</p>
@@ -75,6 +86,8 @@ function Tile({ label, value, hint, tone }: { label: string; value: string; hint
     </div>
   );
 }
+
+const roundInt = (n: number) => String(Math.round(n));
 
 function RunResult({ view }: { view: BacktestRunView }) {
   if (!view.reachable) {
@@ -112,7 +125,11 @@ function RunResult({ view }: { view: BacktestRunView }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile
           label="Resolved"
-          value={`n=${view.nLabel}`}
+          value={
+            <>
+              n=<AnimatedNumber value={Number(view.nLabel)} format={roundInt} />
+            </>
+          }
           hint={view.lastUpdatedLabel ? `updated ${view.lastUpdatedLabel}` : undefined}
         />
         <Tile label="Model Brier" value={view.brierLabel} hint={view.brierVerdict ?? undefined} />
@@ -120,7 +137,12 @@ function RunResult({ view }: { view: BacktestRunView }) {
         <Tile
           label="Flat-stake ROI"
           value={view.roiLabel}
-          hint={`${view.betsLabel} bets · ${view.pnlLabel} paper P&L`}
+          hint={
+            <>
+              <AnimatedNumber value={Number(view.betsLabel)} format={roundInt} /> bets ·{" "}
+              {view.pnlLabel} paper P&amp;L
+            </>
+          }
           tone={view.roiTone === "up" ? "text-up" : view.roiTone === "down" ? "text-danger" : "text-text"}
         />
       </div>
