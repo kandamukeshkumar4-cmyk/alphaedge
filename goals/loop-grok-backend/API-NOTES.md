@@ -135,3 +135,64 @@ Example payload:
   }
 }
 ```
+
+## G05 (2026-07-09)
+
+New endpoint `GET /api/v1/track-record` (no params). Read-only; computed from
+REAL resolutions only (scored LIVE forecasts on resolved external markets;
+falls back to resolved paper-order markets). Field names are a CONTRACT — the
+frontend loop's P07/P11 integrate from this table.
+
+| field | type | notes |
+|-------|------|-------|
+| `n` | int | resolved-count behind the record; 0 with no data |
+| `thin_data` | bool | `n < thin_data_threshold` — UI must caveat when true |
+| `thin_data_threshold` | int | currently 30 (`BRIER_MIN_SAMPLE`) |
+| `brier_score` | float\|null | overall Brier; null when `n == 0` |
+| `calibration_bins` | array | 10 fixed-width bins: `{lower, upper, count, mean_predicted, observed_frequency}` (nulls when empty) |
+| `brier_over_time` | array | per-resolution points ordered by `scored_at`: `{seq, scored_at, brier, cumulative_brier}`; empty on the paper-order fallback path (no per-row timestamps — honest empty) |
+| `clv` | object | `{count, mean, min, max, positive_share, histogram}`; histogram buckets `{lower, upper, count}` with null lower/upper marking open-ended tails; edges −0.2…0.2 |
+| `source` | string | `"forecast_scores"` \| `"paper_orders"` \| `"none"` |
+| `last_updated` | datetime\|null | newest resolution timestamp |
+| `paper_trading_only` | bool | always true |
+| `disclaimer` | string | research-only wording |
+
+Example (2 resolutions, thin data):
+
+```json
+{
+  "n": 2,
+  "thin_data": true,
+  "thin_data_threshold": 30,
+  "brier_score": 0.065,
+  "calibration_bins": [
+    {"lower": 0.0, "upper": 0.1, "count": 0, "mean_predicted": null, "observed_frequency": null},
+    {"lower": 0.2, "upper": 0.3, "count": 1, "mean_predicted": 0.25, "observed_frequency": 0.0},
+    {"lower": 0.7, "upper": 0.8, "count": 1, "mean_predicted": 0.7, "observed_frequency": 1.0}
+  ],
+  "brier_over_time": [
+    {"seq": 1, "scored_at": "2026-07-09T16:00:00Z", "brier": 0.09, "cumulative_brier": 0.09},
+    {"seq": 2, "scored_at": "2026-07-09T17:00:00Z", "brier": 0.04, "cumulative_brier": 0.065}
+  ],
+  "clv": {
+    "count": 2,
+    "mean": -0.025,
+    "min": -0.12,
+    "max": 0.07,
+    "positive_share": 0.5,
+    "histogram": [
+      {"lower": null, "upper": -0.2, "count": 0},
+      {"lower": -0.2, "upper": -0.1, "count": 1},
+      {"lower": 0.05, "upper": 0.1, "count": 1},
+      {"lower": 0.2, "upper": null, "count": 0}
+    ]
+  },
+  "source": "forecast_scores",
+  "last_updated": "2026-07-09T17:00:00Z",
+  "paper_trading_only": true,
+  "disclaimer": "Research metrics from real resolutions only. Paper trading only — simulated funds, no execution."
+}
+```
+
+(`calibration_bins` always contains all 10 bins and `clv.histogram` all 10
+buckets; the example above is truncated for readability.)

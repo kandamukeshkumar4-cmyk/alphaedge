@@ -108,7 +108,7 @@ Inverse of G03: `anomaly:unusual_flow` — price jump / volume spike with NO
 matching news item in the window. Neutral wording ("no public catalyst
 found"). Fixture tests: jump+news → NO anomaly; jump+no-news → anomaly.
 
-### G05 — Track-record aggregate endpoint (TODO)
+### G05 — Track-record aggregate endpoint (DONE 2026-07-09)
 `GET /api/v1/track-record`: calibration bins (predicted p vs realized freq),
 Brier over time, CLV distribution, resolved count `n` — from REAL resolutions
 only. Include `n` and a `thin_data` boolean so the UI can caveat. Tests with
@@ -146,3 +146,4 @@ tools' underlying services. Read-only. Tests with fixtures.
 | 3 | 2026-07-09 | G02 | DONE | Hard date reject in `match_resolution_terms`; `match_venue_markets` + `VenueMatchService` + `VenueMarketMatch` table (alembic 034). Additive arb fields `confidence`/`spread_bps`/`legs` (+ existing `stale`). Fixture `match_pairs_20.json` + `test_arb_g02_matcher.py`. Gate: `1165 passed, 28 skipped`; ruff clean. AutoLab: baseline=1160 pytest | benchmark=≥16/20 match, 0 FP | iterations=1 (16/16 TP, 0 FP) | budget=1/3 | outcome=improved |
 | 4 | 2026-07-09 | G03 | DONE | `news:mispricing` evaluator + scan task + scheduler flag (default on). NewsSignal citation fields; fixture tests. Gate: `1168 passed, 28 skipped`; ruff clean. AutoLab: n/a (signal emit correctness via fixtures) |
 | 5 | 2026-07-09 | G04 | DONE | `anomaly:unusual_flow` — shared `news_in_window` extracted from G03 (single source of truth); candidates from diff-engine `delta:price_jump`/`delta:volume_surge` events; neutral wording ("no public catalyst found"); per-market dedupe; scheduler flag `SCHEDULER_UNUSUAL_FLOW_ENABLED` (default on). Fixture tests: jump+news → NO anomaly, jump+no-news → anomaly, stale-news → anomaly, dedupe, disabled flag. Gate: `1173 passed, 28 skipped`; ruff `All checks passed`. AutoLab: not applicable (no iterative measure) |
+| 6 | 2026-07-09 | G05 | DONE | `GET /api/v1/track-record` — calibration bins (10), Brier over time (per-resolution + cumulative), CLV distribution (histogram −0.2…0.2 + tails), `n` + `thin_data` (threshold 30 = BRIER_MIN_SAMPLE). Real resolutions only: scored LIVE forecasts on RESOLVED external markets, paper-order fallback (shared with calibration endpoint), CLV via CLVTrackingService. Honest empty state (`n=0`, `source="none"`). Contract documented in API-NOTES.md. Tests: empty, 4 seeded resolutions, threshold clear at 30, CLV from resolved signals. Gate: `1177 passed, 28 skipped`; ruff `All checks passed`. AutoLab: not applicable (no iterative measure) |
