@@ -49,3 +49,19 @@ hf_stage_clean/
 hf_space_deploy/
 deploy-azure-live-summary.txt
 fix_files.py
+
+# Agent skill inventory dumps (not product runtime)
+.agents/skills/
+.claude/skills/
+skills-lock.json
+
+# Frontend recon / local capture artifacts
+frontend/RECON/
+frontend/mobile-*.png
+frontend/next-start.*
+frontend/.claude/
+
+# Local e2e/ship probe dumps
+goals/e2e-ship/probe*.json
+goals/e2e-ship/loop*-*.txt
+goals/e2e-ship/ship-*.txt

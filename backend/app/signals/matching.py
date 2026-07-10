@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 
@@ -86,7 +86,23 @@ def match_resolution_terms(
     At least one of event_id or entity must be present for a "confirmed" result;
     title-only matches are intentionally capped at 0.10 to avoid false-positives
     on broadly-named markets (e.g. "Will X happen?" titles).
+
+    Hard rule (G02): when both sides have a close/resolution timestamp and the
+    UTC calendar dates differ, the pair NEVER matches (confidence 0).
+    Same-day pairs still use ``close_tolerance`` for the soft close-time score.
     """
+    # ---- G02 hard reject: different resolution calendar dates --------------
+    if first.close_at is not None and second.close_at is not None:
+        first_day = first.close_at.astimezone(UTC).date()
+        second_day = second.close_at.astimezone(UTC).date()
+        if first_day != second_day:
+            return ResolutionMatch(
+                status="unconfirmed",
+                confidence=0.0,
+                reasons=("resolution_date_reject",),
+                warning="resolution dates differ",
+            )
+
     score = 0.0
     reasons: list[str] = []
     warnings: list[str] = []
@@ -160,6 +176,55 @@ def match_resolution_terms(
         confidence=confidence,
         reasons=tuple(reasons),
         warning="; ".join(warnings),
+    )
+
+
+def match_venue_markets(
+    pm_title: str,
+    ks_title: str,
+    *,
+    pm_slug: str,
+    ks_slug: str,
+    pm_close_time: datetime | None,
+    ks_close_time: datetime | None,
+    pm_event_id: str | None = None,
+    ks_event_id: str | None = None,
+    pm_entities: tuple[str, ...] | None = None,
+    ks_entities: tuple[str, ...] | None = None,
+    min_confidence: float = 0.75,
+    close_tolerance: timedelta = timedelta(hours=1),
+) -> ResolutionMatch:
+    """Match a Polymarket market against a Kalshi market (G02 venue seam).
+
+    Entities default to content tokens extracted from each title when not
+    supplied. Different UTC resolution dates hard-reject via
+    ``match_resolution_terms``.
+    """
+    pm_ents = pm_entities if pm_entities is not None else tuple(sorted(_title_tokens(pm_title)))
+    ks_ents = ks_entities if ks_entities is not None else tuple(sorted(_title_tokens(ks_title)))
+    first = ResolutionTerms(
+        platform="polymarket",
+        market_id=pm_slug,
+        title=pm_title,
+        event_id=pm_event_id,
+        normalized_entities=pm_ents,
+        close_at=pm_close_time,
+        resolution_source=None,
+    )
+    second = ResolutionTerms(
+        platform="kalshi",
+        market_id=ks_slug,
+        title=ks_title,
+        event_id=ks_event_id,
+        normalized_entities=ks_ents,
+        close_at=ks_close_time,
+        resolution_source=None,
+    )
+    return match_resolution_terms(
+        first,
+        second,
+        min_confidence=min_confidence,
+        close_tolerance=close_tolerance,
     )
 
 

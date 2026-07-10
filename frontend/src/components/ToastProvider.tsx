@@ -66,7 +66,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-text">{t.title}</p>
-                {t.body && <p className="mt-0.5 text-xs text-muted">{t.body}</p>}
+                {typeof t.body === "string" && t.body ? (
+                  <p className="mt-0.5 text-xs text-muted">{t.body}</p>
+                ) : null}
               </div>
             </div>
           </div>

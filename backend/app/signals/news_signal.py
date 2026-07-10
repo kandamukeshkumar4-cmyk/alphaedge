@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
+from datetime import datetime
 
 _CACHE: dict[str, tuple[float, "NewsSignal"]] = {}
 _TTL_SECONDS = 3600  # 1 hour
@@ -18,6 +19,10 @@ class NewsSignal:
     polymarket_consensus: float | None  # market-implied probability, None if not found
     headline: str             # one-sentence top-line brief
     sources_count: int
+    # G03 optional citation fields (additive; fetchers may leave None)
+    news_id: str | None = None
+    news_url: str | None = None
+    published_at: datetime | None = None
 
 
 def get_cached_signal(topic: str) -> NewsSignal | None:

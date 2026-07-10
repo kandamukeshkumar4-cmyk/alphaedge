@@ -1,219 +1,37 @@
-"use client";
+import { Suspense } from "react";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import {
-  MARKETS,
-  trendingRows,
-  topMoverRows,
-  newRows,
-  highestVolumeRows,
-  type Market,
-} from "@/lib/mock-data";
-import { HeroFeature } from "@/components/HeroFeature";
-import { FeaturedMarketCard } from "@/components/FeaturedMarketCard";
-import { DiscoveryRail } from "@/components/DiscoveryRail";
-import { LiveTicker } from "@/components/LiveTicker";
-import { MotionReveal } from "@/components/MotionReveal";
-import { PromoCard } from "@/components/RightRailExtras";
-import { OnboardingModal } from "@/components/OnboardingModal";
-import { MarketSearch } from "@/components/MarketSearch";
-import { WC2026Banner } from "@/components/WC2026Banner";
-import { WC2026Schedule } from "@/components/WC2026Schedule";
-import { useOnboarding } from "@/hooks/useOnboarding";
-import { fetchMarkets, type MarketFilterParams } from "@/lib/alphaedge-api";
-import type { LeaderboardEntry } from "@/lib/leaderboard-api";
-import { fetchLeaderboard } from "@/lib/leaderboard-api";
-import { formatCompactUSD } from "@/lib/mock-data";
-import { cn } from "@/lib/cn";
-import { SectionHeader, StatRow, StatTile } from "@/components/ui/kit";
+import { QuestDiscoverShell } from "@/components/quest/QuestDiscoverShell";
+import { QuestMobileRail } from "@/components/quest/QuestMobileRail";
+import { QuestSignalRail } from "@/components/quest/QuestSignalRail";
+import { fetchMarkets } from "@/lib/alphaedge-api";
+import type { Market } from "@/lib/mock-data";
 
-function formatPnl(pnl: number) {
-  const sign = pnl >= 0 ? "+" : "";
-  return `${sign}$${Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-}
-
-function groupMarketsByCategory(markets: Market[]) {
-  const byCategory = new Map<string, Market[]>();
-  for (const market of markets) {
-    const list = byCategory.get(market.category) ?? [];
-    list.push(market);
-    byCategory.set(market.category, list);
-  }
-  return Array.from(byCategory.entries()).map(([category, items]) => ({
-    category,
-    markets: items,
-  }));
-}
-
-function LeaderboardSidebar({ entries }: { entries: LeaderboardEntry[] }) {
-  if (!entries.length) return null;
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
-      <h3 className="mb-3 text-sm font-black text-text">Top Traders</h3>
-      <ol className="space-y-2">
-        {entries.slice(0, 5).map((e) => (
-          <li key={e.rank} className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2 min-w-0">
-              <span className="w-4 shrink-0 text-right text-xs font-mono text-muted">
-                {e.rank}
-              </span>
-              <span className="truncate text-xs font-semibold text-text">{e.username}</span>
-            </span>
-            <span
-              className={cn(
-                "shrink-0 text-xs font-mono font-bold",
-                e.realized_pnl >= 0 ? "text-emerald-400" : "text-red-400",
-              )}
-            >
-              {formatPnl(e.realized_pnl)}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-export default function Home() {
-  const featured = MARKETS.slice(0, 4);
-  const { shouldShow, markDone } = useOnboarding();
-
-  const [filteredMarkets, setFilteredMarkets] = useState<Market[]>(MARKETS);
-  const [loading, setLoading] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [activeParams, setActiveParams] = useState<MarketFilterParams>({});
-  const requestIdRef = useRef(0);
-
-  const loadMarkets = useCallback(async (params: MarketFilterParams) => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    try {
-      const result = await fetchMarkets(params);
-      if (requestId !== requestIdRef.current) return;
-      setFilteredMarkets(result);
-    } catch {
-      if (requestId !== requestIdRef.current) return;
-      setFilteredMarkets(MARKETS);
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadMarkets({});
-    fetchLeaderboard()
-      .then(setLeaderboard)
-      .catch(() => {});
-  }, [loadMarkets]);
-
-  function handleFilterChange(params: MarketFilterParams) {
-    setActiveParams(params);
-    void loadMarkets(params);
+// Discover home — QuestFlow anatomy from the reference video:
+// left live-signal rail + Traders Arena hero + Markets/Feed tabs + ATLAS rail.
+export default async function DiscoverHome() {
+  let initialMarkets: Market[] = [];
+  try {
+    initialMarkets = await fetchMarkets({});
+  } catch {
+    // API unreachable at request time — client components will retry.
   }
 
-  const isFiltered =
-    !!activeParams.category || !!activeParams.q || (activeParams.sort && activeParams.sort !== "volume");
-
-  const displayGroups = isFiltered
-    ? filteredMarkets.length > 0
-      ? [{ category: "Results", markets: filteredMarkets }]
-      : []
-    : groupMarketsByCategory(filteredMarkets);
-
   return (
-    <>
-      {shouldShow && <OnboardingModal onDone={markDone} />}
-
-      <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-5">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_354px]">
-          <div className="min-w-0 space-y-5">
-            <MotionReveal>
-              <HeroFeature markets={featured} />
-            </MotionReveal>
-
-            <StatRow>
-              <StatTile
-                label="Live markets"
-                value={filteredMarkets.length.toLocaleString()}
-                delta="tracking"
-                deltaTone="accent"
-              />
-              <StatTile
-                label="24h volume"
-                value={formatCompactUSD(
-                  filteredMarkets.reduce((sum, m) => sum + m.volume, 0),
-                )}
-              />
-              <StatTile
-                label="Paper traders"
-                value={filteredMarkets
-                  .reduce((sum, m) => sum + m.traders, 0)
-                  .toLocaleString()}
-              />
-              <StatTile
-                label="AI signals"
-                value={filteredMarkets.length.toLocaleString()}
-                delta="on every market"
-                deltaTone="up"
-                accent
-              />
-            </StatRow>
-
-            <MarketSearch onChange={handleFilterChange} loading={loading} />
-
-            <Suspense fallback={null}>
-              <WC2026Banner />
-            </Suspense>
-            <Suspense fallback={null}>
-              <WC2026Schedule />
-            </Suspense>
-
-            {displayGroups.length === 0 && isFiltered && (
-              <p className="py-8 text-center text-sm text-muted">
-                No markets match your search.
-              </p>
-            )}
-
-            {displayGroups.map((group, gi) => (
-              <section key={group.category}>
-                <SectionHeader
-                  title={group.category}
-                  action={
-                    !isFiltered ? (
-                      <Link
-                        href={`/markets?cat=${group.category}`}
-                        className="rounded-md border border-border px-3 py-1.5 text-xs font-black text-muted transition hover:border-border-light hover:text-text"
-                      >
-                        See all
-                      </Link>
-                    ) : undefined
-                  }
-                />
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-                  {group.markets.map((market, mi) => (
-                    <MotionReveal key={market.slug} delay={Math.min(0.04 * mi + 0.02 * gi, 0.2)}>
-                      <FeaturedMarketCard market={market} />
-                    </MotionReveal>
-                  ))}
-                </div>
-              </section>
-            ))}
+    <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4">
+      <QuestMobileRail initialMarkets={initialMarkets} />
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
+        <div className="hidden lg:block">
+          <div className="sticky top-[4.5rem] max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
+            <QuestSignalRail initialMarkets={initialMarkets} />
           </div>
-
-          <aside className="space-y-4 lg:sticky lg:top-[124px] lg:self-start">
-            <LeaderboardSidebar entries={leaderboard} />
-            <DiscoveryRail title="Trending" rows={trendingRows()} />
-            <DiscoveryRail title="Top movers" rows={topMoverRows()} />
-            <PromoCard />
-            <DiscoveryRail title="New" rows={newRows()} />
-            <DiscoveryRail title="Highest volume" rows={highestVolumeRows()} />
-            <LiveTicker />
-          </aside>
         </div>
-      </main>
-    </>
+
+        <main className="min-w-0">
+          <Suspense fallback={<div className="skeleton mt-4 h-64 w-full rounded-xl" />}>
+            <QuestDiscoverShell initialMarkets={initialMarkets} />
+          </Suspense>
+        </main>
+      </div>
+    </div>
   );
 }

@@ -109,3 +109,34 @@ test("/research/brief renders the ensemble/model section on mock data", async ({
     `console errors on /research/brief:\n${errors.join("\n")}`,
   ).toEqual([]);
 });
+
+test("signup page is interactive: ATLAS never covers the terms checkbox", async ({
+  page,
+}) => {
+  await page.goto("/auth/signup", { waitUntil: GOTO_WAIT, timeout: 60_000 });
+  const terms = page.locator('input[type="checkbox"]').first();
+  await expect(terms).toBeVisible({ timeout: 15_000 });
+  // The ATLAS panel must never auto-open on /auth/* — the checkbox has to be
+  // clickable immediately, without closing anything first (no force).
+  await terms.check({ timeout: 5_000 });
+  await expect(terms).toBeChecked();
+});
+
+test("header reflects auth state after signup without a refresh", async ({ page }) => {
+  test.skip(!LIVE, "requires the live backend to create a throwaway account");
+  await page.goto("/auth/signup", { waitUntil: GOTO_WAIT, timeout: 60_000 });
+  // EmailStr rejects reserved TLDs like `.test` — use a deliverable-looking domain.
+  const email = `e2e-${Date.now()}@example.com`;
+  await page.locator('input[type="email"]').first().fill(email);
+  const passwords = page.locator('input[type="password"]');
+  await passwords.nth(0).fill("Str0ngPass!e2e");
+  await passwords.nth(1).fill("Str0ngPass!e2e");
+  const terms = page.locator('input[type="checkbox"]').first();
+  if (await terms.isVisible()) await terms.check();
+  await page.locator('button[type="submit"]').first().click();
+  // After signup + redirect the persistent header must show the account state
+  // (email/log out) instead of the anonymous Sign up button.
+  await expect(page.getByRole("button", { name: /log out/i })).toBeVisible({
+    timeout: 20_000,
+  });
+});

@@ -3,70 +3,66 @@
 @tailwind utilities;
 
 /*
- * QuestFlow-terminal palette (see docs/QUESTFLOW_DESIGN_SYSTEM.md): true
- * near-black canvas, neon signal green (#2DD4BF) for the brand + YES/long/up,
- * agentic violet (#14B8A6) for AI/agent surfaces, cyan (#4B9EFF) secondary.
- * Red (#F1585C) is reserved for NO/short/down. These !important utilities
- * override Tailwind's generated classes, so retuning the hex here reskins
- * the whole app.
+ * Pixel-pass QuestFlow palette (sampled from video frames):
+ * canvas #070B0A, surface #0E1614/#132320, mint #00E8B0, danger #FF5A5F.
  */
 @layer utilities {
   .bg-bg {
-    background-color: #0C1210 !important;
+    background-color: #070B0A !important;
   }
   .bg-bg\/95 {
-    background-color: rgb(12 18 16 / 0.95) !important;
+    background-color: rgb(7 11 10 / 0.95) !important;
   }
   .bg-bg\/65 {
-    background-color: rgb(12 18 16 / 0.65) !important;
+    background-color: rgb(7 11 10 / 0.65) !important;
   }
   .bg-bg\/55 {
-    background-color: rgb(12 18 16 / 0.55) !important;
+    background-color: rgb(7 11 10 / 0.55) !important;
   }
   .bg-surface {
-    background-color: #121A17 !important;
+    background-color: #0E1614 !important;
   }
   .bg-surface\/40 {
-    background-color: rgb(18 26 23 / 0.4) !important;
+    background-color: rgb(14 22 20 / 0.4) !important;
   }
   .bg-surface-2 {
-    background-color: #182220 !important;
+    background-color: #132320 !important;
   }
   .bg-surface-3 {
-    background-color: #1F2B27 !important;
+    background-color: #1A2A26 !important;
   }
   .bg-primary {
-    background-color: #2DD4BF !important;
+    background-color: #00E8B0 !important;
   }
   .bg-primary\/10 {
-    background-color: rgb(45 212 191 / 0.1) !important;
+    background-color: rgb(0 232 176 / 0.1) !important;
   }
   .bg-primary\/70 {
-    background-color: rgb(45 212 191 / 0.7) !important;
+    background-color: rgb(0 232 176 / 0.7) !important;
   }
   .bg-primary-dim {
-    background-color: #12322C !important;
+    background-color: #0A2E26 !important;
   }
   .bg-primary-dim\/55 {
-    background-color: rgb(18 50 44 / 0.55) !important;
+    background-color: rgb(10 46 38 / 0.55) !important;
   }
   .bg-danger {
-    background-color: #F1585C !important;
+    background-color: #FF5A5F !important;
   }
   .bg-danger-dim {
     background-color: #331A1C !important;
   }
   .bg-accent {
-    background-color: #14B8A6 !important;
+    background-color: #00C9A0 !important;
   }
   .bg-accent\/10 {
-    background-color: rgb(20 184 166 / 0.1) !important;
+    background-color: rgb(0 201 160 / 0.1) !important;
   }
   .bg-accent\/15 {
-    background-color: rgb(20 184 166 / 0.15) !important;
+    background-color: rgb(0 201 160 / 0.15) !important;
   }
   .bg-accent-dim {
-    background-color: #0E2925 !important;
+    background-color: #0A2420 !important;
   }
   .bg-secondary {
     background-color: #4B9EFF !important;
@@ -75,43 +71,43 @@
     background-color: #14243D !important;
   }
   .text-bg {
-    color: #0C1210 !important;
+    color: #070B0A !important;
   }
   .text-text {
     color: #F2F4F8 !important;
   }
   .text-muted {
-    color: #9BB0A9 !important;
+    color: #8FA8A0 !important;
   }
   .text-muted-2 {
-    color: #61756E !important;
+    color: #5A6F68 !important;
   }
   .text-primary {
-    color: #2DD4BF !important;
+    color: #00E8B0 !important;
   }
   .text-danger {
-    color: #F1585C !important;
+    color: #FF5A5F !important;
   }
   .text-accent {
-    color: #14B8A6 !important;
+    color: #00C9A0 !important;
   }
   .text-secondary {
     color: #4B9EFF !important;
   }
   .border-border {
-    border-color: #243430 !important;
+    border-color: #1C2C28 !important;
   }
   .border-border\/60 {
-    border-color: rgb(36 52 48 / 0.6) !important;
+    border-color: rgb(28 44 40 / 0.6) !important;
   }
   .border-border\/70 {
-    border-color: rgb(36 52 48 / 0.7) !important;
+    border-color: rgb(28 44 40 / 0.7) !important;
   }
   .border-border-light {
-    border-color: #32463F !important;
+    border-color: #2A3F39 !important;
   }
   .border-primary {
-    border-color: #2DD4BF !important;
+    border-color: #00E8B0 !important;
   }
   .border-primary\/55 {
     border-color: rgb(45 212 191 / 0.55) !important;
@@ -122,38 +118,50 @@
   .border-primary\/40 {
     border-color: rgb(45 212 191 / 0.4) !important;
   }
+  .border-primary\/60 {
+    border-color: rgb(0 232 176 / 0.6) !important;
+  }
+  .border-primary\/50 {
+    border-color: rgb(0 232 176 / 0.5) !important;
+  }
+  .border-primary\/40 {
+    border-color: rgb(0 232 176 / 0.4) !important;
+  }
   .border-primary\/35 {
-    border-color: rgb(45 212 191 / 0.35) !important;
+    border-color: rgb(0 232 176 / 0.35) !important;
+  }
+  .border-primary\/30 {
+    border-color: rgb(0 232 176 / 0.3) !important;
   }
   .border-primary\/25 {
-    border-color: rgb(45 212 191 / 0.25) !important;
+    border-color: rgb(0 232 176 / 0.25) !important;
   }
   .border-primary\/20 {
-    border-color: rgb(45 212 191 / 0.2) !important;
+    border-color: rgb(0 232 176 / 0.2) !important;
   }
   .border-danger {
-    border-color: #F1585C !important;
+    border-color: #FF5A5F !important;
   }
   .border-danger\/55 {
-    border-color: rgb(241 88 92 / 0.55) !important;
+    border-color: rgb(255 90 95 / 0.55) !important;
   }
   .border-danger\/45 {
-    border-color: rgb(241 88 92 / 0.45) !important;
+    border-color: rgb(255 90 95 / 0.45) !important;
   }
   .border-danger\/40 {
-    border-color: rgb(241 88 92 / 0.4) !important;
+    border-color: rgb(255 90 95 / 0.4) !important;
   }
   .border-accent {
-    border-color: #14B8A6 !important;
+    border-color: #00C9A0 !important;
   }
   .border-accent\/55 {
-    border-color: rgb(20 184 166 / 0.55) !important;
+    border-color: rgb(0 201 160 / 0.55) !important;
   }
   .border-accent\/45 {
-    border-color: rgb(20 184 166 / 0.45) !important;
+    border-color: rgb(0 201 160 / 0.45) !important;
   }
   .border-accent\/30 {
-    border-color: rgb(20 184 166 / 0.3) !important;
+    border-color: rgb(0 201 160 / 0.3) !important;
   }
   .shadow-card {
     box-shadow: 0 2px 8px rgb(0 0 0 / 0.35) !important;
@@ -163,41 +171,41 @@
   }
   .shadow-glow {
     box-shadow:
-      0 0 0 1px rgb(20 184 166 / 0.4),
-      0 12px 32px rgb(20 184 166 / 0.18) !important;
+      0 0 0 1px rgb(0 232 176 / 0.4),
+      0 12px 32px rgb(0 232 176 / 0.18) !important;
   }
   .hover\:bg-primary:hover {
-    background-color: #2DD4BF !important;
+    background-color: #00E8B0 !important;
   }
   .hover\:bg-accent:hover {
-    background-color: #14B8A6 !important;
+    background-color: #00C9A0 !important;
   }
   .hover\:bg-accent-dim:hover {
-    background-color: #0E2925 !important;
+    background-color: #0A2420 !important;
   }
   .hover\:bg-surface:hover {
-    background-color: #121A17 !important;
+    background-color: #0E1614 !important;
   }
   .hover\:bg-surface-2:hover {
-    background-color: #182220 !important;
+    background-color: #132320 !important;
   }
   .hover\:text-primary:hover {
-    color: #2DD4BF !important;
+    color: #00E8B0 !important;
   }
   .hover\:text-accent:hover {
-    color: #14B8A6 !important;
+    color: #00C9A0 !important;
   }
   .hover\:text-text:hover {
     color: #F2F4F8 !important;
   }
   .hover\:border-primary:hover {
-    border-color: #2DD4BF !important;
+    border-color: #00E8B0 !important;
   }
   .hover\:border-accent:hover {
-    border-color: #14B8A6 !important;
+    border-color: #00C9A0 !important;
   }
   .hover\:border-border-light:hover {
-    border-color: #32463F !important;
+    border-color: #2A3F39 !important;
   }
 }
 
@@ -212,26 +220,26 @@
  * TabList, …) to the QuestFlow-terminal palette. Dark-only by design.
  */
 [data-astryx-theme] {
-  --color-accent: #14B8A6;
-  --color-accent-muted: #0E2925;
-  --color-on-accent: #ffffff;
-  --color-background-body: #0C1210;
-  --color-background-surface: #121A17;
-  --color-background-card: #121A17;
-  --color-background-popover: #182220;
-  --color-background-muted: #182220;
-  --color-border: #243430;
-  --color-border-emphasized: #32463F;
+  --color-accent: #00C9A0;
+  --color-accent-muted: #0A2420;
+  --color-on-accent: #070B0A;
+  --color-background-body: #070B0A;
+  --color-background-surface: #0E1614;
+  --color-background-card: #0E1614;
+  --color-background-popover: #132320;
+  --color-background-muted: #132320;
+  --color-border: #1C2C28;
+  --color-border-emphasized: #2A3F39;
   --color-text-primary: #f2f4f8;
-  --color-text-secondary: #9BB0A9;
-  --color-success: #2DD4BF;
-  --color-on-success: #12322C;
-  --color-success-muted: #12322C;
-  --color-error: #F1585C;
+  --color-text-secondary: #8FA8A0;
+  --color-success: #00E8B0;
+  --color-on-success: #0A2E26;
+  --color-success-muted: #0A2E26;
+  --color-error: #FF5A5F;
   --color-on-error: #ffffff;
   --color-error-muted: #331A1C;
   --color-icon-primary: #f2f4f8;
-  --color-icon-secondary: #9BB0A9;
+  --color-icon-secondary: #8FA8A0;
   --font-family-body: var(--font-inter), system-ui, sans-serif;
   --font-family-heading: var(--font-inter), system-ui, sans-serif;
   --font-family-code: var(--font-mono), ui-monospace, monospace;
@@ -245,9 +253,9 @@ body {
   @apply bg-bg text-text antialiased;
   font-feature-settings: "tnum" 1, "ss01" 1;
   background:
-    radial-gradient(1200px 480px at 50% -120px, rgba(20, 184, 166, 0.12) 0%, rgba(20, 184, 166, 0) 70%),
-    linear-gradient(180deg, rgba(12, 40, 36, 0.7) 0%, rgba(10, 12, 18, 0) 240px),
-    #0C1210;
+    radial-gradient(1200px 480px at 50% -120px, rgba(0, 232, 176, 0.1) 0%, rgba(0, 232, 176, 0) 70%),
+    linear-gradient(180deg, rgba(8, 28, 24, 0.65) 0%, rgba(7, 11, 10, 0) 240px),
+    #070B0A;
 }
 
 /* Thin dark scrollbars */

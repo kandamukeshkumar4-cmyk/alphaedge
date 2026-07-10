@@ -18,13 +18,17 @@ import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
-type RangeKey = "1H" | "6H" | "1D" | "1W" | "ALL";
+// QuestFlow Trade terminal chips: 5m · 15m · 1h · 6h · 1d · 1w · 1m · All
+type RangeKey = "5m" | "15m" | "1h" | "6h" | "1d" | "1w" | "1m" | "All";
 const RANGES: { key: RangeKey; points: number; stepSec: number }[] = [
-  { key: "1H", points: 60, stepSec: 60 },
-  { key: "6H", points: 72, stepSec: 300 },
-  { key: "1D", points: 96, stepSec: 900 },
-  { key: "1W", points: 168, stepSec: 3600 },
-  { key: "ALL", points: 180, stepSec: 14400 },
+  { key: "5m", points: 60, stepSec: 5 },
+  { key: "15m", points: 90, stepSec: 10 },
+  { key: "1h", points: 60, stepSec: 60 },
+  { key: "6h", points: 72, stepSec: 300 },
+  { key: "1d", points: 96, stepSec: 900 },
+  { key: "1w", points: 168, stepSec: 3600 },
+  { key: "1m", points: 120, stepSec: 21600 },
+  { key: "All", points: 180, stepSec: 14400 },
 ];
 
 type Mode = "area" | "candle";
@@ -129,7 +133,7 @@ export function PriceChart({
   const dataRef = useRef<Candle[]>([]);
 
   const isApiModeRef = useRef<boolean>(false);
-  const [range, setRange] = useState<RangeKey>("1D");
+  const [range, setRange] = useState<RangeKey>("1d");
   const [mode, setMode] = useState<Mode>("area");
   const [apiCandles, setApiCandles] = useState<Candle[] | null>(null);
   const [last, setLast] = useState(endPrice);
@@ -140,7 +144,7 @@ export function PriceChart({
   const livePrice = useMarketPrice(slug);
 
   const cfg = useMemo(
-    () => RANGES.find((r) => r.key === range) ?? RANGES[2],
+    () => RANGES.find((r) => r.key === range) ?? RANGES[4],
     [range],
   );
 

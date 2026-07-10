@@ -12,9 +12,24 @@
 
 | Skill | Purpose |
 |-------|---------|
+| codex-first | Claude routes hands-on implementation to Codex, then reviews/verifies |
 | calibration-verifier | Check Brier score, update STATE.md |
 | portfolio-monitor | Check portfolio aggregation correctness |
 | prediction-loop-runner | Iterative Brier improvement (AutoLab) |
+
+## E2E ship loops
+
+| Loop | Command / prompt | Purpose |
+|------|------------------|---------|
+| 0–6 | `goals/e2e-ship/STATE.md` LOOP LOG | Live-data homepage, journey, intelligence, cron verifier |
+| 7 | `/loop7-ux` or `goals/e2e-ship/LOOP7.md` | Post-audit UX gaps (ATLAS, health, auth header, leaderboard, labels) |
+| **8** | `/loop8-vendor` or `goals/e2e-ship/LOOP8.md` | Report-parity: toast flood, arb UI, Quest→Clones/Backtest, vendor MCP tools |
+
+### Loop design notes (ClaudeDevs)
+
+- Prefer **goal-based** loops: deterministic `done_when` + turn cap (40).
+- **Orchestrator** freezes the spec; **executor** implements work orders; **advisor** ≤1×.
+- Encode verification in skills/scripts (`verify_prod.py`, pytest, e2e) — not agent judgment.
 
 ## Merge order rule
 

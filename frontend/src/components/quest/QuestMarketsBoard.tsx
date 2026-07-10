@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { QuestHero } from "@/components/quest/QuestHero";
+import { QuestArenaHero } from "@/components/quest/QuestArenaHero";
 import {
   QuestMarketCard,
   QuestMarketCardSkeleton,
@@ -16,8 +16,7 @@ import {
   type KalshiTopicId,
 } from "@/lib/kalshi-topics";
 import { cn } from "@/lib/cn";
-import { MARKETS, type Market } from "@/lib/mock-data";
-import { DemoChip } from "@/components/quest/DemoChip";
+import { type Market } from "@/lib/mock-data";
 
 function parseTopic(raw: string | null): KalshiTopicId {
   return KALSHI_TOPICS.some((t) => t.id === raw) ? (raw as KalshiTopicId) : "trending";
@@ -25,36 +24,37 @@ function parseTopic(raw: string | null): KalshiTopicId {
 
 // /markets board in the Quest design system: topic pills + live card grid.
 // Replaces the old Kalshi row-list design.
-export function QuestMarketsBoard() {
+export function QuestMarketsBoard({
+  showHero = true,
+  initialMarkets,
+}: {
+  showHero?: boolean;
+  initialMarkets?: Market[];
+}) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const topic = parseTopic(searchParams.get("topic"));
   const query = (searchParams.get("q") ?? "").trim().toLowerCase();
 
-  const [markets, setMarkets] = useState<Market[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [demo, setDemo] = useState(false);
+  const [markets, setMarkets] = useState<Market[]>(initialMarkets ?? []);
+  const [loading, setLoading] = useState(!initialMarkets || initialMarkets.length === 0);
+  const [error, setError] = useState(false);
   const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
+    setError(false);
     try {
       const apiCat = topicToApiCategory(topic);
       const result = await fetchMarkets(apiCat ? { category: apiCat } : {});
       if (requestId !== requestIdRef.current) return;
-      if (result.length > 0) {
-        setMarkets(result);
-        setDemo(false);
-      } else {
-        setMarkets(MARKETS);
-        setDemo(true);
-      }
+      // Live data only — no mock fallback. Empty/error render honest states.
+      setMarkets(result);
     } catch {
       if (requestId !== requestIdRef.current) return;
-      // Backend down → explorable demo catalog instead of an empty board.
-      setMarkets(MARKETS);
-      setDemo(true);
+      setMarkets((prev) => (prev.length > 0 ? prev : []));
+      setError(true);
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
@@ -96,7 +96,7 @@ export function QuestMarketsBoard() {
   return (
     <LivePricesProvider markets={markets} prioritySlugs={prioritySlugs}>
       <div className="mx-auto max-w-[1400px] px-4 py-4 sm:px-6">
-        {topic === "trending" && !query ? <QuestHero /> : null}
+        {showHero && topic === "trending" && !query ? <QuestArenaHero /> : null}
 
         <div className="no-scrollbar mt-4 flex gap-1 overflow-x-auto">
           {KALSHI_TOPICS.map((t) => (
@@ -116,11 +116,9 @@ export function QuestMarketsBoard() {
           ))}
         </div>
 
-        {demo && (
-          <p className="mt-4 flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary-dim px-4 py-2.5 text-xs text-secondary">
-            <DemoChip />
-            Showing sample markets — start the backend for live Kalshi &amp; Polymarket
-            prices.
+        {error && (
+          <p className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-dim px-4 py-2.5 text-xs text-danger">
+            Couldn&rsquo;t refresh markets — showing last loaded data. Retrying on next load.
           </p>
         )}
 

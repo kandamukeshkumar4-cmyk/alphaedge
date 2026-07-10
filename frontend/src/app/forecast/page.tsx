@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { API_BASE } from "@/lib/alphaedge-api";
+import { hasLiveApi } from "@/lib/alphaedge-api";
 import {
   createAnonymousForecaster,
   fetchBackfillMarkets,
@@ -47,7 +47,7 @@ export default function ForecastMirrorPage() {
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
 
-  const apiConfigured = Boolean(API_BASE);
+  const apiConfigured = hasLiveApi();
   const dashboardView = useMemo(() => buildForecastDashboardView(dashboard), [dashboard]);
 
   const profileLabel = useMemo(() => {

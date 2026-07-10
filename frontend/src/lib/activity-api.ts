@@ -1,6 +1,6 @@
 // Public activity API client: alerts + raw signal events (engine room).
 // Degrades to empty lists when the backend is down, like polyscout-api.
-import { API_BASE } from "./alphaedge-api";
+import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "./alphaedge-api";
 
 export type AlertItem = {
   id: string;
@@ -22,9 +22,11 @@ export type SignalEventItem = {
 };
 
 async function getJson<T>(path: string): Promise<T | null> {
-  if (!API_BASE) return null;
+  // Empty API_BASE is valid in browser prod (same-origin Vercel → HF rewrite).
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return null;
   try {
-    const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    const res = await fetch(apiUrl(path, base), { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {

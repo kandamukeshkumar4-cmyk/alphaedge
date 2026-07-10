@@ -1,59 +1,21 @@
 "use client";
 
 /**
- * CalibrationSparkline — mini calibration curve for U03 DecisionCard.
+ * CalibrationSparkline — mini reliability diagram for U03 DecisionCard.
  *
- * Fetches /api/v1/analyst/track-record (T12 aggregates) and renders a
- * small SVG reliability diagram: predicted probability on X, observed
- * frequency on Y, with a perfect-calibration diagonal.
- *
- * Data: up to 5 bins derived from the aggregate Brier scores.
- * If no calibration data is available, renders an empty-state notice.
+ * P07: now fetches REAL calibration bins from GET /api/v1/calibration
+ * (eval_routes.py) instead of the previous synthetic x-spread. Each plotted
+ * point is a real bucket: mean predicted probability (X) vs observed outcome
+ * frequency (Y), sized by real sample count. When the total resolved sample
+ * is thin, the curve is labelled "provisional" and never over-claims.
  */
 
 import { useEffect, useState } from "react";
-import { API_BASE } from "@/lib/alphaedge-api";
-
-type AggregateItem = {
-  dimension: string;
-  dim_key: string;
-  window_days: number;
-  n: number;
-  accuracy: number;
-  brier: number;
-  provisional: boolean;
-};
-
-type TrackRecordResponse = {
-  aggregates: AggregateItem[];
-};
-
-type CalibrationPoint = {
-  predicted: number; // predicted probability bucket midpoint
-  observed: number;  // observed accuracy in that bucket
-  n: number;         // sample count
-};
-
-/**
- * Derives calibration curve points from T12 track-record aggregates.
- * Uses the "all" window and "global" or "model" dimension.
- */
-function deriveCalibrationPoints(aggregates: AggregateItem[]): CalibrationPoint[] {
-  const all = aggregates.filter(
-    (a) => a.window_days === 0 || a.window_days === 30,
-  );
-  if (all.length === 0) return [];
-  // Map each aggregate entry to a calibration point using its accuracy as
-  // the "observed" frequency and a mid-bin probability derived from confidence.
-  // Since we don't have per-bin data from T12, we approximate with overall accuracy
-  // as a single point (model predicted ~0.7 → observed accuracy).
-  const buckets = all.slice(0, 5).map((a, idx) => ({
-    predicted: 0.2 + idx * 0.15, // synthetic x spread for visual clarity
-    observed: a.accuracy,
-    n: a.n,
-  }));
-  return buckets;
-}
+import {
+  buildCalibrationCurve,
+  fetchCalibrationBins,
+  type CalibrationCurve,
+} from "@/lib/calibration-api";
 
 type Props = {
   className?: string;
@@ -72,36 +34,27 @@ function toSvgY(p: number) {
   return H - PAD - p * (H - 2 * PAD);
 }
 
+const EMPTY_CURVE: CalibrationCurve = { points: [], totalN: 0, provisional: true };
+
 export function CalibrationSparkline({ className }: Props) {
-  const [points, setPoints] = useState<CalibrationPoint[]>([]);
-  const [brier, setBrier] = useState<number | null>(null);
+  const [curve, setCurve] = useState<CalibrationCurve>(EMPTY_CURVE);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!API_BASE) {
-      setLoading(false);
-      return;
-    }
+    const controller = new AbortController();
     let cancelled = false;
-    fetch(`${API_BASE}/api/v1/analyst/track-record`)
-      .then((r) => (r.ok ? (r.json() as Promise<TrackRecordResponse>) : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        const derived = deriveCalibrationPoints(data.aggregates);
-        setPoints(derived);
-        // Pick the overall Brier from the longest window available
-        const overall = data.aggregates
-          .filter((a) => a.dimension === "global" || a.dim_key === "all")
-          .sort((a, b) => b.n - a.n)[0];
-        if (overall) setBrier(overall.brier);
-      })
-      .catch(() => {
-        // Calibration data unavailable — silent, show empty state
+    fetchCalibrationBins(controller.signal)
+      .then((bins) => {
+        if (cancelled) return;
+        setCurve(buildCalibrationCurve(bins));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   if (loading) {
@@ -111,6 +64,8 @@ export function CalibrationSparkline({ className }: Props) {
       </div>
     );
   }
+
+  const { points, totalN, provisional } = curve;
 
   if (points.length === 0) {
     return (
@@ -122,20 +77,27 @@ export function CalibrationSparkline({ className }: Props) {
     );
   }
 
-  // Build SVG path through calibration points
+  // Build SVG path through the real calibration points.
   const pathD = points
-    .map((pt, i) => `${i === 0 ? "M" : "L"} ${toSvgX(pt.predicted).toFixed(1)} ${toSvgY(pt.observed).toFixed(1)}`)
+    .map(
+      (pt, i) =>
+        `${i === 0 ? "M" : "L"} ${toSvgX(pt.predicted).toFixed(1)} ${toSvgY(pt.observed).toFixed(1)}`,
+    )
     .join(" ");
 
   return (
     <div className={className}>
       <div className="flex items-center justify-between text-[11px] text-muted">
         <span className="font-semibold uppercase tracking-wide">Calibration</span>
-        {brier !== null && (
-          <span className="font-mono">
-            Brier <span className="text-text">{brier.toFixed(3)}</span>
-          </span>
-        )}
+        <span className="font-mono">
+          {provisional ? (
+            <span className="text-gold">Provisional · n={totalN}</span>
+          ) : (
+            <span>
+              n=<span className="text-text">{totalN}</span> resolved
+            </span>
+          )}
+        </span>
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -143,7 +105,7 @@ export function CalibrationSparkline({ className }: Props) {
         height={H}
         className="mt-1 w-full"
         role="img"
-        aria-label="Calibration curve"
+        aria-label={`Calibration reliability curve from ${totalN} resolved outcomes${provisional ? " (provisional — thin data)" : ""}`}
       >
         {/* Perfect-calibration diagonal */}
         <line
@@ -161,7 +123,7 @@ export function CalibrationSparkline({ className }: Props) {
           <path
             d={pathD}
             fill="none"
-            stroke="var(--color-accent, #7c3aed)"
+            stroke="var(--color-accent, #00C9A0)"
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
@@ -173,7 +135,7 @@ export function CalibrationSparkline({ className }: Props) {
             cx={toSvgX(pt.predicted)}
             cy={toSvgY(pt.observed)}
             r="2.5"
-            fill="var(--color-accent, #7c3aed)"
+            fill="var(--color-accent, #00C9A0)"
           />
         ))}
       </svg>

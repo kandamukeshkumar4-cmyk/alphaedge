@@ -34,15 +34,22 @@ import { SimilarMarkets } from "@/components/SimilarMarkets";
 import { SimilarPastMarkets } from "@/components/SimilarPastMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
 import { QuestMarketActivity } from "@/components/quest/QuestMarketActivity";
-import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
+import { useAtlasPanel } from "@/context/atlas-panel";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
 const PAPER_DISCLAIMER =
   "This project is a paper-trading simulation for sports and election markets using simulated funds for research and portfolio demonstration only.";
 
-export default function MarketDetailClient({ slug }: { slug: string }) {
+export default function MarketDetailClient({
+  slug,
+  initialDetail = null,
+}: {
+  slug: string;
+  initialDetail?: MarketDetailApi | null;
+}) {
+  const { openPanel } = useAtlasPanel();
   const [apiMarket, setApiMarket] = useState<Market | null>(null);
-  const [apiDetail, setApiDetail] = useState<MarketDetailApi | null>(null);
+  const [apiDetail, setApiDetail] = useState<MarketDetailApi | null>(initialDetail);
   const [loadedApi, setLoadedApi] = useState(false);
   const localMarket = getMarket(slug);
   const market = apiMarket ?? localMarket;
@@ -54,15 +61,29 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchMarketDetailApi(slug), fetchMarketDetail(slug)]).then(
-      ([detail, nextMarket]) => {
-        if (!cancelled) {
-          setApiDetail(detail);
-          setApiMarket(nextMarket);
-          setLoadedApi(true);
-        }
-      },
-    );
+    // Live catalog slugs (pm-/ks-) exist only on the API; a single transient
+    // failure (HF Space 429 / cold start) must not drop the page to the mock
+    // catalog. Retry once with backoff and keep whatever live fields loaded.
+    const isLiveSlug = slug.startsWith("pm-") || slug.startsWith("ks-");
+
+    const load = async (attempt: number): Promise<void> => {
+      const [detail, nextMarket] = await Promise.all([
+        fetchMarketDetailApi(slug),
+        fetchMarketDetail(slug),
+      ]);
+      if (cancelled) return;
+      if (detail) setApiDetail(detail);
+      if (nextMarket) setApiMarket(nextMarket);
+      if (!detail && !nextMarket && isLiveSlug && attempt < 2) {
+        setTimeout(() => {
+          if (!cancelled) void load(attempt + 1);
+        }, 2_000 * (attempt + 1));
+        return;
+      }
+      setLoadedApi(true);
+    };
+
+    void load(0);
     return () => {
       cancelled = true;
     };
@@ -93,7 +114,7 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
     apiDetail?.winning_outcome ?? apiDetail?.resolution_outcome ?? resolutionOutcome;
 
   return (
-    <main className="theme-polymarket mx-auto max-w-[1400px] px-4 py-6">
+    <main className="theme-polymarket mx-auto max-w-[1400px] overflow-x-hidden px-4 py-6">
       <ResolutionBanner
         outcome={isResolved ? displayOutcome : null}
         resolvedAt={apiDetail?.resolved_at}
@@ -108,20 +129,46 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
         <span>{market.category}</span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-2xl">
             {market.icon}
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-black text-text sm:text-2xl">{market.title}</h1>
+              <h1 className="text-xl font-black text-text sm:text-2xl">
+                {apiDetail?.title ?? market.title}
+              </h1>
               <LatencyBadge slug={market.slug} />
             </div>
-            <p className="mt-0.5 text-sm text-muted">{market.question}</p>
+            <p className="mt-0.5 text-sm text-muted">
+              {market.question === "Paper market snapshot unavailable"
+                ? apiDetail?.title ?? market.title
+                : market.question}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+          <button
+            type="button"
+            onClick={() =>
+              openPanel({
+                mode: "analyze",
+                marketSlug: market.slug,
+                marketTitle: market.title,
+                seedPrompt: `Deep-dive ${market.title}. Current YES ~${Math.round((livePrice.connected && livePrice.yes > 0 ? livePrice.yes : market.outcomes[0]?.price ?? 0.5) * 100)}¢.`,
+              })
+            }
+            className="rounded-lg border border-primary/40 bg-primary-dim px-3 py-2 text-sm font-bold text-primary shadow-glow transition hover:bg-primary hover:text-bg"
+          >
+            ✦ AI Analyze
+          </button>
+          <Link
+            href={`/trade?slug=${encodeURIComponent(market.slug)}`}
+            className="rounded-lg border border-border px-3 py-2 text-sm font-bold text-muted transition hover:text-text"
+          >
+            Trade view
+          </Link>
           {isResolved ? (
             <span className="rounded-md bg-primary-dim px-2 py-1 font-bold uppercase text-primary">
               Resolved {resolutionOutcome ?? ""}
@@ -134,16 +181,50 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
             </span>
           )}
           <span className="font-mono">{formatCompactUSD(market.volume)} vol</span>
-          <span className="font-mono">{market.traders.toLocaleString()} traders</span>
-          <span className="rounded-md bg-surface-2 px-2 py-1 font-mono">
-            closes {timeUntil(market.endsAt)}
-          </span>
+          {/* Traders/closes come from the mock catalog for unknown slugs; a
+              live pm-/ks- market must omit them rather than show fake stats. */}
+          {apiMarket && market.traders > 0 ? (
+            <span className="font-mono">{market.traders.toLocaleString()} traders</span>
+          ) : null}
+          {timeUntil(market.endsAt) !== "closed" || isResolved ? (
+            <span className="rounded-md bg-surface-2 px-2 py-1 font-mono">
+              closes {timeUntil(market.endsAt)}
+            </span>
+          ) : null}
         </div>
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Left: chart, outcomes, book, AI, tabs */}
         <div className="min-w-0 space-y-5">
+          {(() => {
+            const yes =
+              livePrice.connected && livePrice.yes > 0
+                ? livePrice.yes
+                : market.outcomes[0]?.price ?? 0.5;
+            const chance = Math.round(yes * 100);
+            const deltaPts = Math.round((yes - (market.forecast?.prob ?? yes)) * 100);
+            return (
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-3xl font-black tabular-nums text-text sm:text-4xl">
+                  {chance}.0%
+                </span>
+                <span className="text-lg font-semibold text-muted">Chance</span>
+                <span className="text-sm text-muted-2">— {market.outcomes[0]?.label ?? "YES"}</span>
+                {deltaPts !== 0 && (
+                  <span
+                    className={cn(
+                      "font-mono text-sm font-semibold tabular-nums",
+                      deltaPts >= 0 ? "text-primary" : "text-danger",
+                    )}
+                  >
+                    {deltaPts >= 0 ? "↗ +" : "↘ "}
+                    {Math.abs(deltaPts)} pts
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div className="rounded-2xl border border-border bg-surface p-4">
             <PriceChart
               slug={market.slug}
@@ -224,7 +305,23 @@ export default function MarketDetailClient({ slug }: { slug: string }) {
           <QuestMarketActivity slug={slug} />
           <DecisionSignalPanel market={market} />
           <DecisionCard slug={slug} />
-          <AnalystChatDrawer marketSlug={slug} context="market" />
+          <button
+            type="button"
+            onClick={() =>
+              openPanel({
+                mode: "chat",
+                marketSlug: slug,
+                marketTitle: market.title,
+                seedPrompt: `Why did odds move on ${market.title}?`,
+              })
+            }
+            className="rounded-2xl border border-accent/30 bg-accent-dim/40 px-4 py-3 text-left transition hover:border-primary/50"
+          >
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">ATLAS</p>
+            <p className="mt-1 text-sm text-muted">
+              Analysis only — open the AI rail for briefs. Cannot place trades.
+            </p>
+          </button>
           <MarketTradingPanel
             slug={slug}
             title={market.title}

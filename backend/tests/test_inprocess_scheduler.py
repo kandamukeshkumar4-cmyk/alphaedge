@@ -23,6 +23,8 @@ import pytest
 # existed and are not the subject of this test.
 EXPECTED_NEW_LOOPS = {
     "_news_scan_loop",
+    "_news_mispricing_loop",
+    "_unusual_flow_loop",
     "_weather_scan_loop",
     "_morning_research_loop",
     "_whale_refresh_loop",
@@ -82,6 +84,8 @@ async def test_inprocess_scheduler_registers_all_new_background_tasks(monkeypatc
 
     for fn_name in (
         "news_scan_task",
+        "news_mispricing_scan_task",
+        "unusual_flow_scan_task",
         "weather_scan_task",
         "morning_research_task",
         "refresh_whales_task",
@@ -139,6 +143,8 @@ async def test_inprocess_scheduler_respects_disabled_flags(monkeypatch):
 
     for fn_name in (
         "news_scan_task",
+        "news_mispricing_scan_task",
+        "unusual_flow_scan_task",
         "weather_scan_task",
         "morning_research_task",
         "refresh_whales_task",
@@ -146,8 +152,9 @@ async def test_inprocess_scheduler_respects_disabled_flags(monkeypatch):
     ):
         monkeypatch.setattr(f"app.workers.tasks.{fn_name}", _noop)
 
-    # Disable two of the five new loops.
+    # Disable three of the new loops.
     monkeypatch.setattr(main_mod.settings, "scheduler_news_scan_enabled", False)
+    monkeypatch.setattr(main_mod.settings, "scheduler_news_mispricing_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_weather_scan_enabled", False)
     # The other three stay default-True.
     monkeypatch.setattr(main_mod.settings, "scheduler_morning_research_enabled", True)
@@ -176,6 +183,10 @@ async def test_inprocess_scheduler_respects_disabled_flags(monkeypatch):
             registered = set(created_names)
             assert "_news_scan_loop" not in registered, (
                 "news scan loop registered despite SCHEDULER_NEWS_SCAN_ENABLED=False"
+            )
+            assert "_news_mispricing_loop" not in registered, (
+                "news mispricing loop registered despite "
+                "SCHEDULER_NEWS_MISPRICING_ENABLED=False"
             )
             assert "_weather_scan_loop" not in registered, (
                 "weather scan loop registered despite "

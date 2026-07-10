@@ -9,10 +9,12 @@ import { BottomNav } from "@/components/BottomNav";
 import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
+import { QuestLiveTicker } from "@/components/quest/QuestLiveTicker";
 import { PortfolioBanner } from "@/components/PortfolioBanner";
+import { AtlasPanel } from "@/components/quest/AtlasPanel";
+import { AtlasPanelProvider } from "@/context/atlas-panel";
 
 // QuestFlow uses a rounded geometric sans; Figtree is the closest match.
-// Kept on the --font-inter variable so tailwind config stays unchanged.
 const inter = Figtree({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -39,18 +41,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-bg font-sans text-text">
         <Providers>
-        <ToastProvider>
-          <HealthBanner />
-          <SiteHeader />
-          <PortfolioBanner />
-          <div className="min-h-[calc(100vh-7rem)] pb-20 lg:pb-0">{children}</div>
-          <BottomNav />
-          <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
-            <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
-              {DISCLAIMER}
-            </p>
-          </footer>
-        </ToastProvider>
+          <AtlasPanelProvider>
+            <ToastProvider>
+              <HealthBanner />
+              <SiteHeader />
+              <PortfolioBanner />
+              <div className="flex min-h-[calc(100vh-7rem)] w-full">
+                <div className="min-w-0 flex-1 pb-20 lg:pb-0">{children}</div>
+                <AtlasPanel />
+              </div>
+              <QuestLiveTicker />
+              <BottomNav />
+              <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
+                <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
+                  {DISCLAIMER}
+                </p>
+              </footer>
+            </ToastProvider>
+          </AtlasPanelProvider>
         </Providers>
       </body>
     </html>

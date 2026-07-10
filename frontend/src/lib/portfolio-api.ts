@@ -1,9 +1,17 @@
-import { API_BASE } from "./alphaedge-api";
+import { API_BASE, apiUrl, hasLiveApi } from "./alphaedge-api";
 
 export const PORTFOLIO_DISCLAIMER =
   "Research only — not financial advice. Verify resolution terms. Paper trading only.";
 
 export const ACCESS_TOKEN_KEY = "alphaedge.accessToken";
+
+type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
+
+function resolvePortfolioBase(inputBase?: string): string | null {
+  const apiBase = (inputBase ?? API_BASE).trim().replace(/\/+$/, "");
+  if (!hasLiveApi(apiBase)) return null;
+  return apiBase;
+}
 
 export type PortfolioPosition = {
   id: string;
@@ -69,8 +77,6 @@ type RawPortfolioResponse = {
   disclaimer: string;
 };
 
-type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
-
 export function getAccessToken(): string | null {
   try {
     return typeof localStorage === "undefined"
@@ -85,13 +91,13 @@ export async function fetchPortfolio(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
 ): Promise<PortfolioView> {
-  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
-  if (!apiBase) {
+  const apiBase = resolvePortfolioBase(input?.apiBase);
+  if (apiBase === null) {
     throw new Error("Set NEXT_PUBLIC_API_URL to load your portfolio.");
   }
 
   const fetcher = input?.fetcher ?? fetch;
-  const response = await fetcher(`${apiBase}/api/v1/portfolio`, {
+  const response = await fetcher(apiUrl("/api/v1/portfolio", apiBase), {
     cache: "no-store",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -152,11 +158,11 @@ export async function fetchPortfolioSummary(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
 ): Promise<PortfolioSummary | null> {
-  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
-  if (!apiBase) return null;
+  const apiBase = resolvePortfolioBase(input?.apiBase);
+  if (apiBase === null) return null;
   const fetcher = input?.fetcher ?? fetch;
   try {
-    const response = await fetcher(`${apiBase}/api/v1/portfolio/summary`, {
+    const response = await fetcher(apiUrl("/api/v1/portfolio/summary", apiBase), {
       cache: "no-store",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -183,11 +189,11 @@ export async function fetchPortfolioRisk(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
 ): Promise<PortfolioRisk | null> {
-  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
-  if (!apiBase) return null;
+  const apiBase = resolvePortfolioBase(input?.apiBase);
+  if (apiBase === null) return null;
   const fetcher = input?.fetcher ?? fetch;
   try {
-    const response = await fetcher(`${apiBase}/api/v1/portfolio/risk`, {
+    const response = await fetcher(apiUrl("/api/v1/portfolio/risk", apiBase), {
       cache: "no-store",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -221,11 +227,11 @@ export async function fetchPortfolioExposure(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
 ): Promise<PortfolioExposure | null> {
-  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
-  if (!apiBase) return null;
+  const apiBase = resolvePortfolioBase(input?.apiBase);
+  if (apiBase === null) return null;
   const fetcher = input?.fetcher ?? fetch;
   try {
-    const response = await fetcher(`${apiBase}/api/v1/portfolio/exposure`, {
+    const response = await fetcher(apiUrl("/api/v1/portfolio/exposure", apiBase), {
       cache: "no-store",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -240,13 +246,13 @@ export async function fetchOrderHistory(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
 ): Promise<OrderHistoryItem[]> {
-  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
-  if (!apiBase) {
+  const apiBase = resolvePortfolioBase(input?.apiBase);
+  if (apiBase === null) {
     throw new Error("Set NEXT_PUBLIC_API_URL to load trade history.");
   }
 
   const fetcher = input?.fetcher ?? fetch;
-  const response = await fetcher(`${apiBase}/api/v1/orders/history`, {
+  const response = await fetcher(apiUrl("/api/v1/orders/history", apiBase), {
     cache: "no-store",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -302,11 +308,11 @@ export async function fetchTraderProfile(
   token: string,
   input?: { apiBase?: string; fetcher?: Fetcher },
 ): Promise<TraderProfile | null> {
-  const apiBase = (input?.apiBase ?? API_BASE).trim().replace(/\/+$/, "");
-  if (!apiBase) return null;
+  const apiBase = resolvePortfolioBase(input?.apiBase);
+  if (apiBase === null) return null;
   const fetcher = input?.fetcher ?? fetch;
   try {
-    const response = await fetcher(`${apiBase}/api/v1/profile`, {
+    const response = await fetcher(apiUrl("/api/v1/profile", apiBase), {
       cache: "no-store",
       headers: { Authorization: `Bearer ${token}` },
     });

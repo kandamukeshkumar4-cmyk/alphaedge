@@ -16,6 +16,31 @@ export type BriefClaim = {
   created_at: string;
 };
 
+export type ToolUsage = {
+  tool: string;
+  spread?: number | null;
+  best_bid?: number | null;
+  best_ask?: number | null;
+  points?: number | null;
+  last?: number | null;
+  whale_count?: number | null;
+  error?: string | null;
+};
+
+export type EnsembleMemberEstimate = {
+  provider: string;
+  prob: number;
+  rationale?: string;
+};
+
+export type EnsembleForecast = {
+  prob?: number;
+  stdev?: number;
+  n_models: number;
+  spread_flag?: boolean;
+  per_model?: EnsembleMemberEstimate[];
+};
+
 export type AnalystBrief = {
   id: string;
   market_slug: string;
@@ -30,6 +55,11 @@ export type AnalystBrief = {
   latency_ms: number;
   created_at: string;
   claim: BriefClaim | null;
+  model_prob?: number | null;
+  market_implied?: number | null;
+  edge?: number | null;
+  ensemble?: EnsembleForecast | null;
+  tools_used?: Array<string | ToolUsage> | null;
 };
 
 export type BriefsPage = {

@@ -3,24 +3,142 @@ import { mergeApiSnapshotForDetail } from "./api-market-detail-adapter";
 import { MARKETS, type Market as CardMarket } from "./mock-data";
 import type { Market, MarketSnapshot } from "./market-view-model";
 
-// Resolve the backend the deployed static site talks to.
+// Resolve the backend the deployed site talks to.
 //
-// A static-exported SPA has NO backend at its own origin, so an empty base
-// ("") makes every /api/v1 call hit the static host, fail, and drop the whole
-// UI into sample-data fallback — the "everything is mock data" failure. So we
-// ALWAYS resolve to a real backend: the NEXT_PUBLIC_API_URL build var when set,
-// otherwise the known production API (prod build) or localhost (dev).
-const DEFAULT_API_BASE =
-  process.env.NODE_ENV === "production"
-    ? "https://mukeshkumar007-alphaedge-api.hf.space"
-    : "http://localhost:8000";
+// Production browser: empty base = same-origin Vercel rewrite → HF Space
+// (see next.config.ts). HF free-tier often returns CORS-less 429 HTML; a
+// cross-origin fetch then looks like a hard outage (health down, markets
+// refresh fail, ATLAS "Could not reach"). Same-origin keeps status readable.
+//
+// Production SSR / Node: absolute HF URL (rewrites are browser-facing).
+// Dev without NEXT_PUBLIC_API_URL: probe localhost:8000/health once; if the
+// local API is down, fall back to the HF Space prod URL.
+const HF_PROD_API = "https://mukeshkumar007-alphaedge-api.hf.space";
+const LOCAL_DEV_API = "http://localhost:8000";
+/** Empty string — browser production uses Vercel /api + /health rewrites. */
+const SAME_ORIGIN = "";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").trim() || DEFAULT_API_BASE;
-export const WS_BASE =
+function readEnvApiUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
+}
+
+function isHfSpaceUrl(url: string): boolean {
+  return /(?:^|\.)hf\.space$/i.test(url.replace(/^https?:\/\//, "").split("/")[0] ?? "");
+}
+
+/** Browser prod should not call HF cross-origin (CORS-less 429 HTML). */
+function browserProdBase(env: string): string {
+  if (!env || isHfSpaceUrl(env)) return SAME_ORIGIN;
+  return env;
+}
+
+function syncDefaultBase(): string {
+  const env = readEnvApiUrl();
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return browserProdBase(env);
+  }
+  if (env) return env;
+  if (process.env.NODE_ENV === "production") return HF_PROD_API;
+  return LOCAL_DEV_API;
+}
+
+let _resolvedBase: string | null = null;
+let _probePromise: Promise<string> | null = null;
+
+export async function resolveApiBase(): Promise<string> {
+  const env = readEnvApiUrl();
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    _resolvedBase = browserProdBase(env);
+    return _resolvedBase;
+  }
+  if (env) {
+    _resolvedBase = env;
+    return env;
+  }
+  if (process.env.NODE_ENV === "production") {
+    _resolvedBase = HF_PROD_API;
+    return HF_PROD_API;
+  }
+  if (_resolvedBase !== null) return _resolvedBase;
+  if (_probePromise) return _probePromise;
+
+  _probePromise = (async () => {
+    try {
+      const response = await fetch(`${LOCAL_DEV_API}/health`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(2500),
+      });
+      _resolvedBase = response.ok ? LOCAL_DEV_API : HF_PROD_API;
+    } catch {
+      _resolvedBase = HF_PROD_API;
+    }
+    _probePromise = null;
+    return _resolvedBase!;
+  })();
+
+  return _probePromise;
+}
+
+/** Live binding — updated after {@link ensureApiBase} in dev when local API is down. */
+export let API_BASE = syncDefaultBase();
+
+export let WS_BASE =
   (process.env.NEXT_PUBLIC_WS_URL || "").trim() ||
-  API_BASE.replace(/^http/, "ws");
+  (API_BASE ? API_BASE.replace(/^http/, "ws") : "");
+
+/** True when live API calls should run (incl. same-origin proxy with API_BASE=""). */
+export function hasLiveApi(base: string = API_BASE): boolean {
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return true;
+  }
+  if (readEnvApiUrl()) return true;
+  if (process.env.NODE_ENV === "production") return true;
+  return Boolean(base);
+}
+
+/** Join API_BASE + path. Empty base → same-origin `/api/...`. */
+export function apiUrl(path: string, base: string = API_BASE): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (!base) return p;
+  return `${base.replace(/\/+$/, "")}${p}`;
+}
+
+export async function ensureApiBase(): Promise<string> {
+  const base = await resolveApiBase();
+  API_BASE = base;
+  WS_BASE =
+    (process.env.NEXT_PUBLIC_WS_URL || "").trim() ||
+    (base ? base.replace(/^http/, "ws") : "");
+  return base;
+}
 export const PAPER_BALANCE = 100_000;
 export const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
+
+/**
+ * FastAPI may return `detail` as a string or as a validation-error array/object.
+ * Never pass the raw value into React children — that throws React error #31.
+ */
+export function formatApiDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          const msg = (item as { msg?: unknown }).msg;
+          return typeof msg === "string" ? msg : null;
+        }
+        return null;
+      })
+      .filter((part): part is string => Boolean(part));
+    if (parts.length > 0) return parts.join("; ");
+  }
+  if (detail && typeof detail === "object" && "msg" in detail) {
+    const msg = (detail as { msg?: unknown }).msg;
+    if (typeof msg === "string" && msg.trim()) return msg;
+  }
+  return fallback;
+}
 
 export type Candle = {
   time: number;
@@ -39,10 +157,14 @@ export async function fetchMarketHistory(
   slug: string,
   days = 7,
 ): Promise<HistoryPoint[]> {
-  if (!API_BASE) return [];
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return [];
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/history?days=${days}`,
+      apiUrl(
+        `/api/v1/markets/${encodeURIComponent(slug)}/history?days=${days}`,
+        base,
+      ),
       { cache: "no-store" },
     );
     if (!response.ok) return [];
@@ -58,10 +180,11 @@ export type OrderBookSide = { bids: OrderBookLevel[]; asks: OrderBookLevel[] };
 export type OrderBookResponse = { yes: OrderBookSide; no: OrderBookSide };
 
 export async function fetchOrderBook(slug: string): Promise<OrderBookResponse | null> {
-  if (!API_BASE) return null;
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return null;
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/book`,
+      apiUrl(`/api/v1/markets/${encodeURIComponent(slug)}/book`, base),
       { cache: "no-store" },
     );
     if (!response.ok) return null;
@@ -80,13 +203,14 @@ export type LivePrice = {
 };
 
 export async function fetchLatestPrice(slug: string): Promise<LivePrice | null> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/prices/latest`,
+      apiUrl(`/api/v1/markets/${encodeURIComponent(slug)}/prices/latest`, base),
       { cache: "no-store" },
     );
     if (!response.ok) {
@@ -117,20 +241,22 @@ export async function fetchMemories(
   category?: string,
   limit = 8,
 ): Promise<AgentMemoryRow[]> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return [];
   }
   const params = new URLSearchParams();
   if (category) params.set("category", category);
   params.set("limit", String(limit));
   try {
-    const response = await fetch(`${API_BASE}/api/v1/memories?${params.toString()}`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      apiUrl(`/api/v1/memories?${params.toString()}`, base),
+      { cache: "no-store" },
+    );
     if (!response.ok) {
       return [];
     }
-    const data = (await response.json()) as { items?: AgentMemoryRow[] };
+    const data = (await response.json()) as { items?: AgentMemoryRow[]; total?: number };
     return Array.isArray(data.items) ? data.items : [];
   } catch {
     return [];
@@ -141,13 +267,17 @@ export async function fetchMarketCandles(
   slug: string,
   points = 90,
 ): Promise<Candle[] | null> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      apiUrl(
+        `/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+        base,
+      ),
       { cache: "no-store" },
     );
     if (!response.ok) {
@@ -164,10 +294,14 @@ export async function fetchMarketCandlesMeta(
   slug: string,
   points = 90,
 ): Promise<{ candles: Candle[]; source: string } | null> {
-  if (!API_BASE) return null;
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) return null;
   try {
     const response = await fetch(
-      `${API_BASE}/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+      apiUrl(
+        `/api/v1/markets/${encodeURIComponent(slug)}/candles?points=${points}`,
+        base,
+      ),
       { cache: "no-store" },
     );
     if (!response.ok) return null;
@@ -375,12 +509,51 @@ export function toApiCategory(category: string): string | undefined {
   return map[normalized];
 }
 
+// Shared client cache for market catalog fetches. Many surfaces (signal rail,
+// live ticker, discover, markets board, trade terminal, similar markets) poll
+// the same GET /markets; without coalescing the homepage alone can fire 5+
+// identical requests per cycle and trip SlowAPI 429s on the free-tier API.
+const MARKETS_CACHE_TTL_MS = 4000;
+type MarketsCacheEntry = { promise: Promise<CardMarket[]>; expiresAt: number };
+const marketsCache = new Map<string, MarketsCacheEntry>();
+
+function marketsCacheKey(params?: MarketFilterParams): string {
+  return [params?.category ?? "", params?.sort ?? "", params?.q ?? ""].join("|");
+}
+
+/** Test hook: reset the shared markets cache. */
+export function __clearMarketsCache(): void {
+  marketsCache.clear();
+}
+
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
-  if (!API_BASE) {
+  const key = marketsCacheKey(params);
+  const now = Date.now();
+  const cached = marketsCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+  const promise = fetchMarketsUncached(params);
+  marketsCache.set(key, { promise, expiresAt: now + MARKETS_CACHE_TTL_MS });
+  // Never cache failures — the next caller should retry the network.
+  promise.catch(() => {
+    if (marketsCache.get(key)?.promise === promise) {
+      marketsCache.delete(key);
+    }
+  });
+  return promise;
+}
+
+async function fetchMarketsUncached(params?: MarketFilterParams): Promise<CardMarket[]> {
+  const apiBase = await ensureApiBase();
+  if (!hasLiveApi(apiBase)) {
     return [];
   }
 
-  const url = new URL(`${API_BASE}/api/v1/markets`);
+  const origin =
+    apiBase ||
+    (typeof window !== "undefined" ? window.location.origin : HF_PROD_API);
+  const url = new URL(apiUrl("/api/v1/markets", apiBase), origin);
   if (params?.category && params.category !== "all") {
     const apiCategory = toApiCategory(params.category);
     if (apiCategory) {
@@ -390,7 +563,9 @@ export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMar
   if (params?.sort) url.searchParams.set("sort", params.sort);
   if (params?.q) url.searchParams.set("q", params.q);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  // Relative fetch when same-origin proxy is active (keeps cookies/origin clean).
+  const href = apiBase ? url.toString() : `${url.pathname}${url.search}`;
+  const response = await fetch(href, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Markets HTTP ${response.status}`);
   }
@@ -430,14 +605,16 @@ export async function patchMe(
 }
 
 export async function fetchMarketSnapshot(slug: string): Promise<MarketSnapshot> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return fallbackForSlug(slug);
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/v1/markets/${slug}/snapshot`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      apiUrl(`/api/v1/markets/${slug}/snapshot`, base),
+      { cache: "no-store" },
+    );
     if (!response.ok) {
       return fallbackForSlug(slug);
     }
@@ -477,14 +654,16 @@ export type MarketDetailApi = {
 export async function fetchMarketDetailApi(
   slug: string,
 ): Promise<MarketDetailApi | null> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/v1/markets/${slug}/detail`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      apiUrl(`/api/v1/markets/${slug}/detail`, base),
+      { cache: "no-store" },
+    );
     if (!response.ok) {
       return null;
     }
@@ -500,7 +679,8 @@ export async function fetchMarketDetail(slug: string): Promise<CardMarket | null
     return mergeApiDetailForCards(detail, MARKETS);
   }
 
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return null;
   }
 

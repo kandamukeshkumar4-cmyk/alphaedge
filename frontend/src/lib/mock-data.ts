@@ -135,18 +135,18 @@ function hashSeed(s: string): number {
 }
 
 const USERS = [
-  "alpha_quant",
-  "edgeHunter",
-  "marketGuru",
-  "brierBeast",
-  "kelly_max",
-  "lineMover",
-  "noFloor",
-  "yesFloor",
-  "deltaOne",
-  "calibrated",
-  "tailRisk",
-  "sharpKing",
+  "demo-trader-1",
+  "demo-trader-2",
+  "demo-trader-3",
+  "demo-trader-4",
+  "demo-trader-5",
+  "demo-trader-6",
+  "demo-trader-7",
+  "demo-trader-8",
+  "demo-trader-9",
+  "demo-trader-10",
+  "demo-trader-11",
+  "demo-trader-12",
 ];
 
 const TONES: OutcomeTone[] = ["primary", "danger", "accent", "gold", "muted"];

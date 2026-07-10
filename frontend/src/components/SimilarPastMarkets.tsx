@@ -10,8 +10,8 @@ import { pct } from "@/lib/mock-data";
  * category. Shows how the agent's past forecasts scored: question, resolved
  * outcome, model-vs-market probability at close, and Brier per row.
  *
- * Degrades silently: no backend / empty feed → renders nothing (no error state),
- * so the surface never breaks against an older backend that lacks the endpoint.
+ * Empty feed is an honest owner-blocked state (prod admin resolve), not a
+ * fetch failure — never fabricate rows.
  */
 export function SimilarPastMarkets({
   category,
@@ -21,33 +21,54 @@ export function SimilarPastMarkets({
   currentSlug: string;
 }) {
   const [rows, setRows] = useState<AgentMemoryRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let dead = false;
     void fetchMemories(category, 8).then((items) => {
       if (dead) return;
       setRows(items.filter((m) => m.market_slug !== currentSlug));
+      setLoaded(true);
     });
     return () => {
       dead = true;
     };
   }, [category, currentSlug]);
 
-  return <SimilarPastMarketsView category={category} rows={rows} />;
+  return (
+    <SimilarPastMarketsView category={category} rows={rows} loaded={loaded} />
+  );
 }
 
 /**
  * Pure presentational view — takes already-fetched, already-filtered rows so it
- * can be rendered/tested without a network. Renders nothing when empty.
+ * can be rendered/tested without a network.
  */
 export function SimilarPastMarketsView({
   category,
   rows,
+  loaded = true,
 }: {
   category: string;
   rows: AgentMemoryRow[];
+  /** When true and rows empty, show honest owner-blocked empty (not a crash). */
+  loaded?: boolean;
 }) {
-  if (rows.length === 0) return null;
+  if (!loaded) return null;
+
+  if (rows.length === 0) {
+    return (
+      <section className="rounded-2xl border border-dashed border-border bg-surface p-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
+          Similar past markets
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          No agent memories yet — appears after a seed market is resolved with the
+          prod admin key (owner action).
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-4">

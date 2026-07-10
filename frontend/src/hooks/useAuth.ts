@@ -8,9 +8,21 @@ import { ACCESS_TOKEN_KEY } from "@/lib/portfolio-api";
 
 export const USER_EMAIL_KEY = "alphaedge.userEmail";
 
+// Same-tab auth sync: localStorage "storage" events only fire in OTHER tabs,
+// so login/signup dispatch this event to update the persistent SiteHeader
+// without a hard refresh.
+export const AUTH_CHANGED_EVENT = "alphaedge:auth-changed";
+
+function notifyAuthChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
+
 export function saveAuthSession(accessToken: string, userEmail: string) {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
   localStorage.setItem(USER_EMAIL_KEY, userEmail);
+  notifyAuthChanged();
 }
 
 type MeResponse = {
@@ -48,14 +60,25 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-    setToken(storedToken);
-    setEmail(localStorage.getItem(USER_EMAIL_KEY));
-    setIsReady(true);
+    const sync = () => {
+      const storedToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+      setToken(storedToken);
+      setEmail(localStorage.getItem(USER_EMAIL_KEY));
+      setIsReady(true);
+      if (storedToken) {
+        void refreshBalance();
+      } else {
+        setPaperBalance(null);
+      }
+    };
 
-    if (storedToken) {
-      void refreshBalance();
-    }
+    sync();
+    window.addEventListener(AUTH_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
   }, [refreshBalance]);
 
   const logout = useCallback(() => {
@@ -64,6 +87,7 @@ export function useAuth() {
     setToken(null);
     setEmail(null);
     setPaperBalance(null);
+    notifyAuthChanged();
     router.replace("/auth/login");
   }, [router]);
 

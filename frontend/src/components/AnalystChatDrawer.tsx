@@ -12,7 +12,8 @@
  */
 
 import { useRef, useState } from "react";
-import { API_BASE } from "@/lib/alphaedge-api";
+import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
+import { getAccessToken } from "@/lib/portfolio-api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -172,19 +173,23 @@ export function AnalystChatDrawer({
         content: m.content,
       }));
 
-      const endpoint = API_BASE
-        ? `${API_BASE}/api/v1/assistant/chat`
-        : "/api/v1/assistant/chat";
+      const base = await ensureApiBase();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const token = getAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text.trim(),
-          market_slug: marketSlug ?? null,
-          history: historyPayload.slice(0, -1), // all but the last (current) message
-        }),
-      });
+      const res = await fetch(
+        hasLiveApi(base) ? apiUrl("/api/v1/assistant/chat", base) : "/api/v1/assistant/chat",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            message: text.trim(),
+            market_slug: marketSlug ?? null,
+            history: historyPayload.slice(0, -1), // all but the last (current) message
+          }),
+        },
+      );
 
       if (!res.ok) {
         const body = await res.text();

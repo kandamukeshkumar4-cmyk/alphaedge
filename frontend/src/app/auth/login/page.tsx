@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import { saveAuthSession } from "@/hooks/useAuth";
-import { API_BASE } from "@/lib/alphaedge-api";
+import { API_BASE, formatApiDetail } from "@/lib/alphaedge-api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,10 +25,10 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { detail?: string };
+        const body = (await response.json().catch(() => ({}))) as { detail?: unknown };
         toast({
           title: "Login failed",
-          body: body.detail ?? "Invalid email or password",
+          body: formatApiDetail(body.detail, "Invalid email or password"),
           tone: "error",
         });
         return;

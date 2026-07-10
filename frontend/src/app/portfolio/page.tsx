@@ -116,7 +116,7 @@ export default function PortfolioPage() {
       <PageHeader
         kicker="Unified paper portfolio"
         title="Portfolio"
-        subtitle="Your paper balance and open positions across every market type — one unified view."
+        subtitle="Gross desk performance — paper balance, open positions, and risk across every market type."
         actions={
           <button
             type="button"

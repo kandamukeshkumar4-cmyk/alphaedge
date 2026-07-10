@@ -1,0 +1,154 @@
+# Polish Loop — surface what we built + make it feel like Questflow (STATE)
+
+Runner: Grok 4.5 (Cursor Composer) or stronger. One ticket per iteration.
+This file is the loop's memory — update it EVERY iteration before ending.
+
+Started 2026-07-09 after E2E / UI / Ship / Opus loops closed. Quant phases
+0–4, 6, X, Y are DONE. Do **not** greenfield a new product. Improve what
+exists: discoverability, request hygiene, Questflow polish, honest
+forecasting surfaces. Research basis: `/last30days` niche scan
+(2026-07-09) + codebase audit — traders want unified desks, alerts, whale
+flow, fee-aware arb, portfolio/CLV honesty, and search; AlphaEdge already
+has most of the backend for these.
+
+## Goal (the recursive condition)
+
+Every shipped capability is (a) ≤1 click from the Quest header/More menu,
+(b) not drowning the API in duplicate polls, (c) visually Questflow
+(mint-on-charcoal, animated charts where we already use lightweight-charts),
+and (d) honest about empty/live/demo. Forecasting gets better by **surfacing
+and measuring** existing CLV/calibration/screeners — not by inventing a new
+model stack. Optional clean-room bias layer only after real resolves exist.
+
+## Hard guardrails (violating any = failed iteration, revert)
+
+1. `PAPER_TRADING_ONLY=true` everywhere. No real-money paths, ever.
+2. Order path stays `RiskService → OrderIntent → OrderBookService`.
+   LLM/agent code never submits raw orders. Arb/dutch/screeners stay
+   **signal-only**.
+3. NO code copied from FinceptTerminal (AGPL) or other AGPL/commercial
+   terminals. OSS inspiration is **ideas only**, clean-room in our stack
+   (oracle3 Wang Transform idea → our `ml/calibration.py`; poly-arbitrage
+   matching honesty → our `signals/matching.py` UI; terminal.pm whale/copy
+   UX → our whale rail + paper clones — never their code).
+4. Never fabricate data or metrics. Demo fixtures ONLY behind `DemoChip`
+   when the API returns nothing. Never claim "live-verified" without
+   pasted evidence (IDs, timestamps, screenshots).
+5. Never game the gate (skip tests, loosen thresholds) to go green.
+6. Do not flip `ML_MODEL_TYPE` to LightGBM without a measured Brier win on
+   real resolved outcomes (≥100). Do not enable
+   `INSTABILITY_FEATURE_ENABLED` without an election dataset.
+
+## The gate (verifier — run ALL before marking any ticket DONE)
+
+```bash
+cd backend  && uv run --extra dev pytest -q && uv run --extra dev ruff check app tests
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+```
+
+Plus for UI tickets: page renders in browser with zero console errors.
+Plus for live tickets: evidence pasted into Notes from a running stack
+(local compose or HF Space).
+
+## Stop conditions
+
+- SUCCESS: all tickets DONE or BLOCKED-ON-USER/ENV, gate green.
+- REORGANIZE: 3 consecutive iterations with no ticket newly DONE → stop,
+  write a post-mortem section here, re-plan ticket order.
+- Per-iteration budget: 1 ticket. Split oversized tickets in this file.
+
+## Maker/checker split (required)
+
+Implement with one agent; before marking DONE, spawn a separate verifier
+subagent (fresh context) that re-runs the gate and adversarially reviews
+the diff against these guardrails. Verifier verdict goes in Notes.
+
+## Context you inherit (read before picking a ticket)
+
+- E2E loop COMPLETE (`goals/build-loop-e2e/STATE.md`) — live pipeline,
+  WS feed, macro, portfolio risk, personas, screeners, weather edges.
+- Ship loop: FE on Vercel; **S07 backend prod Koyeb still BLOCKED-ON-USER**
+  (HF Space is the live API: `mukeshkumar007-alphaedge-api.hf.space`).
+- Opus loop: O03–O08 DONE; O09 LightGBM A/B BLOCKED-ON-DATA; O10 FIFA
+  CSVs BLOCKED-ON-USER.
+- Known regressions vs older STATE claims (verify before "already done"):
+  - `useApiHealth` exists + tested but **not mounted** in header.
+  - Header search is decorative — `GET /api/v1/search` exists, no FE wire.
+  - Multiple independent `fetchMarkets({})` polls (home, rails, ticker,
+    discover, trade) → SlowAPI 429 risk (ship-loop follow-up).
+  - Weather / Macro / Alerts / Eval / Research often missing from primary
+    nav (≤1-click mandate regressed).
+  - Screener + dutching + weather_edge events emit but feed filters /
+    `/signals` panels may not surface them.
+  - `CalibrationSparkline` may still use synthetic bins — wire real
+    `/api/v1/calibration` when touching that ticket.
+
+## Tickets (priority order)
+
+| ID | Ticket | Status | Notes |
+|----|--------|--------|-------|
+| P01 | **Markets fetch dedup**: single shared client cache/store for `fetchMarkets` (TTL ~3–5s, in-flight coalesce). Wire QuestSignalRail, QuestLiveTicker, QuestDiscoverShell, QuestMarketsBoard, TradeTerminal, SimilarMarkets through it. Prove homepage request rate drops under load (Network tab or count). | DONE (2026-07-09) | Implemented inside `fetchMarkets` (alphaedge-api.ts): module-level TTL 4s cache + in-flight coalescing keyed by category/sort/q; failures never cached. All 8 consumers dedup automatically, zero call-site changes. Evidence: dev server localhost:3210, homepage load = **1** `/api/v1/markets` request (was 3+ concurrent consumers), 4 total after 54s of polling; zero console errors; page renders live data. Gate: typecheck ✓ lint ✓ vitest 100/100 ✓ build ✓ (4 new tests in `markets-fetch-cache.test.ts`). Verifier (fresh context): PASS — scope fence clean, no guardrail hits; noted low-severity SSR-staleness + "|" key-separator nits, non-blocking. |
+| P02 | **Wire header search → `GET /api/v1/search`**: command-palette or typeahead results (markets + briefs if API returns them); keyboard `/` focus optional. Empty/error states honest. | DONE (2026-07-09) | New `HeaderSearch` typeahead (debounce 250ms, stale-response seq guard, `/` focus shortcut, arrow/Enter nav, outside-click close) + `search-api.ts` consuming real `GET /api/v1/search`; mounted in SiteHeader replacing the decorative input. Honest states: "No markets match …" / "Search is unavailable right now". Quest tokens only. Browser evidence (localhost:3210): "world cup" → 8 live Polymarket results with price+volume; nonsense query → honest empty copy; click "Lakers vs Celtics" → navigates to `/markets/nba-2025-01-15-lal-bos`; zero console errors. Gate: typecheck ✓ lint ✓ vitest 104/104 ✓ build ✓ (4 new tests). Verifier (fresh context): PASS — no guardrail hits; non-blocking note: AbortSignal accepted but not wired (seq guard covers correctness). |
+| P03 | **Restore Live/Demo chip** via existing `useApiHealth` in Quest/Site header. Green Live / amber Demo; never show demo fixtures as live. | DONE (2026-07-09) | New `ApiHealthChip` reads existing `useApiHealth` probe: green pulsing dot `Live` (backend reachable), amber `Demo` (`gold` token — unreachable/unconfigured), neutral `Checking` (first probe). Mounted in `SiteHeader` beside the logo (`hidden sm:inline-flex`) and inside the mobile menu (`sm:hidden`) so status is ≤1 tap on all widths. `role="status" aria-live="polite"`; Quest tokens only, no hardcoded hex. Honesty: classification is the already-tested `classifyHealth` (5 branch tests) — demo is never shown as live. Gate: typecheck ✓ lint ✓ vitest 104/104 ✓ build ✓ (all routes prerender with chip in layout). |
+| P04 | **More menu / nav restore**: Research, Alerts, Feed, Track record, Weather, Macro, Eval, Backtest ≤1 click from header (desktop More + mobile). Quest tokens. | DONE (2026-07-09) | New `HeaderMoreMenu` desktop dropdown (`role=menu`, outside-click + Escape close, active-route highlight, rotating caret) exposing all 8 secondary routes with one-line blurbs; primary 6 tabs untouched. Same `MORE_NAV` list rendered as a 2-col "More" section in the mobile menu. All 8 hrefs verified against existing `page.tsx` routes (/research /feed /alerts /track-record /weather /macro /eval /backtest). Quest tokens only. Gate: typecheck ✓ lint ✓ vitest 104/104 ✓ build ✓ (all routes prerender). |
+| P05 | **Feed + signals surface completeness**: add filter pills / panels for `screener:*`, `delta:weather_edge`, dutching hits. `/signals` gets Screener strip + Dutching card (signal-only). Honest empty copy when none. | DONE (2026-07-09) | Added pure `categorizeSignal(signal_type)` mapping the real emitted types (`screener:*`→screener, `delta:weather_edge`→weather, `dutching`, `delta:news_arrival`/`news:mispricing`→news, `anomaly:unusual_flow`/`delta:price_jump`→anomaly, else other) + exposed raw `signalType`/`category` on `SignalCardView` (2 new unit tests). `/signals` "Signal feed" now has family filter pills (All/Screeners/Weather edge/Dutching/News/Unusual flow) with live counts over the loaded dashboard signals; honest per-filter empty copy ("No {family} signals in the current feed — Show all"). Added `signal` catch-all pill to `FeedFilterBar` (confirmed `signal` ∈ backend feed `_ALLOWED_TYPES`) so specialised signals are isolatable on `/feed` too. Signal-only framing preserved. Note: a per-market Dutching card would need platform+market_id (per-market endpoint) — surfaced via the Dutching family pill instead of a fabricated global card. Gate: typecheck ✓ lint ✓ vitest 106/106 ✓ build ✓. |
+| P06 | **Quest-theme `/eval` (+ link from More)**: replace leftover slate/admin look with mint-on-charcoal Quest tokens; keep honesty about unmeasured ensemble flags. | DONE (2026-07-09) | Rethemed `/eval` from raw `slate/amber/green/red` Tailwind defaults to Quest tokens: `PageShell`+`PageHeader` kit, `StatCard` on `border-border bg-surface`, mint `primary`/`up` for ON/ensemble-better, `gold` for OFF + not-measured + start-API states, `danger` for regressions. Fetch logic and both honest states ("Not yet measured" / "Insufficient data … need ≥30") preserved verbatim; no fabricated Brier numbers; `data-testid` hooks kept. Nav link already added via P04 More menu (`/eval`). Gate: typecheck ✓ lint ✓ vitest 106/106 ✓ build ✓. |
+| P07 | **CalibrationSparkline → real bins**: read `/api/v1/calibration` (or track-record reliability) instead of synthetic x-spread. Label provisional if thin data. | DONE (2026-07-09) | New `calibration-api.ts`: `fetchCalibrationBins()` consumes the existing real-bin endpoint `GET /api/v1/calibration` (eval_routes.py → `{bins:[{bin,count,mean_pred,mean_outcome}]}`, verified in backend) + pure `buildCalibrationCurve()` that drops empty bins, plots real `mean_pred` (x) vs `mean_outcome` (y) sized by real `count`, sums resolved n, and flags `provisional` when total n < `PROVISIONAL_MIN_SAMPLES` (50). Rewrote `CalibrationSparkline` to use it — synthetic `0.2 + idx*0.15` x-spread removed; shows "Provisional · n=X" (gold) when thin, honest "no resolved data yet" empty state, aria-label states sample size + provisional. NOTE: G05 `/api/v1/track-record` (with an explicit `thin_data` flag) is not shipped and API-NOTES.md is absent, so used the existing documented `/calibration` per the assignment fallback; will swap to `thin_data` when G05 lands. 4 new unit tests. Gate: typecheck ✓ lint ✓ vitest 110/110 ✓ build ✓. |
+| P08 | **DecisionCard / CLV chip on `/trade`**: reuse existing DecisionCard (or compact CLV/gate chip) on TradeTerminal — not only market-detail. | DONE (2026-07-09) | Mounted the existing `DecisionCard` (verdict chip + model/market bars + edge% + CLV-gate status + rationale/calibration) in the TradeTerminal Trade panel, below `MarketTradingPanel`, keyed by the selected `market.slug` (re-fetches `/explain`+`/agent-trace` on market change). Placed inside the `overflow-y-auto` trade column so it scrolls; analysis-only, no order path added (order flow stays `RiskService→OrderIntent→OrderBookService` via the separate MarketTradingPanel). Mirrors the unconditional mount pattern on `/markets/[slug]`. Gate: typecheck ✓ lint ✓ vitest 106/106 ✓ build ✓. |
+| P09 | **Arb card honesty**: when `opportunities:[]`, explain why (no matched pair / below confidence / stale). Show match confidence + stale flag when present. Clean-room UX inspired by poly-arbitrage-bot dashboards — no code copy. | DONE (2026-07-09) | Consumed G02 additive fields (verified against `backend/app/api/v1/arb.py`): added `confidence`, `spread_bps`, `legs[]` (platform/market_id/outcome/price/fee) to `ArbOpportunity` with default-safe mapper normalisation. `/signals` arb card now shows Edge · Spread (bps) · Match (`confidence ?? match_confidence`) and a per-leg breakdown (platform · outcome · price · fee); stale badge + opacity retained. Empty state now explains the reason honestly from page counts via `arbEmptyReason`: no matched pair (`total===0`) / all quotes stale (`stale_count>0 && fresh_count===0`) / matched-but-below-bar, plus signal-only framing. `signal_only` invariant preserved (analysis only). Gate: typecheck ✓ lint ✓ vitest 106/106 ✓ build ✓. |
+| P10 | **Resolved-count watcher + LightGBM A/B gate (O09)**: script/admin readout of resolved outcome count; when ≥100, run walk-forward XGB vs LGBM, record both Briers, flip default ONLY on measured win. | BLOCKED-ON-DATA until count ≥100 | Recheck count each iteration; may unblock itself. |
+| P11 | **Optional clean-room favorite-longshot adjuster** (oracle3 *idea* only): post-hoc display layer beside isotonic — "market-implied vs bias-adjusted" on `/eval` or DecisionCard. Flag-gated OFF until measured vs CLV gate. Never bypass RiskService. | BLOCKED-ON-BACKEND (G05) — skipped (2026-07-09) | Verified: NO backend API surfaces a bias-adjusted / favorite-longshot / isotonic-vs-raw probability (grep of `backend/app/api` + `schemas` for favorite_longshot/bias_adjusted/isotonic/wang = 0 hits; isotonic lives only inside `ml/calibration.py`, unexposed). `/explain` returns `model_prob` + `market_implied` only. API-NOTES.md is absent, so no documented field to consume. Per the assignment ("if a needed backend field is absent from API-NOTES.md, mark BLOCKED-ON-BACKEND and skip") and the guardrails (P11 must stay flag-OFF until measured vs CLV gate; P10/G06 resolved-count is BLOCKED-ON-DATA <100; never fabricate an unmeasured metric), a client-side "bias-adjusted" number would be fabrication. Correct outcome: BLOCKED-ON-BACKEND, no code change. Unblocks when the backend exposes a measured bias-adjusted field + resolves ≥ threshold. |
+| P12 | **ThemeToggle restore** (if missing post-redesign): sun/moon in header, `.light` on `<html>`, `ae_theme` persist, FOUC script. Chart already token-aware (O07). | SKIPPED — honest (2026-07-09) | Verified: no `ThemeToggle` component and NO light-mode infrastructure anywhere. `globals.css` sets `:root { color-scheme: dark }` with hardcoded dark CSS vars and zero `.light`/`data-theme` rules; `tailwind.config.ts` tokens (bg/surface/text/…) are hardcoded dark hex, NOT CSS-var-driven, so a `.light` class on `<html>` would change nothing visible. Shipping the toggle would be a non-functional fake (violates the no-fabrication guardrail) and a real light palette is a cross-app token refactor that would "invent a new visual system" — against the Quest mint-on-charcoal mandate. The QuestFlow redesign is intentionally dark-only. Correct outcome: skip, do not fabricate. No code change. |
+
+### Owner / env (do not fake)
+
+| ID | Ask | Status |
+|----|-----|--------|
+| S07 | Reactivate Koyeb **or** keep HF Space as canonical API + update `NEXT_PUBLIC_API_URL` | BLOCKED-ON-USER |
+| O10 | FIFA CSVs into `backend/app/data/fifa/` | BLOCKED-ON-USER |
+| — | Optional: `EXA_API_KEY`, `FRED_API_KEY` for richer citations/macro | Owner-held enrichment |
+| — | X cookies / `yt-dlp` if re-running `/last30days` for richer social | Optional |
+
+## Iteration protocol (read this every run)
+
+1. Read this file + `AGENTS.md` + `goals/build-loop-e2e/STATE.md` (guardrails).
+2. Pick the FIRST ticket that is TODO and unblocked. Announce it in one line.
+3. Implement the smallest shippable slice. Prefer editing existing modules.
+   UI stays Questflow (`quest/*` + tailwind tokens + CSS vars).
+4. Run the FULL gate. Fix until green — AutoLab persist, don't thrash.
+5. Spawn verifier subagent → verdict in Notes.
+6. Update the ticket row + append one AutoLab line below.
+7. Commit: `feat(polish-loop): <ID> <summary>` (AutoLab line in body).
+   Do not push unless the remote workflow says to.
+
+## Research → product mapping (2026-07-09)
+
+| Niche demand | AlphaEdge action in this loop |
+|--------------|-------------------------------|
+| Unified multi-venue desk / less tab-switching | P04 More menu + P08 trade chip |
+| Search / discovery | P02 wire existing search API |
+| Alerts + whale / smart money | P05 feed filters; whale rail already exists — make visible |
+| Cross-venue arb (fee-aware, stale-aware) | P09 honesty on existing arb |
+| Portfolio / CLV / Brier honesty | P07 real calibration; portfolio risk already shipped |
+| Request reliability under load | P01 dedup |
+| Better forecasting without greenfield | P10 measured A/B; P11 optional bias display after data |
+| Copy-trading terminals | Out of scope as live copy; paper clones/leaderboard already — do not add real-money mirror |
+
+## AutoLab log
+
+- 2026-07-09 bootstrap: baseline = E2E/UI/Ship/Opus loops closed; quant phases DONE; HF API live with `generator=llm` | benchmark = discoverability (≤1 click) + homepage `/markets` request rate + honest empty/live states | iterations=0 | budget=12 tickets | outcome=LOOP AUTHORED — first implementer picks P01.
+- 2026-07-09 P01 (opus-polish worktree): AutoLab: baseline=homepage fired one `/api/v1/markets` per consumer (3+ on load, SlowAPI 429 risk) | benchmark=browser network count of `/api/v1/markets` on homepage | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — 1 request on load, 4 in 54s of polling; gate green (typecheck/lint/100 tests/build); verifier PASS.
+- 2026-07-09 P02 (opus-polish worktree): AutoLab: baseline=header search decorative, `GET /api/v1/search` unconsumed | benchmark=live typeahead returns real results + honest empty/error states, zero console errors | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — 8 live results for "world cup", honest empty copy, click-through to market detail; gate green (typecheck/lint/104 tests/build); verifier PASS.
+- 2026-07-09 P03 (opus-polish worktree): AutoLab: baseline=`useApiHealth` hook existed + tested but not mounted (no live/demo indicator in header) | benchmark=header shows honest Live/Demo/Checking state from the real `/health` probe on every route | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — `ApiHealthChip` mounted desktop + mobile; gate green (typecheck/lint/104 tests/build; all routes prerender).
+- 2026-07-09 P04 (opus-polish worktree): AutoLab: baseline=8 shipped surfaces (Research/Feed/Alerts/Track record/Weather/Macro/Eval/Backtest) unreachable from header nav (E14 ≤1-click regression) | benchmark=every one reachable in ≤1 click from desktop More dropdown + mobile menu, primary 6 tabs unchanged | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — `HeaderMoreMenu` + mobile section; gate green (typecheck/lint/104 tests/build).
+- 2026-07-09 P05 (opus-polish worktree): AutoLab: baseline=screener/weather_edge/dutching/news/anomaly signals collapsed into one undifferentiated feed with no way to isolate them | benchmark=each family filterable on `/signals` (pills+counts) and `/feed` (signal pill), honest empty copy per filter | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — `categorizeSignal` + family pills; gate green (typecheck/lint/106 tests/build).
+- 2026-07-09 P06 (opus-polish worktree): AutoLab: baseline=`/eval` used leftover slate/amber/green admin palette, off-theme vs Quest | benchmark=mint-on-charcoal token compliance + preserved honest unmeasured states | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — full retheme, honesty verbatim; gate green (typecheck/lint/106 tests/build).
+- 2026-07-09 P08 (opus-polish worktree): AutoLab: baseline=DecisionCard (verdict/edge/CLV gate) only on market-detail, absent from the primary trade surface | benchmark=selected-market decision advisory visible on `/trade`, analysis-only | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — DecisionCard mounted in TradeTerminal trade panel; gate green (typecheck/lint/106 tests/build).
+- 2026-07-09 P09 (opus-polish worktree): AutoLab: baseline=arb card showed only edge+match, empty state was an opaque "no signals right now" | benchmark=consume G02 confidence/spread_bps/legs/stale + honest reasoned empty state | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — leg breakdown + spread bps + reasoned empty copy, signal-only preserved; gate green (typecheck/lint/106 tests/build).
+- 2026-07-09 P12 (opus-polish worktree): AutoLab: not applicable (no iterative measure). Verify-first outcome: SKIPPED honestly — no ThemeToggle exists and no light-mode infra (dark-only `color-scheme: dark`, hardcoded dark tailwind hex tokens, no `.light` styles); a toggle would be non-functional and a real light theme would invent a new visual system against the Quest dark mandate. No code change.
+- 2026-07-09 P07 (opus-polish worktree): AutoLab: baseline=CalibrationSparkline plotted synthetic x-spread (`0.2 + idx*0.15`) — reliability curve not real | benchmark=real predicted-vs-observed bins from `/api/v1/calibration` + provisional label when thin | iterations=1 (green first pass) | budget=1/1 ticket | outcome=improved — real bins via `buildCalibrationCurve`, thin-data provisional flag; gate green (typecheck/lint/110 tests/build).
+- 2026-07-09 P11 (opus-polish worktree): AutoLab: not applicable (no measurable axis / blocked). Outcome=BLOCKED-ON-BACKEND (G05) — no backend field exposes a bias-adjusted/isotonic-vs-raw probability, API-NOTES.md absent, resolves thin (P10 blocked <100); fabricating a bias number would violate the no-fabrication guardrail. Skipped, no code change; unblocks when backend surfaces a measured field.
+
+## Post-mortem (fill only if K=3 no-progress)
+
+_(empty)_

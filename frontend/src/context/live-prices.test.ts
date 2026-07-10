@@ -124,6 +124,15 @@ describe("selectPollSlugs — per-slug subscription filtering", () => {
     expect(slugs.sort()).toEqual(["s1", "s2"]);
   });
 
+  it("hard-caps poll list so a full board cannot flood HF (priority first)", () => {
+    const priority = Array.from({ length: 10 }, (_, i) => `p${i}`);
+    const subscribed = Array.from({ length: 200 }, (_, i) => `s${i}`);
+    const slugs = selectPollSlugs(priority, subscribed, 24);
+    expect(slugs).toHaveLength(24);
+    expect(slugs.slice(0, 10)).toEqual(priority);
+    expect(slugs).not.toContain("s190");
+  });
+
   it("collectPrioritySlugs stays bounded and only mirrors live-market outcome slugs", () => {
     const hero = [
       kalshiMarket("ks-kxwcgame-26jun13bramar-bra", [

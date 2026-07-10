@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { API_BASE } from "@/lib/alphaedge-api";
+import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import type { SignalFeedItem } from "@/lib/signals-dashboard-api";
 
 const LAST_SIGNAL_TS_KEY = "alphaedge.lastSignalTs";
 const POLL_INTERVAL_MS = 30_000;
+// Never surface a backlog of historical price-jump rows as toasts — only the
+// newest few after a reconnect / first poll with an old watermark.
+const MAX_TOAST_ALERTS = 2;
 
 export type SignalAlert = {
   id: string;
@@ -46,10 +49,11 @@ function isUnread(item: SignalFeedItem, lastTs: string | null): boolean {
 }
 
 async function fetchSignalFeed(): Promise<SignalFeedItem[]> {
-  if (!API_BASE) {
+  const base = (await ensureApiBase()) || API_BASE;
+  if (!hasLiveApi(base)) {
     return [];
   }
-  const response = await fetch(`${API_BASE}/api/v1/signals/feed`, {
+  const response = await fetch(apiUrl("/api/v1/signals/feed", base), {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -84,9 +88,26 @@ export function useSignalAlerts() {
     }
 
     seededRef.current = true;
-    const unread = signals.filter((item) => isUnread(item, lastTs)).map(toAlert);
-    setAlerts(unread);
-    setUnreadCount(unread.length);
+    const unreadItems = signals
+      .filter((item) => isUnread(item, lastTs))
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+    // Cap toast spam: if dozens of signals arrived while offline / before the
+    // watermark advanced, only toast the newest few. Advance the watermark to
+    // the newest signal so a remount or next poll does not re-flood the UI.
+    const toastItems = unreadItems.slice(0, MAX_TOAST_ALERTS);
+    if (unreadItems.length > 0 && typeof window !== "undefined") {
+      const newest = unreadItems[0];
+      if (newest) {
+        window.localStorage.setItem(LAST_SIGNAL_TS_KEY, newest.created_at);
+      }
+    }
+
+    setAlerts(toastItems.map(toAlert));
+    setUnreadCount(toastItems.length);
   }, []);
 
   const markRead = useCallback(() => {
