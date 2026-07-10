@@ -1,204 +1,172 @@
 "use client";
 
-// Alerts desk — dispatched alerts (T09) plus the raw engine-room event stream
-// (diff engine, whale deltas, news arrivals, alignment triggers).
+// W02 — Alerts feed (backend J02, GET /api/v1/alerts). Recent signal events
+// grouped by market with news/catalyst evidence and family filter pills. Uses
+// the JWT session (watchlist-scoped) when signed in, the public stream when
+// anon. Research only, paper trading only — alerts NOTIFY, they never trade.
 import Link from "next/link";
-import { marketHref } from "@/lib/market-href";
-import { useEffect, useState } from "react";
-import {
-  fetchAlerts,
-  fetchSignalEvents,
-  type AlertItem,
-  type SignalEventItem,
-} from "@/lib/activity-api";
+import { useEffect, useMemo, useState } from "react";
+
+import { SignalEvidenceBlock } from "@/components/SignalEvidence";
+import { PageHeader, PageShell } from "@/components/ui/kit";
+import { ALERTS_LAST_SEEN_KEY, ALERTS_SEEN_EVENT } from "@/components/AlertsBell";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
-import { useActivityFeed } from "@/hooks/useActivityFeed";
-import { DEMO_ALERTS, DEMO_EVENTS } from "@/lib/demo-data";
-import { DemoChip } from "@/components/quest/DemoChip";
-
-function timeLabel(iso: string): string {
-  const ts = Date.parse(iso);
-  if (!ts) return "";
-  const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
-const EVENT_TONE: Record<string, string> = {
-  price_jump: "bg-primary-dim text-primary",
-  orderbook_flip: "bg-secondary-dim text-secondary",
-  volume_surge: "bg-accent-dim text-accent-bright",
-  whale_delta: "bg-accent-dim text-accent-bright",
-  news_arrival: "bg-surface-3 text-text",
-  alignment: "bg-primary-dim text-primary",
-  instability_shift: "bg-danger-dim text-danger",
-};
+import { marketHref } from "@/lib/market-href";
+import {
+  alertFamilies,
+  buildAlertGroups,
+  familyLabel,
+  fetchAlertsFeed,
+  newestAlertTs,
+  type AlertEventItem,
+} from "@/lib/alerts-api";
+import type { SignalCategory } from "@/lib/signals-dashboard-view-model";
 
 export default function AlertsPage() {
-  const [tab, setTab] = useState<"alerts" | "events">("alerts");
-  const [alerts, setAlerts] = useState<AlertItem[] | null>(null);
-  const [events, setEvents] = useState<SignalEventItem[] | null>(null);
-  const [demo, setDemo] = useState(false);
+  const { token, isReady } = useAuth();
+  const [items, setItems] = useState<AlertEventItem[] | null>(null);
+  const [filter, setFilter] = useState<SignalCategory | "all">("all");
 
-  // Initial backfill from REST. Live updates arrive over the WS feed below,
-  // so we don't re-poll on an interval — but keep a slow safety refresh for the
-  // engine-room events (raw signal_events aren't on the WS feed, only alerts).
   useEffect(() => {
     let dead = false;
-    const load = async () => {
-      const [a, e] = await Promise.all([fetchAlerts(), fetchSignalEvents()]);
+    void fetchAlertsFeed({ limit: 60 }).then((data) => {
       if (dead) return;
-      if (a.length === 0 && e.length === 0) {
-        setAlerts(DEMO_ALERTS);
-        setEvents(DEMO_EVENTS);
-        setDemo(true);
-      } else {
-        setAlerts(a);
-        setEvents(e);
-        setDemo(false);
+      setItems(data);
+      // Mark everything currently visible as seen so the header bell clears.
+      const newest = newestAlertTs(data);
+      if (newest > 0 && typeof window !== "undefined") {
+        localStorage.setItem(ALERTS_LAST_SEEN_KEY, String(newest));
+        window.dispatchEvent(new Event(ALERTS_SEEN_EVENT));
       }
-    };
-    void load();
-    const id = setInterval(() => void fetchSignalEvents().then((e) => {
-      if (!dead && e.length > 0) setEvents(e);
-    }).catch(() => {}), 60_000);
+    });
     return () => {
       dead = true;
-      clearInterval(id);
     };
   }, []);
 
-  // Real-time: prepend dispatched alerts the moment they fire (no polling lag).
-  useActivityFeed({
-    onAlert: (frame) => {
-      setDemo(false);
-      setAlerts((prev) => {
-        const live = (prev ?? []).filter((a) => !a.id.startsWith("demo-"));
-        const item: AlertItem = {
-          id: `ws-${frame.ts ?? Date.now()}-${live.length}`,
-          alert_type: String(frame.type ?? "alert"),
-          message: String(frame.message ?? ""),
-          payload: frame as Record<string, unknown>,
-          acknowledged: false,
-          created_at: new Date().toISOString(),
-        };
-        return [item, ...live].slice(0, 100);
-      });
-    },
-  });
+  const families = useMemo(() => (items ? alertFamilies(items) : []), [items]);
+  const groups = useMemo(() => (items ? buildAlertGroups(items, filter) : []), [items, filter]);
+
+  const scopeNote =
+    isReady && token
+      ? "Scoped to your watchlist."
+      : "Public signal stream — sign in to scope alerts to your watchlist.";
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-text">Alerts</h1>
-      <p className="mt-1 text-sm text-muted">
-        Everything the pipeline flags — alignment triggers, new briefs, and the raw
-        signal events behind them. Research only, paper trading only.
-      </p>
-      {demo && (
-        <p className="mt-3 flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary-dim px-4 py-2.5 text-xs text-secondary">
-          <DemoChip />
-          Sample activity — live alerts stream in when the backend and workers run.
-        </p>
+    <PageShell width="medium">
+      <PageHeader
+        kicker="Alerts"
+        title="Signal alerts"
+        subtitle={`Model mispricings, unusual flow, screener and cross-venue signals grouped by market. ${scopeNote} Research only — notify only, never trades.`}
+      />
+
+      {items === null ? (
+        <ListSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="No alerts yet"
+          body="Alerts land here as the pipeline flags model mispricings, unusual flow, and screener hits. Track markets on your watchlist to scope them to what you care about."
+        />
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filter alerts by family">
+            <FilterPill label="All" active={filter === "all"} onClick={() => setFilter("all")} />
+            {families.map((fam) => (
+              <FilterPill
+                key={fam}
+                label={familyLabel(fam)}
+                active={filter === fam}
+                onClick={() => setFilter(fam)}
+              />
+            ))}
+          </div>
+
+          {groups.length === 0 ? (
+            <EmptyState title="Nothing in this family" body="No alerts match the selected filter right now." />
+          ) : (
+            <ul className="space-y-3">
+              {groups.map((group) => (
+                <li key={group.slug} className="rounded-xl border border-border bg-surface p-4">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={marketHref(group.slug)}
+                      className="min-w-0 flex-1 truncate font-mono text-sm font-semibold text-text hover:text-accent-bright"
+                    >
+                      {group.slug}
+                    </Link>
+                    <span className="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                      {group.count} alert{group.count === 1 ? "" : "s"}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-muted-2">{group.latestLabel}</span>
+                  </div>
+
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {group.families.map((fam) => (
+                      <span
+                        key={fam}
+                        className="rounded bg-accent-dim px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-bright"
+                      >
+                        {familyLabel(fam)}
+                      </span>
+                    ))}
+                  </div>
+
+                  <ul className="mt-3 space-y-3">
+                    {group.rows.map((row) => (
+                      <li key={row.id} className="border-t border-border/60 pt-3 first:border-0 first:pt-0">
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="font-semibold text-text">{row.typeLabel}</span>
+                          <span className="ml-auto text-muted-2">{row.timeLabel}</span>
+                        </div>
+                        {row.evidence ? <SignalEvidenceBlock evidence={row.evidence} /> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
+    </PageShell>
+  );
+}
 
-      <div className="mt-5 flex gap-1 border-b border-border pb-px">
-        {(
-          [
-            { id: "alerts", label: "Dispatched alerts" },
-            { id: "events", label: "Engine room" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "rounded-t-lg px-4 py-2 text-sm font-semibold transition",
-              tab === t.id
-                ? "border-b-2 border-accent-bright text-text"
-                : "text-muted hover:text-text",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "alerts" &&
-        (alerts === null ? (
-          <ListSkeleton />
-        ) : alerts.length === 0 ? (
-          <EmptyState
-            title="No alerts yet"
-            body="Alerts fire when ≥3 signal layers align on one market or a new brief publishes. Keep the backend and workers running and they land here automatically."
-          />
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {alerts.map((a) => (
-              <li key={a.id} className="rounded-xl border border-border bg-surface px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-accent-dim px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent-bright">
-                    {a.alert_type.replaceAll("_", " ")}
-                  </span>
-                  <span className="ml-auto text-[10px] text-muted-2">
-                    {timeLabel(a.created_at)}
-                  </span>
-                </div>
-                <p className="mt-1.5 text-sm text-text">{a.message}</p>
-              </li>
-            ))}
-          </ul>
-        ))}
-
-      {tab === "events" &&
-        (events === null ? (
-          <ListSkeleton />
-        ) : events.length === 0 ? (
-          <EmptyState
-            title="The engine room is quiet"
-            body="Price jumps, order-book flips, volume surges, whale deltas and news arrivals stream in here as the diff engine detects them."
-          />
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {events.map((e) => (
-              <li key={e.id} className="rounded-xl border border-border bg-surface px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
-                      EVENT_TONE[e.signal_type] ?? "bg-surface-3 text-muted",
-                    )}
-                  >
-                    {e.signal_type.replaceAll("_", " ")}
-                  </span>
-                  <span className="text-[10px] uppercase text-muted-2">{e.platform}</span>
-                  <span className="ml-auto text-[10px] text-muted-2">
-                    {timeLabel(e.created_at)}
-                  </span>
-                </div>
-                <Link
-                  href={marketHref(e.market_id)}
-                  className="mt-1.5 block font-mono text-sm text-text hover:text-accent-bright"
-                >
-                  {e.market_id}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ))}
-    </main>
+function FilterPill({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-semibold transition",
+        active
+          ? "border-primary/40 bg-primary-dim text-primary"
+          : "border-border text-muted hover:border-border-light hover:text-text",
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
 function ListSkeleton() {
   return (
-    <div className="mt-4 space-y-2">
-      {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className="rounded-xl border border-border bg-surface px-4 py-3">
-          <div className="skeleton h-3 w-24 rounded" />
-          <div className="skeleton mt-2 h-4 w-2/3 rounded" />
+    <div className="space-y-3">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="rounded-xl border border-border bg-surface p-4">
+          <div className="skeleton h-4 w-1/2 rounded" />
+          <div className="skeleton mt-2 h-3 w-24 rounded" />
+          <div className="skeleton mt-3 h-12 w-full rounded" />
         </div>
       ))}
     </div>
@@ -207,7 +175,7 @@ function ListSkeleton() {
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="mt-6 rounded-xl border border-border bg-surface p-8 text-center">
+    <div className="rounded-xl border border-border bg-surface p-8 text-center">
       <p className="text-sm font-semibold text-text">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted">{body}</p>
     </div>
