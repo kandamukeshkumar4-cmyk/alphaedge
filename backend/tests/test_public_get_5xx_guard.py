@@ -46,6 +46,15 @@ MUST_COVER = (
     "/api/v1/calibration/latest",
     "/api/v1/track-record",
     "/api/v1/backtest/summary",
+    "/api/v1/alerts/feed",
+)
+
+# Public GETs that authenticate *optionally* (get_optional_user) carry an
+# HTTPBearer marker in the OpenAPI op even though they serve anonymous callers.
+# The generic sweep skips anything with a security marker, so these must be
+# force-included: they are genuinely public and must survive edge-case data.
+OPTIONAL_AUTH_PUBLIC_GETS = (
+    "/api/v1/alerts/feed",
 )
 
 
@@ -113,7 +122,7 @@ def _collect_public_get_urls() -> tuple[list[str], list[str]]:
         op = ops.get("get")
         if op is None:
             continue
-        if op.get("security"):
+        if op.get("security") and path not in OPTIONAL_AUTH_PUBLIC_GETS:
             skipped.append(f"{path} (auth required)")
             continue
         if "/admin" in path:
