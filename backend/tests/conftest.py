@@ -65,3 +65,13 @@ def _clear_markets_cache():
     markets_cache.invalidate()
     yield
     markets_cache.invalidate()
+
+
+@pytest.fixture(autouse=True)
+def _clear_desk_cache():
+    """I03 micro-cache on /desk must not leak state between tests."""
+    from app.core import desk_cache
+
+    desk_cache.invalidate()
+    yield
+    desk_cache.invalidate()

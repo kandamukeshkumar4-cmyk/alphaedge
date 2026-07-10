@@ -47,3 +47,26 @@ Example:
   "paper_trading_only": true
 }
 ```
+
+## I03 — Desk micro-cache + additive `cached` field (2026-07-10)
+
+`GET /api/v1/desk` (H01) now carries an in-process TTL micro-cache
+(`app/core/desk_cache.py`, B01 `markets_cache` pattern) so desk-panel polling
+can't hammer the free-tier Space. Additive change ONLY: one new response
+field.
+
+| field | type | notes |
+|-------|------|-------|
+| `cached` | bool | `false` on a fresh build; `true` when the body was replayed from the in-process cache (body is otherwise byte-identical to the original build, including its `generated_at` — no fabricated freshness) |
+
+Behavior:
+
+- Key: the full query tuple `(slug, hours, top_n, signals_limit)` — different
+  views never collide.
+- TTL: `DESK_CACHE_TTL_SEC` (default `5.0` seconds), monotonic clock.
+- Flag: `DESK_CACHE_ENABLED` (default `true`); when `false` nothing is stored
+  or replayed and every response has `cached: false`.
+- Exceptions/error responses are NEVER cached — the store happens only after
+  a fully successful build, so a failing section can't leave a poisoned entry.
+- Bounded: max 256 keys (cleared wholesale beyond that), so weird param
+  permutations can't grow memory.

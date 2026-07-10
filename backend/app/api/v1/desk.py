@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.smart_money import build_smart_money_summary
+from app.core import desk_cache
 from app.core.config import get_settings
 from app.db.models import PredictionLog
 from app.db.session import get_db
@@ -135,6 +136,15 @@ async def get_desk(
     signals_limit: int = Query(default=10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
+    # I03 micro-cache: absorb desk-panel polling between changes. Additive
+    # ``cached`` flag only — the rest of the body is byte-identical to the
+    # response that was originally built (including its generated_at).
+    cache_key: desk_cache.DeskKey = (slug, hours, top_n, signals_limit)
+    if settings.desk_cache_enabled:
+        cached_body = desk_cache.get(cache_key, settings.desk_cache_ttl_sec)
+        if cached_body is not None:
+            return {**cached_body, "cached": True}
+
     svc = MarketService(db)
     market_model = await svc.get_market_by_slug(slug)
     market = await svc.get_public_market_by_slug(slug)
@@ -152,7 +162,7 @@ async def get_desk(
     arb = await _arb_match(db, slug)
     signals = await _latest_signals(db, slug, signals_limit)
 
-    return {
+    response: dict[str, Any] = {
         "slug": slug,
         "market_found": market_found,
         "paper_trading_only": settings.paper_trading_only,
@@ -165,4 +175,10 @@ async def get_desk(
         "arb": arb,
         "signals": signals,
         "generated_at": datetime.now(UTC).isoformat(),
+        "cached": False,
     }
+    # Only a fully-built success is ever cached — an exception above can never
+    # leave a poisoned entry, and error responses are never replayed.
+    if settings.desk_cache_enabled:
+        desk_cache.put(cache_key, response)
+    return response

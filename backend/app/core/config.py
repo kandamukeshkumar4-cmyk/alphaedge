@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     scheduler_wc2026_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
     )
+    # I03: in-process TTL micro-cache on the /api/v1/desk aggregate so the
+    # market page's desk-panel polling can't hammer the free-tier Space.
+    # Short TTL — it only absorbs the polling flood between changes.
+    desk_cache_enabled: bool = Field(default=True, alias="DESK_CACHE_ENABLED")
+    desk_cache_ttl_sec: float = Field(default=5.0, alias="DESK_CACHE_TTL_SEC")
     # Per-IP rate limit for the anonymous (no-token) assistant chat path.
     # Authenticated requests bypass this; anon demo traffic is bounded.
     # Higher default: HF/Vercel edges still occasionally share IPs even after
