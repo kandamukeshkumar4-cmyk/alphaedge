@@ -18,6 +18,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { BacktestRunner } from "@/components/BacktestRunner";
 import { BacktestWalkForward } from "@/components/BacktestWalkForward";
+import { SelfServeBacktest } from "@/components/SelfServeBacktest";
 import { EquityCurveChart } from "@/components/EquityCurveChart";
 import { FillQualityTable } from "@/components/FillQualityTable";
 import { type BacktestRunResult, type BrierPoint } from "@/lib/alphaedge-api";
@@ -225,6 +226,23 @@ export default function BacktestPage() {
           </Link>
         </div>
         <BacktestWalkForward />
+      </section>
+
+      {/* X01: self-serve per-market backtest (K01) — beside the aggregate above */}
+      <section aria-label="Self-serve backtest" className="mb-8">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+            Backtest any market
+          </h2>
+          <span className="rounded-pill bg-secondary-dim px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
+            REAL RESOLUTIONS ONLY
+          </span>
+        </div>
+        <p className="mb-4 max-w-2xl text-sm text-muted">
+          Run the same walk-forward Brier + flat-stake paper ROI on a single market you care
+          about. Read-only research compute — it persists nothing and places no orders.
+        </p>
+        <SelfServeBacktest />
       </section>
 
       {/* Runner form */}
