@@ -53,3 +53,59 @@ Tests: `backend/tests/test_backtest_run_slug_api.py` — `test_default_params_
 reproduce_k01_byte_for_byte`, `test_edge_threshold_filters_bets`,
 `test_stake_scales_pnl_and_staked_roi_invariant`, `test_out_of_range_params_
 clamp`, plus the existing K01 cases and the I01 5xx guard sweep.
+
+---
+
+## L02 — `GET /api/v1/alerts/digest?window=24h&slugs=&top=5`
+
+Per-family alert counts + top-N most-alerted markets over a bounded lookback
+window. **PUBLIC GET** (anonymous), read-only composition of the existing
+`signal_events` store — NO new pipeline, never places or stores an order.
+Covered by the I01 5xx guard (added to `MUST_COVER`).
+
+Query params:
+
+- **`window`** (default `24h`): lookback, `<n>h` or `<n>d` (e.g. `24h`, `7d`).
+  Bounded to `[1h, 30d]`. **Lenient**: an unparseable/empty window falls back to
+  `24h` and an out-of-range one clamps (never 422/5xx). Echoed back normalized
+  in the requested unit as `window` (+ `window_hours` integer, + `since` ts).
+- **`slugs`** (optional): comma-separated slug filter. Explicit-but-empty →
+  honest empty digest.
+- **`top`** (default 5, `1..50`): size of the `top_movers` ranking.
+
+The five families (matching the J02 feed families): `news:mispricing`,
+`anomaly:unusual_flow`, `delta:*`, `screener:*`, `arb`. `delta:` and `screener:`
+sub-types collapse into the `delta:*` / `screener:*` family buckets. Non-family
+signal types are ignored.
+
+`top_movers` ranks markets by **`signal_count`** — the number of alert-family
+signals the market generated in the window (the honest activity/movement proxy
+available from the signal store; NOT a fabricated price move). Ordering:
+`signal_count` desc, then most-recent signal desc, then slug asc (deterministic).
+
+Response (`AlertsDigestResponse`):
+
+```json
+{
+  "families": {"news:mispricing": 1, "delta:*": 2, "arb": 1},
+  "top_movers": [
+    {"slug": "nba-2025-01-15-lal-bos", "signal_count": 3,
+     "families": {"news:mispricing": 1, "delta:*": 2},
+     "last_signal_at": "2026-07-10T...Z"}
+  ],
+  "window": "24h",
+  "window_hours": 24,
+  "since": "2026-07-09T...Z",
+  "slugs": null,
+  "total": 4,
+  "paper_trading_only": true,
+  "disclaimer": "Alerts are notify/read only. ..."
+}
+```
+
+Honest empty (HTTP 200): `families: {}`, `top_movers: []`, `total: 0`, with
+`window`/`window_hours`/`since` still populated.
+
+Tests: `backend/tests/test_alerts_digest_api.py` — family counts + window
+filter, wider-window inclusion, top-movers ordering, slug filter, honest empty,
+default/invalid/out-of-range window handling; plus the I01 5xx guard sweep.

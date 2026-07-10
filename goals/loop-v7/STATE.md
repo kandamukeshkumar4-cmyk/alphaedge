@@ -94,3 +94,4 @@ send (email/SMS/webhook) which would breach the no-external-rails guardrail.
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
 | 1 | 2026-07-10 | BE | L01 | green | pytest 10 passed (backtest_run_slug + 5xx guard), ruff clean. edge_threshold+stake OPTIONAL params, clamped, default==K01 byte-for-byte. AutoLab: baseline=K01 green | benchmark=test_default_params_reproduce_k01_byte_for_byte | iterations=1 (params additive, no perturbation) | budget=1/3 | outcome=improved |
+| 2 | 2026-07-10 | BE | L02 | green | pytest 14 passed (digest + feed + 5xx guard), ruff clean. New PUBLIC GET /alerts/digest: per-family counts + top-movers over bounded window, honest empty, added to 5xx MUST_COVER. AutoLab: baseline=L01 green | benchmark=test_family_counts_and_window + top_movers ordering | iterations=2 (fixed window canonical 24h vs 1d) | budget=2/3 | outcome=improved |
