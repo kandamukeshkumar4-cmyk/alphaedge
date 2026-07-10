@@ -1,0 +1,93 @@
+# Loop V6 — Personal & self-serve intelligence (2026-07-10)
+
+> SEQUENTIAL execution (lesson from V5: parallel subagents share the token
+> budget and collided). Backend track runs to completion FIRST, merges +
+> gates, THEN the frontend track runs. Orchestrator (Claude, main thread)
+> reviews, merges, gates, deploys to prod, verifies. One commit per ticket.
+
+## WHY (grounded)
+
+V1-V5 built and surfaced the intelligence and added watchlist + alerts + model
+A/B. What's still missing is making it PERSONAL and SELF-SERVE: a user can see
+aggregate backtests but can't run one on a market they care about; can't see
+their own paper CLV; and the watchlist doesn't yet drive their alerts view.
+V6 closes those, plus the deferred V5-W04 a11y/motion polish.
+
+## GROUND TRUTH
+
+- Prod backend https://mukeshkumar007-alphaedge-api.hf.space (auto-deploy on
+  push to codex/alphaedge-base); prod frontend
+  https://alphaedge-frontend-three.vercel.app (cd frontend && npx vercel
+  --prod --yes). verify_prod.py = 6/6 as of 2026-07-10.
+- Contracts shipped: v3/v4/v5 API-NOTES.md — desk, backtest/summary,
+  smart-money, track-record, resolved-count, model-ab, watchlist,
+  alerts/feed. Reuse CLVTrackingService, backtesting/replay, the JWT dep.
+
+## GATE (per track — paste output in LOOP LOG)
+
+- Backend (backend/): `ADMIN_API_KEY=dev-admin-key uv run --extra dev pytest
+  -q -p no:cacheprovider --basetemp=<scratchpad>` and
+  `uv run --extra dev ruff check app tests`.
+- Frontend (frontend/): `npm run typecheck && npm run lint &&
+  npm run test -- --run && npm run build`. 390px no-overflow; Quest tokens.
+
+## GUARDRAILS (non-negotiable)
+
+- PAPER_TRADING_ONLY; analysis/notify-only; order path untouched
+  (RiskService → OrderIntent → OrderBookService); no auto-trading; a
+  self-serve backtest is READ-ONLY compute — it persists nothing and places
+  no orders.
+- No fabricated data; honest empty/thin-data states. Never weaken a test.
+- New PUBLIC GET routes must stay covered by the I01 5xx guard (extend the
+  sweep). Authed routes 401 when anon.
+- Backend track edits ONLY backend/** + goals/loop-v6/**; frontend track
+  ONLY frontend/** + goals/loop-v6/**. Additive API only; document contracts
+  in goals/loop-v6/API-NOTES.md. Quest design language only.
+
+## BACKEND TRACK (worktree loop-grok-backend) — RUNS FIRST
+
+- **K01 — Self-serve backtest run**: `GET /api/v1/backtest/run?slug=` (GET,
+  read-only, deterministic) → walk-forward Brier + flat-stake ROI for ONE
+  market's resolved history, reusing backtesting/replay + the same resolved
+  source as backtest/summary. Bounded compute; any failure degrades to an
+  honest {ran:false, reason} (never 5xx — it's a public GET, keep it in the
+  I01 sweep). n + thin_data. Tests: known-market, unknown-slug honest,
+  below-min-sample.
+- **K02 — Portfolio CLV summary**: `GET /api/v1/portfolio/clv-summary`
+  (authed via JWT) → realized CLV distribution for the caller's paper orders
+  (mean, positive_share, histogram, count) composing CLVTrackingService.
+  401 when anon; honest empty when the user has no settled orders. Tests.
+- **K03 — Watchlist-scoped alerts**: `GET /api/v1/watchlist/alerts` (authed)
+  → the J02 alerts feed pre-filtered to the caller's watchlist slugs, so the
+  UI needs one call. Compose J01 store + J02 feed logic; no new pipeline.
+  401 anon; honest empty when the watchlist is empty. Tests.
+
+## FRONTEND TRACK (worktree loop-opus-polish) — RUNS AFTER BACKEND MERGES
+
+- **X01 — Self-serve backtest UI**: on /backtest, a market picker (reuse the
+  fetchMarkets cache + search) that runs `GET /api/v1/backtest/run?slug=` and
+  renders the per-market walk-forward result beside the aggregate; honest
+  not-ran / thin-data states. Vitest for the view-model.
+- **X02 — Portfolio CLV panel**: on /portfolio, a CLV-summary panel consuming
+  K02 (authed): distribution histogram + positive-share + mean, honest empty
+  ("no settled paper trades yet") and anon ("sign in"). Vitest.
+- **X03 — Watchlist alerts tie-in**: on /watchlist show recent alerts for the
+  tracked markets (K03 when authed), and add a "Your watchlist" filter on
+  /alerts. Reuse SignalEvidence. Honest empty. Vitest.
+- **X04 — V5-W04 polish closeout**: a11y + 390px audit + motion on
+  /watchlist /alerts and the model-ab card (skeletons, AnimatedNumber,
+  scroll reveals, prefers-reduced-motion, chart/toggle aria-labels). Fix and
+  log findings honestly.
+
+## ITERATION PROTOCOL (per track)
+
+1. git status (confirm worktree/branch). Name the ticket.
+2. Smallest green slice; reuse existing modules/components.
+3. Run the track GATE; fix until green.
+4. Update LOOP LOG (+ API-NOTES.md for backend) with evidence + AutoLab
+   line; commit `feat(v6-be|v6-fe): <ticket> <summary>`. Do NOT push. STOP.
+
+## LOOP LOG
+
+| iter | date | track | ticket | result | proof |
+|------|------|-------|--------|--------|-------|
