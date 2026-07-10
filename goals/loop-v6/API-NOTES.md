@@ -122,3 +122,9 @@ Anon → `401`. Honest empty body has `count:0`, `mean:null`,
 Tests: `backend/tests/test_portfolio_clv_summary_api.py` (401 anon, empty-honest,
 seeded YES+NO distribution with unsettled-order exclusion, settled-without-closing
 honest empty).
+
+## K03 — GET /api/v1/watchlist/alerts (2026-07-10)
+
+Authed (JWT). The J02 alerts feed pre-filtered to the caller's watchlist slugs.
+401 anon; honest empty `{items: []}` when the watchlist is empty. Items use the
+same `AlertFeedItem` shape as `/api/v1/alerts/feed` (slug-keyed + citation).
