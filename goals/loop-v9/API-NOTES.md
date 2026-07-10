@@ -90,3 +90,72 @@ Response:
 Tests: `backend/tests/test_opportunities_api.py` — ranking (highest edge first),
 liquidity floor, direction filter, no-model + no-price exclusion, top-signal
 present/honest-null, limit bound, honest empty; plus the I01 5xx guard sweep.
+
+---
+
+## N02 — `GET /api/v1/markets/{slug}/drivers`
+
+The top drivers behind the current model probability for ONE market — "why does
+the model think this?". **PUBLIC GET.** Composed READ-ONLY from existing stores;
+no network (the live news fetcher is NOT called — news catalysts come from the
+persisted signal citations).
+
+Query params:
+
+- **`signals_limit`** (default 5, `1..25`) — how many recent alert-family
+  signals to surface as drivers.
+
+Fields:
+
+- **`found`** — bool. Unknown slug → honest **200** `{found:false, …nulls,
+  drivers:[]}` (never a 404).
+- **`model_p`** — latest `PredictionLog.predicted_prob` (desk/M02 edge source),
+  or `null`.
+- **`market_p`** — best reference YES price from the book (asks, else bids),
+  falling back to the odds-snapshot `yes_price`; `null` when neither exists.
+- **`gap`** — `model_p − market_p` (signed), or `null` when either is missing.
+- **`drivers`** — ordered list. The model-vs-market gap driver first (only when
+  `gap` is not null — never faked), then recent alert-family signals. Each
+  driver:
+
+  | field | type | notes |
+  |-------|------|-------|
+  | `label` | string | the signal headline if present, else the family / signal_type; the gap driver is `"Model vs market gap"` |
+  | `direction` | string | `"favors YES"` / `"favors NO"` / `"neutral"` (neutral inside the ±0.02 anchor epsilon) |
+  | `note` | string | short human note (the gap numbers, or `"<family> signal"`) |
+  | `family` | string\|null | alert family for signal drivers; `null` for the gap driver |
+  | `citation` | object\|null | H03 citation for signal drivers; `null` for the gap driver |
+
+A known market with no model AND no signals → `{found:true, drivers:[]}`. Swept
+by the I01 5xx guard (auto-covered `{slug}` public GET).
+
+Response (known slug):
+
+```json
+{
+  "found": true,
+  "slug": "nba-2025-01-15-lal-bos",
+  "model_p": 0.62,
+  "market_p": 0.5,
+  "gap": 0.12,
+  "drivers": [
+    {"label": "Model vs market gap", "direction": "favors YES",
+     "note": "Model 0.62 vs market 0.5 (+0.1200).", "family": null, "citation": null},
+    {"label": "Star player questionable", "direction": "favors YES",
+     "note": "news:mispricing signal", "family": "news:mispricing",
+     "citation": {"signal_id": "sig-1", "news_id": null,
+                  "news_url": "https://example.com/n1",
+                  "headline": "Star player questionable",
+                  "model_p": 0.62, "market_p": 0.5}}
+  ],
+  "paper_trading_only": true,
+  "signal_only": true,
+  "disclaimer": "Forecast drivers — …",
+  "generated_at": "2026-07-10T…Z"
+}
+```
+
+Tests: `backend/tests/test_market_drivers_api.py` — known slug with seeded
+prediction + news signal (gap driver + signal driver, directions, citation),
+unknown honest 200, known slug with no drivers honest empty; plus the I01 5xx
+guard sweep.
