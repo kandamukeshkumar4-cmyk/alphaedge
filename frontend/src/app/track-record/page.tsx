@@ -106,8 +106,14 @@ export default function TrackRecordPage() {
             REAL RESOLUTIONS ONLY
           </span>
           <Link
-            href="/backtest"
+            href="/resolved"
             className="ml-auto text-xs font-semibold text-accent hover:underline"
+          >
+            Browse resolved markets →
+          </Link>
+          <Link
+            href="/backtest"
+            className="text-xs font-semibold text-accent hover:underline"
           >
             See backtest methodology →
           </Link>

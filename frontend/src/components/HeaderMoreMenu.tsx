@@ -14,6 +14,7 @@ export const MORE_NAV: { label: string; href: string; blurb: string }[] = [
   { label: "Feed", href: "/feed", blurb: "Signals activity stream" },
   { label: "Alerts", href: "/alerts", blurb: "Price & signal triggers" },
   { label: "Track record", href: "/track-record", blurb: "Calibration & CLV" },
+  { label: "Resolved", href: "/resolved", blurb: "Model calls vs real outcomes" },
   { label: "Smart money", href: "/smart-money", blurb: "Whale flow & concentration" },
   { label: "Arb", href: "/arb", blurb: "Cross-venue matched pairs" },
   { label: "Weather", href: "/weather", blurb: "Outdoor-market edges" },
