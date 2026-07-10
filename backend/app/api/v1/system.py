@@ -5,6 +5,12 @@ running?" doubts. Returns the ``background_loop_plan`` (which loops the app
 intended to start given settings) plus a per-loop last-heartbeat row sourced
 from the in-process registry in app.observability.loop_state.
 
+GET /api/v1/system/resolved-count (I02) — public read-only readout of the G06
+resolved-count watcher, so the LightGBM-vs-XGBoost A/B unblock status is
+visible without admin access. Same count definition as track-record's ``n``
+(scored LIVE forecasts on resolved external markets, falling back to resolved
+paper-order markets); never flips or fabricates anything.
+
 Public + read-only: no admin key, no orders, no DB writes. A loop that has
 never recorded a heartbeat surfaces ``status="never"`` honestly.
 """
@@ -13,10 +19,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.data.streams.runner import background_loop_plan
+from app.db.session import get_db
+from app.ml.ab_harness import MIN_RESOLVED_FOR_AB, count_resolved_outcomes
 from app.observability.loop_state import LOOP_INTERVALS, snapshot
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
@@ -63,5 +72,24 @@ async def get_loops() -> dict[str, Any]:
     return {
         "plan": plan,
         "loops": loops,
+        "paper_trading_only": settings.paper_trading_only,
+    }
+
+
+@router.get("/resolved-count")
+async def get_resolved_count(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """G06 watcher readout: real resolved outcomes vs the A/B gate.
+
+    ``ab_ready`` merely reports whether the walk-forward A/B harness is
+    eligible to run — the deployed default model is NEVER flipped here (or
+    anywhere else in the harness); ``model_default`` is what's deployed.
+    """
+    settings = get_settings()
+    resolved_count = await count_resolved_outcomes(db)
+    return {
+        "resolved_count": resolved_count,
+        "ab_threshold": MIN_RESOLVED_FOR_AB,
+        "ab_ready": resolved_count >= MIN_RESOLVED_FOR_AB,
+        "model_default": settings.ml_model_type,
         "paper_trading_only": settings.paper_trading_only,
     }
