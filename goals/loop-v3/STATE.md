@@ -101,3 +101,4 @@ flooding.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | H01 | DONE | `GET /api/v1/desk?slug=` aggregate (market snapshot + latest model edge + G07 smart-money + G02 arb match + latest signals) composed from existing services; new `app/api/v1/desk.py`, reusable `build_smart_money_summary` extracted in `smart_money.py`; contract in API-NOTES.md. Gate: pytest 1198 passed, 28 skipped (incl. 4 new desk tests); ruff all checks passed. AutoLab: not applicable (no iterative measure — additive read-only endpoint). |

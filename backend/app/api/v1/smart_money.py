@@ -41,13 +41,19 @@ SMART_MONEY_DISCLAIMER = (
 )
 
 
-@router.get("/smart-money")
-async def get_smart_money(
-    slug: str = Query(..., min_length=1, max_length=128),
-    hours: int = Query(default=24, ge=1, le=168),
-    top_n: int = Query(default=5, ge=1, le=25),
-    db: AsyncSession = Depends(get_db),
+async def build_smart_money_summary(
+    db: AsyncSession,
+    slug: str,
+    *,
+    hours: int = 24,
+    top_n: int = 5,
 ) -> dict[str, Any]:
+    """Compose the per-market smart-money aggregate (G07).
+
+    Shared source of truth: the ``GET /api/v1/smart-money`` endpoint returns
+    this dict verbatim, and the ``GET /api/v1/desk`` aggregate (H01) embeds it
+    so both surfaces can never disagree. Read-only, no order path.
+    """
     market_found = (
         await db.scalar(select(Market.id).where(Market.slug == slug))
     ) is not None
@@ -101,3 +107,13 @@ async def get_smart_money(
         },
         "generated_at": datetime.now(UTC).isoformat(),
     }
+
+
+@router.get("/smart-money")
+async def get_smart_money(
+    slug: str = Query(..., min_length=1, max_length=128),
+    hours: int = Query(default=24, ge=1, le=168),
+    top_n: int = Query(default=5, ge=1, le=25),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    return await build_smart_money_summary(db, slug, hours=hours, top_n=top_n)
