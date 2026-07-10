@@ -22,10 +22,12 @@ import { cn } from "@/lib/cn";
 import { type Market } from "@/lib/mock-data";
 
 const INTELLIGENCE_LINKS = [
+  { href: "/markets", label: "Desk", blurb: "Per-market intelligence panel" },
   { href: "/clones", label: "Clones", blurb: "Paper agent clones" },
-  { href: "/backtest", label: "Backtest", blurb: "Replay paper fills" },
+  { href: "/backtest", label: "Backtest", blurb: "Walk-forward record & replay" },
   { href: "/track-record", label: "Track record", blurb: "Analyst scoreboard" },
   { href: "/smart-money", label: "Smart money", blurb: "Whale flow & concentration" },
+  { href: "/arb", label: "Arb desk", blurb: "Cross-venue signal matches" },
   { href: "/feed", label: "Feed", blurb: "Live activity stream" },
   { href: "/leaderboard", label: "Leaderboard", blurb: "Paper P&L ranks" },
 ] as const;

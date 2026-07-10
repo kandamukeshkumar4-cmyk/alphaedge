@@ -17,6 +17,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { BacktestRunner } from "@/components/BacktestRunner";
+import { BacktestWalkForward } from "@/components/BacktestWalkForward";
 import { EquityCurveChart } from "@/components/EquityCurveChart";
 import { FillQualityTable } from "@/components/FillQualityTable";
 import { type BacktestRunResult, type BrierPoint } from "@/lib/alphaedge-api";
@@ -66,11 +67,18 @@ function BrierChart({ series }: { series: BrierPoint[] }) {
           final = {last.brier.toFixed(4)} ({last.sample_count} samples)
         </span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      {/* D04: the bar strip is hover-only detail — give the group an
+          accessible summary and hide the decorative bars from AT. */}
+      <div
+        className="flex flex-wrap gap-1.5"
+        role="img"
+        aria-label={`Brier score over time: final ${last.brier.toFixed(4)} across ${last.sample_count} samples (lower is better)`}
+      >
         {series.map((pt, i) => (
           <div
             key={i}
             title={`${pt.timestamp.slice(0, 16)} | Brier ${pt.brier.toFixed(4)} | n=${pt.sample_count}`}
+            aria-hidden
             className="group relative h-6 w-2 cursor-default rounded-sm"
             style={{
               backgroundColor: `hsl(${140 - pt.brier * 400}, 60%, 45%)`,
@@ -200,7 +208,29 @@ export default function BacktestPage() {
         </Link>
       </p>
 
+      {/* D02: walk-forward record from real resolutions (H02) */}
+      <section aria-label="Walk-forward record" className="mb-8">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+            Walk-forward record
+          </h2>
+          <span className="rounded-pill bg-secondary-dim px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
+            REAL RESOLUTIONS ONLY
+          </span>
+          <Link
+            href="/track-record"
+            className="ml-auto text-xs font-semibold text-accent hover:underline"
+          >
+            Full track record →
+          </Link>
+        </div>
+        <BacktestWalkForward />
+      </section>
+
       {/* Runner form */}
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+        Single-market replay
+      </h2>
       <BacktestRunner onResult={setResult} />
 
       {/* Result panel or placeholder */}

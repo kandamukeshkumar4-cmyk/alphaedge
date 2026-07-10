@@ -7,7 +7,7 @@ import { useAtlasPanel } from "@/context/atlas-panel";
 import { fetchMarkets, hasLiveApi } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatCompactUSD, MARKETS, type Market } from "@/lib/mock-data";
-import { marketHref } from "@/lib/market-href";
+import { marketHref, marketIntelHref } from "@/lib/market-href";
 
 const FETCH_MS = 8000;
 const LIVE_API = hasLiveApi();
@@ -244,9 +244,16 @@ export function QuestLiveMarketsBoard({
                             <span className="rounded bg-danger/15 px-1.5 py-0.5 text-danger">LIVE</span>
                           ) : null}
                           <span className="text-muted-2">{formatCompactUSD(m.volume)} Vol.</span>
+                          {/* D03: deep-link to the desk Intelligence anchor */}
+                          <Link
+                            href={marketIntelHref(m.slug)}
+                            className="ml-auto text-[11px] font-semibold normal-case tracking-normal text-muted transition hover:text-primary"
+                          >
+                            Intel ↗
+                          </Link>
                           <Link
                             href={`/trade?slug=${encodeURIComponent(m.slug)}`}
-                            className="ml-auto text-[11px] font-semibold normal-case tracking-normal text-muted transition hover:text-primary"
+                            className="text-[11px] font-semibold normal-case tracking-normal text-muted transition hover:text-primary"
                           >
                             Game View ↗
                           </Link>
@@ -254,7 +261,10 @@ export function QuestLiveMarketsBoard({
 
                         {teams ? (
                           <div className="mb-3 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                            <div className="space-y-2.5">
+                            {/* D04: min-w-0 — grid items default to min-width:auto,
+                                so a long nowrap (truncate) team name forced this
+                                column past the card at 390px. */}
+                            <div className="min-w-0 space-y-2.5">
                               {teams.map((team, ti) => (
                                 <div key={team} className="flex items-center gap-2.5">
                                   <span className="grid h-9 w-9 place-items-center rounded-full border border-border bg-surface-2 text-[10px] font-black text-primary">

@@ -105,6 +105,12 @@ export default function TrackRecordPage() {
           <span className="rounded-pill bg-secondary-dim px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
             REAL RESOLUTIONS ONLY
           </span>
+          <Link
+            href="/backtest"
+            className="ml-auto text-xs font-semibold text-accent hover:underline"
+          >
+            See backtest methodology →
+          </Link>
         </div>
         <TrackRecordReliability />
       </section>

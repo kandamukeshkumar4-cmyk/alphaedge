@@ -80,69 +80,74 @@ export function BacktestRunner({ onResult }: BacktestRunnerProps) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {/* Market slug */}
         <div className="sm:col-span-2 lg:col-span-3">
-          <label className="mb-1 block text-xs font-medium text-muted">
+          <label htmlFor="bt-slug" className="mb-1 block text-xs font-medium text-muted">
             Market slug
           </label>
           <input
+            id="bt-slug"
             type="text"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             placeholder={CANONICAL_SLUG}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 font-mono text-sm text-text placeholder:text-muted-2 focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 font-mono text-sm text-text placeholder:text-muted-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/60"
           />
         </div>
 
         {/* Date range */}
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Start date</label>
+          <label htmlFor="bt-start" className="mb-1 block text-xs font-medium text-muted">Start date</label>
           <input
+            id="bt-start"
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/60"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted">End date</label>
+          <label htmlFor="bt-end" className="mb-1 block text-xs font-medium text-muted">End date</label>
           <input
+            id="bt-end"
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/60"
           />
         </div>
 
         {/* Spread */}
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted">
+          <label htmlFor="bt-spread" className="mb-1 block text-xs font-medium text-muted">
             Spread{" "}
             <span className="text-muted-2">(bid-ask, e.g. 0.02)</span>
           </label>
           <input
+            id="bt-spread"
             type="number"
             min="0"
             max="0.5"
             step="0.005"
             value={spread}
             onChange={(e) => setSpread(e.target.value)}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/60"
           />
         </div>
 
         {/* Edge threshold */}
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted">
+          <label htmlFor="bt-edge" className="mb-1 block text-xs font-medium text-muted">
             Edge threshold{" "}
             <span className="text-muted-2">(min model edge, e.g. 0.05)</span>
           </label>
           <input
+            id="bt-edge"
             type="number"
             min="0"
             max="0.5"
             step="0.01"
             value={edgeThreshold}
             onChange={(e) => setEdgeThreshold(e.target.value)}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/60"
           />
         </div>
       </div>

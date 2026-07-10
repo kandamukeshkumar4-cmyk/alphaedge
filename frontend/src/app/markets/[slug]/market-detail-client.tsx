@@ -33,7 +33,7 @@ import {
 import { SimilarMarkets } from "@/components/SimilarMarkets";
 import { SimilarPastMarkets } from "@/components/SimilarPastMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
-import { QuestMarketActivity } from "@/components/quest/QuestMarketActivity";
+import { DeskIntelligencePanel } from "@/components/DeskIntelligencePanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
@@ -301,8 +301,10 @@ export default function MarketDetailClient({
         {/* Right: sticky trade panel */}
         <div className="flex flex-col gap-5 lg:sticky lg:top-28 lg:self-start">
           <PredictionWidget slug={slug} className="mt-4" />
+          {/* D01: one desk call replaces the per-market signal-events fetch
+              (QuestMarketActivity) and adds edge/smart-money/arb in situ. */}
+          <DeskIntelligencePanel slug={slug} />
           <QuestMarketRail slug={slug} />
-          <QuestMarketActivity slug={slug} />
           <DecisionSignalPanel market={market} />
           <DecisionCard slug={slug} />
           <button
