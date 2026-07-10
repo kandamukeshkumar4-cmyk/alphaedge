@@ -90,9 +90,19 @@ export function DeskIntelligencePanel({ slug }: { slug: string }) {
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Intelligence</h2>
-        <span className="rounded-pill border border-border px-2 py-0.5 font-mono text-[9px] font-bold uppercase text-muted-2">
-          Signal only
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Z03: share affordance → read-only /s/[slug] snapshot page. */}
+          <Link
+            href={`/s/${encodeURIComponent(view.slug)}`}
+            aria-label="Open shareable snapshot for this market"
+            className="rounded-lg border border-border px-2 py-0.5 text-[11px] font-semibold text-accent transition hover:border-border-light hover:underline"
+          >
+            Share ↗
+          </Link>
+          <span className="rounded-pill border border-border px-2 py-0.5 font-mono text-[9px] font-bold uppercase text-muted-2">
+            Signal only
+          </span>
+        </div>
       </div>
 
       {/* Model-vs-market edge chip */}

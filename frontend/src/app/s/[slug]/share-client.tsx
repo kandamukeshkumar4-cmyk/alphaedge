@@ -78,8 +78,8 @@ function SnapshotCard({ view }: { view: ShareSnapshotView }) {
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(45,212,191,0.8)]" />
             Shareable snapshot
           </p>
-          <h1 className="mt-2 text-xl font-black tracking-tight text-text sm:text-2xl">{view.title}</h1>
-          <p className="mt-1 font-mono text-[11px] text-muted-2">{view.slug}</p>
+          <h1 className="mt-2 break-words text-xl font-black tracking-tight text-text sm:text-2xl">{view.title}</h1>
+          <p className="mt-1 break-all font-mono text-[11px] text-muted-2">{view.slug}</p>
         </div>
         <span className="shrink-0 rounded-pill border border-border px-2 py-0.5 font-mono text-[9px] font-bold uppercase text-muted-2">
           Signal only
