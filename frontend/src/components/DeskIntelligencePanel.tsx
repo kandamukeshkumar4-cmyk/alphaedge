@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { buildDeskView, fetchDesk, type DeskView } from "@/lib/desk-api";
 import { SignalEvidenceBlock } from "@/components/SignalEvidence";
 import { ForecastDriversPanel } from "@/components/ForecastDriversPanel";
+import { EdgeHistoryChart } from "@/components/EdgeHistoryChart";
 import { cn } from "@/lib/cn";
 
 function timeLabel(iso: string): string {
@@ -139,6 +140,9 @@ export function DeskIntelligencePanel({ slug }: { slug: string }) {
 
       {/* R02: forecast drivers — "why the model thinks this" (own N02 fetch) */}
       <ForecastDriversPanel slug={view.slug} />
+
+      {/* R03: model-vs-market signed edge history chart (own N03 fetch) */}
+      <EdgeHistoryChart slug={view.slug} />
 
       {/* Smart-money mini-summary */}
       <div className="mt-4">
