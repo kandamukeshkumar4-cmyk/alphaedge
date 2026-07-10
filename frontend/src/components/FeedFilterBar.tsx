@@ -10,6 +10,7 @@ const TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "whale_delta", label: "Whale" },
   { value: "news_arrival", label: "News" },
   { value: "instability_shift", label: "Instability" },
+  { value: "signal", label: "Signals" },
   { value: "brief", label: "Brief" },
   { value: "digest", label: "Digest" },
   { value: "claim_graded", label: "Graded" },

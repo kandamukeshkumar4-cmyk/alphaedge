@@ -1,8 +1,22 @@
 import type { CLVRecord, SignalFeedItem, SignalsDashboard } from "./signals-dashboard-api";
 
+// P05: signal families used by the /signals filter pills. Specialised signal
+// types collapse into one of these so screener/weather/dutching/news/anomaly
+// hits are each isolatable. "other" holds everything else (alignment, whale,
+// arb, forecast, …) and is only reachable via the "All" pill.
+export type SignalCategory =
+  | "screener"
+  | "weather"
+  | "dutching"
+  | "news"
+  | "anomaly"
+  | "other";
+
 export type SignalCardView = {
   id: string;
   marketName: string;
+  signalType: string;
+  category: SignalCategory;
   signalTypeLabel: string;
   impliedEdgeLabel: string;
   sampleSizeLabel: string;
@@ -12,6 +26,23 @@ export type SignalCardView = {
   isEdge: boolean;
   blockedLabel: string | null;
 };
+
+/**
+ * Map a backend `signal_type` to a UI family for the /signals filter pills.
+ * Matches the real emitted types: `screener:*`, `delta:weather_edge`,
+ * `dutching`, `delta:news_arrival`/`news_arrival`/`news:mispricing`,
+ * `anomaly:unusual_flow`/`delta:price_jump`.
+ */
+export function categorizeSignal(signalType: string): SignalCategory {
+  const type = signalType.toLowerCase();
+  if (type.startsWith("screener")) return "screener";
+  if (type.includes("weather")) return "weather";
+  if (type.startsWith("dutching")) return "dutching";
+  if (type.includes("news") || type.includes("mispricing")) return "news";
+  if (type.includes("anomaly") || type.includes("unusual") || type.includes("price_jump"))
+    return "anomaly";
+  return "other";
+}
 
 export type CLVRowView = {
   market: string;
@@ -96,6 +127,8 @@ function signalCard(item: SignalFeedItem): SignalCardView {
   return {
     id: item.id,
     marketName: formatMarketLabel(item.market_name),
+    signalType: item.signal_type,
+    category: categorizeSignal(item.signal_type),
     signalTypeLabel: formatSignalTypeLabel(item.signal_type),
     impliedEdgeLabel:
       item.implied_edge === null ? "—" : `${(item.implied_edge * 100).toFixed(2)}%`,

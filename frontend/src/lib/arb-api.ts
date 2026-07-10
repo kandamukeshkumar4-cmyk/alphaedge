@@ -1,5 +1,14 @@
 import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 
+/** One venue leg of a matched arb observation (G02 additive field). */
+export type ArbLeg = {
+  platform: string;
+  market_id: string;
+  outcome: string;
+  price: string; // backend serialises price/fee as strings
+  fee: string;
+};
+
 /** Live GET /api/v1/arb/opportunities — signal-only, never auto-trades. */
 export type ArbOpportunity = {
   id: string;
@@ -14,6 +23,10 @@ export type ArbOpportunity = {
   stale: boolean;
   signal_only: boolean;
   warning: string;
+  // G02 additive optional fields (default-safe for older responses).
+  confidence: number | null;
+  spread_bps: number;
+  legs: ArbLeg[];
 };
 
 export type ArbOpportunitiesPage = {
@@ -46,7 +59,12 @@ export async function fetchArbOpportunities(
     );
     if (!res.ok) return empty;
     const data = (await res.json()) as ArbOpportunitiesPage;
-    const opps = Array.isArray(data.opportunities) ? data.opportunities : [];
+    const opps = (Array.isArray(data.opportunities) ? data.opportunities : []).map((o) => ({
+      ...o,
+      confidence: o.confidence ?? null,
+      spread_bps: o.spread_bps ?? 0,
+      legs: Array.isArray(o.legs) ? o.legs : [],
+    }));
     return {
       opportunities: opps.slice(0, limit),
       total: data.total ?? opps.length,

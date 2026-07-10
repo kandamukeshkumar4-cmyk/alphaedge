@@ -10,11 +10,16 @@
  *
  * GUARDRAIL: Never fabricates Brier numbers. The "not yet measured" state is
  * the honest correct state when the AutoLab gate has not been run.
+ *
+ * P06: re-themed from leftover slate/admin styling to Quest mint-on-charcoal
+ * tokens. Honesty about unmeasured ensemble flags is preserved verbatim.
  */
 
 import { useEffect, useState } from "react";
 
 import { API_BASE } from "@/lib/alphaedge-api";
+import { cn } from "@/lib/cn";
+import { PageHeader, PageShell } from "@/components/ui/kit";
 const API = API_BASE;
 
 type EvalAggregates = Record<string, number>;
@@ -28,6 +33,15 @@ type AutoLabMeasurement = {
   n_samples: number;
   notes: string;
 };
+
+function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <dt className="text-xs font-bold uppercase tracking-[0.06em] text-muted">{label}</dt>
+      <dd className="mt-1 font-mono text-xl font-bold text-text">{value}</dd>
+    </div>
+  );
+}
 
 export default function EvalDashboard() {
   const [aggregates, setAggregates] = useState<EvalAggregates | null>(null);
@@ -59,111 +73,102 @@ export default function EvalDashboard() {
       .catch(() => setAutolab(notRun));
   }, []);
 
+  const ensembleBetter =
+    autolab?.ensemble_brier != null &&
+    autolab?.baseline_brier != null &&
+    autolab.ensemble_brier < autolab.baseline_brier;
+
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <h1 className="text-2xl font-bold">Proof Dashboard</h1>
-      <p className="text-sm text-slate-400">Brier · calibration · backtest summary</p>
+    <PageShell width="medium">
+      <PageHeader
+        kicker="Model proof"
+        title="Proof dashboard"
+        subtitle="Brier · calibration · backtest summary. Research only — paper trading, simulated funds."
+      />
 
       {/* ── Single-model eval aggregates ── */}
       {aggregates ? (
-        <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
-          <div className="rounded border border-slate-800 p-4">
-            <dt className="text-slate-500">Mean Brier (7d)</dt>
-            <dd className="text-xl">{aggregates.mean_brier?.toFixed(4) ?? "—"}</dd>
-          </div>
-          <div className="rounded border border-slate-800 p-4">
-            <dt className="text-slate-500">Calibration error</dt>
-            <dd className="text-xl">{aggregates.calibration_error?.toFixed(4) ?? "—"}</dd>
-          </div>
-          <div className="rounded border border-slate-800 p-4">
-            <dt className="text-slate-500">Markets evaluated</dt>
-            <dd className="text-xl">{aggregates.market_count ?? 0}</dd>
-          </div>
+        <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatCard label="Mean Brier (7d)" value={aggregates.mean_brier?.toFixed(4) ?? "—"} />
+          <StatCard
+            label="Calibration error"
+            value={aggregates.calibration_error?.toFixed(4) ?? "—"}
+          />
+          <StatCard label="Markets evaluated" value={aggregates.market_count ?? 0} />
         </dl>
       ) : (
-        <p className="mt-6 text-amber-400">Start API to load eval metrics.</p>
+        <p className="mt-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold">
+          Start the API to load eval metrics.
+        </p>
       )}
 
       {/* ── U08 Ensemble vs single-model Brier comparison ── */}
-      <section
-        data-testid="ensemble-autolab-section"
-        className="mt-10"
-      >
-        <h2 className="text-lg font-bold">Ensemble vs Single-Model (U08 AutoLab)</h2>
-        <p className="mt-1 text-sm text-slate-400">
+      <section data-testid="ensemble-autolab-section" className="mt-10">
+        <h2 className="text-lg font-black text-text">Ensemble vs single-model (U08 AutoLab)</h2>
+        <p className="mt-1 text-sm text-muted">
           Walk-forward Brier comparison — ensemble flag is{" "}
           {autolab?.ensemble_enabled ? (
-            <span className="font-bold text-green-400">ON</span>
+            <span className="font-bold text-primary">ON</span>
           ) : (
-            <span className="font-bold text-amber-400">OFF (default)</span>
+            <span className="font-bold text-gold">OFF (default)</span>
           )}
           . Flag only turns ON when ensemble Brier is measurably lower than baseline.
         </p>
 
         {autolab === null ? (
-          <p className="mt-4 text-sm text-slate-500">Loading…</p>
+          <p className="mt-4 text-sm text-muted-2">Loading…</p>
         ) : autolab.outcome === "not_run" || autolab.outcome === "insufficient_data" ? (
           /* Honest "not yet measured" state — never fabricate bars */
           <div
             data-testid="ensemble-not-measured"
-            className="mt-4 rounded border border-amber-800/40 bg-amber-950/30 p-4"
+            className="mt-4 rounded-2xl border border-gold/30 bg-gold/10 p-4"
           >
-            <p className="text-sm font-semibold text-amber-300">
+            <p className="text-sm font-bold text-gold">
               {autolab.outcome === "not_run"
                 ? "Not yet measured"
                 : `Insufficient data (${autolab.n_samples} resolved markets; need ≥30)`}
             </p>
-            <p className="mt-1 text-xs text-slate-400">{autolab.notes}</p>
-            <p className="mt-2 text-xs text-slate-500">
-              AutoLab line: baseline=single-model | benchmark=walk-forward Brier |
-              iterations=0 | budget=0/8 | outcome=stalled-iterations=0-honest
+            <p className="mt-1 text-xs text-muted">{autolab.notes}</p>
+            <p className="mt-2 font-mono text-xs text-muted-2">
+              AutoLab line: baseline=single-model | benchmark=walk-forward Brier | iterations=0 |
+              budget=0/8 | outcome=stalled-iterations=0-honest
             </p>
           </div>
         ) : (
           /* Real numbers — outcome === "measured" */
-          <div
-            data-testid="ensemble-measured"
-            className="mt-4 space-y-4"
-          >
-            <dl className="grid grid-cols-2 gap-4 text-sm">
-              <div className="rounded border border-slate-800 p-4">
-                <dt className="text-slate-500">Single-model Brier</dt>
-                <dd className="text-xl font-mono">
-                  {autolab.baseline_brier?.toFixed(4) ?? "—"}
-                </dd>
-              </div>
-              <div className="rounded border border-slate-800 p-4">
-                <dt className="text-slate-500">Ensemble Brier</dt>
+          <div data-testid="ensemble-measured" className="mt-4 space-y-4">
+            <dl className="grid grid-cols-2 gap-3">
+              <StatCard
+                label="Single-model Brier"
+                value={autolab.baseline_brier?.toFixed(4) ?? "—"}
+              />
+              <div className="rounded-2xl border border-border bg-surface p-4">
+                <dt className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
+                  Ensemble Brier
+                </dt>
                 <dd
-                  className={[
-                    "text-xl font-mono",
-                    autolab.ensemble_brier !== null &&
-                    autolab.baseline_brier !== null &&
-                    autolab.ensemble_brier < autolab.baseline_brier
-                      ? "text-green-400"
-                      : "text-red-400",
-                  ].join(" ")}
+                  className={cn(
+                    "mt-1 font-mono text-xl font-bold",
+                    ensembleBetter ? "text-up" : "text-danger",
+                  )}
                 >
                   {autolab.ensemble_brier?.toFixed(4) ?? "—"}
                 </dd>
               </div>
-              <div className="rounded border border-slate-800 p-4">
-                <dt className="text-slate-500">Resolved markets (n)</dt>
-                <dd className="text-xl">{autolab.n_samples}</dd>
-              </div>
-              <div className="rounded border border-slate-800 p-4">
-                <dt className="text-slate-500">Improvement</dt>
-                <dd className="text-xl font-mono">
-                  {autolab.ensemble_brier !== null && autolab.baseline_brier !== null
-                    ? ((autolab.baseline_brier - autolab.ensemble_brier) * 100).toFixed(2) + "pp"
-                    : "—"}
-                </dd>
-              </div>
+              <StatCard label="Resolved markets (n)" value={autolab.n_samples} />
+              <StatCard
+                label="Improvement"
+                value={
+                  autolab.ensemble_brier !== null && autolab.baseline_brier !== null
+                    ? `${((autolab.baseline_brier - autolab.ensemble_brier) * 100).toFixed(2)}pp`
+                    : "—"
+                }
+              />
             </dl>
-            <p className="text-xs text-slate-500">{autolab.notes}</p>
+            <p className="text-xs text-muted-2">{autolab.notes}</p>
           </div>
         )}
       </section>
-    </main>
+    </PageShell>
   );
 }

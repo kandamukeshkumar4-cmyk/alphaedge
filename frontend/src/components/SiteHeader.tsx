@@ -5,6 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
+import { ApiHealthChip } from "@/components/ApiHealthChip";
+import { HeaderMoreMenu, MORE_NAV } from "@/components/HeaderMoreMenu";
+import { HeaderSearch } from "@/components/HeaderSearch";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -80,6 +83,8 @@ export function SiteHeader() {
             </span>
           </Link>
 
+          <ApiHealthChip className="hidden shrink-0 sm:inline-flex" />
+
           <nav className="hidden h-full items-stretch gap-0.5 self-stretch lg:flex">
             {NAV.map((item) => {
               const base = item.href.split("?")[0];
@@ -108,17 +113,11 @@ export function SiteHeader() {
                 </Link>
               );
             })}
+            <HeaderMoreMenu />
           </nav>
 
           <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[380px]">
-            <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-primary/45 focus-within:bg-surface-2">
-              <SearchIcon />
-              <input
-                className="w-full bg-transparent text-sm font-medium text-text placeholder:text-muted-2 focus:outline-none"
-                placeholder="Search markets or clones..."
-                aria-label="Search markets or clones"
-              />
-            </label>
+            <HeaderSearch />
           </div>
 
           <div className="flex items-center gap-2">
@@ -171,6 +170,9 @@ export function SiteHeader() {
 
         {open && (
           <div className="border-t border-border bg-surface px-4 py-3 lg:hidden">
+            <div className="mb-2 flex items-center px-2 sm:hidden">
+              <ApiHealthChip />
+            </div>
             <nav className="flex flex-col gap-1 text-sm font-semibold">
               {NAV.map((item) => (
                 <Link
@@ -191,20 +193,26 @@ export function SiteHeader() {
                 </Link>
               ))}
             </nav>
+            <p className="mt-3 px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">
+              More
+            </p>
+            <nav className="mt-1 grid grid-cols-2 gap-1 text-sm font-semibold">
+              {MORE_NAV.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className="rounded-md px-2 py-2 text-muted transition hover:bg-surface-2 hover:text-text"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </div>
         )}
       </header>
       {!onSignalsNav ? <AlertToast alerts={alerts} /> : null}
     </>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-    </svg>
   );
 }
 
