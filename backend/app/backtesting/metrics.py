@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 
@@ -32,6 +34,10 @@ def calibration_error(predictions: list[float], outcomes: list[int], bins: int =
         return 0.0
     bucket_preds: dict[int, list[tuple[float, int]]] = {i: [] for i in range(bins)}
     for p, o in zip(predictions, outcomes):
+        # Non-finite probabilities (Postgres NUMERIC 'NaN') would make int()
+        # raise; skip them rather than crash the caller.
+        if not math.isfinite(p):
+            continue
         idx = min(int(p * bins), bins - 1)
         bucket_preds[idx].append((p, o))
     errors = []

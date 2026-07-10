@@ -89,3 +89,26 @@ async def test_calibration_ignores_resolved_market_without_winning_outcome(db_se
 
     assert response.status_code == 200
     assert response.json()["gate"] == "no-data"
+
+
+def test_calibration_error_skips_nan_probability():
+    """Regression: Postgres NUMERIC 'NaN' reaching the binning math must not
+    raise (int(nan*bins) -> ValueError). NaN samples are skipped."""
+    from app.backtesting.metrics import brier_score, calibration_error
+
+    preds = [0.6, float("nan"), 0.4]
+    outs = [1, 1, 0]
+    # Neither call raises; the NaN sample is dropped from the binning.
+    assert calibration_error(preds, outs) >= 0.0
+    assert brier_score([0.6, 0.4], [1, 0]) >= 0.0
+
+
+def test_track_record_calibration_bins_skip_nan():
+    """Regression: track-record calibration binning must not 500 on a NaN
+    probability."""
+    from app.api.v1.track_record import _calibration_bins
+
+    bins = _calibration_bins([0.6, float("nan"), 0.4], [1, 1, 0])
+    # 10 bins returned, NaN excluded from all counts.
+    assert len(bins) == 10
+    assert sum(b.count for b in bins) == 2

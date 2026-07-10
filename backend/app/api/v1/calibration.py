@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -74,12 +75,21 @@ async def _scored_forecast_rows(
 
     result = await db.execute(stmt)
     rows = result.all()
-    if not rows:
+    # Postgres NUMERIC can hold 'NaN'; a NaN probability would blow up the
+    # downstream int(p*bins) binning. Drop non-finite / null samples here.
+    clean = [
+        (float(row[0]), int(row[1]), row[2])
+        for row in rows
+        if row[0] is not None
+        and row[1] is not None
+        and math.isfinite(float(row[0]))
+    ]
+    if not clean:
         return [], [], None
 
-    predictions = [float(row[0]) for row in rows]
-    outcomes = [int(row[1]) for row in rows]
-    last_updated = max((row[2] for row in rows), default=None)
+    predictions = [c[0] for c in clean]
+    outcomes = [c[1] for c in clean]
+    last_updated = max((c[2] for c in clean), default=None)
     return predictions, outcomes, last_updated
 
 
@@ -117,7 +127,14 @@ async def _from_paper_orders(db: AsyncSession) -> tuple[list[float], list[int], 
                 status_code=409,
                 detail=f"Resolved market {market.slug} has no winning_outcome",
             )
+        # Skip orders that cannot be scored (missing price or side) rather than
+        # 500-ing the whole calibration/track-record surface. A resolved market
+        # order with a NULL price contributes no calibration point.
+        if order.price is None or order.side is None:
+            continue
         predicted = _predicted_yes_prob(order.side, float(order.price))
+        if not math.isfinite(predicted):
+            continue
         outcome = _yes_outcome(market.winning_outcome)
         resolved_at = market.resolved_at
         bucket = by_slug.setdefault(order.slug, ([], [], None))

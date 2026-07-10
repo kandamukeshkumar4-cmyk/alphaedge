@@ -19,6 +19,7 @@ No fabricated numbers: with zero resolutions the endpoint returns ``n=0``,
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
@@ -80,7 +81,13 @@ async def _resolved_forecast_rows(
             ExternalMarket.status == ExternalMarketStatus.RESOLVED,
         )
     )
-    return [(float(p), int(o), ts) for p, o, ts in result.all()]
+    # Postgres NUMERIC can hold 'NaN'; skip non-finite / null probabilities so
+    # the downstream int(p*bins) binning never raises (500).
+    return [
+        (float(p), int(o), ts)
+        for p, o, ts in result.all()
+        if p is not None and o is not None and math.isfinite(float(p))
+    ]
 
 
 def _calibration_bins(
@@ -93,13 +100,16 @@ def _calibration_bins(
         # in [0.7, 0.8), and 1.0 in the top bin).
         return min(int(p * CALIBRATION_BINS), CALIBRATION_BINS - 1)
 
+    # Non-finite probabilities (Postgres NUMERIC 'NaN') would make int() raise;
+    # drop them before binning so the endpoint never 500s.
+    pairs = [
+        (p, o) for p, o in zip(predictions, outcomes) if math.isfinite(p)
+    ]
     bins: list[TrackRecordCalibrationBin] = []
     for i in range(CALIBRATION_BINS):
         lower = i * width
         upper = (i + 1) * width
-        member = [
-            (p, o) for p, o in zip(predictions, outcomes) if _bin_index(p) == i
-        ]
+        member = [(p, o) for p, o in pairs if _bin_index(p) == i]
         preds = [p for p, _ in member]
         obs = [float(o) for _, o in member]
         bins.append(
