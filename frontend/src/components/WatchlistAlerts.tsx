@@ -8,6 +8,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { MotionReveal } from "@/components/MotionReveal";
 import { SignalEvidenceBlock } from "@/components/SignalEvidence";
 import { cn } from "@/lib/cn";
 import {
@@ -67,8 +69,9 @@ export function WatchlistAlerts({ token }: { token: string | null }) {
         </div>
       ) : (
         <ul className="space-y-3">
-          {groups.map((group) => (
-            <li key={group.slug} className="rounded-xl border border-border bg-surface p-4">
+          {groups.map((group, i) => (
+            <li key={group.slug}>
+             <MotionReveal delay={Math.min(i, 6) * 0.04} className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center gap-2">
                 <Link
                   href={marketHref(group.slug)}
@@ -77,7 +80,8 @@ export function WatchlistAlerts({ token }: { token: string | null }) {
                   {group.slug}
                 </Link>
                 <span className="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[10px] font-bold text-muted">
-                  {group.count} alert{group.count === 1 ? "" : "s"}
+                  <AnimatedNumber value={group.count} format={(n) => String(Math.round(n))} /> alert
+                  {group.count === 1 ? "" : "s"}
                 </span>
                 <span className="shrink-0 text-[10px] text-muted-2">{group.latestLabel}</span>
               </div>
@@ -92,6 +96,7 @@ export function WatchlistAlerts({ token }: { token: string | null }) {
                   </li>
                 ))}
               </ul>
+             </MotionReveal>
             </li>
           ))}
         </ul>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { MotionReveal } from "@/components/MotionReveal";
 import { cn } from "@/lib/cn";
 import {
   buildModelAbView,
@@ -55,13 +57,16 @@ export function ModelAbCard() {
           <div className="skeleton mt-4 h-10 w-full rounded" />
         </div>
       ) : (
-        <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+        <MotionReveal className="mt-4 rounded-2xl border border-border bg-surface p-4">
           {/* Progress toward the threshold — shown in every state. */}
           <div className="flex items-center justify-between text-xs">
             <span className="font-bold uppercase tracking-[0.06em] text-muted">
               Resolved outcomes
             </span>
-            <span className="font-mono font-bold text-text">{view.resolvedLabel}</span>
+            <span className="font-mono font-bold text-text">
+              <AnimatedNumber value={view.resolvedCount} format={(n) => String(Math.round(n))} /> /{" "}
+              {view.threshold} resolved
+            </span>
           </div>
           <div
             className="mt-2 h-2.5 overflow-hidden rounded-full bg-surface-3"
@@ -114,7 +119,7 @@ export function ModelAbCard() {
               </p>
             </>
           )}
-        </div>
+        </MotionReveal>
       )}
     </section>
   );
