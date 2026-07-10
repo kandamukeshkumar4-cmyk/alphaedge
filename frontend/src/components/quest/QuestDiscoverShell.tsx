@@ -22,6 +22,7 @@ import { cn } from "@/lib/cn";
 import { type Market } from "@/lib/mock-data";
 
 const INTELLIGENCE_LINKS = [
+  { href: "/opportunities", label: "Opportunities", blurb: "Biggest model-vs-market edges" },
   { href: "/markets", label: "Desk", blurb: "Per-market intelligence panel" },
   { href: "/clones", label: "Clones", blurb: "Paper agent clones" },
   { href: "/backtest", label: "Backtest", blurb: "Walk-forward record & replay" },
