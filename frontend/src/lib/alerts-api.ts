@@ -173,7 +173,7 @@ export async function fetchAlertsFeed(opts?: {
   if (opts?.limit) params.set("limit", String(opts.limit));
   const qs = params.toString();
   try {
-    const res = await fetch(apiUrl(`/api/v1/alerts${qs ? `?${qs}` : ""}`, base), {
+    const res = await fetch(apiUrl(`/api/v1/alerts/feed${qs ? `?${qs}` : ""}`, base), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       cache: "no-store",
     });
