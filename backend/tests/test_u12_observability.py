@@ -15,6 +15,8 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+ADMIN_HEADERS = {"X-Admin-API-Key": "dev-admin-key"}  # pinned by conftest _pin_admin_api_key
+
 
 # ---------------------------------------------------------------------------
 # Helper: minimal ASGI app for route tests
@@ -46,7 +48,7 @@ def app(db_session):
 @pytest.mark.asyncio
 async def test_trace_explorer_empty_db_returns_empty_list(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.get("/api/v1/admin/observability/traces")
+        resp = await ac.get("/api/v1/admin/observability/traces", headers=ADMIN_HEADERS)
     assert resp.status_code == 200
     body = resp.json()
     assert body["runs"] == []
@@ -93,7 +95,7 @@ async def test_trace_explorer_returns_run_with_steps(db_session, app):
     await db_session.flush()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.get("/api/v1/admin/observability/traces?limit=10")
+        resp = await ac.get("/api/v1/admin/observability/traces?limit=10", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -178,7 +180,7 @@ async def test_metrics_endpoint_contains_brief_latency_histogram():
 @pytest.mark.asyncio
 async def test_drift_endpoint_insufficient_data_honest_response(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.get("/api/v1/admin/observability/drift")
+        resp = await ac.get("/api/v1/admin/observability/drift", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -197,7 +199,7 @@ async def test_drift_endpoint_insufficient_data_honest_response(app):
 @pytest.mark.asyncio
 async def test_slo_tiles_endpoint_returns_known_tile_names(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.get("/api/v1/admin/observability/slo")
+        resp = await ac.get("/api/v1/admin/observability/slo", headers=ADMIN_HEADERS)
 
     assert resp.status_code == 200
     body = resp.json()

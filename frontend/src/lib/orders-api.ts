@@ -30,6 +30,9 @@ export async function placePaperOrder(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      // Server dedupes on (user, key): a retried/replayed POST returns the
+      // original order instead of double-debiting the paper balance.
+      "Idempotency-Key": crypto.randomUUID(),
     },
     body: JSON.stringify(order),
   });

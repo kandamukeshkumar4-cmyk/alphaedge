@@ -58,6 +58,19 @@ def lakers_celtics_slug():
 
 
 @pytest.fixture(autouse=True)
+def _pin_admin_api_key():
+    """Tests assert against the dev default admin key; a local backend/.env
+    override (real deploy key) must not leak into the suite."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    original = settings.admin_api_key
+    settings.admin_api_key = "dev-admin-key"
+    yield
+    settings.admin_api_key = original
+
+
+@pytest.fixture(autouse=True)
 def _clear_markets_cache():
     """B01 micro-cache on /markets must not leak state between tests."""
     from app.core import markets_cache

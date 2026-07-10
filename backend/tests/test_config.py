@@ -10,6 +10,26 @@ def test_production_requires_non_default_jwt_secret():
         Settings(APP_ENV="production", JWT_SECRET_KEY="dev-jwt-secret-change-in-production")
 
 
+def test_production_requires_non_default_admin_api_key():
+    # ADMIN_API_KEY pinned to the shipped default: local .env may override it.
+    with pytest.raises(ValidationError, match="ADMIN_API_KEY"):
+        Settings(
+            APP_ENV="production",
+            JWT_SECRET_KEY="explicit-prod-secret",
+            ADMIN_API_KEY="dev-admin-key",
+        )
+
+
+def test_production_accepts_explicit_secrets():
+    settings = Settings(
+        APP_ENV="production",
+        JWT_SECRET_KEY="explicit-prod-secret",
+        ADMIN_API_KEY="explicit-prod-admin-key",
+    )
+
+    assert settings.admin_api_key == "explicit-prod-admin-key"
+
+
 def test_local_development_allows_default_jwt_secret():
     settings = Settings(APP_ENV="development")
 

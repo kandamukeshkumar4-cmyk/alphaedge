@@ -4,12 +4,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from app.core.config import get_settings
 from app.db.models import Market
 from app.db.session import get_db
 from app.main import app
 
-ADMIN_HEADERS = {"X-Admin-API-Key": get_settings().admin_api_key}
+ADMIN_HEADERS = {"X-Admin-API-Key": "dev-admin-key"}  # pinned by conftest _pin_admin_api_key
 
 
 @pytest.fixture(autouse=True)

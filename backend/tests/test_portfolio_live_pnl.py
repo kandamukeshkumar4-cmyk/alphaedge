@@ -51,7 +51,8 @@ async def test_unsettled_position_has_unrealized_pnl(db_session):
         await client.post(
             "/api/v1/orders",
             headers={"Authorization": f"Bearer {token}"},
-            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 10, "price": 0.5},
+            # 0.65 sits inside the ±0.10 tolerance band around the live 0.70
+            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 10, "price": 0.65},
         )
         response = await client.get(
             "/api/v1/portfolio",
@@ -63,7 +64,7 @@ async def test_unsettled_position_has_unrealized_pnl(db_session):
     pos = body["positions"][0]
     assert pos["settled"] is False
     assert pos["current_price"] == pytest.approx(0.70, abs=0.001)
-    assert pos["unrealized_pnl"] == pytest.approx(2.0, abs=0.01)
+    assert pos["unrealized_pnl"] == pytest.approx(0.5, abs=0.01)
 
 
 @pytest.mark.asyncio

@@ -2,9 +2,11 @@ from decimal import Decimal
 
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+
+from sqlalchemy.exc import IntegrityError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +16,7 @@ from app.api.v1.deps import get_current_user
 
 from app.core.config import get_settings
 
-from app.db.models import Market, MarketResolution, PaperOrder, User
+from app.db.models import Market, MarketResolution, OddsSnapshot, PaperOrder, User
 
 from app.db.session import get_db
 
@@ -40,6 +42,47 @@ router = APIRouter(prefix="/api/v1", tags=["orders"])
 
 settings = get_settings()
 
+PRICE_TOLERANCE = Decimal("0.10")
+
+
+def _order_response(order: PaperOrder, remaining_balance: Decimal) -> PaperOrderResponse:
+    return PaperOrderResponse(
+        order_id=order.id,
+        slug=order.slug,
+        side=order.outcome.upper(),  # type: ignore[arg-type]
+        shares=float(order.shares),
+        cost=float(order.cost),
+        remaining_balance=float(remaining_balance),
+        paper_trading_only=True,
+    )
+
+
+async def _reject_offmarket_price(
+    db: AsyncSession, slug: str, outcome: str, price: Decimal
+) -> None:
+    """Audit H-RACE-02: the client price must sit near the latest authoritative
+    market price so users cannot self-deal (cheap buys / rich sells). Seed and
+    fallback snapshots are placeholders (E16); markets with no authoritative
+    snapshot (catalog fixtures) skip the check."""
+    implied_yes = await db.scalar(
+        select(OddsSnapshot.implied_yes)
+        .where(
+            OddsSnapshot.market_slug == slug,
+            OddsSnapshot.source.notilike("%seed%"),
+            OddsSnapshot.source.notilike("%fallback%"),
+        )
+        .order_by(OddsSnapshot.captured_at.desc())
+        .limit(1)
+    )
+    if implied_yes is None:
+        return
+    market_price = implied_yes if outcome == "yes" else Decimal("1") - implied_yes
+    if abs(price - market_price) > PRICE_TOLERANCE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Price is too far from the current market price",
+        )
+
 
 
 
@@ -49,6 +92,8 @@ settings = get_settings()
 async def place_paper_order(
 
     body: PaperOrderCreate,
+
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
 
     current_user: User = Depends(get_current_user),
 
@@ -95,70 +140,69 @@ async def place_paper_order(
 
 
     shares = Decimal(str(body.shares))
-
     price = Decimal(str(body.price))
-
     cost = shares * price
 
+    await _reject_offmarket_price(db, body.slug, body.outcome, price)
 
-
-    if cost > current_user.paper_balance:
-
-        raise HTTPException(
-
-            status_code=status.HTTP_400_BAD_REQUEST,
-
-            detail="Insufficient paper balance",
-
+    if idempotency_key:
+        existing = await db.scalar(
+            select(PaperOrder).where(
+                PaperOrder.user_id == current_user.id,
+                PaperOrder.idempotency_key == idempotency_key,
+            )
         )
+        if existing is not None:
+            return _order_response(existing, current_user.paper_balance)
 
-
-
-    current_user.paper_balance -= cost
+    # Audit C-RACE-01: atomic debit — the WHERE guard serializes concurrent
+    # buys on the user row instead of letting both pass a stale balance read.
+    user_id = current_user.id
+    debited = await db.execute(
+        update(User)
+        .where(User.id == user_id, User.paper_balance >= cost)
+        .values(paper_balance=User.paper_balance - cost)
+        .returning(User.paper_balance)
+        .execution_options(synchronize_session=False)
+    )
+    new_balance = debited.scalar_one_or_none()
+    if new_balance is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Insufficient paper balance",
+        )
+    current_user.paper_balance = new_balance
 
     order = PaperOrder(
-
-        user_id=current_user.id,
-
+        user_id=user_id,
         slug=body.slug,
-
         side=body.outcome.upper(),
-
         outcome=body.outcome,
-
         shares=shares,
-
         price=price,
-
         cost=cost,
-
         action="BUY",
-
+        idempotency_key=idempotency_key,
     )
-
     db.add(order)
+    try:
+        await db.flush()
+    except IntegrityError:
+        # A concurrent request with the same Idempotency-Key won the insert:
+        # roll back this attempt (undoes our debit) and replay the winner.
+        await db.rollback()
+        winner = await db.scalar(
+            select(PaperOrder).where(
+                PaperOrder.user_id == user_id,
+                PaperOrder.idempotency_key == idempotency_key,
+            )
+        )
+        if winner is None:
+            raise
+        balance = await db.scalar(select(User.paper_balance).where(User.id == user_id))
+        return _order_response(winner, balance if balance is not None else Decimal("0"))
 
-    await db.flush()
-
-
-
-    return PaperOrderResponse(
-
-        order_id=order.id,
-
-        slug=order.slug,
-
-        side=body.outcome.upper(),  # type: ignore[arg-type]
-
-        shares=float(shares),
-
-        cost=float(cost),
-
-        remaining_balance=float(current_user.paper_balance),
-
-        paper_trading_only=True,
-
-    )
+    return _order_response(order, new_balance)
 
 
 
@@ -283,6 +327,8 @@ async def close_paper_position(
         )
 
 
+
+    await _reject_offmarket_price(db, body.slug, body.outcome, Decimal(str(body.price)))
 
     await db.execute(
         select(PaperOrder).where(

@@ -2,14 +2,13 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from app.core.config import get_settings
 from app.db.models import MarketResolution, PaperOrder, User
 from app.db.session import get_db
 from app.main import app
 from app.services.market_service import MarketService
 
 CANONICAL_SLUG = "nba-2025-01-15-lal-bos"
-ADMIN_HEADERS = {"X-Admin-API-Key": get_settings().admin_api_key}
+ADMIN_HEADERS = {"X-Admin-API-Key": "dev-admin-key"}  # pinned by conftest _pin_admin_api_key
 
 
 def _override_db(db_session):

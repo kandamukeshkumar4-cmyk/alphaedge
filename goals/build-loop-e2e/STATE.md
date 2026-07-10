@@ -66,6 +66,24 @@ diff against the guardrails. Verifier verdict goes in Notes.
 | E15 | **Orphan/ghost price signals** (found in E01): a stale in-memory diff-engine slug (unsuffixed France) emitted signals that join to NO market → pollute the engine-room feed, invisible to per-market feed. | DONE 2026-07-03 | Narrowed after investigation: most real signals (ayo-dosunmu, taylor-swift) join fine; only 4 stale France ghosts didn't. Fix: `persist_deltas(..., require_market=True)` on the diff-engine PRICE path drops deltas whose slug has no Market row; whale/news/instability keep default (may reference external markets). New test `test_persist_deltas_require_market_drops_orphan_slug`. Cleaned 4 stale orphan rows from DB. |
 | E16 | **Bogus jumps from source discontinuity** (found in E01): France showed a bogus 8450bps "jump" (0.15↔0.995) = a seed-placeholder price vs live price, not a real move. | DONE 2026-07-03 | Fix: `_is_placeholder_source()` in `compute_market_delta` — a price_jump requires BOTH observations from authoritative sources; any move into/out of a `seed`/`fallback` source re-baselines silently. 3 new tests. Combined with E15 guard, the France ghost is fully suppressed. |
 
+## Audit remediation tickets (2026-07-10 external audit, refreshed same day)
+
+Source: user-supplied application audit. The refreshed audit re-verified the
+codebase after AUD-01 and CLOSED prior C-RACE-01, H-SEC-01, H-SEC-02, H-RACE-02.
+Finding IDs below refer to the REFRESHED audit. One ticket per iteration.
+
+| ID | Ticket | Status | Notes |
+|----|--------|--------|-------|
+| AUD-01 | **P0 batch 1**: admin-gate `/admin/observability/*`; boot-fail default ADMIN_API_KEY in prod/staging; atomic paper-buy debit `UPDATE … WHERE balance >= cost RETURNING`; Idempotency-Key dedupe (model+migration 037+client header); server price-tolerance vs authoritative OddsSnapshot on buy+sell | DONE 2026-07-10 · verifier PASS | Gate green: backend 1299 passed/28 skipped + ruff; frontend typecheck/lint/274 tests/build. Environmental fix folded in: local backend/.env overrides ADMIN_API_KEY (a repurposed HF token — flag to user for rotation) which broke 19 pre-existing admin tests → conftest `_pin_admin_api_key` autouse fixture + 5 test files' module-level headers pinned. Verifier non-blocking notes: (1) client idempotency key regenerates per call → covered by AUD-02/H-RACE-01; (2) mark-to-market test sits exactly on the 0.10 tolerance boundary; (3) close-path price check fires before position-existence check (error-ordering nit). |
+| AUD-02 | **P0 batch 2 (refreshed)**: stable client Idempotency-Key per trade intent (H-RACE-01); atomic close-credit + Idempotency-Key on /positions/close + net_shares re-check (H-RACE-02); auth on `POST /analyst/run` — no market auto-create from public slugs (H-SEC-03) + auth on `POST /backtest/run` (M-SEC-01); `secrets.compare_digest` admin key (M-SEC-04); boot-fail default JWT secret (C-SEC-03 code side) + sync JWT_SECRET_KEY/APP_ENV in deploy-hf-space.yml | TODO | |
+| AUD-03 | **System/smoke CLOB lockdown** (H-SEC-01): require admin key or signed token for system/smoke accounts outside local APP_ENV | TODO | |
+| AUD-04 | **CLOB concurrency batch**: FOR UPDATE on resting orders (H-RACE-03); CLOB idempotency (M-RACE-01); ledger non-negative guard (M-REL-01); atomic settlement credits (M-REL-02) | TODO | |
+| AUD-05 | **UI path onto risk gate** (C-SEC-01/02): shared risk gate or migrate UI onto CLOB+RiskService; document dual-ledger decision | TODO | needs architecture decision — ask user |
+| AUD-06 | **Session/storage model** (H-SEC-02): JWT + admin key out of localStorage (httpOnly/BFF) | TODO | touches CORS credentials |
+| AUD-07 | **Reliability/perf batch**: portfolio 503/degraded not empty-200 (H-REL-01); portfolio LivePricesProvider multiplex (H-PERF-01); PriceChart timeout cleanup (M-REL-05); disable trade controls while submitting (M-REL-04) | TODO | |
+| AUD-08 | **A11y AA batch**: Dialog primitive focus trap/Escape/restore (H-A11Y-01); auth htmlFor/id/autocomplete + drop Forgot no-op (H-A11Y-02); skip link + single main (M-A11Y-01); focus-visible + muted-2 contrast (M-A11Y-02); tabs/toggle semantics + toast aria-live (M-A11Y-03) | TODO | |
+| AUD-09 | **Visual consistency batch**: rename Deposit CTA (H-VIS-01); Long/Short vs Buy YES copy (M-VIS-01); token drift in admin/charts (M-VIS-02); nav/history drift (M-VIS-03); P&L copy (L-VIS-01) | TODO | |
+
 ## Known environmental gotcha (not a code defect)
 
 `npm run build` is FLAKY when a `npm run dev` server is running (mine or the
@@ -170,6 +188,8 @@ loops: E-chart-theme, useApiHealth unit test, KalshiConnector cleanup,
 real-data LightGBM A/B at ~100+ resolved outcomes.
 
 ## AutoLab log
+
+- 2026-07-10 AUD-01: baseline=suite green pre-diff (19 admin-test failures were pre-existing .env-override breakage, fixed via conftest pin) | benchmark=full gate + 12 new regression tests (observability 401/422, admin-key boot check, idempotency replay, price band) | iterations=1 + 1 test-fixture cycle | budget=session | outcome=IMPROVED — audit C-RACE-01, H-SEC-01, H-SEC-02, H-RACE-01(server side), H-RACE-02 closed; backend 1299 passed/28 skipped, ruff clean; frontend typecheck/lint/274 tests/build green. **Verifier: PASS** (3 non-blocking notes, one feeds AUD-02).
 
 - 2026-07-03 bootstrap: baseline = backend suite green + frontend 61/61 + build; UI loop U0–U7 DONE; theme CSS vars shipped; outcome = loop authored.
 - 2026-07-03 E01: baseline=673 backend passed/5 skipped + ruff clean | benchmark=real tick→signal_event→brief→claim on live stack | iterations=1 (found+fixed the poll-doesnt-feed-diff-engine bug, restored parallel-session test break) | budget=session | outcome=IMPROVED — T03+T07 proven live on real data; T04/T08 honest gaps documented; 2 data-quality tickets filed (E15/E16). **Verifier: PASS**.

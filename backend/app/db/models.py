@@ -96,7 +96,10 @@ class PaperOrder(Base):
     """
 
     __tablename__ = "paper_orders"
-    __table_args__ = (Index("ix_paper_orders_user_id", "user_id"),)
+    __table_args__ = (
+        Index("ix_paper_orders_user_id", "user_id"),
+        UniqueConstraint("user_id", "idempotency_key", name="uq_paper_orders_user_idem"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
@@ -109,6 +112,7 @@ class PaperOrder(Base):
     action: Mapped[str] = mapped_column(String(4), nullable=False, default="BUY", server_default="BUY")
     realized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="paper_orders")

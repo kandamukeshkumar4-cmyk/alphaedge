@@ -318,11 +318,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def production_secrets_must_be_explicit(self) -> "Settings":
-        if (
-            self.app_env.strip().lower() in {"prod", "production", "staging"}
-            and self.jwt_secret_key == "dev-jwt-secret-change-in-production"
-        ):
-            raise ValueError("JWT_SECRET_KEY must be set outside local development.")
+        if self.app_env.strip().lower() in {"prod", "production", "staging"}:
+            if self.jwt_secret_key == "dev-jwt-secret-change-in-production":
+                raise ValueError("JWT_SECRET_KEY must be set outside local development.")
+            if self.admin_api_key == "dev-admin-key":
+                raise ValueError("ADMIN_API_KEY must be set outside local development.")
         return self
 
     @property

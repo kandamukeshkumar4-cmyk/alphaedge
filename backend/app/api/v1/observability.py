@@ -22,6 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.v1.deps import get_db
+from app.core.security import verify_admin_api_key
 from app.schemas.observability import (
     AgentRunOut,
     AgentRunStepOut,
@@ -32,7 +33,11 @@ from app.schemas.observability import (
     TraceExplorerOut,
 )
 
-router = APIRouter(prefix="/api/v1/admin/observability", tags=["observability"])
+router = APIRouter(
+    prefix="/api/v1/admin/observability",
+    tags=["observability"],
+    dependencies=[Depends(verify_admin_api_key)],
+)
 
 
 # ---------------------------------------------------------------------------
