@@ -29,7 +29,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.alerts_feed import _build_alert_feed, _family_of
@@ -37,6 +37,7 @@ from app.api.v1.desk import _arb_match, _latest_edge
 from app.api.v1.smart_money import build_smart_money_summary
 from app.core import snapshot_cache
 from app.core.config import get_settings
+from app.core.http_etag import etag_json_response
 from app.db.session import get_db
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
@@ -115,12 +116,15 @@ def _smart_money_note(summary: dict[str, Any]) -> str | None:
 @router.get("/markets/{slug}/share-snapshot")
 async def get_market_share_snapshot(
     slug: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> Response:
     if settings.desk_cache_enabled:
         cached_body = snapshot_cache.get(slug, settings.desk_cache_ttl_sec)
         if cached_body is not None:
-            return {**cached_body, "cached": True}
+            # M03: ETag over content (generated_at/cached excluded), so a cache
+            # hit and a fresh build of the same content share one validator.
+            return etag_json_response(request, {**cached_body, "cached": True})
 
     svc = MarketService(db)
     market_model = await svc.get_market_by_slug(slug)
@@ -146,7 +150,7 @@ async def get_market_share_snapshot(
         }
         if settings.desk_cache_enabled:
             snapshot_cache.put(slug, response)
-        return response
+        return etag_json_response(request, response)
 
     book = await OrderBookService(db).get_l2(market_model.id, depth=10)
     edge = await _latest_edge(db, slug, book)
@@ -170,4 +174,4 @@ async def get_market_share_snapshot(
     }
     if settings.desk_cache_enabled:
         snapshot_cache.put(slug, response)
-    return response
+    return etag_json_response(request, response)

@@ -27,7 +27,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.alerts_feed import (
@@ -37,6 +37,7 @@ from app.api.v1.alerts_feed import (
 )
 from app.api.v1.deps import get_optional_user
 from app.core.config import get_settings
+from app.core.http_etag import etag_json_response
 from app.db.models import User
 from app.db.session import get_db
 from app.ml.ab_harness import (
@@ -91,12 +92,13 @@ async def _model_ab_status(db: AsyncSession) -> dict[str, Any]:
 
 @router.get("/home")
 async def get_home(
+    request: Request,
     signals_limit: int = Query(default=5, ge=1, le=25),
     markets_limit: int = Query(default=5, ge=1, le=25),
     digest_window: str = Query(default="24h"),
     current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> Response:
     # Recent alert-family signals with H03 citations (J02 builder, no filter).
     signals_feed = await _build_alert_feed(
         db, effective_slugs=None, scope="all", since=None, limit=signals_limit
@@ -121,7 +123,7 @@ async def get_home(
         )
         watchlist_alerts = wl_feed.model_dump(mode="json")["items"]
 
-    return {
+    body: dict[str, Any] = {
         "authenticated": current_user is not None,
         "signals": signals_feed.model_dump(mode="json")["items"],
         "digest": digest.model_dump(mode="json"),
@@ -134,3 +136,5 @@ async def get_home(
         "disclaimer": HOME_DISCLAIMER,
         "generated_at": datetime.now(UTC).isoformat(),
     }
+    # M03: additive weak-ETag + If-None-Match → 304. The 200 body is unchanged.
+    return etag_json_response(request, body)

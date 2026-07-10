@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.forecasting import ANCHOR_EPSILON, BRIER_MIN_SAMPLE
 from app.forecasting.scoring import synthetic_pnl as compute_synthetic_pnl
+from app.core.http_etag import etag_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -366,8 +367,9 @@ def _bet_stake_and_pnl(
 
 @router.get("/summary", response_model=BacktestSummaryResponse)
 async def get_backtest_summary(
+    request: Request,
     session: AsyncSession = Depends(get_db),
-) -> BacktestSummaryResponse:
+) -> Response:
     """Walk-forward Brier + ROI over resolved external markets (H02).
 
     Read-only aggregate composed from the same resolved-forecast source as the
@@ -414,7 +416,7 @@ async def get_backtest_summary(
             )
         )
 
-    return BacktestSummaryResponse(
+    summary = BacktestSummaryResponse(
         n=n,
         thin_data=n < BRIER_MIN_SAMPLE,
         thin_data_threshold=BRIER_MIN_SAMPLE,
@@ -433,6 +435,9 @@ async def get_backtest_summary(
         signal_only=True,
         disclaimer=BACKTEST_SUMMARY_DISCLAIMER,
     )
+    # M03: additive weak-ETag + If-None-Match → 304. The 200 body is unchanged
+    # (byte-identical to serializing BacktestSummaryResponse directly).
+    return etag_json_response(request, summary)
 
 
 # ---------------------------------------------------------------------------

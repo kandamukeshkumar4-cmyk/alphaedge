@@ -170,3 +170,38 @@ Tests: `backend/tests/test_market_share_snapshot_api.py` — known-slug compact
 shape (edge one-liner + top-signal citation), unknown honest 200, cache hit
 (2nd call `cached:true`, frozen `generated_at`), cache expiry (TTL→0 forces a
 rebuild); plus the I01 5xx guard sweep.
+
+---
+
+## M03 — Weak ETag + conditional GET (304) on heavy public GETs
+
+Additive HTTP caching to cut free-tier egress. Applied to **`/api/v1/home`**,
+**`/api/v1/markets/{slug}/share-snapshot`** (the M02 endpoint — the compact
+snapshot, NOT the pre-existing full `/snapshot`), and
+**`/api/v1/backtest/summary`**. Shared helper: `app/core/http_etag.py`.
+
+Behavior (purely additive):
+
+- On a normal **200**, the JSON body is UNCHANGED — only an `ETag` response
+  header is added. The ETag is a **weak** validator `W/"<sha256[:32]>"` computed
+  from the serialized body.
+- When the request carries `If-None-Match` matching the current ETag, the route
+  returns **304 Not Modified** with an **empty body** and the same `ETag`
+  header.
+- **Different data → different ETag.**
+
+ETag stability rule: the hash is taken over the response content with
+clock-derived keys stripped **recursively** — `generated_at` (build timestamp),
+`since` (digest window start = `now − window`), and `cached` (cache-hit flag).
+These reflect the server clock / cache state, not content, so including them
+would churn the validator every second and defeat conditional GETs. Content
+timestamps sourced from the DB (`created_at`, `last_signal_at`, `scored_at`,
+`last_updated`) are NOT stripped — a real data change moves the ETag. This means
+a share-snapshot served from the TTL cache and a fresh rebuild of the same
+content share one ETag.
+
+Tests: `backend/tests/test_etag_conditional_get.py` — helper unit checks (weak
+prefix, key-order stability, volatile-key invariance, content sensitivity) and
+per-endpoint 200-has-ETag / matching-If-None-Match→304-empty / changed-data→
+new-ETag for all three routes; existing 200-body tests for these routes remain
+green (body unchanged).
