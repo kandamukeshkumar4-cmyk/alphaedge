@@ -86,8 +86,10 @@ function ArbCard({ opp }: { opp: ArbOpportunity }) {
         />
       </div>
 
+      {/* D04: overflow-x-auto (was overflow-hidden) so the leg table scrolls
+          instead of clipping at 390px. */}
       {opp.legs.length > 0 ? (
-        <div className="mt-3 overflow-hidden rounded-xl border border-border/70">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-border/70">
           <table className="w-full text-left text-xs">
             <thead className="bg-surface-2 text-[10px] uppercase tracking-[0.06em] text-muted-2">
               <tr>

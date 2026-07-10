@@ -117,7 +117,12 @@ export function EquityCurveChart({
           vs ${initialEquity.toLocaleString()} start
         </span>
       </div>
-      <div ref={containerRef} />
+      {/* D04: canvas chart — expose an accessible summary for AT users. */}
+      <div
+        ref={containerRef}
+        role="img"
+        aria-label={`Equity curve: from $${initialEquity.toLocaleString()} to $${finalEq.toLocaleString(undefined, { maximumFractionDigits: 0 })} (${isPositive ? "+" : ""}${pnlPct}%) over ${equityCurve.length} points`}
+      />
     </div>
   );
 }

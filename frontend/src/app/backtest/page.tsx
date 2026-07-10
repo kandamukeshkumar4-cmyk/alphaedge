@@ -67,11 +67,18 @@ function BrierChart({ series }: { series: BrierPoint[] }) {
           final = {last.brier.toFixed(4)} ({last.sample_count} samples)
         </span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      {/* D04: the bar strip is hover-only detail — give the group an
+          accessible summary and hide the decorative bars from AT. */}
+      <div
+        className="flex flex-wrap gap-1.5"
+        role="img"
+        aria-label={`Brier score over time: final ${last.brier.toFixed(4)} across ${last.sample_count} samples (lower is better)`}
+      >
         {series.map((pt, i) => (
           <div
             key={i}
             title={`${pt.timestamp.slice(0, 16)} | Brier ${pt.brier.toFixed(4)} | n=${pt.sample_count}`}
+            aria-hidden
             className="group relative h-6 w-2 cursor-default rounded-sm"
             style={{
               backgroundColor: `hsl(${140 - pt.brier * 400}, 60%, 45%)`,

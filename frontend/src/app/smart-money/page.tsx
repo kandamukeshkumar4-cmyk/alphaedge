@@ -71,7 +71,7 @@ function MarketPicker({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search markets by name…"
-        className="h-10 w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-text placeholder:text-muted-2 focus:border-primary/50 focus:outline-none"
+        className="h-10 w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-text placeholder:text-muted-2 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
         aria-label="Search markets"
       />
       {query.trim() ? (
@@ -132,9 +132,13 @@ function MarketPicker({
   );
 }
 
-function IntensityBar({ ratio }: { ratio: number }) {
+function IntensityBar({ ratio, label }: { ratio: number; label: string }) {
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+    <div
+      className="h-2 w-full overflow-hidden rounded-full bg-surface-2"
+      role="img"
+      aria-label={label}
+    >
       <div
         className="h-full rounded-full bg-gradient-to-r from-primary/60 to-accent"
         style={{ width: `${Math.max(4, ratio * 100)}%` }}
@@ -215,7 +219,10 @@ function SmartMoneyDesk({
 
       <MotionReveal>
         <Panel title="Trade intensity">
-          <IntensityBar ratio={view.intensityRatio} />
+          <IntensityBar
+            ratio={view.intensityRatio}
+            label={`Trade intensity gauge: ${view.fillsPerHourLabel} fills per hour`}
+          />
           <p className="mt-2 text-xs text-muted">
             {view.fillsPerHourLabel} fills/hour over the last {view.hoursLabel} ({view.fillCountLabel}{" "}
             fills, {view.notionalLabel} notional).
@@ -229,18 +236,20 @@ function SmartMoneyDesk({
           <ul className="divide-y divide-border/60">
             {view.flows.map((f, i) => (
               <li key={`${f.wallet}-${i}`} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex items-center gap-2">
+                {/* D04: min-w-0 + truncate so long wallet handles cannot force
+                    horizontal overflow at 390px. */}
+                <div className="flex min-w-0 items-center gap-2">
                   <span
                     className={cn(
-                      "rounded-pill px-2 py-0.5 font-mono text-[10px] font-black uppercase",
+                      "shrink-0 rounded-pill px-2 py-0.5 font-mono text-[10px] font-black uppercase",
                       f.isBuy ? "bg-primary/15 text-primary" : "bg-danger/15 text-danger",
                     )}
                   >
                     {f.direction}
                   </span>
-                  <span className="font-mono text-xs text-muted">{f.wallet}</span>
+                  <span className="truncate font-mono text-xs text-muted">{f.wallet}</span>
                 </div>
-                <div className="flex items-center gap-3 text-right">
+                <div className="flex shrink-0 items-center gap-3 text-right">
                   <span className="font-mono text-[11px] text-muted-2">
                     {f.action} · {f.outcome}
                   </span>
@@ -302,6 +311,8 @@ function SmartMoneyInner() {
                 key={h}
                 type="button"
                 onClick={() => setHours(h)}
+                aria-pressed={hours === h}
+                aria-label={`Set smart-money window to ${h} hours`}
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-xs font-bold transition",
                   hours === h ? "bg-primary text-bg" : "text-muted hover:text-text",

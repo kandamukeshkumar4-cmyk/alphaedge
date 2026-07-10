@@ -31,6 +31,7 @@ function ReliabilityCurve({ points }: { points: ReliabilityPoint[] }) {
       role="img"
       aria-label="Reliability curve: predicted probability versus observed frequency"
     >
+      <title>Reliability curve: predicted probability versus observed frequency</title>
       {/* frame */}
       <rect
         x={pad}
@@ -87,6 +88,7 @@ function BrierLine({ series }: { series: BrierPoint[] }) {
       role="img"
       aria-label="Cumulative Brier score over time (lower is better)"
     >
+      <title>Cumulative Brier score over time (lower is better)</title>
       <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} className="stroke-border" strokeWidth={1} />
       <path d={d} className="fill-none stroke-accent" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       {series.map((s, i) => (
@@ -103,7 +105,8 @@ function ClvHistogram({ buckets }: { buckets: ClvBucketView[] }) {
       {buckets.map((b, i) => (
         <div key={i} className="flex items-center gap-2">
           <span className="w-16 shrink-0 text-right font-mono text-[10px] text-muted-2">{b.label}</span>
-          <div className="h-3 flex-1 overflow-hidden rounded bg-surface-2">
+          {/* D04: decorative bar — the label + count text carry the data. */}
+          <div className="h-3 flex-1 overflow-hidden rounded bg-surface-2" aria-hidden>
             <div
               className="h-full rounded bg-primary/60"
               style={{ width: `${(b.count / maxCount) * 100}%` }}
