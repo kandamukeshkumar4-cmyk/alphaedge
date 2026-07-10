@@ -95,3 +95,4 @@ standing local guard. V4 consumes the aggregates and hardens the surface.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | I01 | DONE — public-GET 5xx guard: seeds resolved+paper-order+resolved_at market, no-candle market, empty tables; sweeps every public GET from app.openapi() (slug substitution; auth/admin/non-slug-param skips; offline connector stubs), asserts <500 + hard coverage of calibration/track-record/backtest-summary | `pytest -q`: 1208 passed, 28 skipped; `ruff check app tests`: All checks passed. AutoLab: not applicable (no iterative measure — standing guard test, green on first full gate) |
