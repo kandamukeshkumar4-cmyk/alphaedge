@@ -22,6 +22,7 @@ import { MARKETS } from "@/lib/mock-data";
  */
 const NAV = [
   { label: "Discover", href: "/" },
+  { label: "Home", href: "/home" },
   { label: "Trade", href: "/trade" },
   { label: "Markets", href: "/markets" },
   { label: "Signals", href: "/signals" },
