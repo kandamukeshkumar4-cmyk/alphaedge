@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from app.signals.news_mispricing import news_in_window
+from app.signals.news_mispricing import news_in_window, stable_signal_id
 
 ANOMALY_UNUSUAL_FLOW_SIGNAL_TYPE = "anomaly:unusual_flow"
 
@@ -87,6 +87,15 @@ def unusual_flow_to_events(
         )
         if not verdict.emit:
             continue
+        # Post-move market price if the diff-engine detail carries it; there is
+        # no model probability on an anomaly (the whole point is "no catalyst"),
+        # so model_p is an honest None rather than a fabricated value.
+        curr = item.detail.get("curr")
+        market_p = (
+            round(float(curr), 4)
+            if isinstance(curr, (int, float)) and not isinstance(curr, bool)
+            else None
+        )
         events.append(
             {
                 "signal_type": ANOMALY_UNUSUAL_FLOW_SIGNAL_TYPE,
@@ -102,6 +111,19 @@ def unusual_flow_to_events(
                         "Simulated funds only."
                     ),
                     "signal_type": ANOMALY_UNUSUAL_FLOW_SIGNAL_TYPE,
+                    # Consistent citation shape shared with news:mispricing (F04).
+                    # No news catalyst exists, so news_id/news_url/model_p are
+                    # honest None; market_p is the post-move price when known.
+                    "id": stable_signal_id(
+                        ANOMALY_UNUSUAL_FLOW_SIGNAL_TYPE,
+                        item.market_slug,
+                        item.occurred_ts,
+                        item.kind,
+                    ),
+                    "news_id": None,
+                    "news_url": None,
+                    "model_p": None,
+                    "market_p": market_p,
                     "kind": item.kind,
                     "direction": item.direction,
                     "magnitude": round(float(item.magnitude), 6),

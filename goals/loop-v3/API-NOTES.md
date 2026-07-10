@@ -154,3 +154,31 @@ Example (2 resolutions):
   "disclaimer": "Walk-forward research metrics from REAL resolutions only …"
 }
 ```
+
+## H03 — Signal citation consistency (2026-07-10)
+
+No new HTTP route. Additive payload fields on the two headline-eligible signal
+types so F04 can render evidence from either with one shape. Surfaces via the
+existing `GET /api/v1/activity/signals/events`, `GET /api/v1/desk` (H01
+`signals[]`), and the feed. Persisted `payload` dicts only — no pipeline
+change.
+
+Both `news:mispricing` and `anomaly:unusual_flow` payloads now carry the shared
+citation contract (`app.signals.news_mispricing.CITATION_FIELDS`):
+
+| field | type | news:mispricing | anomaly:unusual_flow |
+|-------|------|-----------------|----------------------|
+| `id` | string | stable 16-hex id (`stable_signal_id`) | stable 16-hex id |
+| `signal_type` | string | `"news:mispricing"` | `"anomaly:unusual_flow"` |
+| `news_id` | string\|null | news item id | `null` (no catalyst) |
+| `news_url` | string\|null | news url | `null` |
+| `headline` | string | news headline | `""` (or move label) |
+| `model_p` | float\|null | model P(YES) | `null` (no model) |
+| `market_p` | float\|null | market implied P(YES) | post-move price from `detail.curr`, else `null` |
+
+`id` is a deterministic hash of `(signal_type, market_slug, anchor_ts,
+discriminator)` — the news timestamp + news_id for mispricing, the move
+timestamp + kind for anomaly — so the same event yields the same id across
+scans (stable dedupe / deep-link) and the two types never collide. All other
+existing payload fields (G03 `gap`/`threshold`/`news_ts`/`fresh_until`; G04
+`kind`/`direction`/`magnitude`/`catalyst`/`note`/`detail`/…) are unchanged.

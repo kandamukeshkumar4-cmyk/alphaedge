@@ -5,6 +5,7 @@ Analysis only — emits ``news:mispricing`` SignalEvents. Never places orders.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -14,6 +15,35 @@ NEWS_MISPRICING_SIGNAL_TYPE = "news:mispricing"
 # Clock-skew allowance: a news timestamp slightly in the future (feed clock
 # drift) still counts as "now", anything further ahead is rejected.
 NEWS_FUTURE_SKEW_SEC = 60.0
+
+# Citation fields every headline-eligible signal payload (news:mispricing and
+# anomaly:unusual_flow) must carry so downstream surfaces (F04) can rely on a
+# single shape: a stable id + the news citation + the model-vs-market prices.
+# Missing values are honest ``None`` — never fabricated.
+CITATION_FIELDS: tuple[str, ...] = (
+    "id",
+    "signal_type",
+    "news_id",
+    "news_url",
+    "headline",
+    "model_p",
+    "market_p",
+)
+
+
+def stable_signal_id(
+    signal_type: str,
+    market_slug: str,
+    anchor: datetime,
+    discriminator: str = "",
+) -> str:
+    """Deterministic 16-hex id for a signal/citation.
+
+    Same inputs → same id across scans, so the UI can dedupe and deep-link a
+    citation stably. Network-free (a pure hash of the identifying tuple)."""
+    ts = anchor if anchor.tzinfo is not None else anchor.replace(tzinfo=UTC)
+    raw = f"{signal_type}|{market_slug}|{ts.astimezone(UTC).isoformat()}|{discriminator}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def news_in_window(
@@ -120,6 +150,12 @@ def news_mispricing_to_events(
                         "No execution. Simulated funds only."
                     ),
                     "signal_type": NEWS_MISPRICING_SIGNAL_TYPE,
+                    "id": stable_signal_id(
+                        NEWS_MISPRICING_SIGNAL_TYPE,
+                        item.market_slug,
+                        item.news_ts,
+                        item.news_id or "",
+                    ),
                     "model_p": round(item.model_p, 4),
                     "market_p": round(item.market_p, 4),
                     "gap": round(verdict.gap, 4),
