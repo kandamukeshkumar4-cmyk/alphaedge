@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import get_optional_user
+from app.api.v1.deps import get_current_user, get_optional_user
 from app.db.models import SignalEvent, User, Watchlist
 from app.db.session import get_db
 
@@ -98,29 +98,27 @@ def _citation_from_payload(payload: dict[str, Any]) -> AlertCitation:
     )
 
 
-@router.get("/alerts/feed", response_model=AlertFeedResponse)
-async def get_alerts_feed(
-    since: Optional[datetime] = Query(default=None),
-    slugs: Optional[str] = Query(default=None, description="Comma-separated slugs"),
-    limit: int = Query(default=50, ge=1, le=200),
-    current_user: User | None = Depends(get_optional_user),
-    db: AsyncSession = Depends(get_db),
+async def _build_alert_feed(
+    db: AsyncSession,
+    *,
+    effective_slugs: list[str] | None,
+    scope: str,
+    since: Optional[datetime],
+    limit: int,
 ) -> AlertFeedResponse:
-    requested = _parse_slugs(slugs)
-
-    scope = "explicit"
-    effective_slugs: list[str] | None = requested
-    if requested is None and current_user is not None:
-        # Default to the caller's watchlist when authed with no explicit slugs.
-        scope = "watchlist"
-        rows = (
-            await db.execute(
-                select(Watchlist.slug).where(Watchlist.user_id == current_user.id)
-            )
-        ).scalars().all()
-        effective_slugs = list(rows)
-    elif requested is None:
-        scope = "all"
+    """Shared feed builder — the single source of truth for the alert-family
+    query + citation shaping. Both ``/alerts/feed`` (J02) and
+    ``/watchlist/alerts`` (K03) compose this; it NEVER places or stores an
+    order. ``effective_slugs == []`` is an honest empty feed (e.g. an empty
+    watchlist); ``None`` means no slug filter."""
+    if effective_slugs is not None and not effective_slugs:
+        return AlertFeedResponse(
+            items=[],
+            slugs=effective_slugs,
+            scope=scope,
+            paper_trading_only=True,
+            disclaimer=ALERTS_DISCLAIMER,
+        )
 
     stmt = select(SignalEvent).where(
         or_(
@@ -131,15 +129,6 @@ async def get_alerts_feed(
     if since is not None:
         stmt = stmt.where(SignalEvent.created_at >= since)
     if effective_slugs is not None:
-        if not effective_slugs:
-            # Authed caller with an empty watchlist → honest empty feed.
-            return AlertFeedResponse(
-                items=[],
-                slugs=effective_slugs,
-                scope=scope,
-                paper_trading_only=True,
-                disclaimer=ALERTS_DISCLAIMER,
-            )
         stmt = stmt.where(SignalEvent.market_id.in_(effective_slugs))
 
     stmt = stmt.order_by(SignalEvent.created_at.desc()).limit(limit)
@@ -165,4 +154,63 @@ async def get_alerts_feed(
         scope=scope,
         paper_trading_only=True,
         disclaimer=ALERTS_DISCLAIMER,
+    )
+
+
+async def _watchlist_slugs(db: AsyncSession, user_id) -> list[str]:
+    rows = (
+        await db.execute(select(Watchlist.slug).where(Watchlist.user_id == user_id))
+    ).scalars().all()
+    return list(rows)
+
+
+@router.get("/alerts/feed", response_model=AlertFeedResponse)
+async def get_alerts_feed(
+    since: Optional[datetime] = Query(default=None),
+    slugs: Optional[str] = Query(default=None, description="Comma-separated slugs"),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+) -> AlertFeedResponse:
+    requested = _parse_slugs(slugs)
+
+    scope = "explicit"
+    effective_slugs: list[str] | None = requested
+    if requested is None and current_user is not None:
+        # Default to the caller's watchlist when authed with no explicit slugs.
+        scope = "watchlist"
+        effective_slugs = await _watchlist_slugs(db, current_user.id)
+    elif requested is None:
+        scope = "all"
+
+    return await _build_alert_feed(
+        db,
+        effective_slugs=effective_slugs,
+        scope=scope,
+        since=since,
+        limit=limit,
+    )
+
+
+@router.get("/watchlist/alerts", response_model=AlertFeedResponse)
+async def get_watchlist_alerts(
+    since: Optional[datetime] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AlertFeedResponse:
+    """K03 — the J02 alert feed pre-filtered to the caller's J01 watchlist.
+
+    AUTHED (JWT — 401 when anonymous). Composes the J01 watchlist store with the
+    shared J02 feed builder so the UI needs one call; NO new pipeline. Honest
+    empty feed when the watchlist is empty. Notify/read only — never an order
+    path.
+    """
+    effective_slugs = await _watchlist_slugs(db, current_user.id)
+    return await _build_alert_feed(
+        db,
+        effective_slugs=effective_slugs,
+        scope="watchlist",
+        since=since,
+        limit=limit,
     )
