@@ -158,9 +158,14 @@ export default function SignalsPage() {
       <section className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-black text-text">Cross-market arb</h2>
-          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
-            Signal only / paper
-          </span>
+          <div className="flex items-center gap-2">
+            <Link href="/arb" className="text-xs font-semibold text-accent hover:underline">
+              Full arb monitor →
+            </Link>
+            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+              Signal only / paper
+            </span>
+          </div>
         </div>
         {!arb || arb.opportunities.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-6 text-sm text-muted">
