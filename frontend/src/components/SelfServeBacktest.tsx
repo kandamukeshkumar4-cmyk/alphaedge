@@ -10,7 +10,12 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   buildBacktestRunView,
+  EDGE_THRESHOLD_MAX,
+  EDGE_THRESHOLD_MIN,
   fetchBacktestRunForSlug,
+  STAKE_MAX,
+  STAKE_MIN,
+  type BacktestRunParams,
   type BacktestRunView,
   type SeriesPoint,
 } from "@/lib/backtest-run-api";
@@ -162,6 +167,14 @@ function RunResult({ view }: { view: BacktestRunView }) {
   );
 }
 
+/** Parse a controlled numeric input into a finite number or null (= default). */
+function parseParam(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function SelfServeBacktest() {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<UnifiedSearchResult[]>([]);
@@ -171,6 +184,9 @@ export function SelfServeBacktest() {
   const [activeTitle, setActiveTitle] = useState<string>("");
   const [view, setView] = useState<BacktestRunView | null>(null);
   const [running, setRunning] = useState(false);
+  // Y01 — L01 strategy knobs. Empty string = the K01 default (param omitted).
+  const [edgeInput, setEdgeInput] = useState("");
+  const [stakeInput, setStakeInput] = useState("");
   const runCtrl = useRef<AbortController | null>(null);
 
   // Resolved-market quick picks from the shared markets cache (no raw poll loop).
@@ -207,25 +223,41 @@ export function SelfServeBacktest() {
     };
   }, [query]);
 
-  function run(slug: string, title: string) {
+  function select(slug: string, title: string) {
     setActiveSlug(slug);
     setActiveTitle(title);
     setOpenList(false);
     setQuery(title);
+  }
+
+  // Fetch whenever the picked market OR the strategy params change. Debounced so
+  // typing an edge/stake value does not spam the endpoint, and aborted on change
+  // — reuses the same read-only run, never a raw poll loop.
+  const edgeThreshold = parseParam(edgeInput);
+  const stake = parseParam(stakeInput);
+  useEffect(() => {
+    if (!activeSlug) return;
     setRunning(true);
     setView(null);
-    runCtrl.current?.abort();
     const ctrl = new AbortController();
+    runCtrl.current?.abort();
     runCtrl.current = ctrl;
-    void fetchBacktestRunForSlug(slug, ctrl.signal)
-      .then((raw) => {
-        if (ctrl.signal.aborted) return;
-        setView(buildBacktestRunView(raw));
-      })
-      .finally(() => {
-        if (!ctrl.signal.aborted) setRunning(false);
-      });
-  }
+    const params: BacktestRunParams = { edgeThreshold, stake };
+    const t = setTimeout(() => {
+      void fetchBacktestRunForSlug(activeSlug, params, ctrl.signal)
+        .then((raw) => {
+          if (ctrl.signal.aborted) return;
+          setView(buildBacktestRunView(raw));
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setRunning(false);
+        });
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [activeSlug, edgeThreshold, stake]);
 
   useEffect(() => () => runCtrl.current?.abort(), []);
 
@@ -267,7 +299,7 @@ export function SelfServeBacktest() {
                 <li key={s.slug} role="option" aria-selected={s.slug === activeSlug}>
                   <button
                     type="button"
-                    onClick={() => run(s.slug, s.title)}
+                    onClick={() => select(s.slug, s.title)}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-surface-2"
                   >
                     <span className="min-w-0 flex-1 truncate text-sm text-text">{s.title}</span>
@@ -289,7 +321,7 @@ export function SelfServeBacktest() {
             <button
               key={m.slug}
               type="button"
-              onClick={() => run(m.slug, m.title)}
+              onClick={() => select(m.slug, m.title)}
               className={cn(
                 "max-w-[220px] truncate rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition",
                 m.slug === activeSlug
@@ -310,6 +342,55 @@ export function SelfServeBacktest() {
             <h3 className="text-sm font-black text-text">{activeTitle || activeSlug}</h3>
             <span className="rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[10px] text-muted-2">{activeSlug}</span>
           </div>
+
+          {/* Y01 — L01 strategy knobs. Re-runs the read-only backtest on change. */}
+          <div className="mb-4 rounded-xl border border-border bg-surface-2/40 p-3 sm:p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">Strategy params</p>
+            <div className="mt-2 flex flex-wrap gap-3">
+              <div className="min-w-0 flex-1 basis-40">
+                <label htmlFor="backtest-edge-threshold" className="block text-[11px] font-semibold text-muted">
+                  Edge threshold ({EDGE_THRESHOLD_MIN}–{EDGE_THRESHOLD_MAX})
+                </label>
+                <input
+                  id="backtest-edge-threshold"
+                  type="number"
+                  inputMode="decimal"
+                  min={EDGE_THRESHOLD_MIN}
+                  max={EDGE_THRESHOLD_MAX}
+                  step={0.01}
+                  value={edgeInput}
+                  onChange={(e) => setEdgeInput(e.target.value)}
+                  aria-label="Minimum model-vs-market edge to place a paper bet"
+                  placeholder="default"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-1.5 font-mono text-sm text-text outline-none transition focus:border-accent"
+                />
+              </div>
+              <div className="min-w-0 flex-1 basis-40">
+                <label htmlFor="backtest-stake" className="block text-[11px] font-semibold text-muted">
+                  Flat stake ({STAKE_MIN}–{STAKE_MAX})
+                </label>
+                <input
+                  id="backtest-stake"
+                  type="number"
+                  inputMode="decimal"
+                  min={STAKE_MIN}
+                  max={STAKE_MAX}
+                  step={0.5}
+                  value={stakeInput}
+                  onChange={(e) => setStakeInput(e.target.value)}
+                  aria-label="Flat paper stake size per bet"
+                  placeholder="1.0"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-1.5 font-mono text-sm text-text outline-none transition focus:border-accent"
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-muted-2">
+              Brier is scored over <strong>all</strong> resolved forecasts — edge threshold and
+              stake never change it. Only <strong>bet count</strong>, paper P&amp;L and ROI respond
+              (ROI is stake-invariant). Empty = the desk default; out-of-range values are clamped.
+            </p>
+          </div>
+
           {running || view === null ? (
             <div className="grid gap-3 sm:grid-cols-2" aria-hidden>
               {[0, 1].map((i) => (

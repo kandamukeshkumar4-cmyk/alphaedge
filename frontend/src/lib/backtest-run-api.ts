@@ -209,16 +209,69 @@ export function buildBacktestRunView(
 }
 
 // ---------------------------------------------------------------------------
+// Strategy params (Y01 — L01 edge_threshold + stake)
+// ---------------------------------------------------------------------------
+
+/**
+ * Optional, deterministic strategy knobs for the self-serve backtest (backend
+ * L01). Both are additive and read-only:
+ *  - `edgeThreshold`: minimum |model_p − market_p| edge to place a paper bet.
+ *    Only ever RAISES the bet gate. Omit (or null) → K01 default gate.
+ *  - `stake`: flat stake per bet; scales P&L + staked, ROI is stake-invariant.
+ *    Omit (or null) → default 1.0.
+ *
+ * The backend clamps out-of-range values (never 422/5xx); we still bound them
+ * here so the query we send is honest about what the desk will actually run.
+ */
+export type BacktestRunParams = {
+  edgeThreshold?: number | null;
+  stake?: number | null;
+};
+
+export const EDGE_THRESHOLD_MIN = 0;
+export const EDGE_THRESHOLD_MAX = 1;
+export const STAKE_MIN = 0.01;
+export const STAKE_MAX = 1000;
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+/**
+ * Pure: build the query string for a self-serve backtest run. A param is only
+ * emitted when it is a finite number; omitting BOTH reproduces the K01 default
+ * request byte-for-byte (the invariant the backend regression-tests). Values are
+ * clamped to the documented L01 ranges before they leave the browser.
+ */
+export function buildBacktestRunQuery(
+  slug: string,
+  params?: BacktestRunParams,
+): URLSearchParams {
+  const q = new URLSearchParams({ slug: slug.trim() });
+  const edge = params?.edgeThreshold;
+  if (typeof edge === "number" && Number.isFinite(edge)) {
+    q.set("edge_threshold", String(clamp(edge, EDGE_THRESHOLD_MIN, EDGE_THRESHOLD_MAX)));
+  }
+  const stake = params?.stake;
+  if (typeof stake === "number" && Number.isFinite(stake)) {
+    q.set("stake", String(clamp(stake, STAKE_MIN, STAKE_MAX)));
+  }
+  return q;
+}
+
+// ---------------------------------------------------------------------------
 // Fetch
 // ---------------------------------------------------------------------------
 
 /**
- * Run a self-serve backtest for one market slug. Returns null with no live API
- * or on a transport error; the endpoint itself never 5xxes (honest not-ran body
- * at HTTP 200), so a null here means "unreachable", not "not-ran".
+ * Run a self-serve backtest for one market slug, optionally with L01 strategy
+ * params (edge threshold + stake). Returns null with no live API or on a
+ * transport error; the endpoint itself never 5xxes (honest not-ran body at HTTP
+ * 200), so a null here means "unreachable", not "not-ran".
  */
 export async function fetchBacktestRunForSlug(
   slug: string,
+  params?: BacktestRunParams,
   signal?: AbortSignal,
 ): Promise<BacktestRunResponse | null> {
   const trimmed = slug.trim();
@@ -226,9 +279,9 @@ export async function fetchBacktestRunForSlug(
   const base = (await ensureApiBase()) || API_BASE;
   if (!hasLiveApi(base)) return null;
   try {
-    const params = new URLSearchParams({ slug: trimmed });
+    const query = buildBacktestRunQuery(trimmed, params);
     const res = await fetch(
-      `${apiUrl("/api/v1/backtest/run", base)}?${params.toString()}`,
+      `${apiUrl("/api/v1/backtest/run", base)}?${query.toString()}`,
       { cache: "no-store", signal },
     );
     if (!res.ok) return null;

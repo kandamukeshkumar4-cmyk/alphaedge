@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBacktestRunQuery,
   buildBacktestRunView,
   type BacktestRunResponse,
 } from "./backtest-run-api";
@@ -119,5 +120,40 @@ describe("buildBacktestRunView", () => {
     const view = buildBacktestRunView({ ...RAN, roi: null, n_bets: 0, total_pnl: 0 });
     expect(view.roiLabel).toBe("no bets placed");
     expect(view.roiTone).toBe("neutral");
+  });
+});
+
+describe("buildBacktestRunQuery (Y01 — L01 strategy params)", () => {
+  it("omits both params by default → reproduces the K01 default request", () => {
+    expect(buildBacktestRunQuery("mkt-good").toString()).toBe("slug=mkt-good");
+    // Explicit null/undefined are equivalent to omission (no fabricated gate).
+    expect(
+      buildBacktestRunQuery("mkt-good", { edgeThreshold: null, stake: null }).toString(),
+    ).toBe("slug=mkt-good");
+  });
+
+  it("trims the slug", () => {
+    expect(buildBacktestRunQuery("  mkt-good  ").get("slug")).toBe("mkt-good");
+  });
+
+  it("passes finite params through", () => {
+    const q = buildBacktestRunQuery("mkt-good", { edgeThreshold: 0.3, stake: 10 });
+    expect(q.get("edge_threshold")).toBe("0.3");
+    expect(q.get("stake")).toBe("10");
+  });
+
+  it("clamps out-of-range params to the documented L01 ranges", () => {
+    const hi = buildBacktestRunQuery("s", { edgeThreshold: 5, stake: 99999 });
+    expect(hi.get("edge_threshold")).toBe("1");
+    expect(hi.get("stake")).toBe("1000");
+    const lo = buildBacktestRunQuery("s", { edgeThreshold: -1, stake: 0 });
+    expect(lo.get("edge_threshold")).toBe("0");
+    expect(lo.get("stake")).toBe("0.01");
+  });
+
+  it("skips non-finite params rather than emitting NaN", () => {
+    const q = buildBacktestRunQuery("s", { edgeThreshold: NaN, stake: Infinity });
+    expect(q.has("edge_threshold")).toBe(false);
+    expect(q.has("stake")).toBe(false);
   });
 });
