@@ -174,6 +174,18 @@ async def _collect_calibration_data(
 
 @router.get("/calibration/latest", response_model=CalibrationResponse)
 async def get_latest_calibration(db: AsyncSession = Depends(get_db)) -> CalibrationResponse:
+    try:
+        return await _get_latest_calibration_impl(db)
+    except Exception as exc:  # TEMP DIAG — surface real prod traceback
+        import traceback as _tb
+
+        raise HTTPException(
+            status_code=599,
+            detail=f"{type(exc).__name__}: {exc} :: {_tb.format_exc()[-800:]}",
+        ) from exc
+
+
+async def _get_latest_calibration_impl(db: AsyncSession) -> CalibrationResponse:
     predictions, outcomes, last_updated = await _collect_calibration_data(db)
     markets_evaluated = len(predictions)
 
