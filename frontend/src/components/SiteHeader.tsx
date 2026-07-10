@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
+import { HeaderSearch } from "@/components/HeaderSearch";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -111,14 +112,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[380px]">
-            <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm text-muted transition focus-within:border-primary/45 focus-within:bg-surface-2">
-              <SearchIcon />
-              <input
-                className="w-full bg-transparent text-sm font-medium text-text placeholder:text-muted-2 focus:outline-none"
-                placeholder="Search markets or clones..."
-                aria-label="Search markets or clones"
-              />
-            </label>
+            <HeaderSearch />
           </div>
 
           <div className="flex items-center gap-2">
@@ -196,15 +190,6 @@ export function SiteHeader() {
       </header>
       {!onSignalsNav ? <AlertToast alerts={alerts} /> : null}
     </>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-    </svg>
   );
 }
 
