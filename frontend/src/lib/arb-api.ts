@@ -38,6 +38,23 @@ export type ArbOpportunitiesPage = {
   note: string;
 };
 
+/**
+ * Reasoned empty state for the arb surfaces — explain WHY there is no signal
+ * from the page counts, never a blank "nothing here". Signal-only.
+ */
+export function arbEmptyReason(page: ArbOpportunitiesPage | null): string {
+  if (!page) {
+    return "Live arb data not reached — start the backend or set NEXT_PUBLIC_API_URL.";
+  }
+  if (page.stale_count > 0 && page.fresh_count === 0) {
+    return `${page.stale_count} matched pair${page.stale_count === 1 ? "" : "s"} found, but every quote is past its freshness window (stale) — waiting on fresh books.`;
+  }
+  if (page.total === 0) {
+    return "No matched pair — the matcher found no entity- and date-aligned Polymarket ↔ Kalshi market to compare.";
+  }
+  return "Matched pairs exist but none cleared the confidence and spread bar for a signal.";
+}
+
 export async function fetchArbOpportunities(
   limit = 10,
 ): Promise<ArbOpportunitiesPage> {

@@ -6,6 +6,7 @@ import "@astryxdesign/theme-neutral/theme.css";
 import "./globals.css";
 import { Providers } from "./providers";
 import { BottomNav } from "@/components/BottomNav";
+import { FirstBetOnboarding } from "@/components/FirstBetOnboarding";
 import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ToastProvider } from "@/components/ToastProvider";
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <AtlasPanel />
               </div>
               <QuestLiveTicker />
+              <FirstBetOnboarding />
               <BottomNav />
               <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
                 <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">

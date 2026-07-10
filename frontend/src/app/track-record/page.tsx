@@ -12,6 +12,7 @@ import {
   type TrackRecordRow,
 } from "@/lib/polyscout-api";
 import { ClaimBadge } from "@/components/ClaimBadge";
+import { TrackRecordReliability } from "@/components/TrackRecordReliability";
 import { cn } from "@/lib/cn";
 
 const WINDOW_LABEL: Record<number, string> = { 7: "7 days", 30: "30 days", 0: "All time" };
@@ -94,7 +95,21 @@ export default function TrackRecordPage() {
             for pending claims.
           </p>
         </div>
-      ) : (
+      ) : null}
+
+      <section className="mt-8">
+        <div className="mb-3 flex items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+            Forecast reliability
+          </h2>
+          <span className="rounded-pill bg-secondary-dim px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
+            REAL RESOLUTIONS ONLY
+          </span>
+        </div>
+        <TrackRecordReliability />
+      </section>
+
+      {rows === null ? null : overall.length === 0 ? null : (
         <div className="grid gap-3 sm:grid-cols-3">
           {[7, 30, 0].map((w) => {
             const row = overall.find((r) => r.window_days === w);
