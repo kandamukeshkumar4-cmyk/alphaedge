@@ -420,3 +420,211 @@ async def get_backtest_summary(
         signal_only=True,
         disclaimer=BACKTEST_SUMMARY_DISCLAIMER,
     )
+
+
+# ---------------------------------------------------------------------------
+# K01 — Self-serve per-market walk-forward backtest (public GET, read-only)
+# ---------------------------------------------------------------------------
+
+# Minimum scored resolved forecasts on ONE market before a walk-forward is
+# meaningful. Below this the run honestly does not run (ran=false) rather than
+# reporting a one-point "backtest".
+BACKTEST_RUN_MIN_SAMPLE = 3
+# Hard cap on rows processed so a single public GET can never do unbounded work.
+BACKTEST_RUN_MAX_ROWS = 5_000
+
+BACKTEST_RUN_DISCLAIMER = (
+    "Self-serve walk-forward research metrics for ONE market's REAL resolved "
+    "forecast history (same resolved source as /backtest/summary). ROI is a "
+    "flat-stake paper strategy filled at the market implied price. Read-only — "
+    "persists nothing, places no orders. Signal only; paper trading only."
+)
+
+
+class BacktestRunSlugResponse(BaseModel):
+    """K01 response. ``ran`` gates the metric fields: when a run is not possible
+    (unknown slug, too few resolves, compute error) the body is an honest
+    ``{ran: false, reason, slug}`` with null/zero metrics — never a 5xx."""
+
+    ran: bool
+    slug: str
+    reason: Optional[str]
+    n: int
+    thin_data: bool
+    thin_data_threshold: int
+    brier_score: Optional[float]
+    market_brier_score: Optional[float]
+    roi: Optional[float]
+    n_bets: int
+    total_pnl: float
+    total_staked: float
+    walk_forward: list[BacktestSummaryPoint]
+    source: str
+    last_updated: Optional[datetime]
+    paper_trading_only: bool
+    signal_only: bool
+    disclaimer: str
+
+
+def _not_ran(slug: str, reason: str, *, n: int = 0) -> BacktestRunSlugResponse:
+    """Honest not-ran body (HTTP 200). Never raises, never fabricates data."""
+    return BacktestRunSlugResponse(
+        ran=False,
+        slug=slug,
+        reason=reason,
+        n=n,
+        thin_data=True,
+        thin_data_threshold=BACKTEST_RUN_MIN_SAMPLE,
+        brier_score=None,
+        market_brier_score=None,
+        roi=None,
+        n_bets=0,
+        total_pnl=0.0,
+        total_staked=0.0,
+        walk_forward=[],
+        source="none",
+        last_updated=None,
+        paper_trading_only=True,
+        signal_only=True,
+        disclaimer=BACKTEST_RUN_DISCLAIMER,
+    )
+
+
+async def _resolved_scored_rows_for_market(
+    session: AsyncSession, slug: str
+) -> tuple[bool, list[tuple[float, Optional[float], int, Optional[datetime]]]]:
+    """(market_exists, rows) for ONE market identified by ``ExternalMarket.external_id``.
+
+    ``rows`` are ``(user_p, market_implied_p, outcome, scored_at)`` for every
+    scored LIVE forecast on that RESOLVED external market — the SAME resolved
+    source as ``/backtest/summary``, scoped to a single market. ExternalMarket
+    has no dedicated slug column, so ``external_id`` is the stable per-market
+    key. Non-finite probabilities are dropped so the math never raises.
+    """
+    market = await session.scalar(
+        select(ExternalMarket).where(ExternalMarket.external_id == slug)
+    )
+    if market is None:
+        return False, []
+    if market.status != ExternalMarketStatus.RESOLVED:
+        # Market exists but is not resolved yet — no resolved history to walk.
+        return True, []
+
+    result = await session.execute(
+        select(
+            ForecastLog.user_probability,
+            ForecastLog.market_implied_probability,
+            ForecastScore.actual_outcome,
+            ForecastScore.scored_at,
+        )
+        .join(ForecastScore, ForecastScore.forecast_id == ForecastLog.id)
+        .where(
+            ForecastLog.external_market_id == market.id,
+            ForecastLog.mode == ForecastMode.LIVE,
+        )
+        .limit(BACKTEST_RUN_MAX_ROWS)
+    )
+    rows: list[tuple[float, Optional[float], int, Optional[datetime]]] = []
+    for user_p, implied_p, outcome, scored_at in result.all():
+        if user_p is None or outcome is None:
+            continue
+        up = float(user_p)
+        if not math.isfinite(up):
+            continue
+        ip: Optional[float] = None
+        if implied_p is not None:
+            ipf = float(implied_p)
+            if math.isfinite(ipf):
+                ip = ipf
+        rows.append((up, ip, int(outcome), scored_at))
+    return True, rows
+
+
+@router.get("/run", response_model=BacktestRunSlugResponse)
+async def run_backtest_for_market(
+    slug: str = Query(..., description="Market external_id to backtest"),
+    session: AsyncSession = Depends(get_db),
+) -> BacktestRunSlugResponse:
+    """Deterministic walk-forward Brier + flat-stake ROI for ONE market's
+    resolved forecast history (K01).
+
+    PUBLIC GET, read-only, bounded compute. ANY failure degrades to an honest
+    ``{ran: false, reason, slug}`` at HTTP 200 — never a 5xx (this route is
+    swept by the I01 public-GET guard). Reuses the same resolved-forecast
+    source and bet math as ``/backtest/summary``.
+    """
+    slug = (slug or "").strip()
+    if not slug:
+        return _not_ran(slug, "empty_slug")
+    try:
+        market_exists, rows = await _resolved_scored_rows_for_market(session, slug)
+        if not market_exists:
+            return _not_ran(slug, "unknown_slug")
+
+        ordered = sorted(rows, key=lambda r: (r[3] is None, r[3] or datetime.min))
+        n = len(ordered)
+        if n < BACKTEST_RUN_MIN_SAMPLE:
+            return _not_ran(slug, "too_few_resolves", n=n)
+
+        last_updated = max(
+            (r[3] for r in ordered if r[3] is not None), default=None
+        )
+        walk_forward: list[BacktestSummaryPoint] = []
+        brier_sum = 0.0
+        market_brier_sum = 0.0
+        market_brier_n = 0
+        cum_staked = 0.0
+        cum_pnl = 0.0
+        n_bets = 0
+
+        for seq, (user_p, implied_p, outcome, scored_at) in enumerate(ordered, start=1):
+            point_brier = (user_p - outcome) ** 2
+            brier_sum += point_brier
+            if implied_p is not None:
+                market_brier_sum += (implied_p - outcome) ** 2
+                market_brier_n += 1
+            bet = _bet_stake_and_pnl(user_p, implied_p, outcome)
+            if bet is not None:
+                staked, pnl = bet
+                cum_staked += staked
+                cum_pnl += pnl
+                n_bets += 1
+            walk_forward.append(
+                BacktestSummaryPoint(
+                    seq=seq,
+                    scored_at=scored_at,
+                    brier=round(point_brier, 6),
+                    cumulative_brier=round(brier_sum / seq, 6),
+                    cumulative_roi=(
+                        round(cum_pnl / cum_staked, 6) if cum_staked > 0 else None
+                    ),
+                )
+            )
+
+        return BacktestRunSlugResponse(
+            ran=True,
+            slug=slug,
+            reason=None,
+            n=n,
+            thin_data=n < BRIER_MIN_SAMPLE,
+            thin_data_threshold=BRIER_MIN_SAMPLE,
+            brier_score=round(brier_sum / n, 6),
+            market_brier_score=(
+                round(market_brier_sum / market_brier_n, 6)
+                if market_brier_n
+                else None
+            ),
+            roi=round(cum_pnl / cum_staked, 6) if cum_staked > 0 else None,
+            n_bets=n_bets,
+            total_pnl=round(cum_pnl, 6),
+            total_staked=round(cum_staked, 6),
+            walk_forward=walk_forward,
+            source="forecast_scores",
+            last_updated=last_updated,
+            paper_trading_only=True,
+            signal_only=True,
+            disclaimer=BACKTEST_RUN_DISCLAIMER,
+        )
+    except Exception as exc:  # noqa: BLE001 — public GET must never 5xx
+        logger.warning("Self-serve backtest run failed for %s: %s", slug, exc)
+        return _not_ran(slug, "compute_error")

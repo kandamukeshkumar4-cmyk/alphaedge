@@ -91,3 +91,4 @@ V6 closes those, plus the deferred V5-W04 a11y/motion polish.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | K01 | DONE — `GET /api/v1/backtest/run?slug=` public, read-only, deterministic; honest `{ran:false,reason,slug}` never 5xx; reuses `/backtest/summary` resolved source + bet math; swept by I01 guard | pytest full suite `1234 passed, 28 skipped`; ruff `All checks passed!`; new `tests/test_backtest_run_slug_api.py` (4 cases) + 5xx guard green. AutoLab: baseline=full-suite green | benchmark=K01 tests + I01 5xx sweep <500 | iterations=1 (first-pass green) | budget=1/3 | outcome=improved |
