@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { buildDeskView, fetchDesk, type DeskView } from "@/lib/desk-api";
 import { SignalEvidenceBlock } from "@/components/SignalEvidence";
+import { ForecastDriversPanel } from "@/components/ForecastDriversPanel";
 import { cn } from "@/lib/cn";
 
 function timeLabel(iso: string): string {
@@ -135,6 +136,9 @@ export function DeskIntelligencePanel({ slug }: { slug: string }) {
           <p className="mt-1.5 text-xs text-muted">No model prediction logged for this market yet.</p>
         )}
       </div>
+
+      {/* R02: forecast drivers — "why the model thinks this" (own N02 fetch) */}
+      <ForecastDriversPanel slug={view.slug} />
 
       {/* Smart-money mini-summary */}
       <div className="mt-4">
