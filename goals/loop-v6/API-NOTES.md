@@ -72,3 +72,53 @@ Honest not-ran body (HTTP 200):
 Tests: `backend/tests/test_backtest_run_slug_api.py` (known-market runs,
 unknown-slug honest not-ran, below-min-sample not-ran, empty-slug not-ran) plus
 coverage under `tests/test_public_get_5xx_guard.py`.
+
+---
+
+## K02 — `GET /api/v1/portfolio/clv-summary`
+
+**AUTHED (JWT — 401 when anonymous).** Realized closing-line-value distribution
+for the **caller's SETTLED paper orders**, composed from two existing modules:
+
+* the caller's `PaperOrder` ledger (per-user entry price + side + slug), and
+* `CLVTrackingService.get_clv_track_record()` for the resolved closing line
+  (YES implied) per `market_slug`, scored with the canonical
+  `app.backtesting.clv.closing_line_value` (same-side: `closing - entry`).
+
+Per settled order: `side=order.outcome` (`yes`/`no`); YES CLV =
+`closing_yes - entry`, NO CLV = `(1 - closing_yes) - entry`. Orders whose slug
+has no resolved closing line are skipped (no fabrication). Read-only — persists
+nothing, no order path. Honest empty (`count:0`, null `mean`/`positive_share`,
+zeroed histogram) when the caller has no settled orders (`source:"none"`) or no
+settled order matches a resolved closing line (`source:"paper_orders"`).
+
+Histogram bins (fixed, CLV = closing − entry): `<= -0.10`, `-0.10..-0.05`,
+`-0.05..0.00`, `0.00..0.05`, `0.05..0.10`, `>= 0.10`.
+
+Response (`PortfolioClvSummaryResponse`):
+
+```json
+{
+  "count": 2,
+  "mean": 0.1,
+  "positive_share": 1.0,
+  "total_clv": 0.2,
+  "histogram": [
+    {"label": "<= -0.10", "lo": null, "hi": -0.1, "count": 0},
+    {"label": "0.05..0.10", "lo": 0.05, "hi": 0.1, "count": 1},
+    {"label": ">= 0.10", "lo": 0.1, "hi": null, "count": 1}
+  ],
+  "matched_slugs": 2,
+  "settled_orders": 2,
+  "source": "paper_orders",
+  "paper_trading_only": true,
+  "disclaimer": "Realized closing-line value on SETTLED paper trades only. ..."
+}
+```
+
+Anon → `401`. Honest empty body has `count:0`, `mean:null`,
+`positive_share:null`, `total_clv:0.0`, all histogram bins `count:0`.
+
+Tests: `backend/tests/test_portfolio_clv_summary_api.py` (401 anon, empty-honest,
+seeded YES+NO distribution with unsettled-order exclusion, settled-without-closing
+honest empty).

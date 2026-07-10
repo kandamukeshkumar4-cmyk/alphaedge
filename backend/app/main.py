@@ -16,6 +16,7 @@ from app.api.v1.admin_markets import router as admin_markets_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.orders import router as orders_router
 from app.api.v1.portfolio import router as portfolio_router
+from app.api.v1.portfolio_clv import router as portfolio_clv_router
 from app.api.v1.calibration import router as calibration_router
 from app.api.v1.eval_routes import router as eval_router
 from app.api.v1.forecast_routes import router as forecast_router
@@ -397,6 +398,7 @@ app.include_router(wc2026_admin_router)
 app.include_router(wc2026_admin_resolve_router)
 app.include_router(orders_router)
 app.include_router(portfolio_router)
+app.include_router(portfolio_clv_router)
 app.include_router(v1_router)
 app.include_router(market_detail_router)
 app.include_router(market_candles_router)
