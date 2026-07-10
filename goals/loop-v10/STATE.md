@@ -104,3 +104,4 @@ LightGBM-vs-XGBoost A/B (auto-unblocks at 100 resolves; public at
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-10 | BE | O01 | done | `GET /api/v1/resolved` resolved-market review (rows model-vs-outcome + summary accuracy/mean_brier/thin_data), bounded pagination, desk-cache + weak-ETag, in I01 MUST_COVER. Gate: 1289 passed, 28 skipped; ruff clean. AutoLab: baseline=green gate (v9) \| benchmark=test_resolved_review_api.py (rows/accuracy/brier, honest empty, pagination) \| iterations=2 (cache-bleed fix) + best=5/5 new pass \| budget=2/3 \| outcome=improved |
