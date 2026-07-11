@@ -73,3 +73,19 @@ async def test_order_book_service_rehydrates_open_orders_across_instances(db_ses
 
     assert crossing.filled_quantity == Decimal("10.0000")
     assert crossing.status.value == "filled"
+
+
+@pytest.mark.asyncio
+async def test_ledger_debit_cannot_overdraw(db_session):
+    """Audit H-REL-01: a debit that would drive cash_balance negative must
+    raise under the account lock, not persist a negative balance."""
+    account = Account(name="Overdraw Guard Account", cash_balance=Decimal("10"))
+    db_session.add(account)
+    await db_session.flush()
+
+    ledger = LedgerService(db_session)
+    with pytest.raises(ValueError, match="overdraw"):
+        await ledger.debit(account.id, Decimal("25"), LedgerEntryType.TRADE, "too big")
+
+    await db_session.refresh(account)
+    assert account.cash_balance == Decimal("10.0000")  # unchanged

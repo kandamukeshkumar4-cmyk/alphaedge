@@ -356,7 +356,12 @@ class OrderBookService:
         await self.session.flush()
 
         for order_id in (match.buy_order_id, match.sell_order_id):
-            result = await self.session.execute(select(Order).where(Order.id == order_id))
+            # Audit H-RACE-03: lock the maker+taker rows for the fill so two
+            # concurrent takers cannot both advance filled_quantity past
+            # quantity against the same resting liquidity.
+            result = await self.session.execute(
+                select(Order).where(Order.id == order_id).with_for_update()
+            )
             order = result.scalar_one()
             await self._apply_fill_to_position(order, match.price, match.quantity)
             self._advance_order_fill_state(order, match.quantity)

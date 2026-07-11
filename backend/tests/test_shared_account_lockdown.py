@@ -13,7 +13,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.v1 import routes
-from app.core.config import get_settings
 
 SYSTEM_ACCOUNT = UUID("00000000-0000-0000-0000-000000000001")
 SMOKE_ACCOUNT = UUID("00000000-0000-0000-0000-000000000002")
@@ -22,8 +21,11 @@ OTHER_ACCOUNT = UUID("00000000-0000-0000-0000-0000000000ff")
 
 @pytest.fixture
 def app_env():
-    """Restore the process-wide app_env after mutating it."""
-    settings = get_settings()
+    """Mutate the exact settings object the guard reads. routes.py binds
+    ``settings = get_settings()`` at import, so another test calling
+    get_settings.cache_clear() would leave get_settings() returning a DIFFERENT
+    instance than the guard uses — patch routes.settings directly."""
+    settings = routes.settings
     original = settings.app_env
     yield lambda value: setattr(settings, "app_env", value)
     settings.app_env = original

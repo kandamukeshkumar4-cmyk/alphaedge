@@ -31,6 +31,15 @@ class LedgerService:
     ) -> LedgerEntry:
         account = await self.get_account(account_id, lock=True)
         account.cash_balance += amount
+        # Audit H-REL-01/M-REL-01: cash must never go negative. A debit that
+        # would overdraw means a reservation/fill invariant was violated
+        # upstream — fail loudly under the account lock instead of persisting a
+        # negative balance.
+        if account.cash_balance < 0:
+            raise ValueError(
+                f"Ledger operation would overdraw account {account_id}: "
+                f"balance {account.cash_balance + (-amount)} + {amount} < 0"
+            )
         entry = LedgerEntry(
             account_id=account_id,
             market_id=market_id,
