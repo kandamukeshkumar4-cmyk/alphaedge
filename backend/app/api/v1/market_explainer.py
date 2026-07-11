@@ -99,9 +99,3 @@ async def explain_market(slug: str, background_tasks: BackgroundTasks) -> Market
         model_used="deterministic",
         paper_trading_only=True,
     )
-
-
-async def warm_explainer_news(slug: str) -> None:
-    """Helper for tests: block until news cache is warmed."""
-    await prefetch_news_for_market(slug, timeout=5.0)
-    await asyncio.sleep(0)

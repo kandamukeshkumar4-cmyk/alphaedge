@@ -34,13 +34,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.alerts_feed import _build_alert_feed, _family_of
 from app.core import opportunities_cache
 from app.core.config import get_settings
+from app.core.http_etag import etag_json_response
 from app.db.models import PredictionLog
 from app.db.session import get_db
 from app.services.market_service import MarketService
@@ -116,11 +117,12 @@ async def _top_signal(db: AsyncSession, slug: str) -> dict[str, Any] | None:
 
 @router.get("/opportunities")
 async def get_opportunities(
+    request: Request,
     limit: int = Query(default=20, ge=1, le=100),
     min_liquidity: int = Query(default=0, ge=0),
     direction: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> Response:
     # Normalize the optional direction filter (honest 200 on a bad value → no
     # filter, never a 422 that would break the public-GET contract).
     dir_filter: str | None = None
@@ -133,7 +135,7 @@ async def get_opportunities(
     if settings.desk_cache_enabled:
         cached_body = opportunities_cache.get(cache_key, settings.desk_cache_ttl_sec)
         if cached_body is not None:
-            return {**cached_body, "cached": True}
+            return etag_json_response(request, {**cached_body, "cached": True})
 
     svc = MarketService(db)
     markets = await svc.list_public_markets(sort="volume")
@@ -176,7 +178,6 @@ async def get_opportunities(
                 "direction": row_direction,
                 "yes_price": m.yes_price,
                 "liquidity": liquidity,
-                "top_signal": await _top_signal(db, m.slug),
             }
         )
 
@@ -184,6 +185,12 @@ async def get_opportunities(
     # stable deterministic order.
     rows.sort(key=lambda r: (-r["edge"], -r["liquidity"], r["slug"]))
     rows = rows[:limit]
+
+    # Perf (V12 Q02): the top_signal lookup is one query per market and does NOT
+    # affect ranking, so resolve it ONLY for the ≤limit rows we actually return
+    # instead of every scored candidate (was up to _MAX_CANDIDATES lookups).
+    for row in rows:
+        row["top_signal"] = await _top_signal(db, row["slug"])
 
     response: dict[str, Any] = {
         "opportunities": rows,
@@ -199,4 +206,4 @@ async def get_opportunities(
     }
     if settings.desk_cache_enabled:
         opportunities_cache.put(cache_key, response)
-    return response
+    return etag_json_response(request, response)

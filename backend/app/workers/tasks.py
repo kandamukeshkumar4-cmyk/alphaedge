@@ -973,17 +973,6 @@ async def nightly_profile_refresh_task(ctx: dict) -> dict:
     return {"refreshed": refreshed, "total_users": len(user_ids)}
 
 
-async def record_failed_job(ctx: dict, job_name: str, payload: dict, error: str) -> None:
-    from app.db.models import FailedJob
-    from app.db.session import AsyncSessionLocal
-
-    async with AsyncSessionLocal() as session:
-        session.add(
-            FailedJob(job_name=job_name, payload=payload, error=error, attempts=3)
-        )
-        await session.commit()
-
-
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     max_tries = 3
