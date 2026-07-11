@@ -134,7 +134,15 @@ export function ProbabilityHistoryChart({
           style={{ height }}
         />
       ) : (
-        <div ref={containerRef} />
+        <div
+          ref={containerRef}
+          role="img"
+          aria-label={
+            lastPrice != null
+              ? `Probability history chart, currently ${(lastPrice * 100).toFixed(1)} percent`
+              : "Probability history chart"
+          }
+        />
       )}
     </div>
   );

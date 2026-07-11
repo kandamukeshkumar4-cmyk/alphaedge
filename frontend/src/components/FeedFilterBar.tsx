@@ -68,7 +68,8 @@ export function FeedFilterBar({ activeType, activePlatform }: FeedFilterBarProps
       <select
         value={activePlatform}
         onChange={(e) => update("platform", e.target.value)}
-        className="ml-auto rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-muted hover:border-border-light focus:outline-none"
+        aria-label="Filter feed by platform"
+        className="ml-auto rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-muted hover:border-border-light focus:outline-none focus-visible:border-accent"
       >
         {PLATFORM_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
