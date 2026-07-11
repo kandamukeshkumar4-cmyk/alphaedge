@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,7 @@ from app.api.v1.opportunities import (
 from app.api.v1.resolved import resolved_review_rows, summarize_resolved
 from app.core import opportunities_cache
 from app.core.config import get_settings
+from app.core.http_etag import etag_json_response
 from app.db.models import SignalEvent
 from app.db.session import get_db
 from app.services.market_service import MarketService
@@ -116,15 +117,16 @@ async def _recent_signal_count(db: AsyncSession, slugs: list[str]) -> int:
 
 @router.get("/categories/{category}/summary")
 async def get_category_summary(
+    request: Request,
     category: str = Path(..., description="Category slug (case-insensitive)"),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> Response:
     cat = (category or "").strip()
     cache_key = ("category-summary", cat.lower())
     if settings.desk_cache_enabled:
         cached_body = opportunities_cache.get(cache_key, settings.desk_cache_ttl_sec)
         if cached_body is not None:
-            return {**cached_body, "cached": True}
+            return etag_json_response(request, {**cached_body, "cached": True})
 
     svc = MarketService(db)
     markets = await svc.list_public_markets(category=cat) if cat else []
@@ -166,4 +168,4 @@ async def get_category_summary(
     }
     if settings.desk_cache_enabled:
         opportunities_cache.put(cache_key, response)
-    return response
+    return etag_json_response(request, response)

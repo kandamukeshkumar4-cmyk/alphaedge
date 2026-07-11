@@ -24,13 +24,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.smart_money import build_smart_money_summary
 from app.core import desk_cache
 from app.core.config import get_settings
+from app.core.http_etag import etag_json_response
 from app.db.models import PredictionLog
 from app.db.session import get_db
 from app.services.market_service import MarketService
@@ -130,12 +131,13 @@ async def _latest_signals(
 
 @router.get("/desk")
 async def get_desk(
+    request: Request,
     slug: str = Query(..., min_length=1, max_length=128),
     hours: int = Query(default=24, ge=1, le=168),
     top_n: int = Query(default=5, ge=1, le=25),
     signals_limit: int = Query(default=10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> Response:
     # I03 micro-cache: absorb desk-panel polling between changes. Additive
     # ``cached`` flag only — the rest of the body is byte-identical to the
     # response that was originally built (including its generated_at).
@@ -143,7 +145,7 @@ async def get_desk(
     if settings.desk_cache_enabled:
         cached_body = desk_cache.get(cache_key, settings.desk_cache_ttl_sec)
         if cached_body is not None:
-            return {**cached_body, "cached": True}
+            return etag_json_response(request, {**cached_body, "cached": True})
 
     svc = MarketService(db)
     market_model = await svc.get_market_by_slug(slug)
@@ -181,4 +183,4 @@ async def get_desk(
     # leave a poisoned entry, and error responses are never replayed.
     if settings.desk_cache_enabled:
         desk_cache.put(cache_key, response)
-    return response
+    return etag_json_response(request, response)

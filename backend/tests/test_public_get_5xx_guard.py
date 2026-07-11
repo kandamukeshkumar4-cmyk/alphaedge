@@ -59,6 +59,9 @@ MUST_COVER = (
     "/api/v1/resolved",
     f"/api/v1/categories/{KNOWN_CATEGORY}/summary",
     "/api/v1/compare",
+    # V12 Q03: the desk aggregate is swept via its required ?slug= query param;
+    # pin it so a refactor that drops its sweep coverage fails loudly.
+    f"/api/v1/desk?slug={RESOLVED_SLUG}",
 )
 
 # Public GETs that authenticate *optionally* (get_optional_user) carry an

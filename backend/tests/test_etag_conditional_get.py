@@ -150,3 +150,80 @@ async def test_backtest_summary_etag_and_304(db_session):
         assert r2.status_code == 304
         assert r2.content == b""
         assert r2.headers.get("etag") == etag
+
+
+# --- V12 Q03: additive weak-ETag on the remaining heavy composite GETs --------
+
+
+@pytest.mark.asyncio
+async def test_opportunities_etag_and_304(db_session):
+    from app.core import opportunities_cache
+
+    opportunities_cache.invalidate()
+    await _seed_market(db_session)
+    async with await _client() as client:
+        r1 = await client.get("/api/v1/opportunities")
+        assert r1.status_code == 200
+        etag = r1.headers.get("etag")
+        assert etag and etag.startswith('W/"')
+
+        r2 = await client.get(
+            "/api/v1/opportunities", headers={"If-None-Match": etag}
+        )
+        assert r2.status_code == 304
+        assert r2.content == b""
+        assert r2.headers.get("etag") == etag
+    opportunities_cache.invalidate()
+
+
+@pytest.mark.asyncio
+async def test_category_summary_etag_and_304(db_session):
+    from app.core import opportunities_cache
+    from app.db.models import Market as _Market
+
+    opportunities_cache.invalidate()
+    db_session.add(
+        _Market(
+            slug="etag-cat-lal-bos",
+            title="A",
+            question="A?",
+            category="Sports",
+            status=MarketStatus.OPEN,
+            volume=5000,
+        )
+    )
+    await db_session.flush()
+    async with await _client() as client:
+        r1 = await client.get("/api/v1/categories/Sports/summary")
+        assert r1.status_code == 200
+        etag = r1.headers.get("etag")
+        assert etag and etag.startswith('W/"')
+
+        r2 = await client.get(
+            "/api/v1/categories/Sports/summary", headers={"If-None-Match": etag}
+        )
+        assert r2.status_code == 304
+        assert r2.content == b""
+        assert r2.headers.get("etag") == etag
+    opportunities_cache.invalidate()
+
+
+@pytest.mark.asyncio
+async def test_desk_etag_and_304(db_session):
+    from app.core import desk_cache
+
+    desk_cache.invalidate()
+    await _seed_market(db_session)
+    async with await _client() as client:
+        r1 = await client.get(f"/api/v1/desk?slug={SLUG}")
+        assert r1.status_code == 200
+        etag = r1.headers.get("etag")
+        assert etag and etag.startswith('W/"')
+
+        r2 = await client.get(
+            f"/api/v1/desk?slug={SLUG}", headers={"If-None-Match": etag}
+        )
+        assert r2.status_code == 304
+        assert r2.content == b""
+        assert r2.headers.get("etag") == etag
+    desk_cache.invalidate()
