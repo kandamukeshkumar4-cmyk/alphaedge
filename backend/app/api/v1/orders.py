@@ -1,3 +1,25 @@
+"""JWT-user paper-trading order path (human UI).
+
+Architecture note (audit C-SEC-01/C-SEC-02, decision recorded):
+AlphaEdge deliberately runs TWO order paths, and they are NOT unified:
+
+  * This module — the human paper ledger (``PaperOrder`` + ``users.paper_balance``).
+    A simple "buy N shares at price P" with no forecast model behind it, so the
+    model-driven RiskService gates (edge/confidence/predicted_prob) do not apply
+    (they would reject every human trade, which has no model edge). The guards
+    that DO apply are enforced here: PAPER_TRADING_ONLY, atomic balance debit,
+    idempotency, server price-tolerance, and market open/lock-time
+    (``_reject_untradable_market``).
+  * ``routes.py`` place_order — the agent CLOB (``orders``/``fills`` +
+    ``LedgerService``) gated by RiskService → OrderIntent → OrderBookService.
+
+The two ledgers are intentionally separate products with disjoint producers and
+consumers (see the PaperOrder docstring in models.py). Collapsing them was
+evaluated and rejected. "Risk-gated trading" describes the AGENT/CLOB path only;
+the human paper path is guard-gated (above) but not model-risk-gated by design.
+"""
+
+from datetime import datetime, timezone
 from decimal import Decimal
 
 
@@ -16,7 +38,7 @@ from app.api.v1.deps import get_current_user
 
 from app.core.config import get_settings
 
-from app.db.models import Market, MarketResolution, OddsSnapshot, PaperOrder, User
+from app.db.models import Market, MarketResolution, MarketStatus, OddsSnapshot, PaperOrder, User
 
 from app.db.session import get_db
 
@@ -101,6 +123,27 @@ async def _reject_offmarket_price(
         )
 
 
+def _reject_untradable_market(market: Market) -> None:
+    """Audit M-SEC-04 / C-SEC-01: a shared open-market guard the JWT paper path
+    was missing (it only checked MarketResolution). A locked/resolved market or
+    one past its lock_at must not accept new opening orders — the same
+    tradability invariant the CLOB path enforces, applied to the UI path."""
+    if market.status != MarketStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Market is {market.status.value}, not open for trading",
+        )
+    if market.lock_at is not None:
+        lock_at = market.lock_at
+        if lock_at.tzinfo is None:
+            lock_at = lock_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) >= lock_at:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Market is locked; trading has closed",
+            )
+
+
 
 
 
@@ -153,6 +196,8 @@ async def place_paper_order(
             detail="Market already resolved",
 
         )
+
+    _reject_untradable_market(market)
 
 
 

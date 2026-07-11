@@ -202,3 +202,51 @@ async def test_place_order_rejects_price_far_from_market(db_session):
 
     assert lowball.status_code == 409
     assert fair.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_place_order_rejects_locked_market(db_session):
+    """Audit M-SEC-04 / C-SEC-01: the paper buy path must refuse a market that
+    is no longer open, matching the CLOB path's tradability guard."""
+    from app.db.models import Market, MarketStatus
+
+    _override_db(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "locked@example.com")
+        await MarketService(db_session).seed_catalog_markets()
+        market = await db_session.scalar(select(Market).where(Market.slug == CANONICAL_SLUG))
+        market.status = MarketStatus.LOCKED
+        await db_session.flush()
+        response = await client.post(
+            "/api/v1/orders",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 10, "price": 0.5},
+        )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert "not open" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_place_order_rejects_market_past_lock_at(db_session):
+    """Audit M-SEC-04: a market past its lock_at is closed for new orders even
+    while nominally OPEN."""
+    from app.db.models import Market
+
+    _override_db(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "pastlock@example.com")
+        await MarketService(db_session).seed_catalog_markets()
+        market = await db_session.scalar(select(Market).where(Market.slug == CANONICAL_SLUG))
+        market.lock_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        await db_session.flush()
+        response = await client.post(
+            "/api/v1/orders",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 10, "price": 0.5},
+        )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert "locked" in response.json()["detail"].lower()
