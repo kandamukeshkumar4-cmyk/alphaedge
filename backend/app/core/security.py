@@ -33,7 +33,15 @@ def set_access_cookie(response: Response, token: str) -> None:
 
 
 def clear_access_cookie(response: Response) -> None:
-    response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
+    # Mirror set_access_cookie's attributes so the Set-Cookie deletion matches
+    # (path/secure/httponly/samesite) and browsers reliably drop it.
+    response.delete_cookie(
+        ACCESS_COOKIE_NAME,
+        path="/",
+        secure=_cookie_secure(),
+        httponly=True,
+        samesite="lax",
+    )
 
 
 def hash_password(password: str) -> str:
