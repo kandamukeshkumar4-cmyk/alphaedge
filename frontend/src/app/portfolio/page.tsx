@@ -267,10 +267,11 @@ export default function PortfolioPage() {
                         key={`${trade.slug}-${trade.created_at}-${index}`}
                         className="border-t border-border"
                       >
-                        <td className="py-2">
+                        <td className="max-w-[200px] py-2">
                           <Link
                             href={marketHref(trade.slug)}
-                            className="text-text hover:text-accent"
+                            title={trade.slug}
+                            className="block truncate text-text hover:text-accent"
                           >
                             {trade.slug}
                           </Link>
