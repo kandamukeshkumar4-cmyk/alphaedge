@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     rate_limit: str = Field(default="600/minute", alias="RATE_LIMIT")
     live_feed_enabled: bool = Field(default=True, alias="LIVE_FEED_ENABLED")
     live_tick_interval_sec: int = Field(default=15, alias="LIVE_TICK_INTERVAL_SEC")
+    # COST-01: when no client touched the API within the active window and no
+    # price WebSocket is open, the tick loop slows to the idle interval so the
+    # managed Postgres endpoint can suspend (Neon scale-to-zero needs >5 idle
+    # minutes). It snaps back to the fast interval as soon as demand returns.
+    live_tick_idle_interval_sec: int = Field(
+        default=900, alias="LIVE_TICK_IDLE_INTERVAL_SEC"
+    )
+    live_tick_active_window_sec: int = Field(
+        default=300, alias="LIVE_TICK_ACTIVE_WINDOW_SEC"
+    )
     live_ingest_interval_sec: int = Field(default=1800, alias="LIVE_INGEST_INTERVAL_SEC")
     live_ingest_total_limit: int = Field(default=100, alias="LIVE_INGEST_TOTAL_LIMIT")
     live_ingest_min_volume_24h: float = Field(

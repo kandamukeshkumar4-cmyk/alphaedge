@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 
 _TICK_EPSILON = 0.0005
 
+# COST-01: sentinel distinguishing "caller did not supply prev_yes" (do the
+# per-slug lookup) from "caller knows there is no previous snapshot" (None).
+_PREV_UNSET: object = object()
+
 
 async def persist_and_publish_tick(
     db: AsyncSession,
@@ -34,6 +38,7 @@ async def persist_and_publish_tick(
     book: str | None = None,
     platform_market_id: str | None = None,
     title: str | None = None,
+    prev_yes: float | None | object = _PREV_UNSET,
 ) -> bool:
     """Persist a moved snapshot and publish the tick to the hub.
 
@@ -41,6 +46,10 @@ async def persist_and_publish_tick(
     exactly one contract: epsilon-persist to odds_snapshots + hub.publish with
     the canonical {slug, yes, no, ts, alert} shape. Returns True if the price
     moved (and was persisted), False if unchanged.
+
+    ``prev_yes`` lets a batch caller (the live tick pass) supply the previous
+    price from one query for the whole board instead of one SELECT per market
+    (COST-01: managed-Postgres round-trips are the dominant infra cost).
     """
     yes = round(float(yes), 4)
     if yes < 0.0 or yes > 1.0:
@@ -48,13 +57,16 @@ async def persist_and_publish_tick(
     no = round(1.0 - yes, 4)
     captured_at = datetime.now(UTC)
 
-    prev_row = await db.scalar(
-        select(OddsSnapshot.implied_yes)
-        .where(OddsSnapshot.market_slug == slug)
-        .order_by(OddsSnapshot.captured_at.desc())
-        .limit(1)
-    )
-    prev_yes = float(prev_row) if prev_row is not None else None
+    if prev_yes is _PREV_UNSET:
+        prev_row = await db.scalar(
+            select(OddsSnapshot.implied_yes)
+            .where(OddsSnapshot.market_slug == slug)
+            .order_by(OddsSnapshot.captured_at.desc())
+            .limit(1)
+        )
+        prev_yes = float(prev_row) if prev_row is not None else None
+    elif prev_yes is not None:
+        prev_yes = float(prev_yes)  # type: ignore[arg-type]
     moved = prev_yes is None or abs(yes - prev_yes) >= _TICK_EPSILON
 
     if moved:

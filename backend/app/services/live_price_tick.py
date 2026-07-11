@@ -14,20 +14,54 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.data.connectors.kalshi import KalshiConnector, normalize_kalshi_market
 from app.data.connectors.kalshi_fetcher import SharedKalshiFetcher
 from app.data.connectors.polymarket import PolymarketGammaConnector
-from app.db.models import Market, MarketStatus, OrderOutcome
+from app.db.models import Market, MarketStatus, OddsSnapshot, OrderOutcome
 from app.services.market_service import MarketService
 
 logger = logging.getLogger(__name__)
 
 _LIVE_FETCH_CONCURRENCY = 4
 _KALSHI_EVENT_CONCURRENCY = 2
+
+
+async def latest_implied_yes_by_slug(
+    db: AsyncSession, slugs: list[str]
+) -> dict[str, float]:
+    """Latest ``implied_yes`` per slug in ONE query (window function).
+
+    COST-01: replaces the per-market previous-price SELECT inside
+    ``persist_and_publish_tick`` for the batch tick pass. A slug with no
+    snapshot rows is simply absent from the result (``.get`` → None keeps the
+    'first tick' semantics).
+    """
+    if not slugs:
+        return {}
+    ranked = (
+        select(
+            OddsSnapshot.market_slug,
+            OddsSnapshot.implied_yes,
+            func.row_number()
+            .over(
+                partition_by=OddsSnapshot.market_slug,
+                order_by=OddsSnapshot.captured_at.desc(),
+            )
+            .label("rn"),
+        )
+        .where(OddsSnapshot.market_slug.in_(slugs))
+        .subquery()
+    )
+    rows = (
+        await db.execute(
+            select(ranked.c.market_slug, ranked.c.implied_yes).where(ranked.c.rn == 1)
+        )
+    ).all()
+    return {slug: float(implied) for slug, implied in rows}
 
 
 def _terminal_outcome(yes: float) -> OrderOutcome | None:
@@ -170,6 +204,14 @@ class LivePriceTickService:
                 )
             )
 
+        # COST-01: one batched previous-price query for the whole board instead
+        # of one SELECT per market inside persist_and_publish_tick — the N+1
+        # round-trips to the managed Postgres were the dominant tick-pass cost.
+        prev_by_slug = await latest_implied_yes_by_slug(
+            self.db,
+            [slug for slug, snapshot, _ in fetched if snapshot is not None],
+        )
+
         for slug, snapshot, error in fetched:
             if snapshot is None:
                 if error is not None:
@@ -187,6 +229,7 @@ class LivePriceTickService:
                 book=snapshot.book or snapshot.source,
                 platform_market_id=snapshot.platform_market_id,
                 title=snapshot.title,
+                prev_yes=prev_by_slug.get(slug),
             )
             results[slug] = "ok" if moved else "unchanged"
 

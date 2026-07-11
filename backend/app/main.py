@@ -89,10 +89,30 @@ async def _price_feed_loop() -> None:
         await asyncio.sleep(3600)
 
 
+def _live_tick_demand() -> bool:
+    """True while someone is actually watching: recent non-monitoring HTTP
+    activity or at least one open price WebSocket (COST-01)."""
+    from app.core.activity import is_active
+    from app.core.broadcast import hub
+
+    return hub.subscriber_count() > 0 or is_active(
+        settings.live_tick_active_window_sec
+    )
+
+
 async def _live_tick_loop() -> None:
+    """Demand-paced live price polling (COST-01, low-burn mode).
+
+    Full rate (LIVE_TICK_INTERVAL_SEC) only while a client is active; otherwise
+    one pass per LIVE_TICK_IDLE_INTERVAL_SEC so the managed Postgres endpoint
+    gets >5-minute idle gaps and can suspend (Neon scale-to-zero). The idle
+    sleep is chunked so a returning user gets a fresh tick within ~2 fast
+    intervals instead of waiting out the idle interval.
+    """
     from app.workers.price_feed_worker import run_live_tick_once
 
     interval = max(5, settings.live_tick_interval_sec)
+    idle_interval = max(interval, settings.live_tick_idle_interval_sec)
     while True:
         async with AsyncSessionLocal() as session:
             try:
@@ -103,7 +123,12 @@ async def _live_tick_loop() -> None:
                 await session.rollback()
                 logger.error("Live tick loop failed", exc_info=True)
                 record_heartbeat("live_tick", status="error", detail="live tick pass failed")
-        await asyncio.sleep(interval)
+        slept = 0.0
+        while True:
+            await asyncio.sleep(interval)
+            slept += interval
+            if _live_tick_demand() or slept >= idle_interval:
+                break
 
 
 async def _live_ingest_loop() -> None:

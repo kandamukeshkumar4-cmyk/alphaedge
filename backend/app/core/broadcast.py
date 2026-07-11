@@ -28,8 +28,11 @@ class BroadcastHub:
         self._sync_ws_clients_gauge()
 
     def _sync_ws_clients_gauge(self) -> None:
-        total = sum(len(queues) for queues in self._queues.values())
-        set_ws_clients(total)
+        set_ws_clients(self.subscriber_count())
+
+    def subscriber_count(self) -> int:
+        """Number of open price-WS subscriptions (demand signal for COST-01)."""
+        return sum(len(queues) for queues in self._queues.values())
 
     async def publish(self, slug: str, payload: dict) -> None:
         queues = list(self._queues.get(slug, []))
