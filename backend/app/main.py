@@ -101,6 +101,25 @@ def _live_tick_demand() -> bool:
     )
 
 
+async def _paced_sleep(fast_sec: float, idle_sec: float) -> None:
+    """Demand-paced sleep shared by the periodic loops (COST-01/COST-02).
+
+    Sleeps ``fast_sec`` while a client is active; with no demand it keeps
+    sleeping in ``fast_sec`` chunks up to ``idle_sec``, waking early the moment
+    demand returns. Idle gaps >5 min let the managed Postgres endpoint suspend
+    (Neon scale-to-zero); delay-safe consumers only — claim grading prices at
+    the stored horizon snapshot and WC resolution reads final scores, so a late
+    pass produces identical results to an on-time one.
+    """
+    idle_sec = max(fast_sec, idle_sec)
+    slept = 0.0
+    while True:
+        await asyncio.sleep(fast_sec)
+        slept += fast_sec
+        if _live_tick_demand() or slept >= idle_sec:
+            return
+
+
 async def _live_tick_loop() -> None:
     """Demand-paced live price polling (COST-01, low-burn mode).
 
@@ -124,12 +143,7 @@ async def _live_tick_loop() -> None:
                 await session.rollback()
                 logger.error("Live tick loop failed", exc_info=True)
                 record_heartbeat("live_tick", status="error", detail="live tick pass failed")
-        slept = 0.0
-        while True:
-            await asyncio.sleep(interval)
-            slept += interval
-            if _live_tick_demand() or slept >= idle_interval:
-                break
+        await _paced_sleep(interval, idle_interval)
 
 
 async def _live_ingest_loop() -> None:
@@ -162,16 +176,22 @@ async def _live_ingest_loop() -> None:
                 await session.rollback()
                 logger.error("Live market ingest failed", exc_info=True)
                 record_heartbeat("live_ingest", status="error", detail="live ingest pass failed")
-        await asyncio.sleep(interval)
+        # COST-02 egress-audit finding: this sweep is the heaviest remaining
+        # idle DB+upstream toucher (48 passes/day). Idle staleness bound is
+        # SCHEDULER_IDLE_INTERVAL_SEC — a returning visitor sees a catalog at
+        # most ~1h old, refreshed on the next demand-paced pass.
+        await _paced_sleep(interval, settings.scheduler_idle_interval_sec)
 
 
 async def _eval_loop() -> None:
-    """Grade due claims + refresh aggregates every 15 min in-process, so the
-    public track record stays current without a separate ARQ worker."""
+    """Grade due claims + refresh aggregates every 15 min while clients are
+    active; idle → one pass per SCHEDULER_IDLE_INTERVAL_SEC (COST-02).
+    Delay-safe: the scorer prices at the stored horizon snapshot
+    (no-lookahead), so a late grading pass produces identical grades."""
     from app.workers.tasks import analyst_aggregates_task, score_claims_task
 
     while True:
-        await asyncio.sleep(900)
+        await _paced_sleep(900, settings.scheduler_idle_interval_sec)
         try:
             scored = await score_claims_task({})
             await analyst_aggregates_task({})
@@ -278,7 +298,10 @@ async def _wc2026_resolve_loop() -> None:
     from app.workers.tasks import wc2026_resolve_task
 
     while True:
-        await asyncio.sleep(600)
+        # COST-02: demand-paced — resolution reads final match scores, so a
+        # late sweep resolves identically; idle latency is bounded by
+        # SCHEDULER_IDLE_INTERVAL_SEC.
+        await _paced_sleep(600, settings.scheduler_idle_interval_sec)
         try:
             await wc2026_resolve_task({})
             record_heartbeat("wc2026_resolve")

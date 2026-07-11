@@ -15,7 +15,9 @@ const config: Config = {
         "border-light": "#2A3F39",
         text: "#F2F4F8",
         muted: "#8FA8A0",
-        "muted-2": "#5A6F68",
+        // M-A11Y-02: was #5A6F68 (2.8–3.7:1 on our surfaces — below AA 4.5).
+        // Same hue/sat, lightness raised: 4.53–5.99:1 on bg/surface/-2/-3.
+        "muted-2": "#79938A",
         primary: "#00E8B0",
         "primary-dim": "#0A2E26",
         danger: "#FF5A5F",

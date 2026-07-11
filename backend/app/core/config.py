@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     live_tick_active_window_sec: int = Field(
         default=300, alias="LIVE_TICK_ACTIVE_WINDOW_SEC"
     )
+    # COST-02: idle cadence for the delay-safe periodic loops (eval grading,
+    # WC2026 resolution) when no client is active. Never below each loop's
+    # fast interval (clamped in _paced_sleep).
+    scheduler_idle_interval_sec: int = Field(
+        default=3600, alias="SCHEDULER_IDLE_INTERVAL_SEC"
+    )
     live_ingest_interval_sec: int = Field(default=1800, alias="LIVE_INGEST_INTERVAL_SEC")
     live_ingest_total_limit: int = Field(default=100, alias="LIVE_INGEST_TOTAL_LIMIT")
     live_ingest_min_volume_24h: float = Field(

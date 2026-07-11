@@ -52,6 +52,7 @@ export function FeedFilterBar({ activeType, activePlatform }: FeedFilterBarProps
             key={opt.value}
             type="button"
             onClick={() => update("type", opt.value)}
+            aria-pressed={activeType === opt.value}
             className={cn(
               "rounded-md px-2.5 py-1 text-[11px] font-semibold transition",
               activeType === opt.value

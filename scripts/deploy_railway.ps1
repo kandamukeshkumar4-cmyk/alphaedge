@@ -3,6 +3,7 @@ param(
     [string]$NeonDatabaseUrl = $env:NEON_DATABASE_URL,
     [string]$NeonDatabaseUrlSync = $env:NEON_DATABASE_URL_SYNC,
     [string]$AdminApiKey = $env:ADMIN_API_KEY,
+    [string]$JwtSecretKey = $env:JWT_SECRET_KEY,
     [string]$ServiceName = "alphaedge-api",
     [string]$BackendDir = "backend",
     [string]$CorsOrigins = "https://proud-meadow-01b42b810.7.azurestaticapps.net",
@@ -57,6 +58,9 @@ function Convert-ToSyncPgUrl {
 Assert-Configured "RAILWAY_TOKEN" $RailwayToken "Create a Railway project token (Project Settings -> Tokens) and pass -RailwayToken or set RAILWAY_TOKEN."
 Assert-Configured "NEON_DATABASE_URL" $NeonDatabaseUrl "Paste the Neon connection string or pass -NeonDatabaseUrl."
 Assert-Configured "ADMIN_API_KEY" $AdminApiKey "Generate a long random value and pass -AdminApiKey or set ADMIN_API_KEY."
+# C-SEC-03: with APP_ENV=production the backend boot-fails on the published
+# dev-default JWT secret, so a real one is mandatory for any Railway deploy.
+Assert-Configured "JWT_SECRET_KEY" $JwtSecretKey "Generate a long random value and pass -JwtSecretKey or set JWT_SECRET_KEY."
 
 $railway = Get-Command railway -ErrorAction SilentlyContinue
 if (-not $railway) {
@@ -80,9 +84,13 @@ $env:RAILWAY_TOKEN = $RailwayToken
 $variables = @(
     "PORT=8000",
     "PAPER_TRADING_ONLY=true",
+    # Production posture: config validator refuses default secrets (C-SEC-03),
+    # cookies get Secure, tokenless shared-account bypass is disabled (H-SEC-01).
+    "APP_ENV=production",
     "DATABASE_URL=$databaseUrl",
     "DATABASE_URL_SYNC=$databaseUrlSync",
     "ADMIN_API_KEY=$AdminApiKey",
+    "JWT_SECRET_KEY=$JwtSecretKey",
     "CORS_ORIGINS=$CorsOrigins",
     "REDIS_URL=redis://disabled:6379/0"
 )

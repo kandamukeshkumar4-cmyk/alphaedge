@@ -397,6 +397,7 @@ export function PriceChart({
               <button
                 key={m}
                 onClick={() => setMode(m)}
+                aria-pressed={mode === m}
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-xs font-semibold capitalize transition",
                   mode === m ? "bg-accent-bright text-bg" : "text-muted hover:text-text",
@@ -411,6 +412,7 @@ export function PriceChart({
               <button
                 key={r.key}
                 onClick={() => setRange(r.key)}
+                aria-pressed={range === r.key}
                 className={cn(
                   "rounded-lg px-2 py-1 text-xs font-semibold transition",
                   range === r.key ? "bg-accent-bright text-bg" : "text-muted hover:text-text",

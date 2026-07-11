@@ -144,3 +144,72 @@ def test_live_tick_demand_counts_ws_subscribers():
     finally:
         hub.unsubscribe("cost-demand-slug", queue)
     assert _live_tick_demand() is False
+
+
+@pytest.mark.asyncio
+async def test_paced_sleep_active_returns_after_one_fast_chunk(monkeypatch):
+    """COST-02: with demand present, _paced_sleep = one fast interval."""
+    import app.main as main_mod
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(sec: float) -> None:
+        sleeps.append(sec)
+
+    monkeypatch.setattr(main_mod.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(main_mod, "_live_tick_demand", lambda: True)
+
+    await main_mod._paced_sleep(15, 900)
+    assert sleeps == [15]
+
+
+@pytest.mark.asyncio
+async def test_paced_sleep_idle_runs_out_the_idle_interval(monkeypatch):
+    """COST-02: with no demand, chunks accumulate to the idle interval."""
+    import app.main as main_mod
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(sec: float) -> None:
+        sleeps.append(sec)
+
+    monkeypatch.setattr(main_mod.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(main_mod, "_live_tick_demand", lambda: False)
+
+    await main_mod._paced_sleep(900, 3600)
+    assert sleeps == [900, 900, 900, 900]  # 4 chunks = 3600s idle cadence
+
+
+@pytest.mark.asyncio
+async def test_paced_sleep_wakes_early_when_demand_returns(monkeypatch):
+    """COST-02: demand arriving mid-idle ends the sleep at the next chunk."""
+    import app.main as main_mod
+
+    sleeps: list[float] = []
+    demand = iter([False, False, True])
+
+    async def fake_sleep(sec: float) -> None:
+        sleeps.append(sec)
+
+    monkeypatch.setattr(main_mod.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(main_mod, "_live_tick_demand", lambda: next(demand))
+
+    await main_mod._paced_sleep(600, 3600)
+    assert sleeps == [600, 600, 600]  # woke on the 3rd chunk, not after 6
+
+
+@pytest.mark.asyncio
+async def test_paced_sleep_clamps_idle_below_fast(monkeypatch):
+    """Config edge: idle < fast must not spin — clamped to one fast chunk."""
+    import app.main as main_mod
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(sec: float) -> None:
+        sleeps.append(sec)
+
+    monkeypatch.setattr(main_mod.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(main_mod, "_live_tick_demand", lambda: False)
+
+    await main_mod._paced_sleep(900, 60)
+    assert sleeps == [900]
