@@ -33,6 +33,22 @@ slash command. Load only the smallest relevant set, keep AGENTS.md guardrails
 higher priority, and skip platform-specific skills unless the task and current
 environment actually match them.
 
+## Model Routing (token optimization — binding)
+
+Read `docs/MODEL-ROUTING.md`. The orchestrator/executor split: the main
+session (Claude Fable 5, model picker) plans, decomposes, and judges;
+subagents execute on cheaper tiers pinned in `.claude/agents/*.md` frontmatter
+— Opus 4.8 for implementation and review (`writer`, `implementer`, `verifier`,
+`reviewer`, `prediction-loop-runner`), Sonnet 5 for exploration and test
+writing (`explorer`, `tester`), Haiku 4.5 for run-one-command checkers
+(`calibration-verifier`, `portfolio-monitor`). Never spawn a subagent for a
+single-file read or one-line grep — do it directly. Prefer the named repo
+agents over built-in `general-purpose`/`Explore` types, which inherit the
+expensive session model. The user can override per-prompt ("run everything on
+Fable" / "no subagents"); one-off overrides are never committed to frontmatter.
+Cheaper models change cost, never authority — AGENTS.md guardrails apply at
+every tier.
+
 ## Truth-First Defaults
 
 - Treat user claims, diagnoses, and plans as unverified until checked against

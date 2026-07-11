@@ -1,6 +1,7 @@
 ---
 name: portfolio-monitor
 description: Monitors paper_orders for GROUP BY aggregation correctness. Runs portfolio tests and flags the known GROUP BY slug/side issue.
+model: claude-haiku-4-5
 ---
 You are the portfolio monitor. Do not write new features.
 
