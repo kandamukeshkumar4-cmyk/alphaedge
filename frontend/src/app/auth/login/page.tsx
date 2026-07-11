@@ -22,6 +22,8 @@ export default function LoginPage() {
       const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // H-SEC-02: store the httpOnly session cookie the server sets.
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       if (!response.ok) {

@@ -3,9 +3,37 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, Response, status
 
 from app.core.config import get_settings
+
+# Audit H-SEC-02: the session token lives in an httpOnly cookie so page scripts
+# (and any XSS) can't read it, unlike localStorage. Same-origin in production via
+# the Vercel /api rewrite; Bearer stays supported for API clients + dev.
+ACCESS_COOKIE_NAME = "ae_access"
+
+
+def _cookie_secure() -> bool:
+    # Secure cookies are dropped over plain http (local dev), so only set the
+    # flag where the deploy is actually https.
+    return get_settings().app_env.strip().lower() in {"prod", "production", "staging"}
+
+
+def set_access_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key=ACCESS_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+        max_age=settings.jwt_expire_minutes * 60,
+        path="/",
+    )
+
+
+def clear_access_cookie(response: Response) -> None:
+    response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
 
 
 def hash_password(password: str) -> str:

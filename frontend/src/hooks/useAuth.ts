@@ -84,6 +84,12 @@ export function useAuth() {
   const logout = useCallback(() => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(USER_EMAIL_KEY);
+    // H-SEC-02: also clear the httpOnly session cookie server-side (best-effort).
+    const apiBase = API_BASE || "http://localhost:8000";
+    void fetch(`${apiBase}/api/v1/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => undefined);
     setToken(null);
     setEmail(null);
     setPaperBalance(null);
