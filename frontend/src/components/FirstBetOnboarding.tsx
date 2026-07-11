@@ -9,12 +9,14 @@ import { fetchMarkets } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { FIRST_BET_STEPS, pickSuggestedMarket } from "@/lib/onboarding-first-bet";
 import type { Market } from "@/lib/mock-data";
+import { useDialog } from "@/hooks/useDialog";
 import { useOnboarding } from "@/hooks/useOnboarding";
 
 export function FirstBetOnboarding() {
   const { shouldShow, markDone } = useOnboarding();
   const [step, setStep] = useState(0);
   const [suggested, setSuggested] = useState<Market | null>(null);
+  const dialogRef = useDialog<HTMLDivElement>(markDone);
 
   useEffect(() => {
     if (!shouldShow) return;
@@ -40,7 +42,9 @@ export function FirstBetOnboarding() {
       <div className="absolute inset-0 bg-black/60" onClick={markDone} aria-hidden="true" />
 
       <div
-        className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl focus:outline-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="first-bet-title"

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/cn";
+import { useDialog } from "@/hooks/useDialog";
 
 type Step = 0 | 1 | 2;
 
@@ -82,6 +83,7 @@ type Props = {
 
 export function OnboardingModal({ onDone }: Props) {
   const [step, setStep] = useState<Step>(0);
+  const dialogRef = useDialog<HTMLDivElement>(onDone);
 
   function next() {
     if (step < 2) {
@@ -110,8 +112,10 @@ export function OnboardingModal({ onDone }: Props) {
       />
 
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className={cn(
-          "relative z-10 w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl",
+          "relative z-10 w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl focus:outline-none",
           "transition-all duration-300",
         )}
         role="dialog"

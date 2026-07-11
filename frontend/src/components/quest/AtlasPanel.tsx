@@ -11,6 +11,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { useAtlasPanel } from "@/context/atlas-panel";
 import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import { getAccessToken } from "@/lib/portfolio-api";
+import { useDialog } from "@/hooks/useDialog";
 import { cn } from "@/lib/cn";
 
 const AGENT_ID = "ATLAS-9-e4c1";
@@ -37,6 +38,8 @@ export function AtlasPanel() {
   const [thinking, setThinking] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
+  // H-A11Y-01: trap focus in the mobile ATLAS sheet while it is open.
+  const mobileSheetRef = useDialog<HTMLDivElement>(closePanel, open);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -189,11 +192,16 @@ export function AtlasPanel() {
         {open ? (
           <motion.div
             key="atlas-mobile"
+            ref={mobileSheetRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label="ATLAS assistant"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-x-0 bottom-0 z-50 flex max-h-[78vh] flex-col rounded-t-2xl border border-border bg-surface shadow-2xl lg:hidden"
+            className="fixed inset-x-0 bottom-0 z-50 flex max-h-[78vh] flex-col rounded-t-2xl border border-border bg-surface shadow-2xl focus:outline-none lg:hidden"
           >
             <AtlasHeader onClose={closePanel} />
             <AtlasBody
