@@ -61,7 +61,7 @@ from app.api.v1.compare import router as compare_router
 from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
-from app.core.middleware import RequestIdMiddleware
+from app.core.middleware import HttpMetricsMiddleware, RequestIdMiddleware
 from app.db.session import AsyncSessionLocal
 from app.schemas.market import HealthResponse
 from app.services.market_service import MarketService
@@ -412,6 +412,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(HttpMetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,

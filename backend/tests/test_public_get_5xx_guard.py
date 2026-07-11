@@ -57,6 +57,8 @@ MUST_COVER = (
     "/api/v1/home",
     "/api/v1/opportunities",
     "/api/v1/resolved",
+    # V13 R01: the public in-process metrics readout must never 5xx.
+    "/api/v1/system/metrics",
     f"/api/v1/categories/{KNOWN_CATEGORY}/summary",
     "/api/v1/compare",
     # V12 Q03: the desk aggregate is swept via its required ?slug= query param;

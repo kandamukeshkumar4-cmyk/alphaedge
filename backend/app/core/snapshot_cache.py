@@ -17,12 +17,24 @@ _MAX_KEYS = 512  # bound weird slug-permutation growth
 
 _cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
+# Cheap in-process hit/miss counters (Loop V13 R01). Honest zeros before traffic.
+_hits = 0
+_misses = 0
+
 
 def get(key: str, ttl_sec: float) -> dict[str, Any] | None:
+    global _hits, _misses
     entry = _cache.get(key)
     if entry is None or time.monotonic() - entry[0] >= ttl_sec:
+        _misses += 1
         return None
+    _hits += 1
     return entry[1]
+
+
+def stats() -> dict[str, int]:
+    """Return hit/miss counters for the /system/metrics readout."""
+    return {"hits": _hits, "misses": _misses}
 
 
 def put(key: str, value: dict[str, Any]) -> None:
@@ -33,4 +45,7 @@ def put(key: str, value: dict[str, Any]) -> None:
 
 def invalidate() -> None:
     """Clear everything (tests; any future snapshot-affecting mutation hook)."""
+    global _hits, _misses
     _cache.clear()
+    _hits = 0
+    _misses = 0

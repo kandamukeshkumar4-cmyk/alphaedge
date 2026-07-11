@@ -22,6 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import desk_cache, opportunities_cache, snapshot_cache
 from app.core.config import get_settings
 from app.data.streams.runner import background_loop_plan
 from app.db.session import get_db
@@ -31,6 +32,7 @@ from app.ml.ab_harness import (
     count_resolved_outcomes,
     run_walk_forward_ab,
 )
+from app.observability import http_metrics
 from app.observability.loop_state import LOOP_INTERVALS, snapshot
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
@@ -77,6 +79,38 @@ async def get_loops() -> dict[str, Any]:
     return {
         "plan": plan,
         "loops": loops,
+        "paper_trading_only": settings.paper_trading_only,
+    }
+
+
+@router.get("/metrics")
+async def get_metrics() -> dict[str, Any]:
+    """R01 — real in-process request/cache metrics (PUBLIC GET, read-only).
+
+    Exposes ONLY genuine in-process counters recorded by the timing middleware
+    and the micro-cache modules — never a fabricated number:
+
+    * ``uptime_seconds`` — wall-clock seconds since this process booted.
+    * ``routes`` — one row per matched (method, templated-path): ``request_count``,
+      ``error_count`` (5xx only), ``p50_latency_ms``/``p95_latency_ms`` over a
+      bounded latency ring. Path params are collapsed to the route template, so
+      the key space is bounded by the number of registered routes.
+    * ``caches`` — hit/miss counters for the desk / opportunities / snapshot
+      micro-caches.
+
+    Honest zeros before traffic: an empty ``routes`` list and all-zero cache
+    stats until requests actually flow. No DB write, no order path, no new deps.
+    """
+    settings = get_settings()
+    snap = http_metrics.snapshot()
+    return {
+        "uptime_seconds": snap["uptime_seconds"],
+        "routes": snap["routes"],
+        "caches": {
+            "desk": desk_cache.stats(),
+            "opportunities": opportunities_cache.stats(),
+            "snapshot": snapshot_cache.stats(),
+        },
         "paper_trading_only": settings.paper_trading_only,
     }
 

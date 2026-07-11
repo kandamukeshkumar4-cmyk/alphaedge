@@ -19,12 +19,26 @@ _MAX_KEYS = 256  # bound weird param-permutation growth
 
 _cache: dict[DeskKey, tuple[float, dict[str, Any]]] = {}
 
+# Cheap in-process hit/miss counters (Loop V13 R01). Read by the /system/metrics
+# readout; honest zeros before any traffic. A stale (TTL-expired) entry counts
+# as a miss, matching the caller's behaviour (it rebuilds).
+_hits = 0
+_misses = 0
+
 
 def get(key: DeskKey, ttl_sec: float) -> dict[str, Any] | None:
+    global _hits, _misses
     entry = _cache.get(key)
     if entry is None or time.monotonic() - entry[0] >= ttl_sec:
+        _misses += 1
         return None
+    _hits += 1
     return entry[1]
+
+
+def stats() -> dict[str, int]:
+    """Return hit/miss counters for the /system/metrics readout."""
+    return {"hits": _hits, "misses": _misses}
 
 
 def put(key: DeskKey, value: dict[str, Any]) -> None:
@@ -35,4 +49,7 @@ def put(key: DeskKey, value: dict[str, Any]) -> None:
 
 def invalidate() -> None:
     """Clear everything (tests; any future desk-affecting mutation hook)."""
+    global _hits, _misses
     _cache.clear()
+    _hits = 0
+    _misses = 0

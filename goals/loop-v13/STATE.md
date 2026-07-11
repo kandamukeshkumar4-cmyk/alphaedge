@@ -87,3 +87,4 @@ OBSERVABLE and RESILIENT. NO new user-facing features; every change measurable.
 
 | iter | date | track | ticket | result | proof |
 |------|------|-------|--------|--------|-------|
+| 1 | 2026-07-11 | BE | R01 metrics endpoint | done | MEASURED: new PUBLIC GET `/api/v1/system/metrics` exposes real in-process counters — per-route request_count/error_count/p50/p95 (new `HttpMetricsMiddleware` → `app/observability/http_metrics.py`, bounded route map cap=512, latency ring=512) + hit/miss counters added to 3 micro-caches (desk/opportunities/snapshot) + uptime_seconds. Honest zeros before traffic. Added to I01 5xx-guard MUST_COVER. Gate: ruff clean; pytest 1352 passed, 28 skipped (incl. 3 new metrics tests + guard sweep). AutoLab: not applicable (no iterative measure — additive readout, one-shot). |
