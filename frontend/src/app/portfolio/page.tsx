@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useMarketPrice } from "@/hooks/useMarketPrice";
+import { LivePricesProvider, useLivePrice } from "@/context/live-prices";
 
 import { useAuth } from "@/hooks/useAuth";
 import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
@@ -112,7 +112,13 @@ export default function PortfolioPage() {
 
   const empty = !loading && portfolio !== null && portfolio.positions.length === 0;
 
+  // H-PERF-01: one shared multiplexed feed for every open position instead of a
+  // WebSocket per row. Priority = the open-position slugs.
+  const livePriceSlugs =
+    portfolio?.positions.filter((p) => !p.settled).map((p) => p.market_slug) ?? [];
+
   return (
+    <LivePricesProvider markets={[]} prioritySlugs={livePriceSlugs}>
     <PageShell width="medium">
       <PageHeader
         kicker="Unified paper portfolio"
@@ -308,11 +314,15 @@ export default function PortfolioPage() {
           "Research only — not financial advice. Verify resolution terms. Paper trading only."}
       </footer>
     </PageShell>
+    </LivePricesProvider>
   );
 }
 
 function PortfolioPositionRow({ position }: { position: PortfolioPosition }) {
-  const live = useMarketPrice(position.settled ? "" : position.market_slug);
+  const live = useLivePrice(
+    position.settled ? "" : position.market_slug,
+    position.current_price ?? position.price ?? 0,
+  );
   const markPrice = useMemo(() => {
     if (position.settled) {
       return null;
