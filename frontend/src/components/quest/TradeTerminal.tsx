@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
 import { ChartDrawingToolbar } from "@/components/quest/ChartDrawingToolbar";
 import { DecisionCard } from "@/components/DecisionCard";
-import { PriceChart } from "@/components/PriceChart";
+import { PriceChart } from "@/components/PriceChartLazy";
 import { OrderBook } from "@/components/OrderBook";
 import { MarketTradingPanel } from "@/components/MarketTradingPanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
