@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -411,6 +412,38 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """R03 — structured 5xx logging + request-id, generic body (no info leak).
+
+    Logs one structured record with the request-id (set by RequestIdMiddleware),
+    method, path, and exception TYPE (no message/traceback in the response, no
+    secrets/PII) for support tracing, then returns a GENERIC body so the V11
+    info-leak fix is preserved. The X-Request-ID header is re-attached here
+    because the request-id middleware's own header write is skipped when the
+    downstream app raises before returning a response.
+    """
+    request_id = getattr(request.state, "request_id", None)
+    logger.error(
+        "Unhandled server error",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "exception_type": type(exc).__name__,
+        },
+        exc_info=True,
+    )
+    headers = {"X-Request-ID": request_id} if request_id else None
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+        headers=headers,
+    )
+
+
+app.add_exception_handler(Exception, unhandled_exception_handler)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(HttpMetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)

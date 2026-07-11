@@ -77,3 +77,28 @@ Test: `tests/test_connector_resilience.py` monkeypatches `FredConnector.fetch_in
 (→ `httpx.TimeoutException`) and `WeatherDeskService.scan` (→ `httpx.ConnectError`)
 and asserts the dependent public GET returns `<500` with an honest-empty body,
 plus that a weather failure is not cached.
+
+## R03 — Structured error logging + request-id
+
+Every request carries a request-id (`RequestIdMiddleware`, pre-existing): an
+inbound `X-Request-ID` header is echoed, otherwise a uuid4 is generated, and the
+value is stamped on the response `X-Request-ID` header.
+
+New: a global `Exception` handler (`app/main.py::unhandled_exception_handler`)
+closes two gaps for 5xx responses:
+
+- **Structured log** — one `logging.ERROR` record ("Unhandled server error") with
+  `extra={request_id, method, path, exception_type}` and `exc_info=True` for the
+  server-side traceback. No secrets/PII; the exception MESSAGE never reaches the
+  client.
+- **Generic body + request-id header** — returns `{"detail": "Internal Server
+  Error"}` (V11 info-leak fix preserved) and re-attaches the `X-Request-ID`
+  header, which the request-id middleware's own header write would otherwise skip
+  when the downstream app raises before producing a response. Support can now
+  correlate a user-reported request-id with the exact server log line.
+
+Test: `tests/test_error_request_id.py` — a monkeypatched raising route returns the
+generic body (raised message absent), an `X-Request-ID` header, and exactly one
+structured log record with the matching request-id / method / path / exception
+type (asserted via caplog); the happy path still stamps `X-Request-ID`; an
+inbound request-id is echoed end-to-end.
