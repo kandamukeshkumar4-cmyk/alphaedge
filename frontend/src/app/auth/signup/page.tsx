@@ -60,18 +60,22 @@ export default function SignupPage() {
         <p className="mt-1 text-sm text-muted">Start with $100,000 in paper money.</p>
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
-          <Field label="Email">
+          <Field label="Email" htmlFor="signup-email">
             <input
+              id="signup-email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input"
               placeholder="you@example.com"
             />
           </Field>
-          <Field label="Password">
+          <Field label="Password" htmlFor="signup-password">
             <input
+              id="signup-password"
               type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input"
@@ -95,9 +99,11 @@ export default function SignupPage() {
               ))}
             </div>
           </Field>
-          <Field label="Confirm password">
+          <Field label="Confirm password" htmlFor="signup-confirm">
             <input
+              id="signup-confirm"
               type="password"
+              autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="input"
@@ -152,10 +158,21 @@ export default function SignupPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
+      <label
+        htmlFor={htmlFor}
+        className="text-[11px] font-semibold uppercase tracking-wider text-muted-2"
+      >
         {label}
       </label>
       <div className="mt-1.5">{children}</div>

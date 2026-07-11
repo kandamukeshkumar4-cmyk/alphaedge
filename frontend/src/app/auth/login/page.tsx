@@ -55,32 +55,37 @@ export default function LoginPage() {
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
           <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
+            <label
+              htmlFor="login-email"
+              className="text-[11px] font-semibold uppercase tracking-wider text-muted-2"
+            >
               Email
             </label>
             <input
+              id="login-email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
+              className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text focus:border-accent focus-visible:outline-2 focus-visible:outline-accent"
               placeholder="you@example.com"
               required
             />
           </div>
           <div>
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-2">
-                Password
-              </label>
-              <button type="button" className="text-[11px] text-accent hover:underline">
-                Forgot?
-              </button>
-            </div>
+            <label
+              htmlFor="login-password"
+              className="text-[11px] font-semibold uppercase tracking-wider text-muted-2"
+            >
+              Password
+            </label>
             <input
+              id="login-password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
+              className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text focus:border-accent focus-visible:outline-2 focus-visible:outline-accent"
               placeholder="Your password"
               required
             />

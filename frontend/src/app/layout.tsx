@@ -44,11 +44,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <AtlasPanelProvider>
             <ToastProvider>
+              {/* M-A11Y-01: skip past the header/nav straight to the page. */}
+              <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-[100] focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white"
+              >
+                Skip to main content
+              </a>
               <HealthBanner />
               <SiteHeader />
               <PortfolioBanner />
               <div className="flex min-h-[calc(100vh-7rem)] w-full">
-                <div className="min-w-0 flex-1 pb-20 lg:pb-0">{children}</div>
+                <div id="main-content" tabIndex={-1} className="min-w-0 flex-1 pb-20 lg:pb-0">
+                  {children}
+                </div>
                 <AtlasPanel />
               </div>
               <QuestLiveTicker />

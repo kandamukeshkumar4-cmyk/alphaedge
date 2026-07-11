@@ -345,3 +345,11 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* M-A11Y-02: a consistent keyboard focus ring for anything that doesn't
+   define its own. focus-visible only, so mouse clicks stay ring-free. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent, #00C9A0);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

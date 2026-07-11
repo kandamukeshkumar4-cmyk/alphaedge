@@ -44,10 +44,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-20 z-50 flex w-[min(92vw,360px)] flex-col gap-2">
+      {/* M-A11Y-03: announce toasts to assistive tech. Errors assert, others
+          are polite so a screen reader isn't interrupted for a success note. */}
+      <div
+        className="pointer-events-none fixed right-4 top-20 z-50 flex w-[min(92vw,360px)] flex-col gap-2"
+        role="region"
+        aria-label="Notifications"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
+            role={t.tone === "error" ? "alert" : "status"}
+            aria-live={t.tone === "error" ? "assertive" : "polite"}
             className={cn(
               "pointer-events-auto animate-slide-in-right rounded-lg border bg-surface-2 p-3 shadow-lift",
               t.tone === "success" && "border-primary/40",
