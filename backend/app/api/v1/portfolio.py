@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,17 @@ from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _portfolio_unavailable() -> HTTPException:
+    """Audit H-REL-01: a transient DB failure must NOT look like a wiped
+    portfolio ($0 / no positions). Surface it as 503 so the UI can show
+    'temporarily unavailable' instead of empty-as-success."""
+    logger.exception("portfolio query failed — returning 503 (was silently swallowed)")
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Portfolio temporarily unavailable",
+    )
 
 router = APIRouter(prefix="/api/v1", tags=["portfolio"])
 
@@ -165,12 +176,10 @@ async def get_portfolio_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PortfolioSummaryResponse:
-    positions: list[PortfolioPositionResponse] = []
     try:
         positions = await _load_paper_orders(db, current_user.id.hex)
-    except (OperationalError, ProgrammingError):
-        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
-        positions = []
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
 
     paper_balance = float(current_user.paper_balance)
     open_positions = [p for p in positions if not p.settled]
@@ -200,9 +209,8 @@ async def get_portfolio_risk(
     per-trade Sharpe, and open exposure by market category."""
     try:
         positions = await _load_paper_orders(db, current_user.id.hex)
-    except (OperationalError, ProgrammingError):
-        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
-        positions = []
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
 
     # Only settled trades with a positive cost basis are usable: a fully
     # round-tripped-to-flat position has its net cost clamped to 0 upstream and
@@ -257,9 +265,8 @@ async def get_portfolio_exposure(
     """
     try:
         all_positions = await _load_paper_orders(db, current_user.id.hex)
-    except (OperationalError, ProgrammingError):
-        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
-        all_positions = []
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
 
     open_positions = [p for p in all_positions if not p.settled]
 
@@ -319,10 +326,8 @@ async def get_portfolio(
     try:
         positions = await _load_paper_orders(db, current_user.id.hex)
         total_trades = len(positions)
-    except (OperationalError, ProgrammingError):
-        logger.exception("portfolio query failed — degrading to empty (was silently swallowed)")
-        positions = []
-        total_trades = 0
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
 
     realized_pnl = sum(
         pos.realized_pnl for pos in positions if pos.realized_pnl is not None

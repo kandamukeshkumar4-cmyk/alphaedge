@@ -191,9 +191,10 @@ export function MarketTradingPanel({
         <button
           type="button"
           onClick={() => setOutcome("yes")}
-          disabled={isDisabled}
+          disabled={isDisabled || submitting}
+          aria-pressed={outcome === "yes"}
           className={cn(
-            "rounded-lg py-2 text-sm font-bold transition disabled:opacity-50",
+            "rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
             outcome === "yes" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
@@ -202,9 +203,10 @@ export function MarketTradingPanel({
         <button
           type="button"
           onClick={() => setOutcome("no")}
-          disabled={isDisabled}
+          disabled={isDisabled || submitting}
+          aria-pressed={outcome === "no"}
           className={cn(
-            "rounded-lg py-2 text-sm font-bold transition disabled:opacity-50",
+            "rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
             outcome === "no" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
@@ -229,8 +231,8 @@ export function MarketTradingPanel({
           onChange={(e) =>
             setAmount(Math.max(1, Math.floor(Number(e.target.value) || 1)))
           }
-          disabled={isDisabled}
-          className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm text-text focus:border-accent focus:outline-none disabled:opacity-50"
+          disabled={isDisabled || submitting}
+          className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm text-text focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 

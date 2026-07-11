@@ -117,3 +117,25 @@ async def test_portfolio_two_orders_same_market_merge_into_one_position(db_sessi
 
     # cost = 10*0.55 + 20*0.60 = 5.50 + 12.00 = 17.50
     assert abs(pos["cost"] - 17.50) < 0.001
+
+
+@pytest.mark.asyncio
+async def test_portfolio_returns_503_on_db_error(monkeypatch):
+    """Audit H-REL-01: a transient DB failure must surface as 503, not an
+    empty-200 that reads as a wiped portfolio."""
+    from sqlalchemy.exc import OperationalError
+
+    import app.api.v1.portfolio as portfolio_module
+
+    async def _boom(*_args, **_kwargs):
+        raise OperationalError("SELECT ...", {}, Exception("connection reset"))
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "portfolio-503@example.com")
+        monkeypatch.setattr(portfolio_module, "_load_paper_orders", _boom)
+        response = await client.get(
+            "/api/v1/portfolio",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Portfolio temporarily unavailable"

@@ -100,8 +100,10 @@ export function TradePanel({
         <button
           type="button"
           onClick={() => setOutcome("yes")}
+          disabled={submitting}
+          aria-pressed={outcome === "yes"}
           className={cn(
-            "rounded-lg py-2 text-sm font-bold transition",
+            "rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
             outcome === "yes" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
@@ -110,8 +112,10 @@ export function TradePanel({
         <button
           type="button"
           onClick={() => setOutcome("no")}
+          disabled={submitting}
+          aria-pressed={outcome === "no"}
           className={cn(
-            "rounded-lg py-2 text-sm font-bold transition",
+            "rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
             outcome === "no" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
@@ -132,8 +136,9 @@ export function TradePanel({
           min={1}
           step={1}
           value={shares}
+          disabled={submitting}
           onChange={(e) => setShares(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-          className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm text-text focus:border-accent focus:outline-none"
+          className="mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm text-text focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 

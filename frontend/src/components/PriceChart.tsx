@@ -342,7 +342,10 @@ export function PriceChart({
     });
     setFlash(newClose >= lastCandle.close ? "up" : "down");
     setLast(newClose);
-    setTimeout(() => setFlash(null), 700);
+    // M-REL-05: clear the flash timer on unmount / next tick so it can't fire
+    // setFlash after the component is gone (React state-update-on-unmounted warn).
+    const flashTimer = setTimeout(() => setFlash(null), 700);
+    return () => clearTimeout(flashTimer);
   }, [livePrice.yes, livePrice.ts, livePrice.connected]);
 
   const shown = hovered ?? last;
