@@ -20,17 +20,23 @@ def async_engine_settings(database_url: str) -> tuple[str, dict[str, Any]]:
         url = url.set(drivername="postgresql+asyncpg")
 
     if url.drivername == "postgresql+asyncpg":
+        # V13 R02: bound asyncpg connection establishment so a slow/hung managed
+        # Neon endpoint (e.g. a stalled scale-from-zero cold start) fails fast
+        # instead of blocking a request indefinitely. 15s gives ample cold-start
+        # headroom (Neon resume is typically <5s) while capping a true hang.
+        connect_args: dict[str, Any] = {"timeout": 15.0}
         sslmode = url.query.get("sslmode")
         ssl = url.query.get("ssl")
         unsupported_query_keys = ["channel_binding"]
         if sslmode:
             unsupported_query_keys.append("sslmode")
             if sslmode != "disable":
-                kwargs["connect_args"] = {"ssl": True}
+                connect_args["ssl"] = True
         if ssl:
             unsupported_query_keys.append("ssl")
             if ssl != "false":
-                kwargs["connect_args"] = {"ssl": True}
+                connect_args["ssl"] = True
+        kwargs["connect_args"] = connect_args
         url = url.difference_update_query(unsupported_query_keys)
 
     return url.render_as_string(hide_password=False), kwargs

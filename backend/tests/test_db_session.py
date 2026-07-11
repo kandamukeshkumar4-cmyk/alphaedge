@@ -10,7 +10,8 @@ def test_async_engine_settings_converts_neon_sslmode_for_asyncpg():
     engine_url, kwargs = async_engine_settings(url)
 
     assert engine_url == "postgresql+asyncpg://neondb_owner:secret@example.neon.tech/neondb"
-    assert kwargs == {"connect_args": {"ssl": True}}
+    # V13 R02: asyncpg gets an explicit connect timeout so a hung Neon fails fast.
+    assert kwargs == {"connect_args": {"ssl": True, "timeout": 15.0}}
 
 
 def test_async_engine_settings_converts_asyncpg_ssl_query_to_connect_args():
@@ -19,7 +20,7 @@ def test_async_engine_settings_converts_asyncpg_ssl_query_to_connect_args():
     engine_url, kwargs = async_engine_settings(url)
 
     assert engine_url == "postgresql+asyncpg://neondb_owner:secret@example.neon.tech/neondb"
-    assert kwargs == {"connect_args": {"ssl": True}}
+    assert kwargs == {"connect_args": {"ssl": True, "timeout": 15.0}}
 
 
 def test_async_engine_settings_coerces_plain_postgresql_url_to_asyncpg():
@@ -28,7 +29,9 @@ def test_async_engine_settings_coerces_plain_postgresql_url_to_asyncpg():
     engine_url, kwargs = async_engine_settings(url)
 
     assert engine_url == "postgresql+asyncpg://alphaedge:alphaedge@localhost:5432/alphaedge"
-    assert kwargs == {}
+    # V13 R02: even a driverless URL coerced to asyncpg gets the bounded connect
+    # timeout (no ssl here, since no sslmode/ssl query was supplied).
+    assert kwargs == {"connect_args": {"timeout": 15.0}}
 
 
 def test_async_engine_settings_coerces_plain_postgresql_url_with_sslmode():
@@ -37,4 +40,4 @@ def test_async_engine_settings_coerces_plain_postgresql_url_with_sslmode():
     engine_url, kwargs = async_engine_settings(url)
 
     assert engine_url == "postgresql+asyncpg://neondb_owner:secret@example.neon.tech/neondb"
-    assert kwargs == {"connect_args": {"ssl": True}}
+    assert kwargs == {"connect_args": {"ssl": True, "timeout": 15.0}}

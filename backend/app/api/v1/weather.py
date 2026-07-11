@@ -6,6 +6,7 @@ in-process (forecasts refresh hourly at most; Kalshi weather books move slowly).
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -14,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.services.weather_desk import WeatherDeskService
 
 router = APIRouter(prefix="/api/v1", tags=["weather"])
+logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SEC = 600
 _cache: dict[str, tuple[float, list[dict]]] = {}
@@ -40,8 +42,20 @@ async def weather_edges(target_date: str | None = Query(default=None, alias="dat
         if cached is not None and now - cached[0] < _CACHE_TTL_SEC:
             return {"date": key, "cities": cached[1], "cached": True}
 
-    service = WeatherDeskService()
-    cities = await asyncio.to_thread(service.scan, day)
-    async with _lock:
-        _cache[key] = (time.monotonic(), cities)
+    # R02: a slow/failing NWS or Kalshi upstream must degrade this PUBLIC GET to
+    # an honest-empty city list, never a 5xx. WeatherDeskService.scan already
+    # isolates per-city failures; this guards an unexpected top-level raise (and
+    # the service construction). A failed fetch is NOT cached, so the next call
+    # retries rather than blanking the desk for the full TTL.
+    failed = False
+    try:
+        service = WeatherDeskService()
+        cities = await asyncio.to_thread(service.scan, day)
+    except Exception:  # noqa: BLE001 - honest-empty degrade, never 5xx
+        logger.warning("Weather edges upstream fetch failed for %s", key, exc_info=True)
+        cities = []
+        failed = True
+    if not failed:
+        async with _lock:
+            _cache[key] = (time.monotonic(), cities)
     return {"date": key, "cities": cities, "cached": False}

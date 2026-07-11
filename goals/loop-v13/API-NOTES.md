@@ -50,3 +50,30 @@ Field notes:
 
 No DB write, no order path import, no new dependency. Swept by the I01
 public-GET 5xx guard (added to `MUST_COVER`).
+
+## R02 — External-connector resilience audit
+
+No response-shape change. Audit of every request-time external touchpoint plus
+the Neon session; gaps hardened so a slow/failing external can never turn a
+PUBLIC GET into a 5xx.
+
+Audit findings (as-is → action):
+
+| Connector / path | Timeout | Bounded retry | Graceful degrade | Action |
+|---|---|---|---|---|
+| `JsonConnectorClient` (FRED, World Bank, Kalshi REST, Polymarket gamma/clob, odds) | 10s default | yes (`max_attempts=3`, 5xx-only) | raises to caller | already hardened — no change |
+| `NWSForecastConnector` (weather) | 10s explicit | via `JsonConnectorClient` | per-city `try` in `scan` | already hardened |
+| `FredConnector.fetch_indicators` | (client) | (client) | per-series `try` → `[]` | already hardened |
+| `OnchainReadOnlyConnector` | 15s (fallback client) | none (single POST) | raises to caller (leaderboard/ingest, not request-time GET) | already bounded |
+| **`GET /api/v1/macro` route** | — | — | **relied on connector guards** | **added top-level `try` → honest-empty `MacroOut(source="none")`, failure not cached** |
+| **`GET /api/v1/weather/edges` route** | — | — | **relied on `scan` per-city guards** | **added top-level `try` → honest-empty `cities=[]`, failure NOT cached (retries next call)** |
+| **Neon async engine (`db/session.py`)** | **none** | pool_pre_ping | request errors → 500 (inherent) | **added asyncpg `connect_args={"timeout": 15.0}` so a hung Neon cold-start fails fast instead of blocking indefinitely** |
+
+Hardened (exact list): `app/api/v1/macro.py::macro_dashboard`,
+`app/api/v1/weather.py::weather_edges`,
+`app/db/session.py::async_engine_settings` (asyncpg connect timeout).
+
+Test: `tests/test_connector_resilience.py` monkeypatches `FredConnector.fetch_indicators`
+(→ `httpx.TimeoutException`) and `WeatherDeskService.scan` (→ `httpx.ConnectError`)
+and asserts the dependent public GET returns `<500` with an honest-empty body,
+plus that a weather failure is not cached.

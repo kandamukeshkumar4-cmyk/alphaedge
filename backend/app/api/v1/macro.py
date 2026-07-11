@@ -6,6 +6,7 @@ daily) so we don't hammer the upstream APIs on every page load.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 
 from fastapi import APIRouter
@@ -15,6 +16,7 @@ from app.core.config import get_settings
 from app.data.connectors.fred import FredConnector, MacroIndicator
 
 router = APIRouter(prefix="/api/v1", tags=["macro"])
+logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SEC = 6 * 3600  # macro data moves slowly; refresh at most 4x/day
 
@@ -70,8 +72,16 @@ async def macro_dashboard() -> MacroOut:
             return cached  # type: ignore[return-value]
         settings = get_settings()
         connector = FredConnector(api_key=settings.fred_api_key)
-        # The connector uses blocking httpx; run off the event loop.
-        result = await asyncio.to_thread(_build, connector)
+        # The connector uses blocking httpx; run off the event loop. R02: a
+        # total connector failure (timeout/raise) must degrade this PUBLIC GET
+        # to an honest-empty dashboard, never a 5xx. The per-series guards in
+        # FredConnector already swallow single-series failures; this is the
+        # belt-and-suspenders guard for an unexpected top-level raise.
+        try:
+            result = await asyncio.to_thread(_build, connector)
+        except Exception:  # noqa: BLE001 - honest-empty degrade, never 5xx
+            logger.warning("Macro dashboard upstream fetch failed", exc_info=True)
+            result = MacroOut(indicators=[], source="none", updated_at=int(time.time()))
         # Never cache an empty/failed fetch for the full TTL — a transient
         # upstream blip would otherwise blank the dashboard for 6h. Only a
         # successful, non-empty result is cached; empties are retried next call.
