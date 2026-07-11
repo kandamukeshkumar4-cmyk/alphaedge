@@ -381,7 +381,7 @@ export default function ForecastMirrorPage() {
                 <DetailStat label="Headline" value={countLabel(dashboard?.live.headline_count)} />
                 <DetailStat label="Edge" value={scoreLabel(dashboard?.live.mean_brier_delta)} />
                 <DetailStat
-                  label="Synthetic PnL"
+                  label="Synthetic P&L"
                   value={moneyLabel(dashboard?.live.synthetic_pnl_total)}
                 />
                 <DetailStat

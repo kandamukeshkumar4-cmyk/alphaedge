@@ -12,7 +12,7 @@ import { useAtlasPanel } from "@/context/atlas-panel";
 import { WatchlistStar } from "@/components/WatchlistStar";
 
 // Questflow-style grid card: name, live price, 24h change, volume, sparkline,
-// then Long / Short / AI Analyze action row.
+// then Yes / No / AI Analyze action row (YES/NO vocabulary matches the trade panels).
 export function QuestMarketCard({ market }: { market: Market }) {
   const router = useRouter();
   const { openPanel } = useAtlasPanel();
@@ -75,14 +75,14 @@ export function QuestMarketCard({ market }: { market: Market }) {
           onClick={() => router.push(`/trade?slug=${encodeURIComponent(market.slug)}&side=yes`)}
           className="rounded-md border border-primary/25 bg-primary-dim px-1.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary hover:text-bg"
         >
-          ↑ Long
+          ↑ Yes
         </button>
         <button
           type="button"
           onClick={() => router.push(`/trade?slug=${encodeURIComponent(market.slug)}&side=no`)}
           className="rounded-md border border-danger/25 bg-danger-dim px-1.5 py-1 text-[11px] font-semibold text-danger transition hover:bg-danger hover:text-bg"
         >
-          ↓ Short
+          ↓ No
         </button>
         <button
           type="button"

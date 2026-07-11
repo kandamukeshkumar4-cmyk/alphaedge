@@ -68,7 +68,7 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
           Your balance resets if you clear local data. Top up anytime from the portfolio page.
         </p>
         <p>
-          Compete with other traders on the leaderboard — ranked by realized PnL from settled
+          Compete with other traders on the leaderboard — ranked by realized P&L from settled
           trades.
         </p>
       </div>

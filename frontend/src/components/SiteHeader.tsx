@@ -126,10 +126,10 @@ export function SiteHeader() {
             <Link
               href="/portfolio"
               className="hidden h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"
-              aria-label="Add paper funds"
-              title="Add paper funds (simulated)"
+              aria-label="View paper balance and portfolio"
+              title="View your paper balance and positions"
             >
-              Deposit
+              Portfolio
             </Link>
             {isLoggedIn ? (
               <>

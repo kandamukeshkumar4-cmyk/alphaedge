@@ -71,7 +71,7 @@ export function PortfolioRiskPanel({ token }: { token: string }) {
         <>
           <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Stat
-              label="Realized PnL"
+              label="Realized P&L"
               value={formatUSD(risk.total_realized_pnl)}
               tone={risk.total_realized_pnl >= 0 ? "up" : "down"}
             />
@@ -84,7 +84,7 @@ export function PortfolioRiskPanel({ token }: { token: string }) {
               label="Max drawdown"
               value={formatUSD(risk.max_drawdown)}
               tone={risk.max_drawdown > 0 ? "down" : undefined}
-              hint="Largest peak-to-trough fall of cumulative realized PnL"
+              hint="Largest peak-to-trough fall of cumulative realized P&L"
             />
             <Stat
               label="Sharpe (per trade)"
