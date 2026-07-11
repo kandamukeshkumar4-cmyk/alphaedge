@@ -427,6 +427,10 @@ export function PriceChart({
         ref={containerRef}
         className="mt-3 w-full"
         style={{ height }}
+        role="img"
+        aria-label={`Price history chart, currently ${cents(shown)}${
+          typeof modelProb === "number" ? `, AI estimate ${cents(modelProb)}` : ""
+        }`}
       />
     </div>
   );

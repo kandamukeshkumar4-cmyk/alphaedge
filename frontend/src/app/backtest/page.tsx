@@ -19,7 +19,7 @@ import Link from "next/link";
 import { BacktestRunner } from "@/components/BacktestRunner";
 import { BacktestWalkForward } from "@/components/BacktestWalkForward";
 import { SelfServeBacktest } from "@/components/SelfServeBacktest";
-import { EquityCurveChart } from "@/components/EquityCurveChart";
+import { EquityCurveChart } from "@/components/EquityCurveChartLazy";
 import { FillQualityTable } from "@/components/FillQualityTable";
 import { type BacktestRunResult, type BrierPoint } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";

@@ -11,7 +11,7 @@ import {
   timeUntil,
   toneClass,
 } from "@/lib/mock-data";
-import { PriceChart } from "@/components/PriceChart";
+import { PriceChart } from "@/components/PriceChartLazy";
 import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
@@ -23,7 +23,7 @@ import { MarketTradingPanel } from "@/components/MarketTradingPanel";
 import { LatencyBadge } from "@/components/LatencyBadge";
 import { WatchlistStar } from "@/components/WatchlistStar";
 import { OrderbookDepthChart } from "@/components/OrderbookDepthChart";
-import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChart";
+import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChartLazy";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
 import {

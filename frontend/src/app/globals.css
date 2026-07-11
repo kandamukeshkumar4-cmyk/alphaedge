@@ -214,6 +214,21 @@
 }
 
 /*
+ * T03 (Loop V12) — global keyboard focus ring. `:where()` keeps the selector at
+ * specificity 0, so every component-level focus style (focus:border-accent,
+ * focus:outline-none, focus-visible:ring-*, …) still wins the cascade — this
+ * only paints a visible ring on interactive elements that would otherwise show
+ * none under keyboard navigation. `:focus-visible` = keyboard/AT focus only, so
+ * pointer interaction is visually unchanged.
+ */
+:where(a, button, input, select, textarea, summary,
+  [role="button"], [role="tab"], [role="combobox"], [role="switch"],
+  [tabindex]):focus-visible {
+  outline: 2px solid #00C9A0;
+  outline-offset: 2px;
+}
+
+/*
  * Astryx (Meta design system) brand overrides. theme.css defines tokens in
  * @layer astryx-theme scoped to [data-astryx-theme]; this unlayered block
  * wins the cascade and re-brands every Astryx component (Button, Badge,
