@@ -28,6 +28,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/schemas/market.py` | Workstream B | B3 | RELEASED 2026-07-13T15:54:52-04:00 |
 | `backend/app/schemas/portfolio.py` | Workstream B | B2 | RELEASED 2026-07-13T15:47:32-04:00 |
 | `backend/app/schemas/leaderboard.py` | Workstream B | B1 | RELEASED 2026-07-13T15:31:23-04:00 |
 | `backend/app/api/v1/routes.py` | Workstream A | A1 | RELEASED 2026-07-13T11:18:08-04:00 |
@@ -58,7 +59,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 |----|--------|--------|------------------|
 | B1 | Leaderboard completed | DONE | Started 2026-07-13T15:13:51-04:00. DIR-B-001 acknowledged.<br>Exists: ranked realized_pnl + win_rate, LIMIT 20, email-local usernames, basic tests.<br>Missing at start: ROI, pagination, TTL cache, anonymized names, tie/zero-settled/negative-ROI tests.<br>Implemented: `analytics_leaderboard` ranking math (ROI, stable UUID tie-break, exclude zero-settled); additive `roi`/`limit`/`offset`/`total`/`sort`/`cached`; 5s `leaderboard_cache` (put only on success — verifier NEEDS-FIX for error-cache poisoning fixed before DONE); `Trader-{hash6}` anonymization (display_name preferred); tests for ties, zero-settled exclusion, negative ROI, pagination, cache hit. Docs: `notes-b1-leaderboard.md`.<br>Incidental gate fix (honest, out-of-product): stubbed `warmup_db` in `test_inprocess_scheduler.py` so lifespan tests do not require localhost Postgres when Docker is down (same env as A6).<br>Gate: backend `1387 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS after cache-poisoning fix. Manual review fallback for requesting-code-review. Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T15:31:23-04:00. |
 | B2 | Performance attribution | DONE | Started 2026-07-13T15:37:27-04:00. Orchestrator REVIEW B1 PASS acknowledged before start.<br>Exists: `/portfolio/risk` (E12); `_load_paper_orders` double-counts SUM(realized_pnl)+settlement.<br>Implemented: `GET /api/v1/portfolio/attribution` + `analytics_attribution` (SELL realized XOR remaining settlement); top/bottom, ROI, monthly, category; tests prove 3.4 not E12-style 5.4. Docs: notes-b2-attribution.md.<br>Gate: `1395 passed, 28 skipped`; ruff clean. Fresh verifier: PASS. Completed 2026-07-13T15:47:32-04:00. |
-| B3 | Watchlists completed | TODO | migration 035 exists — read first |
+| B3 | Watchlists completed | DONE | Started 2026-07-13T15:48:19-04:00. Orchestrator REVIEW B2 PASS ack.<br>Exists: migration 035, full CRUD + dedupe/idempotent tests.<br>Added: additive `watching_count` on `GET /markets/{slug}/detail`. Docs: notes-b3-watchlists.md.<br>Gate: `1396 passed, 28 skipped`; ruff clean. Completed 2026-07-13T15:54:52-04:00. |
 | B4 | Trade activity feed + WS topic | TODO | |
 | B5 | Equity-curve snapshots | TODO | needs migration — claim number |
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import MarketResolution, MarketStatus
+from app.db.models import MarketResolution, MarketStatus, Watchlist
 from app.db.session import get_db
 from app.schemas.market import (
     MarketDetailForecast,
@@ -51,6 +51,13 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
             provisional=forecast_result.provisional,
         )
 
+    watching_count = int(
+        await db.scalar(
+            select(func.count()).select_from(Watchlist).where(Watchlist.slug == slug)
+        )
+        or 0
+    )
+
     return MarketDetailResponse(
         slug=market.slug,
         title=market.title,
@@ -69,6 +76,7 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
         resolution_outcome=resolution_outcome,
         winning_outcome=winning_outcome,
         resolved_at=resolved_at,
+        watching_count=watching_count,
     )
 
 
