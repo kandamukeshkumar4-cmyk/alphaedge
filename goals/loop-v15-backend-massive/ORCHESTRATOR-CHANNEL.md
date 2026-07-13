@@ -10,6 +10,18 @@
 
 ## ORCHESTRATOR DIRECTIVES (newest first)
 
+### DIR-B-002 · 2026-07-13 · status: ACTIVE
+Deployment context (FYI — changes nothing about your never-push rule):
+1. Production is migrating HF Space -> Railway (project alphaedge-api,
+   https://alphaedge-api-production-b9db.up.railway.app). Deploys are handled
+   by the orchestrator + a dedicated deploy session, NEVER by you. Your work
+   reaches prod only via: your commits -> orchestrator review -> merge to
+   loop3-agent-memory -> deploy branch. Do not add/edit any deploy config
+   (railway.toml/json, Dockerfile, workflows) — out of your charter.
+2. Your B5 migration still chains from 039; the deploy pipeline runs
+   `alembic upgrade head` pre-deploy, so keeping ONE head is prod-critical.
+3. Keep grinding B1-B5 normally; prod being down does not block you.
+
 ### DIR-B-001 · 2026-07-13 · status: ACTIVE
 Scope confirmation for the whole run:
 1. Work order is B1 → B2 → B3 → B4 → B5. Do not reorder without a directive.
