@@ -1,10 +1,16 @@
+import asyncio
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -63,3 +69,39 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+async def warmup_db(*, retries: int = 5, delay_sec: float = 2.0) -> bool:
+    """REL-COLD-DB — open one real connection at startup, retrying while a
+    managed Postgres endpoint (Neon) resumes from scale-to-zero.
+
+    Boot races the DB cold start: without this, the first startup query (account
+    seeding) could raise on a still-suspended endpoint. Retrying a cheap
+    ``SELECT 1`` a few times both survives that race and primes the pool so the
+    first user request hits a live connection instead of a 503. Returns True on
+    success; on exhaustion it logs and returns False rather than crashing —
+    requests then degrade to 503 via the app's db_unavailable_handler until the
+    endpoint answers.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            if attempt > 1:
+                logger.info("Database reachable after %d attempt(s)", attempt)
+            return True
+        except (OperationalError, InterfaceError) as exc:
+            if attempt >= retries:
+                logger.warning(
+                    "Database still unavailable after %d attempts: %s", retries, exc
+                )
+                return False
+            logger.info(
+                "Database not ready (attempt %d/%d), retrying in %.0fs — likely "
+                "cold start",
+                attempt,
+                retries,
+                delay_sec,
+            )
+            await asyncio.sleep(delay_sec)
+    return False

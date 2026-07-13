@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import InterfaceError, OperationalError
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -312,6 +313,11 @@ async def _wc2026_resolve_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
+    # seeding query so boot survives Neon scale-from-zero and the pool is primed.
+    from app.db.session import warmup_db
+
+    await warmup_db()
     async with AsyncSessionLocal() as session:
         svc = MarketService(session)
         await svc.seed_system_account(
@@ -437,6 +443,40 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
+async def db_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+    """REL-COLD-DB — a managed-Postgres connectivity failure is transient, not a
+    500. On Neon scale-to-zero the first request after idle can hit a DB that is
+    still resuming; without this every data endpoint (markets/signals/memories)
+    returned a raw 500 and the recruiter saw a broken page. Map DB-connectivity
+    errors to 503 + Retry-After so the client retries and the frontend degrades
+    to its loading/Demo state (E02/H-REL-01) instead of an error. Generalizes
+    the per-endpoint portfolio 503 (AUD-07) to every route at the right depth.
+
+    Scope is deliberately narrow: only ``OperationalError``/``InterfaceError``
+    (connection refused/reset/timeout). A ``ProgrammingError`` (bad SQL) or any
+    other exception still falls through to the 500 handler — a cold DB must not
+    mask a real bug.
+    """
+    request_id = getattr(request.state, "request_id", None)
+    logger.warning(
+        "Database unavailable — returning 503 (transient, likely cold start)",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "exception_type": type(exc).__name__,
+        },
+    )
+    headers = {"Retry-After": "3"}
+    if request_id:
+        headers["X-Request-ID"] = request_id
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Service temporarily unavailable, please retry."},
+        headers=headers,
+    )
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """R03 — structured 5xx logging + request-id, generic body (no info leak).
 
@@ -466,6 +506,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
+app.add_exception_handler(OperationalError, db_unavailable_handler)
+app.add_exception_handler(InterfaceError, db_unavailable_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(HttpMetricsMiddleware)
