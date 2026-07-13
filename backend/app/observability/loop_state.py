@@ -34,6 +34,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "morning_research": 86400,
     "whale_refresh": 604800,
     "wc2026_resolve": 600,
+    "external_resolve": 900,
 }
 
 

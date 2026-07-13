@@ -12,7 +12,18 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class VenueMarket:
-    """Normalized market identity + close time for matcher / catalog use."""
+    """Normalized market identity + close time for matcher / catalog use.
+
+    Resolution fields (V14 F01) surface the venue's terminal settlement so the
+    server can flip an ``ExternalMarket`` to RESOLVED from real venue data:
+
+    - ``status``: the venue-reported lifecycle string (best-effort, informational).
+    - ``resolved``: True ONLY when the venue reports an unambiguous terminal
+      outcome. VOID / invalid / non-terminal (still trading, disputed, 50-50)
+      stay False.
+    - ``winning_outcome``: 1 == resolved YES, 0 == resolved NO, ``None`` when not
+      terminally resolved. Never guessed — set only alongside ``resolved=True``.
+    """
 
     venue_id: str
     external_id: str
@@ -20,6 +31,9 @@ class VenueMarket:
     title: str
     close_time: datetime | None
     last_price: float | None = None
+    status: str | None = None
+    resolved: bool = False
+    winning_outcome: int | None = None
 
 
 @dataclass(frozen=True)

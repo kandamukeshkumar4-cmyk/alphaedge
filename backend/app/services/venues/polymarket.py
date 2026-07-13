@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from app.data.connectors.base import parse_timestamp, probability_from_decimalish
+from app.data.connectors.base import (
+    decode_jsonish,
+    parse_timestamp,
+    probability_from_decimalish,
+)
 from app.data.connectors.polymarket import (
     PolymarketGammaConnector,
     implied_yes_from_gamma_payload,
@@ -36,6 +40,25 @@ class PolymarketVenueAdapter:
             except ValueError:
                 continue
         return markets
+
+    def fetch_market(self, external_id: str) -> VenueMarket | None:
+        """Fetch + normalize ONE market by slug, including closed/resolved ones.
+
+        ``list_active_markets`` omits closed markets, so terminal resolution can
+        only be observed via this single-market Gamma fetch. Returns ``None`` on
+        an unavailable market (not found / non-object payload / fetch error).
+        """
+        slug = _strip_pm_prefix(external_id)
+        try:
+            payload = self.connector.fetch_market_payload(slug)
+        except Exception:  # noqa: BLE001 - unavailable market → caller skips
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            return self.normalize(payload)
+        except ValueError:
+            return None
 
     def fetch_orderbook_summary(self, external_id: str) -> OrderbookSummary:
         slug = _strip_pm_prefix(external_id)
@@ -91,6 +114,7 @@ class PolymarketVenueAdapter:
             close_time = parse_timestamp(close_raw)
         else:
             close_time = None
+        status, resolved, winning_outcome = _parse_polymarket_resolution(payload)
         return VenueMarket(
             venue_id=self.venue_id,
             external_id=external,
@@ -98,6 +122,9 @@ class PolymarketVenueAdapter:
             title=title,
             close_time=close_time,
             last_price=implied_yes_from_gamma_payload(payload),
+            status=status,
+            resolved=resolved,
+            winning_outcome=winning_outcome,
         )
 
 
@@ -135,3 +162,60 @@ def _mid(bid: float | None, ask: float | None) -> float | None:
     if bid is not None and ask is not None:
         return round((bid + ask) / 2.0, 4)
     return bid if bid is not None else ask
+
+
+# Prices this close to the poles are treated as a terminal $1 / $0 settlement.
+_RESOLVED_HIGH = 0.99
+_RESOLVED_LOW = 0.01
+
+
+def _parse_polymarket_resolution(
+    payload: dict[str, Any],
+) -> tuple[str | None, bool, int | None]:
+    """Pure parse of Polymarket resolution from a Gamma market payload.
+
+    Terminal only when ``closed`` is true AND (if present) ``umaResolutionStatus``
+    is ``resolved`` AND ``outcomePrices`` unambiguously settle one outcome to $1.
+    VOID / disputed / still-open / 50-50 → ``(status, False, None)``.
+    """
+    closed = payload.get("closed") is True
+    uma_raw = payload.get("umaResolutionStatus")
+    uma = str(uma_raw).strip().lower() if uma_raw not in (None, "") else None
+
+    if not closed:
+        return ("open", False, None)
+    # UMA oracle present but not yet terminally resolved (proposed/disputed/...).
+    if uma is not None and uma != "resolved":
+        return (uma, False, None)
+
+    outcomes = decode_jsonish(payload.get("outcomes"))
+    prices = decode_jsonish(payload.get("outcomePrices") or payload.get("outcome_prices"))
+    winner = _winning_outcome_from_prices(outcomes, prices)
+    if winner is None:
+        # Closed but ambiguous / voided settlement — do not fabricate an outcome.
+        return ("closed", False, None)
+    return ("resolved", True, winner)
+
+
+def _winning_outcome_from_prices(outcomes: object, prices: object) -> int | None:
+    """Return 1 (YES) / 0 (NO) when outcomePrices show one clean $1 winner, else None."""
+    if not isinstance(prices, list) or not prices:
+        return None
+    values: list[float] = []
+    for price in prices:
+        try:
+            values.append(float(price))
+        except (TypeError, ValueError):
+            return None
+    highs = [i for i, v in enumerate(values) if v >= _RESOLVED_HIGH]
+    lows = [i for i, v in enumerate(values) if v <= _RESOLVED_LOW]
+    # Unambiguous iff exactly one pole-high and every other value pole-low.
+    if len(highs) != 1 or len(highs) + len(lows) != len(values):
+        return None
+    yes_index = 0
+    if isinstance(outcomes, list):
+        for index, outcome in enumerate(outcomes):
+            if str(outcome).strip().lower() == "yes":
+                yes_index = index
+                break
+    return 1 if highs[0] == yes_index else 0

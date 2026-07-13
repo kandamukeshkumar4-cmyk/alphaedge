@@ -24,6 +24,15 @@ class VenueAdapter(Protocol):
         """Last / implied YES price for one market."""
         ...
 
+    def fetch_market(self, external_id: str) -> VenueMarket | None:
+        """Fetch + normalize ONE market by external id (incl. closed markets).
+
+        The active/open listing usually omits closed markets, so resolving a
+        specific past-close market requires this single-market fetch. Returns
+        ``None`` when the market is unavailable (not found / fetch error).
+        """
+        ...
+
     def normalize(self, payload: dict[str, Any]) -> VenueMarket:
         """Map a raw venue payload to slug / title / close_time (+ price)."""
         ...

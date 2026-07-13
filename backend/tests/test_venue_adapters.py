@@ -138,6 +138,58 @@ def test_kalshi_orderbook_and_last_price():
     assert last.captured_at == datetime(2026, 1, 14, 18, 0, tzinfo=UTC)
 
 
+def test_polymarket_resolution_parsing():
+    """F01 — Polymarket normalize() surfaces terminal resolution, never guesses."""
+    adapter = _polymarket_adapter()
+
+    open_market = adapter.normalize(_load("polymarket_market_detail.json"))
+    assert open_market.resolved is False
+    assert open_market.winning_outcome is None
+    assert open_market.status == "open"
+
+    yes = adapter.normalize(_load("polymarket_resolved_yes.json"))
+    assert yes.resolved is True
+    assert yes.winning_outcome == 1
+    assert yes.status == "resolved"
+
+    no = adapter.normalize(_load("polymarket_resolved_no.json"))
+    assert no.resolved is True
+    assert no.winning_outcome == 0
+
+    void = adapter.normalize(_load("polymarket_void.json"))
+    assert void.resolved is False
+    assert void.winning_outcome is None
+
+    # Closed but UMA oracle not terminally resolved (disputed) → not terminal.
+    pending = adapter.normalize(_load("polymarket_closed_uma_pending.json"))
+    assert pending.resolved is False
+    assert pending.winning_outcome is None
+
+
+def test_kalshi_resolution_parsing():
+    """F01 — Kalshi normalize() surfaces terminal resolution, never guesses."""
+    adapter = _kalshi_adapter()
+
+    open_market = adapter.normalize(_load("kalshi_market_detail.json"))
+    assert open_market.resolved is False
+    assert open_market.winning_outcome is None
+    assert open_market.status == "open"
+
+    yes = adapter.normalize(_load("kalshi_resolved_yes.json"))
+    assert yes.resolved is True
+    assert yes.winning_outcome == 1
+    assert yes.status == "finalized"
+
+    no = adapter.normalize(_load("kalshi_resolved_no.json"))
+    assert no.resolved is True
+    assert no.winning_outcome == 0
+    assert no.status == "settled"
+
+    void = adapter.normalize(_load("kalshi_void.json"))
+    assert void.resolved is False
+    assert void.winning_outcome is None
+
+
 def test_venue_registry():
     reset_venue_registry_for_tests(None)
     assert set(list_venue_ids()) == {"kalshi", "polymarket"}
