@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.event_bus import get_event_bus
@@ -108,6 +108,23 @@ async def settle_market(
 
         has_shares = pos.yes_shares != 0 or pos.no_shares != 0
         if not has_shares:
+            continue
+
+        # Claim the position before issuing any ledger mutation. The compare-
+        # and-set makes concurrent settlement sessions race on one database
+        # write; only the winner may credit or debit this position.
+        claimed = await session.execute(
+            update(Position)
+            .where(Position.id == pos.id, Position.settled.is_(False))
+            .values(
+                yes_shares=Decimal("0"),
+                no_shares=Decimal("0"),
+                settled=True,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if claimed.rowcount != 1:
+            skipped_already_settled += 1
             continue
 
         payout = Decimal("0")

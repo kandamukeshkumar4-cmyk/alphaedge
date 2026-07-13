@@ -36,7 +36,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
 | A1 | CLOB idempotency (M-RACE-01) | DONE | Resumed 2026-07-13T10:34:51-04:00 under orchestrator ruling.<br>Exists: CLOB submission is `POST /api/v1/markets/{slug}/orders` in `backend/app/api/v1/routes.py`; `OrderBookService.submit_order` persists `Order` rows, while migration 037 only protects `paper_orders`.<br>Missing at start: no CLOB idempotency header/field, no durable `(account_id, idempotency_key)` uniqueness, and no concurrent replay test.<br>Implemented: additive `Idempotency-Key` header plumbing; nullable `Order.idempotency_key`; migration 038 unique `(account_id, idempotency_key)` constraint; service replay plus unique-race recovery; response refresh for byte-equivalent acknowledgements; sequential and concurrent duplicate tests. The `RiskService -> OrderIntent -> OrderBookService` path and paper-only boundary remain intact.<br>Gate: deterministic `py -3.13 orchestration/gate.py` PASS on the rebased tree — backend `1369 passed, 28 skipped`; backend ruff, frontend typecheck, 55-file/341-test frontend suite, and frontend build all passed.<br>Live API: bounded local Uvicorn smoke returned identical acknowledgements with order id `be3a425d-182c-48e0-a47a-4956da10925a`; database proof was `order_count=1`, `order_submitted_events=1`, one YES bid at price 0.55/size 10.0.<br>Fresh verifier: PASS — 31 focused tests, changed-file ruff, `038_clob_order_idempotency (head)`, and `git diff --check` all exited 0. The trailing Windows pytest temp-cleanup warning occurred after exit 0 and is non-blocking.<br>Manual review fallback used because `requesting-code-review` is unavailable. Bumblebee: not applicable (no dependency, manifest, lockfile, loader, or deployment-image change). AutoLab: not applicable (no iterative measure). |
-| A2 | Atomic settlement credit (M-REL-02) | TODO (UNBLOCKED 2026-07-13 — ledger_service.py + settlement_service.py now in A's exclusive charter) | Started 2026-07-13T10:19:38-04:00.<br>Exists: `settle_market` calls `LedgerService.credit`; `credit` locks the account and then mutates `account.cash_balance += amount` before inserting the ledger entry.<br>Missing: the required single atomic `UPDATE accounts SET cash_balance = cash_balance + :amount RETURNING cash_balance` and a concurrent-settlement invariant test.<br>Plan/blocker: the correct change must edit `backend/app/services/settlement_service.py` and/or `backend/app/services/ledger_service.py`; neither matches Workstream A's exclusive `backend/app/services/order_*` ownership. User/orchestrator must expand ownership or reassign A2. AutoLab: not applicable (no iterative measure). |
+| A2 | Atomic settlement credit (M-REL-02) | DONE | Resumed 2026-07-13T11:20:08-04:00 under the expanded Workstream A charter.<br>Exists at start: `settle_market` skipped positions with an existing settlement entry or `settled=True`; `LedgerService.credit` locked the account and then mutated `account.cash_balance += amount`; the non-negative debit guard existed.<br>Missing at start: the required single atomic `UPDATE accounts SET cash_balance = cash_balance + :amount RETURNING cash_balance`; the settlement skip was a read-then-write race, so concurrent sessions could both credit before either marked the position settled; no concurrent-settlement invariant test existed.<br>Implemented: `LedgerService.credit/debit` now performs one guarded `UPDATE ... RETURNING`; a per-position compare-and-set claims settlement before any ledger mutation; claim, balance mutation, and ledger entry remain in the same transaction. Concurrent file-backed tests prove exactly one positive credit or liability debit lands and final balance is never negative. Baseline 28 focused tests; result 30 passed.<br>Gate: deterministic `py -3.13 orchestration/gate.py` PASS — backend `1371 passed, 28 skipped`; backend ruff, frontend typecheck, 55-file/341-test frontend suite, and frontend build all passed.<br>Live API: `POST /api/v1/admin/markets/nba-2025-01-15-lal-bos/resolve` returned `settled=2`, `total_payout=10.0000`, `paper_trading_only=true`; database proof: winner 100→110, liability account 10→0, exactly two balanced settlement entries, both positions settled and zeroed.<br>Fresh verifier: PASS — 30 focused tests, changed-file ruff, and `git diff --check` exited 0; verifier confirmed rollback atomicity. Manual review fallback used because `requesting-code-review` is unavailable. Bumblebee: not applicable (no dependency/deployment change). AutoLab: not applicable (no iterative measure). Completed 2026-07-13T11:30:16-04:00. |
 | A3 | Order cancellation endpoint | TODO (UNBLOCKED 2026-07-13 — routes.py + ws.py order regions available under shared-file protocol; claim first) | Started 2026-07-13T10:20:46-04:00.<br>Exists: `POST /api/v1/orders/{order_id}/cancel` and `OrderBookService.cancel_order` already cancel OPEN/PARTIAL orders; current tests prove a basic cancel releases computed reserved cash.<br>Missing: owner mismatch returns 400 rather than 403, filled/cancelled returns 400 rather than 409, cancellation lacks row locking/idempotent concurrent behavior, and no order-status event is exposed through the public WS multiplexer.<br>Plan/blocker: service locking/event emission fits `order_*`, but end-to-end completion also requires out-of-charter `backend/app/api/v1/routes.py` and `backend/app/api/v1/ws.py`. User/orchestrator must expand ownership or reassign A3. AutoLab: not applicable (no iterative measure). |
 | A4 | Order expiration (GTD) sweep | TODO | |
 | A5 | Order history/status API | TODO | |
@@ -100,6 +100,32 @@ Ownership audit (2026-07-13): `loop-grok-backend` has live uncommitted edits in 
 ```text
 === GATE: backend pytest ===
 1369 passed, 28 skipped in 281.48s (0:04:41)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== GATE: frontend typecheck ===
+PASS frontend typecheck (exit 0)
+
+=== GATE: frontend test ===
+Test Files  55 passed (55)
+Tests  341 passed (341)
+PASS frontend test (exit 0)
+
+=== GATE: frontend build ===
+PASS frontend build (exit 0)
+
+=== GATE VERDICT ===
+PASS: all checks green
+```
+
+2026-07-13 · A · A2 · DONE · Settlement balance changes now use a guarded atomic `UPDATE ... RETURNING`, and a position compare-and-set prevents concurrent sessions from issuing duplicate settlement ledger mutations. Live admin-resolution proof preserved winner/liability balances and paper-only mode. Fresh-context verifier verdict: PASS.
+
+```text
+=== GATE: backend pytest ===
+1371 passed, 28 skipped in 242.04s (0:04:02)
 PASS backend pytest (exit 0)
 
 === GATE: backend ruff ===

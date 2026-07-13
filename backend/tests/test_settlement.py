@@ -1,19 +1,24 @@
 """Tests for settlement_service (Loop R)."""
 
+import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.db.base import Base
 from app.db.models import (
     Account,
     LedgerEntry,
     LedgerEntryType,
+    Market,
     MarketStatus,
     OrderOutcome,
     OrderSide,
     OrderType,
+    Position,
 )
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
@@ -228,3 +233,90 @@ async def test_settle_market_sets_resolved_status(db_session):
 async def test_settle_market_unknown_slug_raises(db_session):
     with pytest.raises(ValueError, match="Market not found"):
         await settle_market(db_session, "missing-slug-xyz", "YES")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("shares", "starting_balance", "expected_balance", "expected_amount"),
+    [
+        (Decimal("10"), Decimal("100"), Decimal("110"), Decimal("10")),
+        (Decimal("-10"), Decimal("10"), Decimal("0"), Decimal("-10")),
+    ],
+)
+async def test_concurrent_settlements_claim_once_and_preserve_balance_invariant(
+    tmp_path,
+    shares,
+    starting_balance,
+    expected_balance,
+    expected_amount,
+):
+    database_path = (tmp_path / "concurrent-settlement.sqlite3").as_posix()
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{database_path}",
+        connect_args={"timeout": 30},
+    )
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    slug = f"concurrent-settlement-{'credit' if shares > 0 else 'debit'}"
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+        async with factory() as setup_session:
+            market = Market(
+                slug=slug,
+                title="Concurrent settlement invariant",
+                question="Will exactly one settlement mutation land?",
+                status=MarketStatus.RESOLVED,
+                winning_outcome=OrderOutcome.YES,
+            )
+            account = Account(name="Settlement account", cash_balance=starting_balance)
+            setup_session.add_all([market, account])
+            await setup_session.flush()
+            setup_session.add(
+                Position(
+                    account_id=account.id,
+                    market_id=market.id,
+                    yes_shares=shares,
+                    avg_yes_cost=Decimal("0.50"),
+                )
+            )
+            await setup_session.commit()
+            account_id = account.id
+            market_id = market.id
+
+        async def settle_once() -> dict[str, int | str]:
+            async with factory() as session:
+                summary = await settle_market(session, slug, "YES")
+                await session.commit()
+                return summary
+
+        summaries = await asyncio.gather(settle_once(), settle_once())
+        assert sum(summary["settled"] for summary in summaries) == 1
+
+        async with factory() as verification_session:
+            balance = await verification_session.scalar(
+                select(Account.cash_balance).where(Account.id == account_id)
+            )
+            entries = (
+                await verification_session.scalars(
+                    select(LedgerEntry).where(
+                        LedgerEntry.account_id == account_id,
+                        LedgerEntry.market_id == market_id,
+                        LedgerEntry.entry_type == LedgerEntryType.SETTLEMENT,
+                    )
+                )
+            ).all()
+            unsettled = await verification_session.scalar(
+                select(func.count())
+                .select_from(Position)
+                .where(Position.market_id == market_id, Position.settled.is_(False))
+            )
+
+        assert balance == expected_balance
+        assert balance >= 0
+        assert len(entries) == 1
+        assert entries[0].amount == expected_amount
+        assert entries[0].balance_after == expected_balance
+        assert unsettled == 0
+    finally:
+        await engine.dispose()

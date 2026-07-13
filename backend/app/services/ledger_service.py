@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Account, LedgerEntry, LedgerEntryType
@@ -29,23 +29,34 @@ class LedgerService:
         description: str = "",
         market_id: UUID | None = None,
     ) -> LedgerEntry:
-        account = await self.get_account(account_id, lock=True)
-        account.cash_balance += amount
-        # Audit H-REL-01/M-REL-01: cash must never go negative. A debit that
-        # would overdraw means a reservation/fill invariant was violated
-        # upstream — fail loudly under the account lock instead of persisting a
-        # negative balance.
-        if account.cash_balance < 0:
+        # Audit M-REL-02: mutate the balance in one database statement so
+        # concurrent settlement credits cannot overwrite one another after a
+        # stale read. The negative guard stays inside the same statement.
+        stmt = update(Account).where(Account.id == account_id)
+        if amount < 0:
+            stmt = stmt.where(Account.cash_balance >= -amount)
+        updated = await self.session.execute(
+            stmt.values(cash_balance=Account.cash_balance + amount).returning(
+                Account.cash_balance
+            )
+        )
+        balance_after = updated.scalar_one_or_none()
+        if balance_after is None:
+            current_balance = await self.session.scalar(
+                select(Account.cash_balance).where(Account.id == account_id)
+            )
+            if current_balance is None:
+                raise ValueError(f"Account {account_id} not found")
             raise ValueError(
                 f"Ledger operation would overdraw account {account_id}: "
-                f"balance {account.cash_balance + (-amount)} + {amount} < 0"
+                f"balance {current_balance} + {amount} < 0"
             )
         entry = LedgerEntry(
             account_id=account_id,
             market_id=market_id,
             entry_type=entry_type,
             amount=amount,
-            balance_after=account.cash_balance,
+            balance_after=balance_after,
             description=description,
         )
         self.session.add(entry)
