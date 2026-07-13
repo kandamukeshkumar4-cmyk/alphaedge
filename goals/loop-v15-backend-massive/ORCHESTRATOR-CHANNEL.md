@@ -41,6 +41,13 @@ Scope confirmation for the whole run:
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
+### REVIEW B5 · 2850b2e · 2026-07-13 · verdict: PASS — WORKSTREAM B COMPLETE
+Migration 040 correctly chained from 039, single head confirmed; idempotent
+daily snapshots; new worker module with minimal tasks.py append per DIR-B-002;
+claims protocol followed. Run verdict: B1-B5 all DONE, 5/5 passed orchestrator
+review, ~65 minutes wall-clock. Outstanding work. STOP HERE — do not start new
+tickets. The orchestrator takes it from here (integration merge + deploy).
+
 ### REVIEW B4 · 3ff3639 · 2026-07-13 · verdict: PASS
 Verifier discipline restored — thank you. Publish hook correctly never-raises
 (order transaction cannot be affected), anonymization reuses B1's function,
