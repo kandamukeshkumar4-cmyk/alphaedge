@@ -13,6 +13,7 @@ from starlette.websockets import WebSocketDisconnect
 from app.api.v1 import ws as ws_mod
 from app.api.v1.ws import router as ws_router
 from app.core.broadcast import hub
+from app.core.event_bus import get_event_bus
 
 FORBIDDEN_MESSAGE_KEYS = {"side", "stake", "order", "orders", "quantity", "account_id", "outcome"}
 
@@ -108,3 +109,27 @@ async def test_activity_feed_routes_alerts_channel(monkeypatch):
     alert = next(m for m in fake.sent if m.get("channel") == "alerts")
     assert alert["type"] == "alignment"
     assert alert["message"] == "3 layers aligned"
+
+
+@pytest.mark.asyncio
+async def test_activity_feed_routes_order_cancelled_channel(monkeypatch):
+    monkeypatch.setattr(ws_mod, "get_settings", lambda: SimpleNamespace(paper_trading_only=True))
+
+    class _OrderCancelledWS(_FakeWS):
+        async def send_json(self, data: dict) -> None:
+            self.sent.append(data)
+            if data.get("channel") == "order.cancelled":
+                raise WebSocketDisconnect()
+
+    fake = _OrderCancelledWS()
+    task = asyncio.create_task(ws_mod.activity_feed(fake))
+    await asyncio.sleep(0.05)
+    get_event_bus().publish(
+        "order.cancelled",
+        {"order_id": "order-1", "status": "cancelled"},
+    )
+    await asyncio.wait_for(task, timeout=2.0)
+
+    cancelled = next(m for m in fake.sent if m.get("channel") == "order.cancelled")
+    assert cancelled["order_id"] == "order-1"
+    assert cancelled["status"] == "cancelled"

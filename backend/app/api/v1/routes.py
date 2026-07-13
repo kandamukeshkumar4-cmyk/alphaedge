@@ -35,7 +35,11 @@ from app.schemas.market import (
     UnifiedMarketSearchResult,
 )
 from app.services.market_service import MarketService
-from app.services.order_book_service import OrderBookService
+from app.services.order_book_service import (
+    OrderBookService,
+    OrderOwnershipError,
+    OrderStateConflictError,
+)
 from app.services.paper_account_service import PaperAccountService
 from app.services.paper_signal_service import PaperSignalService
 from app.schemas.signals import (
@@ -517,10 +521,13 @@ async def cancel_order(
     obs = OrderBookService(db)
     try:
         return await obs.cancel_order(order_id, body.account_id)
+    except OrderOwnershipError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except OrderStateConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
         detail = str(e)
-        status_code = 404 if detail == "Order not found" else 400
-        raise HTTPException(status_code=status_code, detail=detail) from e
+        raise HTTPException(status_code=404, detail=detail) from e
 
 
 def _edge_vs_book(predicted_prob: float, book: dict) -> float | None:

@@ -29,8 +29,8 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 |---|---|---|---|
 | `backend/app/api/v1/routes.py` | Workstream A | A1 | RELEASED 2026-07-13T11:18:08-04:00 |
 | `backend/app/db/models.py` | Workstream A | A1 | RELEASED 2026-07-13T11:18:08-04:00 |
-| `backend/app/api/v1/routes.py` | Workstream A | A3 | CLAIMED 2026-07-13T11:31:54-04:00 |
-| `backend/app/api/v1/ws.py` | Workstream A | A3 | CLAIMED 2026-07-13T11:31:54-04:00 |
+| `backend/app/api/v1/routes.py` | Workstream A | A3 | RELEASED 2026-07-13T11:43:34-04:00 |
+| `backend/app/api/v1/ws.py` | Workstream A | A3 | RELEASED 2026-07-13T11:43:34-04:00 |
 
 ## Tickets
 
@@ -39,7 +39,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 |----|--------|--------|------------------|
 | A1 | CLOB idempotency (M-RACE-01) | DONE | Resumed 2026-07-13T10:34:51-04:00 under orchestrator ruling.<br>Exists: CLOB submission is `POST /api/v1/markets/{slug}/orders` in `backend/app/api/v1/routes.py`; `OrderBookService.submit_order` persists `Order` rows, while migration 037 only protects `paper_orders`.<br>Missing at start: no CLOB idempotency header/field, no durable `(account_id, idempotency_key)` uniqueness, and no concurrent replay test.<br>Implemented: additive `Idempotency-Key` header plumbing; nullable `Order.idempotency_key`; migration 038 unique `(account_id, idempotency_key)` constraint; service replay plus unique-race recovery; response refresh for byte-equivalent acknowledgements; sequential and concurrent duplicate tests. The `RiskService -> OrderIntent -> OrderBookService` path and paper-only boundary remain intact.<br>Gate: deterministic `py -3.13 orchestration/gate.py` PASS on the rebased tree — backend `1369 passed, 28 skipped`; backend ruff, frontend typecheck, 55-file/341-test frontend suite, and frontend build all passed.<br>Live API: bounded local Uvicorn smoke returned identical acknowledgements with order id `be3a425d-182c-48e0-a47a-4956da10925a`; database proof was `order_count=1`, `order_submitted_events=1`, one YES bid at price 0.55/size 10.0.<br>Fresh verifier: PASS — 31 focused tests, changed-file ruff, `038_clob_order_idempotency (head)`, and `git diff --check` all exited 0. The trailing Windows pytest temp-cleanup warning occurred after exit 0 and is non-blocking.<br>Manual review fallback used because `requesting-code-review` is unavailable. Bumblebee: not applicable (no dependency, manifest, lockfile, loader, or deployment-image change). AutoLab: not applicable (no iterative measure). |
 | A2 | Atomic settlement credit (M-REL-02) | DONE | Resumed 2026-07-13T11:20:08-04:00 under the expanded Workstream A charter.<br>Exists at start: `settle_market` skipped positions with an existing settlement entry or `settled=True`; `LedgerService.credit` locked the account and then mutated `account.cash_balance += amount`; the non-negative debit guard existed.<br>Missing at start: the required single atomic `UPDATE accounts SET cash_balance = cash_balance + :amount RETURNING cash_balance`; the settlement skip was a read-then-write race, so concurrent sessions could both credit before either marked the position settled; no concurrent-settlement invariant test existed.<br>Implemented: `LedgerService.credit/debit` now performs one guarded `UPDATE ... RETURNING`; a per-position compare-and-set claims settlement before any ledger mutation; claim, balance mutation, and ledger entry remain in the same transaction. Concurrent file-backed tests prove exactly one positive credit or liability debit lands and final balance is never negative. Baseline 28 focused tests; result 30 passed.<br>Gate: deterministic `py -3.13 orchestration/gate.py` PASS — backend `1371 passed, 28 skipped`; backend ruff, frontend typecheck, 55-file/341-test frontend suite, and frontend build all passed.<br>Live API: `POST /api/v1/admin/markets/nba-2025-01-15-lal-bos/resolve` returned `settled=2`, `total_payout=10.0000`, `paper_trading_only=true`; database proof: winner 100→110, liability account 10→0, exactly two balanced settlement entries, both positions settled and zeroed.<br>Fresh verifier: PASS — 30 focused tests, changed-file ruff, and `git diff --check` exited 0; verifier confirmed rollback atomicity. Manual review fallback used because `requesting-code-review` is unavailable. Bumblebee: not applicable (no dependency/deployment change). AutoLab: not applicable (no iterative measure). Completed 2026-07-13T11:30:16-04:00. |
-| A3 | Order cancellation endpoint | IN-PROGRESS | Resumed 2026-07-13T11:31:54-04:00 under shared-file claims for `routes.py` and `ws.py`.<br>Exists: `POST /api/v1/orders/{order_id}/cancel`, token/account ownership checks, and `OrderBookService.cancel_order`; a basic test proves cancellation removes computed reserved cash and the order from open-order state; a persisted `order_cancelled` domain event exists.<br>Missing: owner mismatch and terminal-state failures collapse to 400; cancellation is a read-then-write race that can emit twice; cancelled retries are not idempotent; the persisted event is never published on the public `/api/v1/ws/feed` bus.<br>Plan: atomically claim OPEN/PARTIAL→CANCELLED with row locking/conditional update, make cancelled replay idempotent, map owner mismatch to 403 and filled terminal state to 409, publish one `order.cancelled` bus payload, and add endpoint/concurrency/WS tests. Baseline: 21 focused tests passed; ruff clean. AutoLab: not applicable (no iterative measure). |
+| A3 | Order cancellation endpoint | DONE | Resumed 2026-07-13T11:31:54-04:00 under shared-file claims for `routes.py` and `ws.py`.<br>Exists at start: `POST /api/v1/orders/{order_id}/cancel`, token/account ownership checks, and `OrderBookService.cancel_order`; a basic test proved cancellation removed computed reserved cash and the order from open-order state; a persisted `order_cancelled` event existed.<br>Missing at start: owner mismatch and terminal-state failures collapsed to 400; cancellation was a read-then-write race that could emit twice; cancelled retries were not idempotent; the persisted event was never published on `/api/v1/ws/feed`.<br>Implemented: row lock plus conditional OPEN/PARTIAL→CANCELLED claim; cancelled replay returns the original terminal order without another event; owner mismatch maps to 403, filled to 409, missing to 404; one persisted event and one sanitized public `order.cancelled` frame emit; reserved cash becomes zero through terminal state. Concurrent and WS tests added. Baseline 21 focused tests; result 24 passed.<br>Gate: deterministic `py -3.13 orchestration/gate.py` PASS — backend `1374 passed, 28 skipped`; backend ruff, frontend typecheck, 55-file/341-test frontend suite, and frontend build all passed.<br>Live API/WS: two real HTTP cancels returned identical cancelled acknowledgements; `/api/v1/ws/feed` emitted exactly one sanitized `order.cancelled` frame and no duplicate; database proof: one `order_cancelled` row and `reserved_cash=0`.<br>Fresh verifier: PASS — 24 focused tests, changed-file ruff, and `git diff --check` exited 0; no blocking findings. Manual review fallback used because `requesting-code-review` is unavailable. Bumblebee: not applicable (no dependency/deployment change). AutoLab: not applicable (no iterative measure). Completed 2026-07-13T11:43:34-04:00. |
 | A4 | Order expiration (GTD) sweep | TODO | |
 | A5 | Order history/status API | TODO | |
 | A6 | [LIVE] Order lifecycle soak | TODO | |
@@ -102,6 +102,32 @@ Ownership audit (2026-07-13): `loop-grok-backend` has live uncommitted edits in 
 ```text
 === GATE: backend pytest ===
 1369 passed, 28 skipped in 281.48s (0:04:41)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== GATE: frontend typecheck ===
+PASS frontend typecheck (exit 0)
+
+=== GATE: frontend test ===
+Test Files  55 passed (55)
+Tests  341 passed (341)
+PASS frontend test (exit 0)
+
+=== GATE: frontend build ===
+PASS frontend build (exit 0)
+
+=== GATE VERDICT ===
+PASS: all checks green
+```
+
+2026-07-13 · A · A3 · DONE · Cancellation now has precise 403/404/409 semantics, an atomic/idempotent terminal transition, exactly-once reservation release, and one sanitized `order.cancelled` frame on the public WS multiplexer. Live HTTP+WS proof and fresh-context verifier verdict: PASS.
+
+```text
+=== GATE: backend pytest ===
+1374 passed, 28 skipped in 238.98s (0:03:58)
 PASS backend pytest (exit 0)
 
 === GATE: backend ruff ===

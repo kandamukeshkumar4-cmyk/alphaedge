@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,14 @@ from app.db.models import (
 from app.events.bus import DomainEventBus
 from app.market.order_book import OrderBook, Outcome, Side
 from app.services.ledger_service import LedgerService
+
+
+class OrderOwnershipError(ValueError):
+    """The authenticated account does not own the requested order."""
+
+
+class OrderStateConflictError(ValueError):
+    """The order has reached a terminal state that cannot be cancelled."""
 
 
 class OrderBookService:
@@ -319,14 +327,34 @@ class OrderBookService:
         return order
 
     async def cancel_order(self, order_id: UUID, account_id: UUID) -> Order:
-        result = await self.session.execute(select(Order).where(Order.id == order_id))
+        result = await self.session.execute(
+            select(Order).where(Order.id == order_id).with_for_update()
+        )
         order = result.scalar_one_or_none()
         if order is None:
             raise ValueError("Order not found")
         if order.account_id != account_id:
-            raise ValueError("Order does not belong to account")
+            raise OrderOwnershipError("Order does not belong to account")
+        if order.status == OrderStatus.CANCELLED:
+            return order
         if order.status not in (OrderStatus.OPEN, OrderStatus.PARTIAL):
-            raise ValueError("Only open or partial orders can be cancelled")
+            raise OrderStateConflictError("Filled orders cannot be cancelled")
+
+        claimed = await self.session.execute(
+            update(Order)
+            .where(
+                Order.id == order_id,
+                Order.account_id == account_id,
+                Order.status.in_((OrderStatus.OPEN, OrderStatus.PARTIAL)),
+            )
+            .values(status=OrderStatus.CANCELLED)
+            .execution_options(synchronize_session=False)
+        )
+        if claimed.rowcount != 1:
+            await self.session.refresh(order)
+            if order.status == OrderStatus.CANCELLED:
+                return order
+            raise OrderStateConflictError("Filled orders cannot be cancelled")
 
         book = self._books.get(order.market_id)
         if book is not None:
@@ -334,15 +362,23 @@ class OrderBookService:
 
         order.status = OrderStatus.CANCELLED
         await self.session.flush()
-        await self.events.emit(
-            "order_cancelled",
+        payload = {
+            "order_id": str(order.id),
+            "market_id": str(order.market_id),
+            "account_id": str(order.account_id),
+            "side": order.side.value,
+            "outcome": order.outcome.value,
+            "status": order.status.value,
+            "remaining_quantity": str(order.quantity - order.filled_quantity),
+        }
+        await self.events.emit("order_cancelled", payload)
+        get_event_bus().publish(
+            "order.cancelled",
             {
-                "order_id": str(order.id),
-                "market_id": str(order.market_id),
-                "account_id": str(order.account_id),
-                "side": order.side.value,
-                "outcome": order.outcome.value,
-                "remaining_quantity": str(order.quantity - order.filled_quantity),
+                "order_id": payload["order_id"],
+                "market_id": payload["market_id"],
+                "status": payload["status"],
+                "remaining_quantity": payload["remaining_quantity"],
             },
         )
         return order

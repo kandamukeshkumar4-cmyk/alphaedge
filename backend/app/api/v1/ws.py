@@ -21,7 +21,13 @@ _QUEUE_TIMEOUT_SEC = 29.0
 _FEED_TOPICS = ("briefs", "alerts", "feed")
 
 # In-process event-bus topics fanned onto the same socket (Redis-free push path).
-_BUS_TOPICS = ("market.tick", "signal.new", "order.filled", "market.resolved")
+_BUS_TOPICS = (
+    "market.tick",
+    "signal.new",
+    "order.filled",
+    "order.cancelled",
+    "market.resolved",
+)
 
 
 @router.websocket("/prices")
