@@ -96,6 +96,21 @@ class PortfolioAttributionResponse(BaseModel):
     disclaimer: str = PORTFOLIO_DISCLAIMER
 
 
+class EquityCurvePoint(BaseModel):
+    date: str
+    cash_balance: float
+    positions_mtm: float
+    equity: float
+
+
+class EquityCurveResponse(BaseModel):
+    """B5 — historical daily equity curve from portfolio_equity_snapshots."""
+
+    points: list[EquityCurvePoint] = Field(default_factory=list)
+    paper_trading_only: bool = True
+    disclaimer: str = PORTFOLIO_DISCLAIMER
+
+
 class PortfolioResponse(BaseModel):
     paper_balance: float
     positions: list[PortfolioPositionResponse] = Field(default_factory=list)

@@ -4,11 +4,20 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
-from app.db.models import Market, MarketResolution, OddsSnapshot, PaperOrder, User
+from app.db.models import (
+    Market,
+    MarketResolution,
+    OddsSnapshot,
+    PaperOrder,
+    PortfolioEquitySnapshot,
+    User,
+)
 from app.db.session import get_db
 from app.schemas.portfolio import (
     PORTFOLIO_DISCLAIMER,
     AttributionTradeResponse,
+    EquityCurvePoint,
+    EquityCurveResponse,
     ExposureGroupResponse,
     ExposureResponse,
     PortfolioAttributionResponse,
@@ -343,6 +352,38 @@ async def get_portfolio_attribution(
         bottom_trades=[_trade_to_response(t) for t in report.bottom_trades],
         monthly_pnl=report.monthly_pnl,
         category_pnl=report.category_pnl,
+        paper_trading_only=True,
+        disclaimer=PORTFOLIO_DISCLAIMER,
+    )
+
+
+@router.get("/portfolio/equity-curve", response_model=EquityCurveResponse)
+async def get_portfolio_equity_curve(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EquityCurveResponse:
+    """B5 — ordered daily equity snapshots for the authenticated user."""
+    try:
+        rows = (
+            await db.scalars(
+                select(PortfolioEquitySnapshot)
+                .where(PortfolioEquitySnapshot.user_id == current_user.id)
+                .order_by(PortfolioEquitySnapshot.snapshot_date.asc())
+            )
+        ).all()
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
+
+    return EquityCurveResponse(
+        points=[
+            EquityCurvePoint(
+                date=r.snapshot_date.isoformat(),
+                cash_balance=float(r.cash_balance),
+                positions_mtm=float(r.positions_mtm),
+                equity=float(r.equity),
+            )
+            for r in rows
+        ],
         paper_trading_only=True,
         disclaimer=PORTFOLIO_DISCLAIMER,
     )

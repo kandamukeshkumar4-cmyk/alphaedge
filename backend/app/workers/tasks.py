@@ -18,6 +18,7 @@ from app.pipeline.ingest import (
     ingest_fixtures,
 )
 from app.workers.order_expiry import order_expiry_task
+from app.workers.portfolio_equity import portfolio_equity_snapshot_task
 
 
 logger = logging.getLogger(__name__)
@@ -997,6 +998,7 @@ class WorkerSettings:
         nightly_profile_refresh_task,
         weather_scan_task,
         order_expiry_task,
+        portfolio_equity_snapshot_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1020,4 +1022,6 @@ class WorkerSettings:
         # nightly trader profile refresh at 03:30 — flag-gated (TRADER_PROFILE_ENABLED=true)
         cron(nightly_profile_refresh_task, hour={3}, minute={30}),
         cron(order_expiry_task, minute=set(range(60))),
+        # B5: daily equity curve snapshots at 00:05 UTC
+        cron(portfolio_equity_snapshot_task, hour={0}, minute={5}),
     ]
