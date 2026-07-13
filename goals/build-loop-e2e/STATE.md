@@ -135,6 +135,28 @@ handoff to go live:
 Everything the agent can do without an account is done; steps 1–2 (account +
 token) and 6 (UptimeRobot signup) are inherently user actions.
 
+## 🟢 RESOLUTION 2026-07-13 — migrating backend + DB to Railway (all-in-one)
+
+User decision: **everything on Railway** (has a subscription). Kills BOTH
+failure modes at once — the HF Space unreliability (no SLA, stuck rebuilds) AND
+the Neon egress cap (Railway Postgres over the private network has no egress
+meter). Steps done this session:
+- Railway project `alphaedge-api` (id 013864c1-91bb-40da-a246-628c90219da6),
+  service `alphaedge-api` + `Postgres` provisioned via CLI.
+- Backend service vars set: PAPER_TRADING_ONLY, APP_ENV=production, REDIS_URL=
+  disabled, CORS_ORIGINS=vercel, fresh JWT_SECRET_KEY + ADMIN_API_KEY (generated),
+  DATABASE_URL + DATABASE_URL_SYNC = `${{Postgres.DATABASE_URL}}` (private net).
+- Domain: https://alphaedge-api-production-b9db.up.railway.app
+- **Build gotcha FIXED**: first `railway up` from backend/ uploaded the repo
+  root → Railpack auto-detect failed. Fix: `railway up ./backend --path-as-root
+  --service alphaedge-api` so backend/Dockerfile builds with backend/ as context.
+- Frontend: next.config.ts `PROD_API` default → Railway URL (same-origin
+  rewrite for HTTP; WS falls back to polling — Vercel MCP is read-only so no
+  NEXT_PUBLIC_API_URL env change without user/dashboard).
+- Supabase project (created earlier, empty, $0) abandoned — user can delete it.
+- STATUS: backend rebuilding with correct context; awaiting /health 200 +
+  verify_prod, then push next.config.ts (Vercel redeploy) + cut over.
+
 ## 🔴 PROD INCIDENT 2026-07-13 — Neon egress quota exhausted (backend DOWN)
 
 The HF Space is in `RUNTIME_ERROR`: boot's `alembic upgrade head` can't connect —

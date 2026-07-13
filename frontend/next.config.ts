@@ -10,11 +10,12 @@ const staticExport =
   process.env.STATIC_EXPORT === "1" ||
   process.env.npm_lifecycle_event === "build:static";
 
-// Browser → Vercel → HF. HF free-tier often answers with CORS-less 429 HTML;
-// same-origin rewrites keep health/markets/ATLAS readable in the browser.
-const HF_PROD_API =
+// Browser → Vercel → Railway (always-on backend; migrated off the free HF
+// Space which had no SLA + rebuild downtime). Same-origin rewrites keep
+// health/markets/ATLAS readable in the browser. NEXT_PUBLIC_API_URL overrides.
+const PROD_API =
   (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "") ||
-  "https://mukeshkumar007-alphaedge-api.hf.space";
+  "https://alphaedge-api-production-b9db.up.railway.app";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -25,11 +26,11 @@ const nextConfig: NextConfig = {
           return [
             {
               source: "/api/:path*",
-              destination: `${HF_PROD_API}/api/:path*`,
+              destination: `${PROD_API}/api/:path*`,
             },
             {
               source: "/health",
-              destination: `${HF_PROD_API}/health`,
+              destination: `${PROD_API}/health`,
             },
           ];
         },
