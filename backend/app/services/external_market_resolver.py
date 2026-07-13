@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ExternalMarket, ExternalMarketStatus
 from app.services.external_market_service import ExternalMarketService
+from app.services.scoring_service import ScoringService
 from app.services.venues.registry import get_venue_adapter
 
 logger = logging.getLogger(__name__)
@@ -60,8 +61,9 @@ async def resolve_external_markets(
     )
 
     market_service = ExternalMarketService(session)
+    scoring_service = ScoringService(session)
 
-    checked = resolved = skipped = errors = 0
+    checked = resolved = scored = skipped = errors = 0
     for market in rows:
         checked += 1
         try:
@@ -89,7 +91,7 @@ async def resolve_external_markets(
 
         resolved_at = market.close_at or now
         try:
-            await market_service.resolve(
+            resolved_market = await market_service.resolve(
                 market.id,
                 int(snapshot.winning_outcome),
                 resolved_at=resolved_at,
@@ -100,10 +102,15 @@ async def resolve_external_markets(
             skipped += 1
             continue
         resolved += 1
+        # F03: score locked forecasts now, exactly as the admin endpoint does
+        # (forecast_routes.py:301). ScoringService enforces the leakage gate:
+        # only LIVE forecasts locked strictly before resolved_at (=close_at) count.
+        scored += await scoring_service.score_market(resolved_market)
 
     return {
         "checked": checked,
         "resolved": resolved,
+        "scored": scored,
         "skipped": skipped,
         "errors": errors,
     }
