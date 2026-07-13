@@ -42,6 +42,11 @@ from app.db.models import Market, MarketResolution, MarketStatus, OddsSnapshot, 
 
 from app.db.session import get_db
 
+from app.services.analytics_activity import (
+    publish_paper_trade_activity,
+    trade_activity_payload,
+)
+
 from app.schemas.orders import (
 
     PaperOrderCreate,
@@ -264,6 +269,19 @@ async def place_paper_order(
         balance = await db.scalar(select(User.paper_balance).where(User.id == user_id))
         return _order_response(winner, balance if balance is not None else Decimal("0"))
 
+    await publish_paper_trade_activity(
+        trade_activity_payload(
+            order_id=str(order.id),
+            user_id=order.user_id,
+            slug=order.slug,
+            side=order.side,
+            outcome=order.outcome,
+            shares=float(order.shares),
+            price=float(order.price),
+            action=order.action,
+            created_at=order.created_at or datetime.now(timezone.utc),
+        )
+    )
     return _order_response(order, new_balance)
 
 
@@ -489,6 +507,19 @@ async def close_paper_position(
             raise
         return await _close_replay(db, user_id, winner)
 
+    await publish_paper_trade_activity(
+        trade_activity_payload(
+            order_id=str(order.id),
+            user_id=order.user_id,
+            slug=order.slug,
+            side=order.side,
+            outcome=order.outcome,
+            shares=float(order.shares),
+            price=float(order.price),
+            action=order.action,
+            created_at=order.created_at or datetime.now(timezone.utc),
+        )
+    )
     return PositionCloseResponse(
 
         order_id=order.id,

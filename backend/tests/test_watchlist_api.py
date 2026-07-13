@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from app.db.models import Market, MarketStatus, OddsSnapshot, PredictionLog
 from app.db.session import get_db
 from app.main import app
+from app.services.market_service import MarketService
 
 SLUG = "nba-2025-01-15-lal-bos"
 
@@ -147,3 +148,39 @@ async def test_watchlist_is_per_user(db_session):
             "/api/v1/watchlist", headers={"Authorization": f"Bearer {token_b}"}
         )
     assert b_list.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_market_detail_watching_count(db_session):
+    """B3 — additive watching_count on market detail reflects unique watchers."""
+    await MarketService(db_session).seed_catalog_markets()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        before = await client.get(f"/api/v1/markets/{SLUG}/detail")
+        assert before.status_code == 200
+        assert before.json()["watching_count"] == 0
+
+        token_a = await _signup_token(client, "wl-count-a@example.com")
+        token_b = await _signup_token(client, "wl-count-b@example.com")
+        for token in (token_a, token_b):
+            await client.post(
+                "/api/v1/watchlist",
+                json={"slug": SLUG},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            # duplicate add must not inflate count
+            await client.post(
+                "/api/v1/watchlist",
+                json={"slug": SLUG},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        after = await client.get(f"/api/v1/markets/{SLUG}/detail")
+        assert after.status_code == 200
+        assert after.json()["watching_count"] == 2
+
+        await client.delete(
+            f"/api/v1/watchlist/{SLUG}",
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+        final = await client.get(f"/api/v1/markets/{SLUG}/detail")
+        assert final.json()["watching_count"] == 1

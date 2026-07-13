@@ -389,6 +389,7 @@ class MarketDetailResponse(BaseModel):
     resolution_outcome: Optional[str] = None
     winning_outcome: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    watching_count: int = 0
 
 
 class HealthResponse(BaseModel):

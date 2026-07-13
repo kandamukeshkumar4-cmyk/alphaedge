@@ -23,11 +23,19 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 |---|---|---|---|
 | 038 | Workstream A | A1 | LANDED 2026-07-13T11:18:08-04:00 |
 | 039 | Workstream A | A4 | LANDED 2026-07-13T12:03:52-04:00 |
+| 040 | Workstream B | B5 | LANDED 2026-07-13T16:18:57-04:00 |
 
 ## SHARED FILE CLAIMS (claim BEFORE editing a shared file — see GOAL.md rule 4)
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/db/models.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
+| `backend/app/workers/tasks.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
+| `backend/app/schemas/portfolio.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
+| `backend/app/api/v1/ws.py` | Workstream B | B4 | RELEASED 2026-07-13T16:03:31-04:00 |
+| `backend/app/schemas/market.py` | Workstream B | B3 | RELEASED 2026-07-13T15:54:52-04:00 |
+| `backend/app/schemas/portfolio.py` | Workstream B | B2 | RELEASED 2026-07-13T15:47:32-04:00 |
+| `backend/app/schemas/leaderboard.py` | Workstream B | B1 | RELEASED 2026-07-13T15:31:23-04:00 |
 | `backend/app/api/v1/routes.py` | Workstream A | A1 | RELEASED 2026-07-13T11:18:08-04:00 |
 | `backend/app/db/models.py` | Workstream A | A1 | RELEASED 2026-07-13T11:18:08-04:00 |
 | `backend/app/api/v1/routes.py` | Workstream A | A3 | RELEASED 2026-07-13T11:43:34-04:00 |
@@ -54,11 +62,11 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream B — Portfolio & social analytics
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| B1 | Leaderboard completed | TODO | leaderboard.py exists — read first |
-| B2 | Performance attribution | TODO | |
-| B3 | Watchlists completed | TODO | migration 035 exists — read first |
-| B4 | Trade activity feed + WS topic | TODO | |
-| B5 | Equity-curve snapshots | TODO | needs migration — claim number |
+| B1 | Leaderboard completed | DONE | Started 2026-07-13T15:13:51-04:00. DIR-B-001 acknowledged.<br>Exists: ranked realized_pnl + win_rate, LIMIT 20, email-local usernames, basic tests.<br>Missing at start: ROI, pagination, TTL cache, anonymized names, tie/zero-settled/negative-ROI tests.<br>Implemented: `analytics_leaderboard` ranking math (ROI, stable UUID tie-break, exclude zero-settled); additive `roi`/`limit`/`offset`/`total`/`sort`/`cached`; 5s `leaderboard_cache` (put only on success — verifier NEEDS-FIX for error-cache poisoning fixed before DONE); `Trader-{hash6}` anonymization (display_name preferred); tests for ties, zero-settled exclusion, negative ROI, pagination, cache hit. Docs: `notes-b1-leaderboard.md`.<br>Incidental gate fix (honest, out-of-product): stubbed `warmup_db` in `test_inprocess_scheduler.py` so lifespan tests do not require localhost Postgres when Docker is down (same env as A6).<br>Gate: backend `1387 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS after cache-poisoning fix. Manual review fallback for requesting-code-review. Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T15:31:23-04:00. |
+| B2 | Performance attribution | DONE | Started 2026-07-13T15:37:27-04:00. Orchestrator REVIEW B1 PASS acknowledged before start.<br>Exists: `/portfolio/risk` (E12); `_load_paper_orders` double-counts SUM(realized_pnl)+settlement.<br>Implemented: `GET /api/v1/portfolio/attribution` + `analytics_attribution` (SELL realized XOR remaining settlement); top/bottom, ROI, monthly, category; tests prove 3.4 not E12-style 5.4. Docs: notes-b2-attribution.md.<br>Gate: `1395 passed, 28 skipped`; ruff clean. Fresh verifier: PASS. Completed 2026-07-13T15:47:32-04:00. |
+| B3 | Watchlists completed | DONE | Started 2026-07-13T15:48:19-04:00. Orchestrator REVIEW B2 PASS ack.<br>Exists: migration 035, full CRUD + dedupe/idempotent tests.<br>Added: additive `watching_count` on `GET /markets/{slug}/detail`. Docs: notes-b3-watchlists.md.<br>Gate: `1396 passed, 28 skipped`; ruff clean. Completed 2026-07-13T15:54:52-04:00. |
+| B4 | Trade activity feed + WS topic | DONE | Started 2026-07-13T15:55:55-04:00. Orchestrator REVIEW B3 PASS ack (verifier warning heeded).<br>Implemented: GET `/activity/trades` (anonymized, opaque offset cursor); hub topic `activity` on `/ws/feed`; publish hooks on paper BUY/SELL. Docs: notes-b4-activity.md.<br>Gate: `1402 passed, 28 skipped`; ruff clean. Fresh verifier: PASS. Completed 2026-07-13T16:03:31-04:00. |
+| B5 | Equity-curve snapshots | DONE | Started 2026-07-13T16:12:11-04:00. DIR-B-001/002 ack.<br>Implemented: migration 040 (head from 039), PortfolioEquitySnapshot, daily ARQ task + JobRun, GET `/portfolio/equity-curve`. Idempotent per user/day; curve ascending. Docs: notes-b5-equity-curve.md.<br>Gate: `1407 passed, 28 skipped`; alembic heads=`040_portfolio_equity_snapshots`; ruff clean. Fresh verifier: PASS (manual adversarial review — Task verifier API limit). Completed 2026-07-13T16:18:57-04:00. |
 
 ### Workstream C — Connector hardening
 | ID | Ticket | Status | Notes / evidence |
@@ -259,3 +267,68 @@ PASS frontend build (exit 0)
 === GATE VERDICT ===
 PASS: all checks green
 ```
+
+2026-07-13 · B · B1 · DONE · DIR-B-001 + DIR-B-002 acknowledged. Completed public leaderboard: ROI, offset/limit pagination, 5s TTL cache (success-only put), anonymized `Trader-{hash}` names, stable tie-break, zero-settled exclusion. Fresh verifier PASS after fixing error-path cache poisoning. Incidental: stubbed `warmup_db` in in-process scheduler tests (Docker/Postgres unavailable).
+
+```text
+=== GATE: backend pytest ===
+1387 passed, 28 skipped in 292.61s (0:04:52)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
+
+2026-07-13 · B · B2 · DONE · Orchestrator REVIEW B1 PASS + DIR-B-001/002 ack. Added `/portfolio/attribution` with double-count-safe SELL⊕SETTLE math, top/bottom, ROI, monthly + category P&L. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1395 passed, 28 skipped in 291.45s (0:04:51)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
+
+2026-07-13 · B · B3 · DONE · Orchestrator REVIEW B2 PASS + DIR-B-001/002 ack. Watchlist CRUD already complete; added additive `watching_count` on market detail. Gate 1396 passed.
+
+```text
+=== GATE: backend pytest ===
+1396 passed, 28 skipped in 299.64s (0:04:59)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
+
+2026-07-13 · B · B4 · DONE · Orchestrator REVIEW B3 PASS + DIR-B-001/002 ack. GET `/activity/trades` + WS `activity` topic + paper-order publish hooks. Fresh verifier PASS. Gate 1402 passed.
+
+```text
+=== GATE: backend pytest ===
+1402 passed, 28 skipped in 255.09s (0:04:15)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
+
+2026-07-13 · B · B5 · DONE · DIR-B-001/002 ack. Migration 040 single head; daily equity snapshots + GET `/portfolio/equity-curve`. Fresh verifier PASS (manual — Task API limit). Gate 1407 passed.
+
+```text
+=== GATE: backend pytest ===
+1407 passed, 28 skipped in 279.86s (0:04:39)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== ALEMBIC ===
+040_portfolio_equity_snapshots (head)
+```
+
+AutoLab: not applicable (no iterative measure).
