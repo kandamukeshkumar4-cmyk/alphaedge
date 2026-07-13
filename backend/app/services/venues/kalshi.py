@@ -42,6 +42,26 @@ class KalshiVenueAdapter:
                 break
         return markets
 
+    def fetch_market(self, external_id: str) -> VenueMarket | None:
+        """Fetch + normalize ONE market by ticker, including finalized/settled ones.
+
+        ``list_open_markets`` omits closed markets, so terminal resolution can
+        only be observed via this single-market fetch. Returns ``None`` on an
+        unavailable market (not found / non-object payload / fetch error).
+        """
+        ticker = _strip_ks_prefix(external_id).upper()
+        quoted = quote(ticker, safe="")
+        try:
+            payload = self.connector.http.get_json(f"/markets/{quoted}")
+        except Exception:  # noqa: BLE001 - unavailable market → caller skips
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            return self.normalize(payload)
+        except ValueError:
+            return None
+
     def fetch_orderbook_summary(self, external_id: str) -> OrderbookSummary:
         ticker = _strip_ks_prefix(external_id).upper()
         quoted = quote(ticker, safe="")
@@ -104,6 +124,7 @@ class KalshiVenueAdapter:
             close_time = parse_timestamp(close_raw)
         else:
             close_time = None
+        status, resolved, winning_outcome = _parse_kalshi_resolution(market)
         return VenueMarket(
             venue_id=self.venue_id,
             external_id=ticker,
@@ -111,6 +132,9 @@ class KalshiVenueAdapter:
             title=title,
             close_time=close_time,
             last_price=implied_yes_from_kalshi_payload(market),
+            status=status,
+            resolved=resolved,
+            winning_outcome=winning_outcome,
         )
 
 
@@ -148,3 +172,27 @@ def _mid(bid: float | None, ask: float | None) -> float | None:
     if bid is not None and ask is not None:
         return round((bid + ask) / 2.0, 4)
     return bid if bid is not None else ask
+
+
+# Kalshi lifecycle states that are terminal for settlement purposes.
+_KALSHI_TERMINAL_STATUS = {"finalized", "settled"}
+
+
+def _parse_kalshi_resolution(
+    market: dict[str, Any],
+) -> tuple[str | None, bool, int | None]:
+    """Pure parse of Kalshi resolution from a market object.
+
+    Terminal only when ``status`` is finalized/settled AND ``result`` is a clean
+    yes/no. VOID / empty / other results and non-terminal statuses stay open.
+    """
+    status = str(market.get("status") or "").strip().lower() or None
+    if status not in _KALSHI_TERMINAL_STATUS:
+        return (status, False, None)
+    result = str(market.get("result") or "").strip().lower()
+    if result == "yes":
+        return (status, True, 1)
+    if result == "no":
+        return (status, True, 0)
+    # Settled but voided / undetermined result — do not fabricate an outcome.
+    return (status, False, None)
