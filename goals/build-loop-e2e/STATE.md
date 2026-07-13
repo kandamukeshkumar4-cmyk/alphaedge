@@ -135,6 +135,51 @@ handoff to go live:
 Everything the agent can do without an account is done; steps 1–2 (account +
 token) and 6 (UptimeRobot signup) are inherently user actions.
 
+## 🔴 PROD INCIDENT 2026-07-13 — Neon egress quota exhausted (backend DOWN)
+
+The HF Space is in `RUNTIME_ERROR`: boot's `alembic upgrade head` can't connect —
+Neon returns `ERROR: Your project has exceeded the data transfer quota. Upgrade
+your plan to increase limits.` The free-tier **5 GB monthly egress cap** (flagged
+day 1 at 4.2/5 GB) is now blown, so Neon **hard-blocks every connection**. Root
+cause is the pre-COST-01 burn (N+1 tick queries 24/7). Leading edge: uptime runs
+08:21 + 12:13 returned 500 on /markets,/signals,/memories while /health was ok.
+
+- **NOT a code defect.** Any revision fails identically on boot; rollback is
+  useless. COST-01/02 cut FUTURE egress but cannot un-spend this month's quota.
+- **REL-COLD-DB (commit 94cabaa, local, unpushed)** makes the *running* app
+  degrade DB errors to 503 and warms a cold pool at boot — correct and needed,
+  but does NOT restore service now (a quota block isn't a cold start; boot's
+  alembic still fails).
+- **Restore options (needs USER decision — money or migration):**
+  1. Migrate DB → Supabase free (fresh 5 GB egress, $0, immediate) — best fit for
+     the <$10 + reliability mandate. Supabase MCP is connected; ~1 afternoon
+     incl. pg_dump/restore (DB is 0.06 GB) + secret swap + verify_prod.
+  2. Neon Launch (~$8.5/mo) — lifts the cap immediately, stays <$10, one click.
+  3. Wait for month reset — free but backend stays DOWN until then. Unacceptable
+     for a recruiter demo.
+- Do NOT push more commits until resolved — every deploy re-fails on the quota.
+
+### Migration IN PROGRESS 2026-07-13 → Supabase free (user chose option 1)
+
+- **Supabase project created**: `alphaedge-db`, ref `xhcpnkdpxoniudtpwbtl`, org
+  JobSearch Ai (phhdrygchwdhbifejloo), region us-east-1, ACTIVE_HEALTHY, $0/mo.
+  Empty DB (0 tables) — the container's `alembic upgrade head` builds the schema
+  on first boot; lifespan re-seeds catalog+system account; loops re-ingest live
+  markets. Historical paper trades/briefs stay stranded in Neon (unrecoverable
+  until Neon quota resets, egress-blocked so no pg_dump).
+- **Connection**: MUST use the **Session pooler** (IPv4, port 5432) — HF Spaces
+  are IPv4-only and Supabase direct `db.*.supabase.co` is IPv6-only on free.
+  asyncpg + session pooler = fine (transaction pooler 6543 would need
+  statement_cache_size=0; not used). The deploy workflow auto-converts the
+  plain `postgresql://` URL to asyncpg (DATABASE_URL) + psycopg2 (…_SYNC).
+- **BLOCKED-ON-USER (2 steps, credential actions)**: (1) get the Session-pooler
+  URI from Supabase dashboard → alphaedge-db → Settings → Database (reset DB
+  password if needed); (2) `gh secret set NEON_DATABASE_URL` +
+  `NEON_DATABASE_URL_SYNC` to that URI. Then agent triggers HF deploy
+  (workflow_dispatch, sync_runtime_secrets=true) + verify_prod.
+- **Local commit 94cabaa (REL-COLD-DB) still unpushed** — push it WITH the
+  cutover so the new backend also degrades gracefully on any future DB blip.
+
 ## Known environmental gotcha (not a code defect)
 
 `npm run build` is FLAKY when a `npm run dev` server is running (mine or the
