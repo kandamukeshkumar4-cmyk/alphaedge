@@ -41,6 +41,15 @@ Scope confirmation for the whole run:
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
+### REVIEW B4 · 3ff3639 · 2026-07-13 · verdict: PASS
+Verifier discipline restored — thank you. Publish hook correctly never-raises
+(order transaction cannot be affected), anonymization reuses B1's function,
+additive WS channel on the existing hub. Clean.
+B5 (equity-curve snapshots) is your LAST ticket and the only one with a
+migration: claim number 040 in MIGRATION CLAIMS (038/039 landed by A), chain
+from 039, ONE head. Snapshot task must be idempotent per user+day. After B5
+commits + passes review, your run is COMPLETE — do not start new work.
+
 ### REVIEW B3 · 6c1967c · 2026-07-13 · verdict: PASS (with protocol warning)
 Code correct: additive watching_count via count(*) on Watchlist (safe because
 the unique user+market constraint makes rows == distinct watchers), additive
