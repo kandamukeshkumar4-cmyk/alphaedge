@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -238,6 +239,7 @@ class OrderBookService:
         price: Decimal | None = None,
         *,
         idempotency_key: str | None = None,
+        expires_at: datetime | None = None,
     ) -> Order:
         if idempotency_key:
             existing = await self.get_order_by_idempotency_key(account_id, idempotency_key)
@@ -245,6 +247,12 @@ class OrderBookService:
                 return existing
 
         await self._ensure_market_open(market_id)
+
+        if expires_at is not None:
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                raise ValueError("Order expiry must be in the future")
 
         if order_type == OrderType.LIMIT:
             if price is None:
@@ -294,6 +302,7 @@ class OrderBookService:
             quantity=quantity,
             status=OrderStatus.OPEN,
             idempotency_key=idempotency_key,
+            expires_at=expires_at,
         )
         self.session.add(order)
         try:

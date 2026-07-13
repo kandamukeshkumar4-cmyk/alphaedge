@@ -223,6 +223,7 @@ class Order(Base):
     __tablename__ = "orders"
     __table_args__ = (
         Index("ix_orders_market_status", "market_id", "status"),
+        Index("ix_orders_status_expires_at", "status", "expires_at"),
         UniqueConstraint("account_id", "idempotency_key", name="uq_orders_account_idem"),
     )
 
@@ -240,6 +241,7 @@ class Order(Base):
         default=OrderStatus.OPEN,
     )
     idempotency_key: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     market: Mapped["Market"] = relationship(back_populates="orders")

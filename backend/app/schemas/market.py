@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from app.db.models import MarketStatus, OrderOutcome, OrderSide, OrderStatus, OrderType
 
@@ -112,6 +112,7 @@ class OrderCreate(BaseModel):
     order_type: OrderType
     quantity: Decimal = Field(gt=0)
     price: Optional[Decimal] = Field(default=None, ge=0.01, le=0.99)
+    expires_at: Optional[datetime] = None
     risk: OrderRiskInput
 
 
@@ -240,8 +241,17 @@ class OrderResponse(BaseModel):
     quantity: Decimal
     filled_quantity: Decimal
     status: str
+    expires_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("expires_at")
+    def serialize_expires_at(self, value: Optional[datetime]) -> Optional[str]:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.isoformat()
 
 
 class PositionResponse(BaseModel):

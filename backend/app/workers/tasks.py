@@ -17,6 +17,7 @@ from app.pipeline.ingest import (
     capture_configured_market_snapshots,
     ingest_fixtures,
 )
+from app.workers.order_expiry import order_expiry_task
 
 
 logger = logging.getLogger(__name__)
@@ -995,6 +996,7 @@ class WorkerSettings:
         nightly_backtest_task,
         nightly_profile_refresh_task,
         weather_scan_task,
+        order_expiry_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1017,4 +1019,5 @@ class WorkerSettings:
         cron(nightly_backtest_task, hour={2}, minute={0}),
         # nightly trader profile refresh at 03:30 — flag-gated (TRADER_PROFILE_ENABLED=true)
         cron(nightly_profile_refresh_task, hour={3}, minute={30}),
+        cron(order_expiry_task, minute=set(range(60))),
     ]

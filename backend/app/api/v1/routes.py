@@ -481,6 +481,7 @@ async def place_order(
             market,
             fallback=body.risk.minutes_before_start,
         ),
+        expires_at=body.expires_at,
     )
     risk_ok, risk_failures = RiskService().validate(intent)
     if not risk_ok:
@@ -499,6 +500,7 @@ async def place_order(
             body.quantity,
             body.price,
             idempotency_key=idempotency_key,
+            expires_at=body.expires_at,
         )
         return order
     except ValueError as e:

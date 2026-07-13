@@ -1,6 +1,7 @@
 """Risk rules — all must pass before paper trade execution."""
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 
@@ -21,6 +22,7 @@ class OrderIntent:
     current_drawdown: float
     minutes_before_start: int
     agent_enabled: bool = True
+    expires_at: Optional[datetime] = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,12 @@ class RiskService:
             failures.append("bet exceeds max % bankroll")
         if intent.minutes_before_start < 5:
             failures.append("too close to game start")
+        if intent.expires_at is not None:
+            expires_at = intent.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                failures.append("order expiry must be in the future")
 
         return len(failures) == 0, failures
 
