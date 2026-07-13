@@ -38,7 +38,29 @@ file destroys work. These rules are non-negotiable:
      **feat/user-auth** worktree.
    - `frontend/**` → owned by the e2e/UI loops. This loop is BACKEND-ONLY.
    - `goals/build-loop-e2e/**`, other loops' goal folders.
-4. **Shared choke-points are serialized, never edited concurrently:**
+   - RETIRED 2026-07-13: the stale `feat/market-resolution` worktree (last
+     commit 2026-06-10, superseded by current settlement code + loop-v14) was
+     removed by the orchestrator; its branch is kept for salvage only and is
+     NOT an ownership conflict for A1/A2/A4.
+4. **Shared-file protocol** (orchestrator ruling 2026-07-13, unblocking A1–A3):
+   some implementation surfaces are single shared files that cannot be given
+   to one workstream exclusively: `backend/app/api/v1/routes.py`,
+   `backend/app/api/v1/ws.py`, `backend/app/db/models.py`,
+   `backend/app/schemas/**`, `backend/app/workers/tasks.py`. Rules:
+   - Claim the file in STATE.md → "SHARED FILE CLAIMS" (file + workstream +
+     ticket) BEFORE editing; release the claim in the same table when the
+     ticket commits. If another workstream holds a live claim, pick a
+     different ticket this iteration.
+   - Edits must be additive and region-scoped (your endpoints, your model
+     class, your task registration line) — never reformat or reorder the file.
+   - Rebase onto the integration tip before every commit.
+   - `workers/tasks.py` is ALSO being edited by active loop-v14: new worker
+     logic goes in a NEW module (e.g. `workers/order_expiry.py`); only a
+     minimal registration append may touch `tasks.py`.
+   - Region priority: A owns order/CLOB/ledger/settlement regions; B owns
+     portfolio/analytics regions; D owns ml/eval regions; E owns
+     observability regions.
+5. **Shared choke-points are serialized, never edited concurrently:**
    - **Alembic migrations**: ONE head always. Before creating a migration,
      `git fetch` + rebase onto the integration branch tip and chain from the
      latest revision. Claim the next migration number in STATE.md ("MIGRATION
@@ -47,12 +69,12 @@ file destroys work. These rules are non-negotiable:
      **cron table** (`backend/app/workers/cron` entries): keep edits to the
      single line you add, rebase before commit, resolve conflicts by
      append-order.
-5. **Integration**: each ticket commits to its workstream branch. The
+6. **Integration**: each ticket commits to its workstream branch. The
    orchestrator (main Claude thread) merges workstream branches into
    `loop3-agent-memory` and pushes to `origin loop3-agent-memory:codex/alphaedge-base`
    only after idle-check (no other session mid-push) and a full green gate on
    the merged tree.
-6. Re-check `git status` and current branch at the START of every iteration —
+7. Re-check `git status` and current branch at the START of every iteration —
    parallel worktrees have switched branches mid-loop before and wiped work.
    Commit early, commit often.
 
@@ -101,7 +123,7 @@ these guardrails; verdict goes in Notes.
 
 ---
 
-## Workstream A — Trading engine completion (owns: `backend/app/market/**`, `backend/app/risk/**`, `backend/app/api/v1/orders.py`, `backend/app/services/order_*`)
+## Workstream A — Trading engine completion (owns: `backend/app/market/**`, `backend/app/risk/**`, `backend/app/api/v1/orders.py`, `backend/app/services/order_*`, `backend/app/services/ledger_service.py`, `backend/app/services/settlement_service.py`, new worker modules `backend/app/workers/order_*`; PLUS order/CLOB/ledger regions of the shared files `api/v1/routes.py`, `api/v1/ws.py`, `db/models.py`, `schemas/**`, `workers/tasks.py` under the shared-file protocol; Alembic migrations via the claims table)
 
 - **A1 — CLOB idempotency (audit M-RACE-01, deferred in AUD-04):** accept an
   idempotency key on CLOB order submission; duplicate key returns the original

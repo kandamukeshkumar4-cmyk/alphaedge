@@ -23,6 +23,12 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 |---|---|---|---|
 | 038 | (loop-v14 may claim — check its STATE before taking) | — | — |
 
+## SHARED FILE CLAIMS (claim BEFORE editing a shared file — see GOAL.md rule 4)
+
+| File | Claimed by | Ticket | Status |
+|---|---|---|---|
+| (none) | | | |
+
 ## Tickets
 
 ### Workstream A — Trading engine
