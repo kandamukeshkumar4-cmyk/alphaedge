@@ -69,6 +69,33 @@ class PortfolioRiskResponse(BaseModel):
     disclaimer: str = PORTFOLIO_DISCLAIMER
 
 
+class AttributionTradeResponse(BaseModel):
+    order_id: str
+    slug: str
+    title: str
+    category: str
+    side: str
+    cost: float
+    realized_pnl: float
+    created_at: str
+
+
+class PortfolioAttributionResponse(BaseModel):
+    """B2 — performance attribution over settled paper trades (no advice)."""
+
+    win_rate: float | None = None
+    roi: float = 0.0
+    total_realized_pnl: float = 0.0
+    total_cost: float = 0.0
+    n_trades: int = 0
+    top_trades: list[AttributionTradeResponse] = Field(default_factory=list)
+    bottom_trades: list[AttributionTradeResponse] = Field(default_factory=list)
+    monthly_pnl: dict[str, float] = Field(default_factory=dict)
+    category_pnl: dict[str, float] = Field(default_factory=dict)
+    paper_trading_only: bool = True
+    disclaimer: str = PORTFOLIO_DISCLAIMER
+
+
 class PortfolioResponse(BaseModel):
     paper_balance: float
     positions: list[PortfolioPositionResponse] = Field(default_factory=list)

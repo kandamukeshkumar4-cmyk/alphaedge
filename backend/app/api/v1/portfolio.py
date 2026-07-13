@@ -4,16 +4,23 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
-from app.db.models import Market, OddsSnapshot, User
+from app.db.models import Market, MarketResolution, OddsSnapshot, PaperOrder, User
 from app.db.session import get_db
 from app.schemas.portfolio import (
     PORTFOLIO_DISCLAIMER,
+    AttributionTradeResponse,
     ExposureGroupResponse,
     ExposureResponse,
+    PortfolioAttributionResponse,
     PortfolioPositionResponse,
     PortfolioResponse,
     PortfolioRiskResponse,
     PortfolioSummaryResponse,
+)
+from app.services.analytics_attribution import (
+    OrderLeg,
+    attributed_trades,
+    compute_attribution,
 )
 from app.services.exposure_service import PositionInput, compute_exposure
 from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_metrics
@@ -249,6 +256,95 @@ async def get_portfolio_risk(
         sharpe=metrics.sharpe,
         exposure_by_category=metrics.exposure_by_category,
         exposure_pct_by_category=metrics.exposure_pct_by_category,
+    )
+
+
+def _trade_to_response(t) -> AttributionTradeResponse:
+    return AttributionTradeResponse(
+        order_id=t.order_id,
+        slug=t.slug,
+        title=t.title,
+        category=t.category,
+        side=t.side,
+        cost=t.cost,
+        realized_pnl=t.realized_pnl,
+        created_at=t.created_at.isoformat(),
+    )
+
+
+@router.get("/portfolio/attribution", response_model=PortfolioAttributionResponse)
+async def get_portfolio_attribution(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    top_n: int = 5,
+) -> PortfolioAttributionResponse:
+    """B2 — top/bottom trades, ROI, monthly + category P&L (paper only).
+
+    Uses double-count-safe attribution math (SELL realized_pnl XOR settlement
+    on remaining shares) — not the E12 grouped ``_load_paper_orders`` formula.
+    """
+    top_n = min(max(int(top_n), 1), 20)
+    try:
+        orders = (
+            await db.scalars(
+                select(PaperOrder).where(PaperOrder.user_id == current_user.id)
+            )
+        ).all()
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
+
+    slugs = list({o.slug for o in orders})
+    categories: dict[str, str] = {}
+    titles: dict[str, str] = {}
+    resolutions: dict[str, str] = {}
+    if slugs:
+        market_rows = (
+            await db.execute(
+                select(Market.slug, Market.category, Market.title).where(
+                    Market.slug.in_(slugs)
+                )
+            )
+        ).all()
+        categories = {str(s): str(c or "Other") for s, c, _ in market_rows}
+        titles = {str(s): str(t or s) for s, _, t in market_rows}
+        res_rows = (
+            await db.execute(
+                select(MarketResolution.slug, MarketResolution.outcome).where(
+                    MarketResolution.slug.in_(slugs)
+                )
+            )
+        ).all()
+        resolutions = {str(s): str(o) for s, o in res_rows}
+
+    legs = [
+        OrderLeg(
+            id=str(o.id),
+            slug=o.slug,
+            outcome=o.outcome,
+            action=o.action,
+            shares=float(o.shares),
+            cost=float(o.cost),
+            realized_pnl=float(o.realized_pnl) if o.realized_pnl is not None else None,
+            settled=bool(o.settled),
+            created_at=o.created_at,
+            category=categories.get(o.slug, "Other"),
+            title=titles.get(o.slug, o.slug),
+        )
+        for o in orders
+    ]
+    report = compute_attribution(attributed_trades(legs, resolutions), top_n=top_n)
+    return PortfolioAttributionResponse(
+        win_rate=report.win_rate,
+        roi=report.roi,
+        total_realized_pnl=report.total_realized_pnl,
+        total_cost=report.total_cost,
+        n_trades=report.n_trades,
+        top_trades=[_trade_to_response(t) for t in report.top_trades],
+        bottom_trades=[_trade_to_response(t) for t in report.bottom_trades],
+        monthly_pnl=report.monthly_pnl,
+        category_pnl=report.category_pnl,
+        paper_trading_only=True,
+        disclaimer=PORTFOLIO_DISCLAIMER,
     )
 
 
