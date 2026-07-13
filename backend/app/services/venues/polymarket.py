@@ -41,6 +41,25 @@ class PolymarketVenueAdapter:
                 continue
         return markets
 
+    def fetch_market(self, external_id: str) -> VenueMarket | None:
+        """Fetch + normalize ONE market by slug, including closed/resolved ones.
+
+        ``list_active_markets`` omits closed markets, so terminal resolution can
+        only be observed via this single-market Gamma fetch. Returns ``None`` on
+        an unavailable market (not found / non-object payload / fetch error).
+        """
+        slug = _strip_pm_prefix(external_id)
+        try:
+            payload = self.connector.fetch_market_payload(slug)
+        except Exception:  # noqa: BLE001 - unavailable market → caller skips
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            return self.normalize(payload)
+        except ValueError:
+            return None
+
     def fetch_orderbook_summary(self, external_id: str) -> OrderbookSummary:
         slug = _strip_pm_prefix(external_id)
         payload = self.connector.fetch_market_payload(slug)

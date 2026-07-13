@@ -287,6 +287,24 @@ async def _wc2026_resolve_loop() -> None:
             record_heartbeat("wc2026_resolve", status="error", detail="wc2026 resolve pass failed")
 
 
+async def _external_resolve_loop() -> None:
+    """V14 F02/F03: every 15 min resolve past-close external markets from real
+    venue settlement and score their locked forecasts (mirrors
+    ``cron(resolve_external_markets_task, minute={10, 40})``)."""
+    from app.workers.tasks import resolve_external_markets_task
+
+    while True:
+        await asyncio.sleep(900)
+        try:
+            await resolve_external_markets_task({})
+            record_heartbeat("external_resolve")
+        except Exception:
+            logger.error("External resolve loop failed", exc_info=True)
+            record_heartbeat(
+                "external_resolve", status="error", detail="external resolve pass failed"
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
@@ -320,6 +338,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_whale_refresh_loop())
     if settings.scheduler_wc2026_resolve_enabled:
         asyncio.create_task(_wc2026_resolve_loop())
+    if settings.scheduler_external_resolve_enabled:
+        asyncio.create_task(_external_resolve_loop())
     if settings.live_feed_enabled:
         async with AsyncSessionLocal() as session:
             try:

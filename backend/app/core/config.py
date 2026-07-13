@@ -72,6 +72,25 @@ class Settings(BaseSettings):
     scheduler_wc2026_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
     )
+    # V14 F02/F03: resolve past-close external markets from real venue settlement
+    # (then score locked forecasts). Default on; bounded batch per pass.
+    scheduler_external_resolve_enabled: bool = Field(
+        default=True, alias="SCHEDULER_EXTERNAL_RESOLVE_ENABLED"
+    )
+    external_resolve_batch: int = Field(
+        default=25, alias="EXTERNAL_RESOLVE_BATCH"
+    )
+    # V14 F04: auto-lock a LIVE model forecast on OPEN external markets nearing
+    # close that lack one, so a genuine pre-close prediction exists to score.
+    scheduler_external_autolock_enabled: bool = Field(
+        default=True, alias="SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED"
+    )
+    external_autolock_batch: int = Field(
+        default=25, alias="EXTERNAL_AUTOLOCK_BATCH"
+    )
+    external_autolock_window_sec: int = Field(
+        default=86400, alias="EXTERNAL_AUTOLOCK_WINDOW_SEC"
+    )
     # I03: in-process TTL micro-cache on the /api/v1/desk aggregate so the
     # market page's desk-panel polling can't hammer the free-tier Space.
     # Short TTL — it only absorbs the polling flood between changes.

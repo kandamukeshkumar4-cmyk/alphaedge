@@ -138,6 +138,38 @@ async def wc2026_resolve_task(ctx: dict) -> dict:
     return summary
 
 
+RESOLVE_EXTERNAL_MARKETS_JOB_NAME = "resolve_external_markets_task"
+
+
+async def resolve_external_markets_task(ctx: dict) -> dict:
+    """V14 F02/F03: resolve past-close external markets from real venue data and
+    score their locked forecasts. Mirrors wc2026_resolve_task (JobRun heartbeat +
+    config flag). Flag-gated (SCHEDULER_EXTERNAL_RESOLVE_ENABLED, default on)."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.external_market_resolver import resolve_external_markets
+
+    settings = ctx.get("settings") or get_settings()
+    if not settings.scheduler_external_resolve_enabled:
+        return {"skipped": True, "reason": "SCHEDULER_EXTERNAL_RESOLVE_ENABLED=false"}
+
+    started_at = datetime.now(UTC)
+    async with AsyncSessionLocal() as session:
+        summary = await resolve_external_markets(
+            session, limit=settings.external_resolve_batch
+        )
+        session.add(
+            JobRun(
+                job_name=RESOLVE_EXTERNAL_MARKETS_JOB_NAME,
+                status="degraded" if summary.get("errors") else "success",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                summary=summary,
+            )
+        )
+        await session.commit()
+    return summary
+
+
 FETCH_NEWS_SIGNALS_JOB_NAME = "fetch_news_signals_task"
 
 
@@ -987,6 +1019,7 @@ class WorkerSettings:
         news_mispricing_scan_task,
         unusual_flow_scan_task,
         wc2026_resolve_task,
+        resolve_external_markets_task,
         refresh_whales_task,
         snapshot_whale_positions_task,
         score_claims_task,
@@ -1005,6 +1038,8 @@ class WorkerSettings:
         cron(unusual_flow_scan_task, minute={55}),  # G04: move w/o news -> anomaly
         cron(weather_scan_task, minute={40}),  # O04: NWS-vs-Kalshi weather edges hourly
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
+        # V14 F02/F03: resolve past-close external markets from venue data + score
+        cron(resolve_external_markets_task, minute={10, 40}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
         cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
         cron(snapshot_whale_positions_task, minute=set(range(0, 60, 3))),

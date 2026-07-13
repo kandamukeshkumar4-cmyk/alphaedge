@@ -42,6 +42,26 @@ class KalshiVenueAdapter:
                 break
         return markets
 
+    def fetch_market(self, external_id: str) -> VenueMarket | None:
+        """Fetch + normalize ONE market by ticker, including finalized/settled ones.
+
+        ``list_open_markets`` omits closed markets, so terminal resolution can
+        only be observed via this single-market fetch. Returns ``None`` on an
+        unavailable market (not found / non-object payload / fetch error).
+        """
+        ticker = _strip_ks_prefix(external_id).upper()
+        quoted = quote(ticker, safe="")
+        try:
+            payload = self.connector.http.get_json(f"/markets/{quoted}")
+        except Exception:  # noqa: BLE001 - unavailable market → caller skips
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            return self.normalize(payload)
+        except ValueError:
+            return None
+
     def fetch_orderbook_summary(self, external_id: str) -> OrderbookSummary:
         ticker = _strip_ks_prefix(external_id).upper()
         quoted = quote(ticker, safe="")
