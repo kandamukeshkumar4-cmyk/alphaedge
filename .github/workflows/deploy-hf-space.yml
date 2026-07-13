@@ -1,9 +1,10 @@
 name: Deploy Backend to HF Space
 
+# RETIRED as the production backend (2026-07-13): migrated to Railway
+# (always-on, no egress cap). The push trigger is removed so backend pushes no
+# longer fire a failing HF deploy (the HF Space's Neon DB hit its egress quota).
+# Kept as manual-only for rollback/reference; delete once Railway is proven.
 on:
-  push:
-    branches: [codex/alphaedge-base]
-    paths: ["backend/**"]
   workflow_dispatch:
     inputs:
       sync_runtime_secrets:

@@ -154,8 +154,25 @@ meter). Steps done this session:
   rewrite for HTTP; WS falls back to polling — Vercel MCP is read-only so no
   NEXT_PUBLIC_API_URL env change without user/dashboard).
 - Supabase project (created earlier, empty, $0) abandoned — user can delete it.
-- STATUS: backend rebuilding with correct context; awaiting /health 200 +
-  verify_prod, then push next.config.ts (Vercel redeploy) + cut over.
+- **Deploy-failure debugging (all fixed):**
+  1. First `railway up` from backend/ uploaded the repo root → Railpack failed.
+     Fix: `railway up ./backend --path-as-root`.
+  2. Container then Failed at boot with zero CLI-visible logs. Root cause: the
+     lifespan BLOCKED startup on external Kalshi/Polymarket sync before serving,
+     so /health never answered within the platform healthcheck window (compounded
+     by heavy ML imports + alembic). Fix (commit): moved first ingest to a
+     background task `_startup_live_ingest`; added `backend/railway.json`
+     (healthcheckPath=/health, timeout=300, ON_FAILURE) forcing the DOCKERFILE
+     builder. Also stubbed warmup_db in test_inprocess_scheduler (isolation).
+  3. Switched DATABASE_URL/_SYNC to `${{Postgres.DATABASE_PUBLIC_URL}}` (public
+     proxy) to sidestep any private-net-DNS-at-boot race; user's plan includes
+     egress so cost is a non-issue.
+- STATUS: rebuilding with all fixes; awaiting /health 200 + verify_prod, then
+  push frontend next.config.ts to codex/alphaedge-base (Vercel prod redeploy →
+  cuts frontend over to Railway).
+- Vercel project prj_XX3ky4A0ZReAPE19I5GLn6CNefn2 / team_Nwx0... is under a
+  DIFFERENT account than the connected Vercel MCP (get_project 404s), so the
+  frontend cutover is via git push to codex/alphaedge-base, not the MCP.
 
 ## 🔴 PROD INCIDENT 2026-07-13 — Neon egress quota exhausted (backend DOWN)
 
