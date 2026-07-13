@@ -350,25 +350,12 @@ async def lifespan(app: FastAPI):
     if settings.scheduler_wc2026_resolve_enabled:
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.live_feed_enabled:
-        async with AsyncSessionLocal() as session:
-            try:
-                from app.services.kalshi_live_ingest import KalshiLiveIngestService
-                from app.services.live_market_ingest import LiveMarketIngestService
-
-                from app.workers.price_feed_worker import lapse_expired_markets
-
-                await lapse_expired_markets(session)
-                kalshi_ingest = KalshiLiveIngestService(session)
-                await kalshi_ingest.sync_world_cup_matches()
-                await kalshi_ingest.sync_open_events()
-                await LiveMarketIngestService(session).sync_curated_markets(
-                    total_limit=settings.live_ingest_total_limit,
-                    min_volume_24h=settings.live_ingest_min_volume_24h,
-                )
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                logger.error("Startup live ingest failed", exc_info=True)
+        # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
+        # must NOT block startup — a slow/429'd upstream would delay uvicorn from
+        # serving /health past the platform healthcheck window (Railway marked
+        # the deploy Failed on exactly this). Run it as a background task; the
+        # periodic _live_ingest_loop keeps the catalog fresh thereafter.
+        asyncio.create_task(_startup_live_ingest())
         asyncio.create_task(_live_ingest_loop())
         asyncio.create_task(_live_tick_loop())
         asyncio.create_task(_eval_loop())
@@ -377,6 +364,32 @@ async def lifespan(app: FastAPI):
         if "polymarket_ws" in plan:
             asyncio.create_task(_polymarket_stream_loop())
     yield
+
+
+async def _startup_live_ingest() -> None:
+    """First catalog sync, backgrounded so it never blocks the app from serving.
+
+    Isolated in its own session + try/except so an upstream failure logs and
+    exits cleanly instead of crashing startup."""
+    async with AsyncSessionLocal() as session:
+        try:
+            from app.services.kalshi_live_ingest import KalshiLiveIngestService
+            from app.services.live_market_ingest import LiveMarketIngestService
+
+            from app.workers.price_feed_worker import lapse_expired_markets
+
+            await lapse_expired_markets(session)
+            kalshi_ingest = KalshiLiveIngestService(session)
+            await kalshi_ingest.sync_world_cup_matches()
+            await kalshi_ingest.sync_open_events()
+            await LiveMarketIngestService(session).sync_curated_markets(
+                total_limit=settings.live_ingest_total_limit,
+                min_volume_24h=settings.live_ingest_min_volume_24h,
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.error("Startup live ingest failed", exc_info=True)
 
 
 # Outer restart guard: a stream loop that raises (e.g. a DB blip while building the
