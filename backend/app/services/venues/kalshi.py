@@ -104,6 +104,7 @@ class KalshiVenueAdapter:
             close_time = parse_timestamp(close_raw)
         else:
             close_time = None
+        status, resolved, winning_outcome = _parse_kalshi_resolution(market)
         return VenueMarket(
             venue_id=self.venue_id,
             external_id=ticker,
@@ -111,6 +112,9 @@ class KalshiVenueAdapter:
             title=title,
             close_time=close_time,
             last_price=implied_yes_from_kalshi_payload(market),
+            status=status,
+            resolved=resolved,
+            winning_outcome=winning_outcome,
         )
 
 
@@ -148,3 +152,27 @@ def _mid(bid: float | None, ask: float | None) -> float | None:
     if bid is not None and ask is not None:
         return round((bid + ask) / 2.0, 4)
     return bid if bid is not None else ask
+
+
+# Kalshi lifecycle states that are terminal for settlement purposes.
+_KALSHI_TERMINAL_STATUS = {"finalized", "settled"}
+
+
+def _parse_kalshi_resolution(
+    market: dict[str, Any],
+) -> tuple[str | None, bool, int | None]:
+    """Pure parse of Kalshi resolution from a market object.
+
+    Terminal only when ``status`` is finalized/settled AND ``result`` is a clean
+    yes/no. VOID / empty / other results and non-terminal statuses stay open.
+    """
+    status = str(market.get("status") or "").strip().lower() or None
+    if status not in _KALSHI_TERMINAL_STATUS:
+        return (status, False, None)
+    result = str(market.get("result") or "").strip().lower()
+    if result == "yes":
+        return (status, True, 1)
+    if result == "no":
+        return (status, True, 0)
+    # Settled but voided / undetermined result — do not fabricate an outcome.
+    return (status, False, None)

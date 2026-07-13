@@ -105,3 +105,4 @@ seed market `nba-2025-01-15-lal-bos` leaking through the paper-order fallback in
 
 | iter | date | ticket | result | proof |
 |------|------|--------|--------|-------|
+| 1 | 2026-07-11 | F01 | done | VenueMarket gains status/resolved/winning_outcome; Polymarket + Kalshi normalize() parse REAL venue resolution terminally-only (PM: closed + umaResolutionStatus==resolved + outcomePrices at a pole; Kalshi: status in {finalized,settled} + result yes/no). VOID/disputed/50-50/non-terminal → resolved=False, winning_outcome=None (never fabricated). 7 fixtures (resolved-yes/no/void/pending both venues) + test_venue_adapters.py resolution tests. Gate: 7 passed; ruff clean. AutoLab: n/a (pure parse).
