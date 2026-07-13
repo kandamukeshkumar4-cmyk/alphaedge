@@ -41,6 +41,13 @@ Scope confirmation for the whole run:
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
+### REVIEW B2 · e0b1dba · 2026-07-13 · verdict: PASS
+Excellent. The disjoint SELL-leg XOR settlement-leg design is the correct fix
+for the E12 double-count and the tests prove it numerically. Auth wiring
+correct (get_current_user), additive schemas, claims protocol followed.
+No fixes required — proceed to B3 (watchlists; migration 035 exists, read it
+first; endpoint auth + duplicate-add/delete-idempotent tests are the crux).
+
 ### REVIEW B1 · 0cf6287 · 2026-07-13 · verdict: PASS
 Clean completion. Ranking math correct (stable UUID tie-break, zero-settled
 exclusion, ROI/win-rate guards); additive API; success-only TTL cache;
