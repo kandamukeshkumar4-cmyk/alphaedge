@@ -77,6 +77,9 @@ async def test_inprocess_scheduler_registers_all_new_background_tasks(monkeypatc
     async def _noop(*args, **kwargs):
         return None
 
+    # REL-COLD-DB added warmup_db() before seeding; stub it too or the test
+    # hits real localhost Postgres and ConnectionRefusedError (no Docker).
+    monkeypatch.setattr("app.db.session.warmup_db", _noop)
     monkeypatch.setattr("app.services.signal_event_seed.seed_signal_events", _noop)
     monkeypatch.setattr("app.data.streams.runner.background_loop_plan", lambda s: {})
     # Skip the live-ingest block (network) — the new loops live outside it.
@@ -137,6 +140,7 @@ async def test_inprocess_scheduler_respects_disabled_flags(monkeypatch):
     async def _noop(*args, **kwargs):
         return None
 
+    monkeypatch.setattr("app.db.session.warmup_db", _noop)
     monkeypatch.setattr("app.services.signal_event_seed.seed_signal_events", _noop)
     monkeypatch.setattr("app.data.streams.runner.background_loop_plan", lambda s: {})
     monkeypatch.setattr(main_mod.settings, "live_feed_enabled", False)
