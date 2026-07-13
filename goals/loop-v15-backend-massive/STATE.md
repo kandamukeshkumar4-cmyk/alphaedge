@@ -21,20 +21,21 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | Number | Claimed by | Ticket | Status |
 |---|---|---|---|
-| 038 | (loop-v14 may claim — check its STATE before taking) | — | — |
+| 038 | Workstream A | A1 | CLAIMED 2026-07-13T10:34:51-04:00 |
 
 ## SHARED FILE CLAIMS (claim BEFORE editing a shared file — see GOAL.md rule 4)
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
-| (none) | | | |
+| `backend/app/api/v1/routes.py` | Workstream A | A1 | CLAIMED 2026-07-13T10:34:51-04:00 |
+| `backend/app/db/models.py` | Workstream A | A1 | CLAIMED 2026-07-13T10:34:51-04:00 |
 
 ## Tickets
 
 ### Workstream A — Trading engine
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| A1 | CLOB idempotency (M-RACE-01) | TODO (UNBLOCKED 2026-07-13 — GOAL.md rule 4: A owns order/CLOB regions of routes.py + db/models.py under shared-file protocol; claim files + migration number first) | Started 2026-07-13T10:16:41-04:00.<br>Exists: CLOB submission is `POST /api/v1/markets/{slug}/orders` in `backend/app/api/v1/routes.py`; `OrderBookService.submit_order` persists `Order` rows, while migration 037 only protects `paper_orders`.<br>Missing: no CLOB idempotency header/field, no durable `(account_id, idempotency_key)` uniqueness, and no concurrent replay test.<br>Plan/blocker: a correct fix must edit `backend/app/api/v1/routes.py`, `backend/app/db/models.py`, and an Alembic migration, all outside Workstream A's exclusive charter. User/orchestrator must expand ownership or move A1 to an owner of those files. AutoLab: not applicable (no iterative measure). |
+| A1 | CLOB idempotency (M-RACE-01) | IN-PROGRESS | Resumed 2026-07-13T10:34:51-04:00 under orchestrator ruling.<br>Exists: CLOB submission is `POST /api/v1/markets/{slug}/orders` in `backend/app/api/v1/routes.py`; `OrderBookService.submit_order` persists `Order` rows, while migration 037 only protects `paper_orders`.<br>Missing: no CLOB idempotency header/field, no durable `(account_id, idempotency_key)` uniqueness, and no concurrent replay test.<br>Plan: add an additive CLOB `Order.idempotency_key`, unique `(account_id, idempotency_key)` constraint via migration 038, header plumbing, service replay/concurrency handling, and focused duplicate tests. AutoLab: not applicable (no iterative measure). |
 | A2 | Atomic settlement credit (M-REL-02) | TODO (UNBLOCKED 2026-07-13 — ledger_service.py + settlement_service.py now in A's exclusive charter) | Started 2026-07-13T10:19:38-04:00.<br>Exists: `settle_market` calls `LedgerService.credit`; `credit` locks the account and then mutates `account.cash_balance += amount` before inserting the ledger entry.<br>Missing: the required single atomic `UPDATE accounts SET cash_balance = cash_balance + :amount RETURNING cash_balance` and a concurrent-settlement invariant test.<br>Plan/blocker: the correct change must edit `backend/app/services/settlement_service.py` and/or `backend/app/services/ledger_service.py`; neither matches Workstream A's exclusive `backend/app/services/order_*` ownership. User/orchestrator must expand ownership or reassign A2. AutoLab: not applicable (no iterative measure). |
 | A3 | Order cancellation endpoint | TODO (UNBLOCKED 2026-07-13 — routes.py + ws.py order regions available under shared-file protocol; claim first) | Started 2026-07-13T10:20:46-04:00.<br>Exists: `POST /api/v1/orders/{order_id}/cancel` and `OrderBookService.cancel_order` already cancel OPEN/PARTIAL orders; current tests prove a basic cancel releases computed reserved cash.<br>Missing: owner mismatch returns 400 rather than 403, filled/cancelled returns 400 rather than 409, cancellation lacks row locking/idempotent concurrent behavior, and no order-status event is exposed through the public WS multiplexer.<br>Plan/blocker: service locking/event emission fits `order_*`, but end-to-end completion also requires out-of-charter `backend/app/api/v1/routes.py` and `backend/app/api/v1/ws.py`. User/orchestrator must expand ownership or reassign A3. AutoLab: not applicable (no iterative measure). |
 | A4 | Order expiration (GTD) sweep | TODO | |
