@@ -132,7 +132,6 @@ async def _live_tick_loop() -> None:
     from app.workers.price_feed_worker import run_live_tick_once
 
     interval = max(5, settings.live_tick_interval_sec)
-    idle_interval = max(interval, settings.live_tick_idle_interval_sec)
     while True:
         async with AsyncSessionLocal() as session:
             try:
@@ -143,7 +142,8 @@ async def _live_tick_loop() -> None:
                 await session.rollback()
                 logger.error("Live tick loop failed", exc_info=True)
                 record_heartbeat("live_tick", status="error", detail="live tick pass failed")
-        await _paced_sleep(interval, idle_interval)
+        # _paced_sleep clamps idle >= fast, so no local max() needed.
+        await _paced_sleep(interval, settings.live_tick_idle_interval_sec)
 
 
 async def _live_ingest_loop() -> None:
