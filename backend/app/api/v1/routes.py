@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.db.models import (
     Evaluation,
     Fill,
     Market,
+    OrderStatus,
     PredictionLog,
 )
 from app.db.models import Position
@@ -27,6 +28,7 @@ from app.schemas.market import (
     MarketSnapshotResponse,
     OrderCancelRequest,
     OrderCreate,
+    OrderHistoryPageResponse,
     OrderResponse,
     PaperAccountResponse,
     PaperSignalCreate,
@@ -39,6 +41,10 @@ from app.services.order_book_service import (
     OrderBookService,
     OrderOwnershipError,
     OrderStateConflictError,
+)
+from app.services.order_history_service import (
+    InvalidOrderHistoryCursor,
+    OrderHistoryService,
 )
 from app.services.paper_account_service import PaperAccountService
 from app.services.paper_signal_service import PaperSignalService
@@ -440,6 +446,29 @@ async def get_paper_account(
         "System Paper Account",
         settings.paper_trading_only,
     )
+
+
+@router.get("/orders", response_model=OrderHistoryPageResponse)
+async def list_clob_orders(
+    account_id: UUID,
+    order_status: OrderStatus | None = Query(default=None, alias="status"),
+    market: str | None = Query(default=None, min_length=1, max_length=128),
+    cursor: str | None = Query(default=None, max_length=512),
+    limit: int = Query(default=50, ge=1, le=100),
+    x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
+    db: AsyncSession = Depends(get_db),
+) -> OrderHistoryPageResponse:
+    _verify_paper_account_token(account_id, x_paper_account_token)
+    try:
+        return await OrderHistoryService(db).list_orders(
+            account_id,
+            status=order_status,
+            market_slug=market,
+            cursor=cursor,
+            limit=limit,
+        )
+    except InvalidOrderHistoryCursor as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/markets/{slug}/orders", response_model=OrderResponse)

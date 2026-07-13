@@ -254,6 +254,56 @@ class OrderResponse(BaseModel):
         return value.isoformat()
 
 
+class OrderFillBreakdownResponse(BaseModel):
+    id: UUID
+    price: Decimal
+    quantity: Decimal
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        else:
+            value = value.astimezone(UTC)
+        return value.isoformat()
+
+
+class OrderHistoryItemResponse(BaseModel):
+    id: UUID
+    market_id: UUID
+    market_slug: str
+    market_title: str
+    side: OrderSide
+    outcome: OrderOutcome
+    order_type: OrderType
+    price: Optional[Decimal]
+    quantity: Decimal
+    filled_quantity: Decimal
+    remaining_quantity: Decimal
+    filled_notional: Decimal
+    average_fill_price: Optional[Decimal]
+    status: OrderStatus
+    expires_at: Optional[datetime]
+    created_at: datetime
+    fills: list[OrderFillBreakdownResponse]
+
+    @field_serializer("expires_at", "created_at")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        else:
+            value = value.astimezone(UTC)
+        return value.isoformat()
+
+
+class OrderHistoryPageResponse(BaseModel):
+    items: list[OrderHistoryItemResponse]
+    next_cursor: Optional[str]
+
+
 class PositionResponse(BaseModel):
     market_id: UUID
     yes_shares: Decimal
