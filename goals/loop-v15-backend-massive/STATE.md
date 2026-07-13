@@ -286,3 +286,15 @@ PASS backend pytest (exit 0)
 All checks passed!
 PASS backend ruff (exit 0)
 ```
+
+2026-07-13 · B · B3 · DONE · Orchestrator REVIEW B2 PASS + DIR-B-001/002 ack. Watchlist CRUD already complete; added additive `watching_count` on market detail. Gate 1396 passed.
+
+```text
+=== GATE: backend pytest ===
+1396 passed, 28 skipped in 299.64s (0:04:59)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
