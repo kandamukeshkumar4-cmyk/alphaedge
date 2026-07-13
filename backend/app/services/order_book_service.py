@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.event_bus import get_event_bus
@@ -76,6 +77,18 @@ class OrderBookService:
         if market.status != MarketStatus.OPEN:
             raise ValueError(f"Market {market_id} is not open for trading")
         return market
+
+    async def get_order_by_idempotency_key(
+        self,
+        account_id: UUID,
+        idempotency_key: str,
+    ) -> Order | None:
+        return await self.session.scalar(
+            select(Order).where(
+                Order.account_id == account_id,
+                Order.idempotency_key == idempotency_key,
+            )
+        )
 
     async def _get_or_create_position(self, account_id: UUID, market_id: UUID) -> Position:
         result = await self.session.execute(
@@ -215,7 +228,14 @@ class OrderBookService:
         order_type: OrderType,
         quantity: Decimal,
         price: Decimal | None = None,
+        *,
+        idempotency_key: str | None = None,
     ) -> Order:
+        if idempotency_key:
+            existing = await self.get_order_by_idempotency_key(account_id, idempotency_key)
+            if existing is not None:
+                return existing
+
         await self._ensure_market_open(market_id)
 
         if order_type == OrderType.LIMIT:
@@ -265,9 +285,21 @@ class OrderBookService:
             price=price,
             quantity=quantity,
             status=OrderStatus.OPEN,
+            idempotency_key=idempotency_key,
         )
         self.session.add(order)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            if not idempotency_key:
+                raise
+            # Another request with the same account-scoped key committed first.
+            # Roll back every side effect from this attempt before replaying it.
+            await self.session.rollback()
+            winner = await self.get_order_by_idempotency_key(account_id, idempotency_key)
+            if winner is None:
+                raise
+            return winner
 
         await self.events.emit(
             "order_submitted",
@@ -283,6 +315,7 @@ class OrderBookService:
         )
 
         await self._match_order(order)
+        await self.session.refresh(order)
         return order
 
     async def cancel_order(self, order_id: UUID, account_id: UUID) -> Order:

@@ -443,6 +443,7 @@ async def place_order(
     slug: str,
     body: OrderCreate,
     x_paper_account_token: str | None = Header(default=None, alias="X-Paper-Account-Token"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
     db: AsyncSession = Depends(get_db),
 ):
     svc = MarketService(db)
@@ -454,6 +455,12 @@ async def place_order(
     account = account_result.scalar_one_or_none()
     if account is None:
         raise HTTPException(status_code=400, detail="Account not found")
+
+    obs = OrderBookService(db)
+    if idempotency_key:
+        existing = await obs.get_order_by_idempotency_key(body.account_id, idempotency_key)
+        if existing is not None:
+            return existing
 
     intent = OrderIntent(
         market_slug=slug,
@@ -478,7 +485,6 @@ async def place_order(
             detail=f"Risk check failed: {'; '.join(risk_failures)}",
         )
 
-    obs = OrderBookService(db)
     try:
         order = await obs.submit_order(
             market.id,
@@ -488,6 +494,7 @@ async def place_order(
             body.order_type,
             body.quantity,
             body.price,
+            idempotency_key=idempotency_key,
         )
         return order
     except ValueError as e:

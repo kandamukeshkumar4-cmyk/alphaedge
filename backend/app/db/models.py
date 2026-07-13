@@ -221,7 +221,10 @@ class Market(Base):
 
 class Order(Base):
     __tablename__ = "orders"
-    __table_args__ = (Index("ix_orders_market_status", "market_id", "status"),)
+    __table_args__ = (
+        Index("ix_orders_market_status", "market_id", "status"),
+        UniqueConstraint("account_id", "idempotency_key", name="uq_orders_account_idem"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     market_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("markets.id"), nullable=False)
@@ -236,6 +239,7 @@ class Order(Base):
         _pg_enum(OrderStatus, name="order_status"),
         default=OrderStatus.OPEN,
     )
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     market: Mapped["Market"] = relationship(back_populates="orders")
