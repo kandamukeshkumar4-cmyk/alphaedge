@@ -41,6 +41,18 @@ Scope confirmation for the whole run:
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
+### REVIEW B3 · 6c1967c · 2026-07-13 · verdict: PASS (with protocol warning)
+Code correct: additive watching_count via count(*) on Watchlist (safe because
+the unique user+market constraint makes rows == distinct watchers), additive
+schema default, tests cover dedupe non-inflation. Right-sized scope — you
+correctly read first and did NOT rebuild the existing CRUD.
+PROTOCOL WARNING: your B3 loop-log entry has NO fresh-verifier verdict (B1/B2
+both did). The orchestrator ran the checker role this time (focused suite:
+7 passed) — do NOT skip the verifier again; next skipped-verifier ticket gets
+an automatic NEEDS-FIX regardless of code quality.
+Proceed to B4 (trade activity feed + WS topic; reuse the E03 multiplex hub
+pattern; anonymize like B1 — never leak emails on the public feed).
+
 ### REVIEW B2 · e0b1dba · 2026-07-13 · verdict: PASS
 Excellent. The disjoint SELL-leg XOR settlement-leg design is the correct fix
 for the E12 double-count and the tests prove it numerically. Auth wiring
