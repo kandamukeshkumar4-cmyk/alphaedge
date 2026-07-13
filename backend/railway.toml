@@ -3,7 +3,13 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+# Migrations in pre-deploy so cold-schema alembic cannot starve the healthcheck
+# window (first Railway boots timed out mid-migration / before uvicorn bound).
+# Must use `uv run` — image deps live in the uv project venv from `uv sync`.
+preDeployCommand = ["uv run alembic upgrade head"]
+# Railway does NOT shell-expand $PORT in a bare startCommand (uvicorn got the
+# literal string "$PORT" → Invalid value for '--port'). Force /bin/sh.
+startCommand = "sh -c 'uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"
 healthcheckPath = "/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

@@ -103,19 +103,26 @@ and egress.
 | COST-01 | **Low-burn mode**: batch the tick-pass prev-price lookup (N+1 → 2 queries/pass) + demand-paced live tick (fast only while a client is active — recent non-monitoring HTTP or open price WS; idle → 900s cadence so Neon can suspend); /health + /metrics exempt from demand signal; uptime cron 30m → hourly | DONE 2026-07-10 (commit fc6f37f) · **verifier PASS** | New: `core/activity.py` (demand tracker), `latest_implied_yes_by_slug` window-fn batch, `prev_yes` param on persist_and_publish_tick (WS path unchanged), knobs LIVE_TICK_IDLE_INTERVAL_SEC=900 / LIVE_TICK_ACTIVE_WINDOW_SEC=300. 6 new tests (test_cost_low_burn.py). Gate green: backend 1341 passed/28 skipped + ruff clean; frontend typecheck/lint/302 tests/build (untouched by this diff). Known-flaky in full-suite order only: `test_assistant_chat_anon_rate_limited_beyond_limit` (shared rate-limiter singleton; 28/28 in isolation) — pre-existing, not this diff. Verifier adversarial probes all sound: window-fn tie semantics = old per-slug SELECT; prev_yes=0.0 safe (`is not None`); idle_interval clamped ≥ interval; first-tick semantics preserved; WS path unchanged. Verifier non-blocking notes: IN-list size on very large boards (fine ≤100); "~2 fast intervals" docstring is conservative (worst case 1). **NOT YET DEPLOYED**: takes effect when merged to codex/alphaedge-base (HF deploy + hourly uptime cron both live on the default branch); run `py -3.13 scripts/verify_prod.py` post-deploy and re-read the Neon dashboard after ~2 days to measure the drop. |
 | COST-02 | **Demand-gate the remaining always-on loops**: shared `_paced_sleep` helper; `_eval_loop` (900s), `_wc2026_resolve_loop` (600s), `_live_ingest_loop` (1800s) slow to SCHEDULER_IDLE_INTERVAL_SEC=3600 when no client active; egress audit conclusion | DONE 2026-07-11 (commit 4c6fdb7) · **verifier PASS (self-run; subagent hit session limit mid-run, checks completed by main loop)** | `_paced_sleep(fast, idle)` refactors COST-01's inline chunked sleep and is now shared by 4 loops. Delay-safe by construction: claim grading prices at the stored horizon snapshot (no-lookahead), WC resolution reads final football-data.org scores + idempotent `settle_market`, ingest is freshness-only. Idle DB wakes/day: eval 96→24, wc2026 144→24, ingest 48→24. 4 new tests (active/idle/early-wake/clamp). **Adversarial probes all pass**: sleep-first ordering preserved (no startup burst); under demand eval still runs exactly every 900s (test-pinned); wc2026 late sweep resolves identically; smoke tests use signup→bearer not the tokenless bypass so Railway APP_ENV=production is safe. Egress-audit finding recorded: `_live_ingest_loop` was the heaviest remaining idle toucher (now paced). Frontend read-endpoint polling (desk/markets) already throttled by the I03 desk micro-cache + LivePricesProvider multiplex (AUD-07b) — no further backend change needed. Gate: backend 1362 passed/28 skipped + ruff; frontend typecheck/lint/341 tests/build green. |
 
-## Reliability plan — always-on backend for the recruiter demo (BLOCKED-ON-USER)
+## Reliability cutover tickets (2026-07-13 Neon egress outage → Railway)
+
+| ID | Ticket | Status | Notes |
+|----|--------|--------|-------|
+| REL-RAILWAY | **Railway backend healthy**: fix start/preDeploy so `/health` 200 on `alphaedge-api-production-b9db.up.railway.app`; alembic to head; paper_trading_only proven | DONE 2026-07-13 · **verifier PASS** | Root causes: (1) bare `alembic`/`uvicorn` not on PATH (uv venv) → silent crash; (2) bare `$PORT` not shell-expanded by Railway → uvicorn got literal `$PORT`; (3) alembic-in-start starved 300s healthcheck on cold schema. Fix: `preDeployCommand=["uv run alembic upgrade head"]` + `startCommand="sh -c 'uv run uvicorn … --port ${PORT:-8000}'"`. Live: deploy SUCCESS; `/health` 200 `paper_trading_only=true`; `/api/v1/markets` returns live Polymarket titles (e.g. Argentina WC). Tests: HF workflow = manual-rollback-only (push trigger retired, rollback assertions retained); new Railway production-path test. Gate: deploy-config 28 passed + ruff; frontend typecheck/lint/341 tests/build green. Full backend suite pre-fix was 1379 passed/1 failed (HF push-path assert) — fixed. **verify_prod** 4/6: markets 126 open (threshold ≥200 while fresh ingest fills); frontend-live FAIL until Vercel serves next.config Railway rewrite. |
+| REL-FE-CUTOVER | **Frontend prod cutover to Railway**: Vercel must serve `next.config.ts` PROD_API → Railway (or set `NEXT_PUBLIC_API_URL`) | BLOCKED-ON-USER | Code already defaults PROD_API to Railway URL in `frontend/next.config.ts` (commit 30dbf17). Needs a Vercel production redeploy from this branch / dashboard env. Exact ask: redeploy Vercel production (or set `NEXT_PUBLIC_API_URL=https://alphaedge-api-production-b9db.up.railway.app`) then re-run `py -3.13 scripts/verify_prod.py --api https://alphaedge-api-production-b9db.up.railway.app`. |
+| REL-UPTIME | **UptimeRobot** on Railway `/health` + frontend URL | BLOCKED-ON-USER | Exact ask: create UptimeRobot monitors for `https://alphaedge-api-production-b9db.up.railway.app/health` and the production frontend URL; email alerts on failure. |
+
+## Reliability plan — always-on backend for the recruiter demo (mostly DONE)
 
 User mandate: this is the flagship portfolio app shown to recruiters — zero
 visible downtime when they click it, total cost < $10/mo. Root reliability
-risk is the **free HF Space** backend (no SLA, restarts at will, rebuilds cause
-502s; kept awake only by the uptime cron). Plan (all pieces free/cheap):
+risk was the **free HF Space** backend (no SLA; Neon egress later hard-downed it).
 
 | Piece | Host | Cost | Status |
 |-------|------|------|--------|
-| Frontend | Vercel/Azure SWA (as-is) | $0 | done — CDN, no cold starts, degrades to labeled Demo on backend hiccup (E02) |
-| **Backend** | **Railway Hobby** always-on | **$5/mo** | code-ready; BLOCKED-ON-USER (needs Railway account + project token) |
-| DB | Neon free (post-COST-01/02) | $0 | staying — COST work keeps it inside free tier |
-| Monitoring | UptimeRobot 5-min + existing GH cron | $0 | GH cron already hourly (COST-01); UptimeRobot = user action |
+| Frontend | Vercel/Azure SWA (as-is) | $0 | done — CDN; needs REL-FE-CUTOVER redeploy to point at Railway |
+| **Backend** | **Railway** always-on | **~$5/mo** | **LIVE** — REL-RAILWAY DONE; `https://alphaedge-api-production-b9db.up.railway.app` |
+| DB | Railway Postgres (private) | included | LIVE — replaced Neon (egress-capped) |
+| Monitoring | UptimeRobot 5-min + existing GH cron | $0 | BLOCKED-ON-USER (REL-UPTIME) |
 
 **Railway is code-ready** (`deploy-railway-backend.yml` + `scripts/deploy_railway.ps1`,
 hardened 2026-07-11 to set `JWT_SECRET_KEY` + `APP_ENV=production` — without
@@ -167,9 +174,12 @@ meter). Steps done this session:
   3. Switched DATABASE_URL/_SYNC to `${{Postgres.DATABASE_PUBLIC_URL}}` (public
      proxy) to sidestep any private-net-DNS-at-boot race; user's plan includes
      egress so cost is a non-issue.
-- STATUS: rebuilding with all fixes; awaiting /health 200 + verify_prod, then
-  push frontend next.config.ts to codex/alphaedge-base (Vercel prod redeploy →
-  cuts frontend over to Railway).
+- STATUS: **backend LIVE** (REL-RAILWAY DONE 2026-07-13). `/health` 200 with
+  `paper_trading_only=true`; live Polymarket markets served. Additional boot
+  fixes from this cutover: `railway.toml` preDeploy alembic + `sh -c` PORT
+  expansion + `uv run` (bare commands/`$PORT` were fatal). Catalog still
+  filling toward verify_prod ≥200 markets. Frontend cutover = REL-FE-CUTOVER
+  (Vercel redeploy / push to production branch) — BLOCKED-ON-USER.
 - Vercel project prj_XX3ky4A0ZReAPE19I5GLn6CNefn2 / team_Nwx0... is under a
   DIFFERENT account than the connected Vercel MCP (get_project 404s), so the
   frontend cutover is via git push to codex/alphaedge-base, not the MCP.
@@ -324,6 +334,7 @@ real-data LightGBM A/B at ~100+ resolved outcomes.
 
 ## AutoLab log
 
+- 2026-07-13 REL-RAILWAY: baseline=Railway service Failed (/health 404; bare alembic/uvicorn + unexpanded $PORT + healthcheck starved by cold alembic) | benchmark=/health 200 paper_trading_only=true + deploy SUCCESS | iterations=4 (uv run → alembic timeout → $PORT literal → sh -c + preDeploy) | budget=session | outcome=IMPROVED — backend LIVE on Railway Postgres; verifier PASS after restoring HF rollback assertions. Gate: deploy-config 28 + ruff; frontend typecheck/lint/341/build. Remaining BLOCKED-ON-USER: REL-FE-CUTOVER (Vercel redeploy), REL-UPTIME (UptimeRobot).
 - 2026-07-11 COST-02 + AUD-08c + Railway-standby: baseline=COST-01 green (idle DB wakes ~288/day from eval+wc2026+ingest still keeping Neon warm) | benchmark=idle DB-touch cadence per loop + WCAG ratio on muted-2 | iterations=1 | budget=session | outcome=IMPROVED — idle wakes/day eval 96→24, wc2026 144→24, ingest 48→24 (all delay-safe: horizon-snapshot grading, final-score resolution, freshness-only ingest); muted-2 2.8–3.7:1→4.53–5.99:1 (AA pass, live-verified 1713 els); aria-pressed on pill toggles; Railway deploy script hardened (JWT_SECRET_KEY + APP_ENV=production, was missing → would boot-fail under AUD-01/02 config validator). Backend 1362 passed/28 skipped + ruff; frontend typecheck/lint/341 tests/build. **Verifier: PASS** (subagent hit the 10pm session limit mid-run; all 6 adversarial probes completed by the main loop — sleep-first ordering, cadence-under-demand, wc2026 idempotent late-sweep, smoke-uses-bearer-not-bypass, WCAG math, guardrails intact).
 - 2026-07-10 COST-01: baseline=tick pass = N+1 Neon queries every 15s 24/7 (measured: 24.75 CU-hrs + 4.2/5 GB egress in 9.5 days ≈ $8.5/mo on Launch) | benchmark=queries per tick pass + DB-touch cadence when idle (proxy for CU-hrs/egress; true measure = Neon dashboard ~2 days post-deploy) | iterations=1 | budget=session | outcome=IMPROVED — pass cost N+1→2 queries (window-fn batch), idle cadence 15s→900s (demand-paced; /health//metrics exempt so the uptime cron can't hold it hot), uptime cron 30m→hourly. Backend 1341 passed/28 skipped + ruff; frontend gate green. **Verifier: PASS** (probes: tie semantics, prev_yes=0.0, interval clamp, first-tick, WS path — all sound). Deploy + re-measure = COST-02.
 - 2026-07-10 AUD-05: baseline=AUD-09 green | benchmark=paper buy refuses non-open/locked markets + documented ledger split | iterations=1 | outcome=IMPROVED — M-SEC-04 + applicable-C-SEC-01 closed; C-SEC-02 documented as intentional; full suite 1345 passed. User delegated the architecture call.

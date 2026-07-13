@@ -1,8 +1,6 @@
-# STANDBY (2026-07-11): chosen path for the $5/mo always-on backend once the
-# user provisions a Railway account + project token (recruiter-reliability
-# plan). Until RAILWAY_TOKEN + JWT_SECRET_KEY GitHub secrets exist, the
-# canonical backend stays the HF Space (deploy-hf-space.yml). Manual
-# workflow_dispatch only — never triggered by push/PR.
+# ACTIVE production backend (2026-07-13): Railway always-on API + private
+# Postgres (no Neon egress meter). HF Space workflow is retired/manual-rollback.
+# Manual workflow_dispatch only — never triggered by push/PR.
 name: Deploy Backend to Railway
 
 on:

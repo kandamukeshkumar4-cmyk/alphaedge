@@ -284,12 +284,24 @@ def test_huggingface_space_dockerfile_is_self_contained():
     assert "${PORT" not in dockerfile
 
 
-def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
+def test_huggingface_space_workflow_is_manual_rollback_only():
+    """HF Space is RETIRED as production (Neon egress + no SLA). Keep the
+    workflow as workflow_dispatch-only for rollback; Railway is canonical.
+    Manual rollback must still be able to sync secrets and prove a healthy Space.
+    """
     workflow = (ROOT / ".github" / "workflows" / "deploy-hf-space.yml").read_text(
         encoding="utf-8"
     )
 
-    assert 'paths: ["backend/**"]' in workflow
+    assert "RETIRED as the production backend" in workflow
+    assert "migrated to Railway" in workflow
+    assert "workflow_dispatch:" in workflow
+    # No push/PR auto-deploy — a backend push must not fire a failing HF job.
+    on_block = workflow.split("on:", 1)[1].split("jobs:", 1)[0]
+    assert "push:" not in on_block
+    assert 'paths: ["backend/**"]' not in workflow
+
+    # Rollback path still wires secrets + proof so a manual dispatch can revive HF.
     assert "HF_TOKEN: ${{ secrets.HF_TOKEN }}" in workflow
     assert "NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}" in workflow
     assert "NEON_DATABASE_URL_SYNC: ${{ secrets.NEON_DATABASE_URL_SYNC }}" in workflow
@@ -330,6 +342,34 @@ def test_huggingface_space_workflow_deploys_backend_and_fails_without_proof():
     assert "Canonical market lock_at must be in the future for browser paper trading" in workflow
     assert "Los Angeles mayoral election market was not returned" in workflow
     assert "Expected Elections category on election market" in workflow
+
+
+def test_railway_backend_is_production_deploy_path():
+    """Canonical always-on backend is Railway (live service uses Railway Postgres).
+
+    Note: deploy_railway.ps1 still accepts NEON_DATABASE_URL env names for the
+    GHA secret wiring; the live Railway service vars point at Railway Postgres.
+    """
+    railway_toml = (ROOT / "backend" / "railway.toml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "deploy-railway-backend.yml").read_text(
+        encoding="utf-8"
+    )
+    dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    next_config = (ROOT / "frontend" / "next.config.ts").read_text(encoding="utf-8")
+
+    assert 'builder = "DOCKERFILE"' in railway_toml
+    assert 'preDeployCommand = ["uv run alembic upgrade head"]' in railway_toml
+    assert "sh -c 'uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'" in railway_toml
+    assert 'healthcheckPath = "/health"' in railway_toml
+    assert "PAPER_TRADING_ONLY=true" in dockerfile
+    assert "uv run alembic upgrade head" in dockerfile
+    assert "uv run uvicorn app.main:app" in dockerfile
+    assert "workflow_dispatch:" in workflow
+    assert "RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}" in workflow
+    assert "JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}" in workflow
+    assert "deploy_railway.ps1" in workflow
+    assert "alphaedge-api-production-b9db.up.railway.app" in next_config
+    assert "Railway" in next_config
 
 
 def test_huggingface_space_workflow_lfs_tracks_binaries_and_fails_push_hard():
