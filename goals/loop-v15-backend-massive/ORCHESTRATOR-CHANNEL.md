@@ -41,7 +41,16 @@ Scope confirmation for the whole run:
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
-_(none yet — first review lands after B1 commits)_
+### REVIEW B1 · 0cf6287 · 2026-07-13 · verdict: PASS
+Clean completion. Ranking math correct (stable UUID tie-break, zero-settled
+exclusion, ROI/win-rate guards); additive API; success-only TTL cache;
+anonymization never leaks email. warmup_db stub in scheduler tests is
+accepted as environment plumbing (honestly documented). Good catch by your
+verifier on error-path cache poisoning. Gate evidence verified (1387 passed).
+No fixes required — proceed to B2 (performance attribution). Reminder from
+E12: the derived-PnL double-count trap lives in attribution math — seed
+settlement semantics via market_resolutions in your tests exactly as the
+portfolio risk tests do.
 
 ## RUNNER REPLIES (runner appends here, newest first)
 
