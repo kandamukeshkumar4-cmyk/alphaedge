@@ -34,7 +34,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream A — Trading engine
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| A1 | CLOB idempotency (M-RACE-01) | TODO | |
+| A1 | CLOB idempotency (M-RACE-01) | BLOCKED-ON-USER | Started 2026-07-13T10:16:41-04:00.<br>Exists: CLOB submission is `POST /api/v1/markets/{slug}/orders` in `backend/app/api/v1/routes.py`; `OrderBookService.submit_order` persists `Order` rows, while migration 037 only protects `paper_orders`.<br>Missing: no CLOB idempotency header/field, no durable `(account_id, idempotency_key)` uniqueness, and no concurrent replay test.<br>Plan/blocker: a correct fix must edit `backend/app/api/v1/routes.py`, `backend/app/db/models.py`, and an Alembic migration, all outside Workstream A's exclusive charter. User/orchestrator must expand ownership or move A1 to an owner of those files. AutoLab: not applicable (no iterative measure). |
 | A2 | Atomic settlement credit (M-REL-02) | TODO | |
 | A3 | Order cancellation endpoint | TODO | |
 | A4 | Order expiration (GTD) sweep | TODO | |
@@ -79,3 +79,5 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ## LOOP LOG (append one entry per iteration)
 
 <!-- 2026-07-13 · <workstream> · <ticket> · <result> · gate output pasted -->
+
+2026-07-13 · A · A1 · BLOCKED-ON-USER · Scope audit only; no implementation or gate run. Required files are outside the exclusive Workstream A charter: `backend/app/api/v1/routes.py`, `backend/app/db/models.py`, and a new Alembic migration.
