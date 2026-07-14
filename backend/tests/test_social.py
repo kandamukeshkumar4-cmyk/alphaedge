@@ -197,3 +197,106 @@ async def test_follow_rejects_self_unknown_private_and_unauthenticated(db_sessio
     assert unauthenticated.status_code == 401
     assert private.status_code == 404
     assert private_token
+
+
+@pytest.mark.asyncio
+async def test_followed_trader_feed_reuses_b4_shape_and_cursor(db_session):
+    await MarketService(db_session).seed_catalog_markets()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        follower_token = await _signup(client, "feed-follower@example.com")
+        followed_token = await _signup(client, "feed-followed@example.com")
+        other_token = await _signup(client, "feed-other@example.com")
+
+        follow_user = await db_session.scalar(
+            select(User).where(User.email == "feed-followed@example.com")
+        )
+        assert follow_user is not None
+        follow_user.display_name = "Followed"
+        await db_session.flush()
+        followed = await client.post(
+            "/api/v1/social/follow/Followed",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        assert followed.status_code == 200
+
+        for i in range(3):
+            order = await client.post(
+                "/api/v1/orders",
+                headers={"Authorization": f"Bearer {followed_token}"},
+                json={
+                    "slug": CANONICAL_SLUG,
+                    "side": "YES",
+                    "shares": 2 + i,
+                    "price": 0.4,
+                },
+            )
+            assert order.status_code == 201
+        other_order = await client.post(
+            "/api/v1/orders",
+            headers={"Authorization": f"Bearer {other_token}"},
+            json={"slug": CANONICAL_SLUG, "side": "NO", "shares": 9, "price": 0.4},
+        )
+        assert other_order.status_code == 201
+
+        page1 = await client.get(
+            "/api/v1/social/feed?limit=2",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        assert page1.status_code == 200
+        body1 = page1.json()
+        page2 = await client.get(
+            f"/api/v1/social/feed?limit=2&cursor={body1['next_cursor']}",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        invalid = await client.get(
+            "/api/v1/social/feed?cursor=bad",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+
+    assert len(body1["items"]) == 2
+    assert body1["next_cursor"]
+    assert len(page2.json()["items"]) == 1
+    assert page2.json()["next_cursor"] is None
+    assert all(item["trader"].startswith("Trader-") for item in body1["items"])
+    assert all("@" not in item["trader"] and "user_id" not in item for item in body1["items"])
+    assert {item["shares"] for item in body1["items"] + page2.json()["items"]} == {2.0, 3.0, 4.0}
+    assert invalid.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_followed_trader_feed_requires_auth_and_hides_opted_out_activity(db_session):
+    await MarketService(db_session).seed_catalog_markets()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        follower_token = await _signup(client, "feed-private-follower@example.com")
+        followed_token = await _signup(client, "feed-private-followed@example.com")
+        target = await db_session.scalar(
+            select(User).where(User.email == "feed-private-followed@example.com")
+        )
+        assert target is not None
+        target.display_name = "PrivateLater"
+        await db_session.flush()
+        assert (
+            await client.post(
+                "/api/v1/social/follow/PrivateLater",
+                headers={"Authorization": f"Bearer {follower_token}"},
+            )
+        ).status_code == 200
+        assert (
+            await client.post(
+                "/api/v1/orders",
+                headers={"Authorization": f"Bearer {followed_token}"},
+                json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 2, "price": 0.4},
+            )
+        ).status_code == 201
+        target.profile_public = False
+        await db_session.flush()
+        feed = await client.get(
+            "/api/v1/social/feed",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as anon:
+            unauthenticated = await anon.get("/api/v1/social/feed")
+
+    assert feed.status_code == 200
+    assert feed.json()["items"] == []
+    assert unauthenticated.status_code == 401

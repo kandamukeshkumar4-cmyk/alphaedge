@@ -5,9 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.activity import TradeActivityItem, TradeActivityPage
 from app.api.v1.deps import get_current_user
 from app.db.models import User
 from app.db.session import get_db
@@ -18,6 +20,7 @@ from app.services.social_follows import (
     list_following,
     unfollow_trader,
 )
+from app.services.social_feed import list_followed_trader_activity
 from app.services.social_profiles import get_public_trader_profile
 
 router = APIRouter(prefix="/api/v1/social", tags=["social"])
@@ -143,4 +146,32 @@ async def get_following(
     return FollowingResponse(
         items=[FollowingEntryResponse(username=i.username, member_since=i.member_since) for i in items],
         total=len(items),
+    )
+
+
+@router.get(
+    "/feed",
+    response_model=TradeActivityPage,
+    summary="List followed-trader activity",
+    description="Return anonymized recent paper trades from public traders followed by the authenticated user.",
+)
+async def get_social_feed(
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = Query(default=None, max_length=512),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TradeActivityPage:
+    try:
+        page = await list_followed_trader_activity(
+            db,
+            current_user.id,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid cursor") from exc
+    return TradeActivityPage(
+        items=[TradeActivityItem(**item) for item in page.items],
+        next_cursor=page.next_cursor,
+        limit=page.limit,
     )
