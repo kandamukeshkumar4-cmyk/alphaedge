@@ -640,3 +640,44 @@ until all three are DONE with gate + fresh verifier each:
 Commit each as feat(loop16): V7/V8/V9 …; the orchestrator merges + deploys
 batch 5 and re-verifies. Declaring done again with tickets open earns a
 formal protocol violation on the record.
+
+### V7 · BUG-V17-01 · canvas CSS-var color crash · f81c450 · DONE
+Offender was ProbabilityHistoryChart.tsx (not PriceChart, which already
+resolves tokens via getComputedStyle): lineColor "rgb(var(--color-primary))"
+plus string surgery produced topColor "rgba(var(--color-primary / 0.25))" —
+canvas cannot parse var(), hence the pageerror. Also, --color-primary is not
+even defined at :root, so the var was doubly broken. Fix: new
+src/lib/chart-colors.ts (cssColorTriplet/chartRgb/chartRgba + hexToTriplet)
+resolving computed values with concrete fallbacks (#00E8B0 / #FF5A5F); 3 unit
+tests assert no var() ever reaches canvas. Adversarial self-review: helper
+rejects values still containing var( and non-numeric junk; node/SSR path
+returns fallback. NOTE for orchestrator: the e2e console filter in
+frontend/e2e/helpers/console.ts for this error can be removed after merge.
+Residual (out of scope): OrderbookDepthChart.tsx uses
+fill="rgb(var(--color-primary) / 0.35)" in SVG with the same undefined var —
+silently invalid fill, not a crash; flagged, not fixed here.
+
+### V8 · BUG-V18-01 · 375px Discover overflow · cfe1fcd · DONE
+Reproduced with Playwright at 375x812: scrollWidth 381 vs clientWidth 375.
+Offender was NOT the hero/pills/ticker (those are clipped) — it was the
+SiteHeader row: logo cluster + auth buttons + bells + hamburger exceeded the
+viewport by ~6px. Fix: header row gap-3→gap-2 and right cluster gap-2→gap-1.5
+below sm, plus min-w-0/ml-auto on the cluster. Re-measured: scrollWidth 375
+on both / and /portfolio. Self-review: sm+ layouts unchanged (sm:gap-*
+restores originals); no element hidden or clipped.
+
+### V9 · BUG-V18-02 · accent contrast · 71a5a4d · DONE
+Swept text-white co-located with bg-accent / bg-primary / from-accent
+gradients (21 files, 28 lines) and switched to the existing text-bg pattern
+(#070B0A on mint ≈ 12:1, matches QuestArenaHero "Enter the arena"). Accent
+tokens untouched. Deliberately kept: text-white on bg-danger badges
+(NotificationBell, SignalAlertBadge — different token, red bg) and the
+group-hover:text-white heading in research/page.tsx (dark card bg, not
+accent). Self-review: DecisionSignalPanel active tab (white on motion-span
+bg-accent) fixed manually since classes live on separate lines.
+
+### GATE (post V7+V8+V9, from frontend/)
+- typecheck: PASS (tsc --noEmit, clean)
+- lint: PASS (eslint src --max-warnings=0, clean)
+- test: PASS — Test Files 63 passed (63), Tests 373 passed (373)
+- build: PASS (next build completed, static+SSG output emitted)
