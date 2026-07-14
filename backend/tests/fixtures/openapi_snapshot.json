@@ -588,6 +588,15 @@
    ]
   }
  },
+ "/api/v1/eval/drift": {
+  "get": {
+   "has_success_response": true,
+   "summary": "ForecastScore drift series",
+   "tags": [
+    "evaluation"
+   ]
+  }
+ },
  "/api/v1/eval/evaluations": {
   "get": {
    "has_success_response": true,

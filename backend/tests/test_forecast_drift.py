@@ -192,6 +192,7 @@ async def test_drift_detect_task_writes_jobrun(db_session):
     )
     assert summary["window_n"] == 4
     assert summary["degraded"] is True
+    assert summary["alerted"] is True
     runs = (
         await db_session.execute(
             select(JobRun).where(JobRun.job_name == DRIFT_DETECT_JOB_NAME)

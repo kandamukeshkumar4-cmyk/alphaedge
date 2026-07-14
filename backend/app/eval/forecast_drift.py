@@ -210,3 +210,63 @@ async def list_drift_snapshots(
         .limit(max(1, min(limit, 500)))
     )
     return list(result.scalars().all())
+
+
+def _hour_bucket(now: datetime) -> str:
+    return now.strftime("%Y-%m-%dT%H")
+
+
+async def maybe_dispatch_drift_alert(
+    session: AsyncSession,
+    result: DriftComputeResult,
+    *,
+    now: datetime | None = None,
+    settings=None,
+    dispatcher=None,
+) -> bool:
+    """Publish an in-app forecast_drift alert when degraded (hourly dedupe).
+
+    Uses the existing AlertDispatchService (persisted Alert + ``alerts`` WS
+    topic). Returns True if a new alert was dispatched.
+    """
+    if not result.degraded:
+        return False
+    now = now or datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    if settings is None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
+    if dispatcher is None:
+        from app.core.config import get_settings as _get_settings
+        from app.services.alert_dispatch import AlertDispatchService
+
+        # Always load full Settings for channel flags (telegram/webhook stay OFF).
+        dispatcher = AlertDispatchService(session, settings=_get_settings())
+
+    brier = result.rolling_brier
+    ece = result.rolling_ece
+    message = (
+        f"ForecastScore drift degraded: rolling Brier "
+        f"{brier if brier is not None else 'n/a'} "
+        f"(Δ {result.brier_delta if result.brier_delta is not None else 'n/a'}) "
+        f"ECE {ece if ece is not None else 'n/a'} "
+        f"(Δ {result.ece_delta if result.ece_delta is not None else 'n/a'}) "
+        f"over n={result.window_n}"
+    )
+    return await dispatcher.dispatch(
+        alert_type="forecast_drift",
+        message=message,
+        payload={
+            "window_n": result.window_n,
+            "rolling_brier": result.rolling_brier,
+            "rolling_ece": result.rolling_ece,
+            "brier_delta": result.brier_delta,
+            "ece_delta": result.ece_delta,
+            "baseline_brier": result.baseline_brier,
+            "baseline_ece": result.baseline_ece,
+            "snapshot_id": result.snapshot_id,
+        },
+        dedupe_key=f"forecast_drift:{_hour_bucket(now)}",
+    )
