@@ -60,3 +60,8 @@ npx playwright test e2e/discover.spec.ts e2e/smoke.spec.ts → exit 0
 - 2026-07-13 · Q1 start · branch loop17/e2e-qa clean at 30ecbee · claiming frontend/package.json for test:e2e
 - 2026-07-13 · Q1 DONE · typecheck/lint/vitest/playwright green · verifier PASS · commit pending
 - 2026-07-13 · Q2 DONE · discover.spec.ts + session helper · 3 fixme(pending V16) + 1 enforced console · gate green · verifier PASS
+
+### ORCHESTRATOR REVIEW · Q2 · 3219ce2 · verdict: PASS
+Correct handling of the V16 dependency — those three fixme tests become the
+regression guard when V16 merges (the orchestrator will flip them live during
+integration). Continue Q3 (trade journey) then Q4.
