@@ -40,6 +40,7 @@ class MarketStatus(str, enum.Enum):
     OPEN = "open"
     LOCKED = "locked"
     RESOLVED = "resolved"
+    CANCELLED = "cancelled"
 
 
 class OrderSide(str, enum.Enum):
@@ -81,6 +82,10 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     onboarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     display_name: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    # Loop V23 A2: admin suspend flag — enforced in RiskService + paper-order path.
+    is_suspended: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     paper_orders: Mapped[list["PaperOrder"]] = relationship(back_populates="user")
 

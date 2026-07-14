@@ -14,14 +14,19 @@ from app.core.security import verify_admin_api_key
 from app.data.connectors.catalog_map import CATALOG_MAP
 from app.db.models import JobRun, Market, MarketResolution, PaperOrder, User
 from app.db.session import get_db
+from app.events.bus import DomainEventBus
 from app.schemas.admin_markets import (
     AdminJobRunItem,
     AdminJobRunListResponse,
+    AdminMarketActionResponse,
+    AdminMarketCreateRequest,
+    AdminMarketDetail,
+    AdminMarketEditRequest,
     AdminMarketListItem,
     MarketResolveResponse,
     ResolveMarketRequest,
 )
-from app.services.market_service import CATALOG_SLUGS
+from app.services.market_service import CATALOG_SLUGS, MarketService
 from app.services.forecast_service import ForecastService
 from app.services.memory_service import store_resolution
 from app.services.order_book_service import OrderBookService
@@ -29,6 +34,32 @@ from app.services.settlement_service import settle_market
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-markets"])
 settings = get_settings()
+
+
+async def _get_market_by_slug(db: AsyncSession, slug: str) -> Market:
+    market = await db.scalar(select(Market).where(Market.slug == slug))
+    if market is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Market not found")
+    return market
+
+
+def _market_detail(market: Market) -> AdminMarketDetail:
+    return AdminMarketDetail(
+        id=market.id,
+        slug=market.slug,
+        title=market.title,
+        question=market.question,
+        status=market.status,
+        category=market.category,
+        icon=market.icon,
+        description=market.description or "",
+        resolution=market.resolution or "",
+        tournament_tag=market.tournament_tag,
+        lock_at=market.lock_at,
+        resolved_at=market.resolved_at,
+        created_at=market.created_at,
+        paper_trading_only=True,
+    )
 
 
 async def _settle_paper_orders(
@@ -132,6 +163,7 @@ async def list_admin_markets(
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> list[AdminMarketListItem]:
+    """List markets for admin dashboards (newest first)."""
     bounded_limit = min(max(limit, 1), 500)
     stmt = select(Market).order_by(Market.created_at.desc()).limit(bounded_limit)
     if tournament_tag is not None:
@@ -140,12 +172,130 @@ async def list_admin_markets(
     return list(result.all())
 
 
+@router.post(
+    "/markets",
+    response_model=AdminMarketDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_admin_market(
+    body: AdminMarketCreateRequest,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> AdminMarketDetail:
+    """Create a new paper market (OPEN). Writes a domain_events audit row."""
+    existing = await db.scalar(select(Market.id).where(Market.slug == body.slug))
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Market slug already exists: {body.slug}",
+        )
+    svc = MarketService(db)
+    market = await svc.create_market(
+        slug=body.slug,
+        title=body.title,
+        question=body.question,
+        lock_at=body.lock_at,
+        category=body.category,
+        icon=body.icon,
+        description=body.description,
+        resolution=body.resolution,
+        tournament_tag=body.tournament_tag,
+    )
+    # Strengthen audit payload for admin-originated creates (create_market already
+    # emits market_created; append an admin actor marker for ops trails).
+    await DomainEventBus(db).emit(
+        "admin_market_created",
+        {
+            "market_id": str(market.id),
+            "slug": market.slug,
+            "status": market.status.value,
+            "actor": "admin",
+        },
+    )
+    return _market_detail(market)
+
+
+@router.patch("/markets/{slug}", response_model=AdminMarketDetail)
+async def edit_admin_market(
+    slug: str,
+    body: AdminMarketEditRequest,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> AdminMarketDetail:
+    """Edit mutable market metadata. Rejects resolved/cancelled markets."""
+    market = await _get_market_by_slug(db, slug)
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+    svc = MarketService(db)
+    try:
+        market = await svc.update_market(market, fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return _market_detail(market)
+
+
+@router.post("/markets/{slug}/pause", response_model=AdminMarketActionResponse)
+async def pause_admin_market(
+    slug: str,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> AdminMarketActionResponse:
+    """Pause trading on an OPEN market (→ LOCKED). Audit row via domain_events."""
+    market = await _get_market_by_slug(db, slug)
+    svc = MarketService(db)
+    try:
+        market = await svc.pause_market(market)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return AdminMarketActionResponse(slug=market.slug, status=market.status)
+
+
+@router.post("/markets/{slug}/unpause", response_model=AdminMarketActionResponse)
+async def unpause_admin_market(
+    slug: str,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> AdminMarketActionResponse:
+    """Unpause a LOCKED market (→ OPEN). Cancelled/resolved stay closed."""
+    market = await _get_market_by_slug(db, slug)
+    svc = MarketService(db)
+    try:
+        market = await svc.unpause_market(market)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return AdminMarketActionResponse(slug=market.slug, status=market.status)
+
+
+@router.post("/markets/{slug}/cancel", response_model=AdminMarketActionResponse)
+async def cancel_admin_market(
+    slug: str,
+    _: str = Depends(verify_admin_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> AdminMarketActionResponse:
+    """Cancel an OPEN/LOCKED market (→ CANCELLED). Does not settle positions.
+
+    Manual outcome resolution remains on the existing resolve endpoints only.
+    """
+    market = await _get_market_by_slug(db, slug)
+    svc = MarketService(db)
+    try:
+        market = await svc.cancel_market(market)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return AdminMarketActionResponse(slug=market.slug, status=market.status)
+
+
 @router.get("/jobs", response_model=AdminJobRunListResponse)
 async def list_admin_jobs(
     limit: int = 5,
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> AdminJobRunListResponse:
+    """List recent worker job runs for the admin ops dashboard."""
     bounded_limit = min(max(limit, 1), 50)
     result = await db.scalars(
         select(JobRun).order_by(JobRun.started_at.desc()).limit(bounded_limit)
@@ -174,6 +324,7 @@ async def resolve_market(
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> MarketResolveResponse:
+    """Resolve a catalog market and settle paper orders (existing path; unchanged)."""
     if slug not in CATALOG_SLUGS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Market not found")
 

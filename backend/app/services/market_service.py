@@ -114,6 +114,104 @@ class MarketService:
         )
         return market
 
+    async def update_market(self, market: Market, fields: dict) -> Market:
+        """Admin edit of mutable market metadata. Terminal markets are rejected.
+
+        ``fields`` keys are model column names; only provided keys are applied
+        (including explicit nulls for nullable columns like tournament_tag/lock_at).
+        """
+        if market.status in (MarketStatus.RESOLVED, MarketStatus.CANCELLED):
+            raise ValueError(f"Cannot edit market in status {market.status.value}")
+
+        allowed = {
+            "title",
+            "question",
+            "category",
+            "icon",
+            "description",
+            "resolution",
+            "tournament_tag",
+            "lock_at",
+        }
+        changed: dict[str, object] = {}
+        for key, value in fields.items():
+            if key not in allowed:
+                continue
+            if getattr(market, key) == value:
+                continue
+            setattr(market, key, value)
+            if key == "lock_at" and value is not None and hasattr(value, "isoformat"):
+                changed[key] = value.isoformat()
+            else:
+                changed[key] = value
+
+        markets_cache.invalidate()
+        await self.session.flush()
+        await self.events.emit(
+            "market_updated",
+            {
+                "market_id": str(market.id),
+                "slug": market.slug,
+                "changed": changed,
+                "actor": "admin",
+            },
+        )
+        return market
+
+    async def pause_market(self, market: Market) -> Market:
+        """Admin pause: OPEN → LOCKED (trading stopped). Audit via domain_events."""
+        if market.status != MarketStatus.OPEN:
+            raise ValueError(f"Cannot pause market in status {market.status.value}")
+        market.status = MarketStatus.LOCKED
+        markets_cache.invalidate()
+        await self.session.flush()
+        await self.events.emit(
+            "market_paused",
+            {
+                "market_id": str(market.id),
+                "slug": market.slug,
+                "status": market.status.value,
+                "actor": "admin",
+            },
+        )
+        return market
+
+    async def unpause_market(self, market: Market) -> Market:
+        """Admin unpause: LOCKED → OPEN. Cancelled/resolved markets stay closed."""
+        if market.status != MarketStatus.LOCKED:
+            raise ValueError(f"Cannot unpause market in status {market.status.value}")
+        market.status = MarketStatus.OPEN
+        markets_cache.invalidate()
+        await self.session.flush()
+        await self.events.emit(
+            "market_unpaused",
+            {
+                "market_id": str(market.id),
+                "slug": market.slug,
+                "status": market.status.value,
+                "actor": "admin",
+            },
+        )
+        return market
+
+    async def cancel_market(self, market: Market) -> Market:
+        """Admin cancel: OPEN|LOCKED → CANCELLED. Does not settle or resolve."""
+        if market.status in (MarketStatus.RESOLVED, MarketStatus.CANCELLED):
+            raise ValueError(f"Cannot cancel market in status {market.status.value}")
+        market.status = MarketStatus.CANCELLED
+        markets_cache.invalidate()
+        await self.session.flush()
+        await self.events.emit(
+            "market_cancelled",
+            {
+                "market_id": str(market.id),
+                "slug": market.slug,
+                "status": market.status.value,
+                "actor": "admin",
+            },
+        )
+        return market
+
     async def resolve_market(self, market_id: UUID, winning_outcome: OrderOutcome) -> Market:
         result = await self.session.execute(select(Market).where(Market.id == market_id))
         market = result.scalar_one()
