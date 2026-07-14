@@ -8,6 +8,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
+from app.core import ratelimit
+from app.core.config import get_settings
 from app.db.models import Follow, User
 from app.db.session import get_db
 from app.main import app
@@ -300,3 +302,58 @@ async def test_followed_trader_feed_requires_auth_and_hides_opted_out_activity(d
     assert feed.status_code == 200
     assert feed.json()["items"] == []
     assert unauthenticated.status_code == 401
+
+
+def test_social_openapi_operations_are_documented():
+    expected = {
+        "/api/v1/social/traders/{trader}": {"get": "Get a public trader profile"},
+        "/api/v1/social/follow/{trader}": {
+            "post": "Follow a public trader",
+            "delete": "Unfollow a public trader",
+        },
+        "/api/v1/social/following": {"get": "List followed traders"},
+        "/api/v1/social/feed": {"get": "List followed-trader activity"},
+    }
+    schema = app.openapi()
+
+    for path, methods in expected.items():
+        assert path in schema["paths"]
+        for method, summary in methods.items():
+            operation = schema["paths"][path][method]
+            assert operation["summary"] == summary
+            assert operation["description"]
+            assert operation["tags"] == ["social"]
+            assert any(code.startswith("2") for code in operation["responses"])
+
+
+@pytest.mark.asyncio
+async def test_social_follow_inherits_mutating_rate_limit(db_session):
+    settings = get_settings()
+    original_rate = settings.rate_limit_mutating
+    original_enabled = settings.rate_limit_mutating_enabled
+    settings.rate_limit_mutating = "2/minute"
+    settings.rate_limit_mutating_enabled = True
+    ratelimit.reset()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            token = await _signup(client, "social-rate-limit@example.com")
+            ratelimit.reset()
+            headers = {"Authorization": f"Bearer {token}"}
+            first = await client.post(
+                "/api/v1/social/follow/unknown-trader", headers=headers
+            )
+            second = await client.post(
+                "/api/v1/social/follow/unknown-trader", headers=headers
+            )
+            third = await client.post(
+                "/api/v1/social/follow/unknown-trader", headers=headers
+            )
+    finally:
+        settings.rate_limit_mutating = original_rate
+        settings.rate_limit_mutating_enabled = original_enabled
+        ratelimit.reset()
+
+    assert first.status_code == 404
+    assert second.status_code == 404
+    assert third.status_code == 429
+    assert int(third.headers["retry-after"]) >= 1

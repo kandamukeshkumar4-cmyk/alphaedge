@@ -1168,6 +1168,67 @@
    ]
   }
  },
+ "/api/v1/social/feed": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List followed-trader activity",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/follow/{trader}": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Unfollow a public trader",
+   "tags": [
+    "social"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Follow a public trader",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/following": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List followed traders",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/traders/{trader}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get a public trader profile",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/sports/ingest": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Ingest Sports Results",
+   "tags": [
+    "sports"
+   ]
+  }
+ },
+ "/api/v1/sports/results": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Sports Results",
+   "tags": [
+    "sports"
+   ]
+  }
+ },
  "/api/v1/system/loops": {
   "get": {
    "has_success_response": true,
@@ -1199,6 +1260,15 @@
   "get": {
    "has_success_response": true,
    "summary": "Get Resolved Count",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/api/v1/system/sources": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Connector Sources",
    "tags": [
     "system"
    ]
