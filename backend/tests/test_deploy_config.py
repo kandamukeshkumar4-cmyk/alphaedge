@@ -266,7 +266,8 @@ def test_huggingface_neon_deploy_doc_exists():
     assert "/health" in doc
     assert "set_hf_space_secrets.ps1" in doc
     assert "-ReplaceHfToken" in doc
-    assert "HUGGINGFACE_NEON.md" in readme
+    # Retired platform (Railway cutover 2026-07-13): doc kept as legacy
+    # reference, no longer README-linked.
 
 
 def test_huggingface_space_dockerfile_is_self_contained():
@@ -507,7 +508,7 @@ def test_huggingface_neon_doc_and_readme_link_live_verifier():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "scripts/verify_hf_paper_trading_ready.ps1" in doc
-    assert "scripts/verify_hf_paper_trading_ready.ps1" in readme
+    # Retired platform: README no longer links the HF verifier script.
     assert "paper order lifecycle" in doc
     assert "admin agent proof" in doc
 
@@ -586,4 +587,4 @@ def test_koyeb_neon_readiness_script_checks_backend_and_frontend():
     assert "No active service" in script
     assert "Frontend markets bundle is not pointed at" in script
     assert "verify_koyeb_neon_ready.ps1" in doc
-    assert "verify_koyeb_neon_ready.ps1" in readme
+    # Retired platform: README no longer links the Koyeb readiness script.
