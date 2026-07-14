@@ -20,6 +20,8 @@ from app.pipeline.ingest import (
 from app.workers.ops_alerts import ops_alerts_task
 from app.workers.order_expiry import order_expiry_task
 from app.workers.portfolio_equity import portfolio_equity_snapshot_task
+from app.workers.drift_detect import drift_detect_task
+from app.workers.model_retrain import model_retrain_task
 
 
 logger = logging.getLogger(__name__)
@@ -1034,6 +1036,8 @@ class WorkerSettings:
         order_expiry_task,
         portfolio_equity_snapshot_task,
         ops_alerts_task,
+        drift_detect_task,
+        model_retrain_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1063,4 +1067,8 @@ class WorkerSettings:
         cron(portfolio_equity_snapshot_task, hour={0}, minute={5}),
         # E3: ops threshold alerts (error rate / p99 / stale predictions) every 10 min
         cron(ops_alerts_task, minute=set(range(0, 60, 10))),
+        # D2: ForecastScore rolling Brier/ECE drift series every 15 min
+        cron(drift_detect_task, minute={0, 15, 30, 45}),
+        # D4: scheduled XGBoost retrain (flag-gated ML_RETRAIN_ENABLED=false) daily 04:00
+        cron(model_retrain_task, hour={4}, minute={0}),
     ]

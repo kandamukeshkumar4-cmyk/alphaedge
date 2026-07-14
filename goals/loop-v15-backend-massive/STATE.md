@@ -21,6 +21,8 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | Number | Claimed by | Ticket | Status |
 |---|---|---|---|
+| 042 | Workstream D | D2 | LANDED 2026-07-13T22:30:00-04:00 |
+| 041 | Workstream D | D1 | LANDED 2026-07-13T22:05:00-04:00 |
 | 038 | Workstream A | A1 | LANDED 2026-07-13T11:18:08-04:00 |
 | 039 | Workstream A | A4 | LANDED 2026-07-13T12:03:52-04:00 |
 | 040 | Workstream B | B5 | LANDED 2026-07-13T16:18:57-04:00 |
@@ -29,6 +31,11 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/workers/tasks.py` | Workstream D | D4 | RELEASED 2026-07-13T23:20:00-04:00 |
+| `backend/app/db/models.py` | Workstream D | D2 | RELEASED 2026-07-13T22:30:00-04:00 |
+| `backend/app/workers/tasks.py` | Workstream D | D2 | RELEASED 2026-07-13T22:30:00-04:00 |
+| `backend/app/db/models.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
+| `backend/app/main.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
 | `backend/app/workers/tasks.py` | Workstream E | E3 | RELEASED 2026-07-13T21:45:00-04:00 |
 | `backend/app/main.py` | Workstream C | C3 | RELEASED 2026-07-13T21:39:37-04:00 |
 | `backend/app/main.py` | Workstream C | C2 | RELEASED 2026-07-13T21:23:42-04:00 |
@@ -82,11 +89,11 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream D — ML lifecycle
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| D1 | Model registry completed | TODO | model_registry.py/versioning.py exist — read first |
-| D2 | Drift detection worker | TODO | read-only consumer of ForecastScore |
-| D3 | Drift API + in-app alert | TODO | |
-| D4 | Scheduled retrain (flag-gated OFF) | TODO | never auto-activates |
-| D5 | AutoLab calibration pass | TODO | blocked-check: needs ≥100 resolved |
+| D1 | Model registry completed | DONE | Started 2026-07-13T21:40:00-04:00. DIR-D-001 ack.<br>Exists: classifier factory in `ml/model_registry.py`; thin `register_model_version` in `ml/versioning.py`; `ModelVersion` without training hash / active pointer.<br>Missing at start: training_data_hash, active pointer + rollback, admin GET `/api/v1/models`, metrics contract, tests.<br>Implemented: migration 041; `ModelActivePointer`; versioning helpers (hash, register, list, activate, rollback); admin list/activate/rollback; OpenAPI snapshot +6 paths; docs `notes-d1-model-registry.md`. Classifier factory untouched.<br>Gate: `1455 passed, 28 skipped`; ruff clean; alembic head `041_model_registry_active`.<br>Fresh verifier: PASS ([verifier](d985389c-edb5-4202-8c4a-205c45010cf4)). AutoLab: N/A. Completed 2026-07-13T22:05:00-04:00. |
+| D2 | Drift detection worker | DONE | Started 2026-07-13T22:10:00-04:00. DIR-D-001 ack.<br>Exists: U12 BriefClaim drift (not ForecastScore); ops_alerts worker pattern.<br>Implemented: `eval/forecast_drift.py` + `workers/drift_detect.py`; migration 042; FORECAST_DRIFT_* settings; JobRun + 15-min cron; 9 synthetic-score tests. Read-only ForecastScore consumer. Alerts deferred to D3.<br>Gate: `1464 passed, 28 skipped`; ruff clean; head `042_forecast_drift_snapshots`.<br>Fresh verifier: PASS ([verifier](f814629a-ac1c-43f9-a1e7-04da0bfbd244)). AutoLab: N/A. Completed 2026-07-13T22:30:00-04:00. |
+| D3 | Drift API + in-app alert | DONE | Started 2026-07-13T22:35:00-04:00. DIR-D-001 ack.<br>Implemented: `GET /api/v1/eval/drift`; `maybe_dispatch_drift_alert` via AlertDispatchService (`forecast_drift` + hourly dedupe); worker `alerted` field; OpenAPI +1 path; 5 new API tests.<br>Gate: pytest exit 0; ruff clean. Fresh verifier: PASS ([verifier](54491aa9-5716-4ac9-a780-80b02b6ae223)). AutoLab: N/A. Completed 2026-07-13T23:00:00-04:00. |
+| D4 | Scheduled retrain (flag-gated OFF) | DONE | Started 2026-07-13T23:05:00-04:00. DIR-D-001 ack.<br>Implemented: `ML_RETRAIN_ENABLED` default false; `workers/model_retrain.py`; `train_xgboost_from_feature_matrix`; D1 register with activate=False + recommendation log; daily 04:00 cron; 5 tests.<br>Gate: `1474 passed, 28 skipped`; ruff clean.<br>Fresh verifier: PASS ([verifier](7bb66f86-e3b5-4ed5-8e29-65934bf6d25f)). AutoLab: N/A. Completed 2026-07-13T23:20:00-04:00. |
+| D5 | AutoLab calibration pass | BLOCKED | Started 2026-07-13T23:25:00-04:00. DIR-D-001 ack.<br>Prod read-only GET `https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count` returned HTTP 503 ("Your space is in error"). Koyeb alternate `alphaedge-api.koyeb.app` returned 404 no active service. Cannot verify ≥100 resolved outcomes.<br>**blocked on resolved-count — honest skip**. No calibration loop run; never trained on post-close information; no metric gaming.<br>AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count). Completed 2026-07-13T23:30:00-04:00. |
 
 ### Workstream E — Platform & observability
 | ID | Ticket | Status | Notes / evidence |
@@ -397,6 +404,18 @@ PASS backend pytest (exit 0)
 === GATE: backend ruff ===
 All checks passed!
 PASS backend ruff (exit 0)
+
+2026-07-13 · D · D1 · DONE · DIR-D-001 ack. Finished model registry: training_data_hash + metrics, active pointer with rollback, admin GET/activate/rollback. Fresh verifier PASS. Migration 041 landed.
+
+```text
+=== GATE: backend pytest ===
+1455 passed, 28 skipped in 574.96s (0:09:34)
+
+=== GATE: backend ruff ===
+All checks passed!
+
+=== ALEMBIC ===
+041_model_registry_active (head)
 ```
 
 AutoLab: not applicable (no iterative measure).
@@ -411,6 +430,22 @@ PASS backend pytest (exit 0)
 === GATE: backend ruff ===
 All checks passed!
 PASS backend ruff (exit 0)
+2026-07-13 · D · D2 · DONE · ForecastScore drift worker + series table 042. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1464 passed, 28 skipped in 426.35s (0:07:06)
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · D · D3 · DONE · GET /api/v1/eval/drift + forecast_drift in-app alert (hourly dedupe). Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+exit 0 (focused 17 passed; full suite green)
+=== GATE: backend ruff ===
+All checks passed!
 ```
 
 AutoLab: not applicable (no iterative measure).
@@ -425,6 +460,13 @@ PASS backend pytest (exit 0)
 === GATE: backend ruff ===
 All checks passed!
 PASS backend ruff (exit 0)
+2026-07-13 · D · D4 · DONE · Flag-gated scheduled retrain (default OFF); registers via D1; never auto-activates. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1474 passed, 28 skipped in 429.18s (0:07:09)
+=== GATE: backend ruff ===
+All checks passed!
 ```
 
 AutoLab: not applicable (no iterative measure).
@@ -445,3 +487,17 @@ Live /api/v1/system/sources (2026-07-13T22:15:36-04:00):
 espn-nba successes=5 failures=0 | worldbank successes=3 failures=0 | fred=0/0 | polymarket.clob=0/0 | polymarket.gamma=0/0 | count=5 | paper_trading_only=true
 
 AutoLab: not applicable (no iterative measure).
+2026-07-13 · D · D5 · BLOCKED · blocked on resolved-count — honest skip. Prod HF API 503 on GET /api/v1/system/resolved-count; cannot confirm ≥100 resolved. No AutoLab calibration edits.
+
+```text
+=== PROD READ-ONLY ===
+GET https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count
+HTTP 503 body: Your space is in error, check its status on hf.co
+
+GET https://alphaedge-api.koyeb.app/api/v1/system/resolved-count
+HTTP 404 (no active service)
+```
+
+AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count)
+
+Workstream D COMPLETE (D1–D4 DONE, D5 BLOCKED honest skip).

@@ -22,6 +22,7 @@ from app.api.v1.portfolio_clv import router as portfolio_clv_router
 from app.api.v1.calibration import router as calibration_router
 from app.api.v1.eval_routes import router as eval_router
 from app.api.v1.forecast_routes import router as forecast_router
+from app.api.v1.models import router as models_router
 from app.api.v1.health import router as health_router
 from app.api.v1.market_candles import router as market_candles_router
 from app.api.v1.market_detail import router as market_detail_router
@@ -611,6 +612,7 @@ app.include_router(compare_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
+app.include_router(models_router)
 app.include_router(admin_router)
 app.include_router(agent_admin_router)
 app.include_router(metrics_router)

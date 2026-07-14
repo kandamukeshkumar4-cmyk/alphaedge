@@ -588,6 +588,15 @@
    ]
   }
  },
+ "/api/v1/eval/drift": {
+  "get": {
+   "has_success_response": true,
+   "summary": "ForecastScore drift series",
+   "tags": [
+    "evaluation"
+   ]
+  }
+ },
  "/api/v1/eval/evaluations": {
   "get": {
    "has_success_response": true,
@@ -872,6 +881,33 @@
    "summary": "List Memories",
    "tags": [
     "memories"
+   ]
+  }
+ },
+ "/api/v1/models": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List model versions",
+   "tags": [
+    "models"
+   ]
+  }
+ },
+ "/api/v1/models/rollback": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Rollback active model",
+   "tags": [
+    "models"
+   ]
+  }
+ },
+ "/api/v1/models/{version_id}/activate": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Activate a model version",
+   "tags": [
+    "models"
    ]
   }
  },
