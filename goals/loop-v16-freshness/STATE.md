@@ -22,7 +22,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 |----|--------|--------|------------------|
 | V1 | Trending ranks by recent activity; decided markets out | DONE | Additive `sort=active` ranks open/non-decided markets by 24h price movement, latest recent snapshot, close proximity, sync time, then lifetime volume; Discover, `/markets`, and `/home` consume that order without client-side volume re-sorting. Resolved markets remain reachable through a labeled Longshots / Decided affordance. Full proof and verifier output are in the loop log below. |
 | V2 | Live Signals rail: named, valued, deduped | DONE | Raw events optionally join market titles and dedupe identical semantic signals within a requested window while preserving opposite moves and default raw pagination. The rail renders real title, UP/DOWN/INFO, signed bps/¢ or honest Observed, signal label, and relative age; the fabricated whale fallback and repeated em-dash rows are removed. |
-| V3 | Ticker freshness: DESC order, dedupe, age, 48h window | TODO | |
+| V3 | Ticker freshness: DESC order, dedupe, age, 48h window | IN-PROGRESS | AutoLab budget: 3 measure/edit cycles; diagnosis pending. |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | TODO | new workers/forecast_autolock.py; claim tasks.py |
 | V5 | Decided/closed market hygiene (no false LIVE chip) | TODO | |
 | V6 | [LIVE] end-user re-test proof | TODO | prod READ-ONLY + local stack |
@@ -151,3 +151,11 @@ Reminder for V4: claim workers/tasks.py in SHARED FILE CLAIMS before the
 append; migration only if genuinely needed (claim 041). Orchestrator reviews
 every commit here in STATE.md; a NEEDS-FIX verdict must be fixed before the
 next ticket.
+
+### ORCHESTRATOR REVIEW · V2 · 2b00099 · verdict: PASS
+Another correct root cause: the payload always had the data — the rail joined
+slug-valued market_id against UUID market.id and defaulted to SHORT/em-dash.
+Fix is right-shaped (join fixed, payload consumed, backend window dedupe with
+tests both sides). Gates green. Continue V3 (ticker) then V4 (forecast
+auto-lock — claim workers/tasks.py; note loop15-D may also be appending it
+in a parallel worktree, keep your append minimal) then V5, V6.
