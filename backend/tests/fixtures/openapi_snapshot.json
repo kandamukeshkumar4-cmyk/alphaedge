@@ -1,0 +1,1259 @@
+{
+ "/": {
+  "get": {
+   "has_success_response": true,
+   "summary": "API root",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/admin/agents/run/{slug}": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Run Agent",
+   "tags": [
+    "agents"
+   ]
+  }
+ },
+ "/admin/agents/runs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Agent Runs",
+   "tags": [
+    "agents"
+   ]
+  }
+ },
+ "/admin/agents/runs/{run_id}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Agent Run",
+   "tags": [
+    "agents"
+   ]
+  }
+ },
+ "/admin/historical-closing-snapshot-captures": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Historical Closing Snapshot Captures",
+   "tags": [
+    "admin"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Capture Historical Closing Snapshots",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/admin/market-snapshot-captures": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Market Snapshot Captures",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/admin/markets": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Market",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/admin/markets/{market_id}/lock": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Lock Market",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/admin/markets/{market_id}/resolve": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Resolve Market",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/admin/phase3-snapshot-store-backtests": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Phase3 Snapshot Store Backtests",
+   "tags": [
+    "admin"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Run Phase3 Snapshot Store Backtest",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/admin/smoke-account": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Smoke Account",
+   "tags": [
+    "admin"
+   ]
+  }
+ },
+ "/api/v1/accounts/{account_id}/positions": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Positions",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/activity/trades": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Public Trades",
+   "tags": [
+    "activity"
+   ]
+  }
+ },
+ "/api/v1/admin/dogfood/mirror-report": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Mirror Dogfood Report",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/admin/external-markets/{external_market_id}/resolve": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Admin Resolve External Market",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/admin/jobs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Admin Jobs",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/markets": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Admin Markets",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/markets/{slug}/resolve": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Resolve Market",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/observability/drift": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Calibration Drift",
+   "tags": [
+    "observability"
+   ]
+  }
+ },
+ "/api/v1/admin/observability/slo": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Slo Tiles",
+   "tags": [
+    "observability"
+   ]
+  }
+ },
+ "/api/v1/admin/observability/summary": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Observability Summary",
+   "tags": [
+    "observability"
+   ]
+  }
+ },
+ "/api/v1/admin/observability/traces": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Agent Traces",
+   "tags": [
+    "observability"
+   ]
+  }
+ },
+ "/api/v1/admin/wc2026/resolve": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Admin Resolve Wc2026",
+   "tags": [
+    "admin-wc2026"
+   ]
+  }
+ },
+ "/api/v1/admin/wc2026/seed": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Admin Seed Wc2026",
+   "tags": [
+    "admin-wc2026"
+   ]
+  }
+ },
+ "/api/v1/admin/wc2026/status": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Admin Wc2026 Status",
+   "tags": [
+    "admin-wc2026"
+   ]
+  }
+ },
+ "/api/v1/alerts": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Alerts",
+   "tags": [
+    "activity"
+   ]
+  }
+ },
+ "/api/v1/alerts/digest": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Alerts Digest",
+   "tags": [
+    "alerts"
+   ]
+  }
+ },
+ "/api/v1/alerts/feed": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Alerts Feed",
+   "tags": [
+    "alerts"
+   ]
+  }
+ },
+ "/api/v1/analyst/run": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Run Analyst On Demand",
+   "tags": [
+    "analyst"
+   ]
+  }
+ },
+ "/api/v1/analyst/track-record": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Track Record",
+   "tags": [
+    "analyst"
+   ]
+  }
+ },
+ "/api/v1/analyst/track-record/claims": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Track Record Claims",
+   "tags": [
+    "analyst"
+   ]
+  }
+ },
+ "/api/v1/arb/detect": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Detect Arb",
+   "tags": [
+    "arb"
+   ]
+  }
+ },
+ "/api/v1/arb/opportunities": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Arb Opportunities",
+   "tags": [
+    "arb"
+   ]
+  }
+ },
+ "/api/v1/assistant/chat": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Assistant Chat",
+   "tags": [
+    "assistant"
+   ]
+  }
+ },
+ "/api/v1/auth/login": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Login",
+   "tags": [
+    "auth"
+   ]
+  }
+ },
+ "/api/v1/auth/logout": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Logout",
+   "tags": [
+    "auth"
+   ]
+  }
+ },
+ "/api/v1/auth/me": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Me",
+   "tags": [
+    "auth"
+   ]
+  },
+  "patch": {
+   "has_success_response": true,
+   "summary": "Update Me",
+   "tags": [
+    "auth"
+   ]
+  }
+ },
+ "/api/v1/auth/signup": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Signup",
+   "tags": [
+    "auth"
+   ]
+  }
+ },
+ "/api/v1/backfill/markets": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Backfill Markets",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/backtest/run": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Run Backtest For Market",
+   "tags": [
+    "backtest"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Trigger Backtest Run",
+   "tags": [
+    "backtest"
+   ]
+  }
+ },
+ "/api/v1/backtest/runs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Backtest Runs",
+   "tags": [
+    "backtest"
+   ]
+  }
+ },
+ "/api/v1/backtest/runs/{run_id}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Backtest Run",
+   "tags": [
+    "backtest"
+   ]
+  }
+ },
+ "/api/v1/backtest/summary": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Backtest Summary",
+   "tags": [
+    "backtest"
+   ]
+  }
+ },
+ "/api/v1/briefs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Briefs",
+   "tags": [
+    "analyst"
+   ]
+  }
+ },
+ "/api/v1/briefs/{brief_id}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Brief",
+   "tags": [
+    "analyst"
+   ]
+  }
+ },
+ "/api/v1/calibration/latest": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Latest Calibration",
+   "tags": [
+    "calibration"
+   ]
+  }
+ },
+ "/api/v1/categories/{category}/summary": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Category Summary",
+   "tags": [
+    "categories"
+   ]
+  }
+ },
+ "/api/v1/clones": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Clones Endpoint",
+   "tags": [
+    "clones"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Clone Endpoint",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/leaderboard": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Clone Leaderboard",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/nodes": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Vetted Nodes",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/{clone_id}": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Delete Clone Endpoint",
+   "tags": [
+    "clones"
+   ]
+  },
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Clone Endpoint",
+   "tags": [
+    "clones"
+   ]
+  },
+  "patch": {
+   "has_success_response": true,
+   "summary": "Update Clone Endpoint",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/{clone_id}/run": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Run Clone Endpoint",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/{clone_id}/runs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Runs Endpoint",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/{clone_id}/scorecard": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Clone Scorecard",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clones/{clone_id}/versions": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Clone Versions Endpoint",
+   "tags": [
+    "clones"
+   ]
+  }
+ },
+ "/api/v1/clv-track-record": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Clv Track Record",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/compare": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Compare Markets",
+   "tags": [
+    "compare"
+   ]
+  }
+ },
+ "/api/v1/desk": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Desk",
+   "tags": [
+    "desk"
+   ]
+  }
+ },
+ "/api/v1/eval/aggregates": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Aggregates",
+   "tags": [
+    "evaluation"
+   ]
+  }
+ },
+ "/api/v1/eval/calibration": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Calibration Curve",
+   "tags": [
+    "evaluation"
+   ]
+  }
+ },
+ "/api/v1/eval/evaluations": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Evaluations",
+   "tags": [
+    "evaluation"
+   ]
+  }
+ },
+ "/api/v1/feed": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Feed",
+   "tags": [
+    "feed"
+   ]
+  }
+ },
+ "/api/v1/forecasters/anonymous": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Forecaster",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/forecasters/me/dashboard": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Dashboard",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/forecasters/me/forecast-lifecycle": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Forecast Lifecycle",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/forecasters/me/recovery": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Attach Recovery Email",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/forecasters/recover": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Recover Forecaster",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/forecasts": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Forecast",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/health/detailed": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Detailed Health",
+   "tags": [
+    "health"
+   ]
+  }
+ },
+ "/api/v1/home": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Home",
+   "tags": [
+    "home"
+   ]
+  }
+ },
+ "/api/v1/leaderboard": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Leaderboard",
+   "tags": [
+    "leaderboard",
+    "public"
+   ]
+  }
+ },
+ "/api/v1/macro": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Macro Dashboard",
+   "tags": [
+    "macro"
+   ]
+  }
+ },
+ "/api/v1/markets": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Markets",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/markets/external/resolve-url": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Resolve External Url",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/agent-trace": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Agent Trace",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/book": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Order Book",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/candles": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Candles",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/detail": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Detail",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/drivers": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Drivers",
+   "tags": [
+    "market-drivers"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/edge-history": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Edge History",
+   "tags": [
+    "edge-history"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/explain": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Explain Market",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/history": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market History",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/latency": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Market Latency",
+   "tags": [
+    "analyst"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/orders": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Place Order",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/prediction": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Prediction",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/prices/latest": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Latest Price",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/share-snapshot": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Share Snapshot",
+   "tags": [
+    "market-snapshot"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/signals": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Signals",
+   "tags": [
+    "public"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Submit Market Signal",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/snapshot": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Snapshot",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/memories": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Memories",
+   "tags": [
+    "memories"
+   ]
+  }
+ },
+ "/api/v1/notify/prefs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Notify Prefs",
+   "tags": [
+    "notify"
+   ]
+  },
+  "put": {
+   "has_success_response": true,
+   "summary": "Put Notify Prefs",
+   "tags": [
+    "notify"
+   ]
+  }
+ },
+ "/api/v1/opportunities": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Opportunities",
+   "tags": [
+    "opportunities"
+   ]
+  }
+ },
+ "/api/v1/orders": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Clob Orders",
+   "tags": [
+    "public"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Place Paper Order",
+   "tags": [
+    "orders"
+   ]
+  }
+ },
+ "/api/v1/orders/history": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Order History",
+   "tags": [
+    "orders"
+   ]
+  }
+ },
+ "/api/v1/orders/{order_id}/cancel": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Cancel Order",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/paper-account": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Paper Account",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/portfolio": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/attribution": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Attribution",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/clv-summary": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Clv Summary",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/equity-curve": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Equity Curve",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/exposure": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Exposure",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/risk": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Risk",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/summary": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Summary",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/positions/close": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Close Paper Position",
+   "tags": [
+    "orders"
+   ]
+  }
+ },
+ "/api/v1/profile": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Trader Profile",
+   "tags": [
+    "profile"
+   ]
+  }
+ },
+ "/api/v1/resolved": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Resolved Review",
+   "tags": [
+    "resolved"
+   ]
+  }
+ },
+ "/api/v1/search": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Search Markets",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Signal Feed",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/arbitrage": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Arbitrage Signal",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/dashboard": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Signals Dashboard",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/dutching": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Dutching Signal",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/events": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Signal Events",
+   "tags": [
+    "activity"
+   ]
+  }
+ },
+ "/api/v1/signals/feed": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Signal Feed",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/forecast": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Forecast Signal",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/screeners": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Screener Signals",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/signals/smart-money": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Smart Money Signal",
+   "tags": [
+    "public"
+   ]
+  }
+ },
+ "/api/v1/smart-money": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Smart Money",
+   "tags": [
+    "smart-money"
+   ]
+  }
+ },
+ "/api/v1/system/loops": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Loops",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/api/v1/system/metrics": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Metrics",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/api/v1/system/model-ab": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Model Ab",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/api/v1/system/resolved-count": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Resolved Count",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/api/v1/telemetry/mirror/events": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Record Mirror Telemetry Event",
+   "tags": [
+    "forecast-mirror"
+   ]
+  }
+ },
+ "/api/v1/track-record": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Track Record",
+   "tags": [
+    "track-record"
+   ]
+  }
+ },
+ "/api/v1/watchlist": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Watchlist",
+   "tags": [
+    "watchlist"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Add To Watchlist",
+   "tags": [
+    "watchlist"
+   ]
+  }
+ },
+ "/api/v1/watchlist/alerts": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Watchlist Alerts",
+   "tags": [
+    "alerts"
+   ]
+  }
+ },
+ "/api/v1/watchlist/{slug}": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Remove From Watchlist",
+   "tags": [
+    "watchlist"
+   ]
+  }
+ },
+ "/api/v1/wc2026/schedule": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Wc2026 Schedule",
+   "tags": [
+    "wc2026"
+   ]
+  }
+ },
+ "/api/v1/weather/edges": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Weather Edges",
+   "tags": [
+    "weather"
+   ]
+  }
+ },
+ "/health": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Liveness/health check",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/metrics": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Prometheus metrics exposition (admin/token gated)",
+   "tags": [
+    "metrics"
+   ]
+  }
+ }
+}

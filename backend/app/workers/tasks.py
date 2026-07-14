@@ -17,6 +17,7 @@ from app.pipeline.ingest import (
     capture_configured_market_snapshots,
     ingest_fixtures,
 )
+from app.workers.ops_alerts import ops_alerts_task
 from app.workers.order_expiry import order_expiry_task
 from app.workers.portfolio_equity import portfolio_equity_snapshot_task
 
@@ -1032,6 +1033,7 @@ class WorkerSettings:
         weather_scan_task,
         order_expiry_task,
         portfolio_equity_snapshot_task,
+        ops_alerts_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1059,4 +1061,6 @@ class WorkerSettings:
         cron(order_expiry_task, minute=set(range(60))),
         # B5: daily equity curve snapshots at 00:05 UTC
         cron(portfolio_equity_snapshot_task, hour={0}, minute={5}),
+        # E3: ops threshold alerts (error rate / p99 / stale predictions) every 10 min
+        cron(ops_alerts_task, minute=set(range(0, 60, 10))),
     ]

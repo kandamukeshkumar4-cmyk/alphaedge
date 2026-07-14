@@ -29,6 +29,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/workers/tasks.py` | Workstream E | E3 | RELEASED 2026-07-13T21:45:00-04:00 |
 | `backend/app/db/models.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
 | `backend/app/workers/tasks.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
 | `backend/app/schemas/portfolio.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
@@ -88,11 +89,11 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream E — Platform & observability
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| E1 | Uniform rate limiting | TODO | |
-| E2 | Prometheus /metrics | TODO | |
-| E3 | In-app alert rules | TODO | read alert_dispatch first |
-| E4 | OpenAPI polish + schema snapshot | TODO | |
-| E5 | [LIVE] Ops soak under load | TODO | |
+| E1 | Uniform rate limiting | DONE | Started 2026-07-13T17:05:00-04:00.<br>Exists at start: slowapi global 600/minute per-IP default limit via `SlowAPIMiddleware` (main.py); per-IP anon limiter in assistant.py; no per-user identity, no mutating-specific limits, no admin exemption on limits, no Retry-After on 429.<br>Missing at start: uniform per-user/IP fixed-window limits on mutating methods, config-driven, admin exempt, 429+Retry-After, tests.<br>Implemented: new `app/core/ratelimit.py` `MutatingRateLimitMiddleware` (innermost of the stack so request-id is set and 429s are metered) applying a fixed-window limit ONLY to POST/PUT/PATCH/DELETE, keyed per identity+method+path (bearer-token hash when present, else client IP), valid `X-Admin-API-Key` exempt, malformed rate strings fail loudly, bounded window map with expiry pruning and fail-open under pathological growth. Config: `RATE_LIMIT_MUTATING` (default 600/minute — mirrors the existing global limit so behavior/tests are unchanged until ops tightens it) + `RATE_LIMIT_MUTATING_ENABLED` kill switch. 15 tests: parse variants/malformed, window reset (injected clock), trip with Retry-After, GET never limited, admin exempt, wrong admin key not exempt, per-token identity isolation, per-route bucket isolation, kill switch. Existing tests untouched (default limit is generous; the tight 2/minute limit is pinned only inside the new test module and restored after).<br>Gate (solo run, fresh basetemp): backend `1430 passed, 28 skipped in 440.17s`; ruff `All checks passed!`. An earlier overlapping duplicate gate run produced temp-db collision errors; the solo re-run is the authoritative result.<br>Self-review vs guardrails: additive only (no endpoint shapes changed), order path untouched, PAPER_TRADING_ONLY untouched, no test weakened, no network in tests. Verdict: PASS. AutoLab: not applicable (no iterative measure). Completed 2026-07-13T20:45:00-04:00. |
+| E2 | Prometheus /metrics | DONE | Started 2026-07-13T20:50:00-04:00.<br>Exists at start: `prometheus_client` ALREADY a dependency (U12) — no new dep added; `app/observability/metrics.py` exposed an UNGATED `GET /metrics` with stream/brief/claims/WS/SLO series; `http_metrics.py` held in-process per-route counters (JSON at /api/v1/system/metrics); no per-route Prometheus latency histogram, no 5xx counter, no worker-duration histogram, no connector-health gauge, no gating.<br>Implemented: /metrics now requires `X-Admin-API-Key` OR `Authorization: Bearer <METRICS_TOKEN>` (new empty-default setting; empty token can never open the gate) and returns 401 otherwise. New series: `alphaedge_http_request_latency_ms{method,route}` histogram + `alphaedge_http_errors_total{method,route}` counter fed from `http_metrics.record_request` (i.e. every request the middleware sees, templated routes, failure-isolated); `alphaedge_worker_job_duration_ms{job}` histogram fed via new optional `duration_ms` on `loop_state.record_heartbeat` (honest-empty until loops pass durations); `alphaedge_connector_health{source}` gauge + `set_connector_health` helper — STUB NAME CONTRACT for C3 (not landed), empty until a connector reports. Tests updated to send the admin key (gating is the ticket's required behavior — assertions strengthened, none weakened) + 9 new tests: 401 unauth/wrong key, token accept/reject, empty-token closed, http series count+errors, worker duration, gauge set/unset.<br>Gate: backend `1437 passed, 28 skipped in 355.90s`; ruff `All checks passed!`.<br>Self-review vs guardrails: additive (new series/settings; gating is the ticket's explicit mandate and admin surfaces follow the existing admin-key pattern), order path untouched, no fabricated metrics (all honest zero-state), no live network in tests. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T21:15:00-04:00. |
+| E3 | In-app alert rules | DONE | Started 2026-07-13T21:20:00-04:00.<br>Exists at start: `AlertDispatchService.dispatch` (persists Alert row + publishes `alerts` hub topic + process-level dedupe; Telegram/webhook off by default = zero network); `alerts` already multiplexed on `/api/v1/ws/feed`; `http_metrics` per-route counters; `PredictionLog.predicted_at`. No threshold evaluator existed.<br>Implemented: NEW `workers/ops_alerts.py` — `evaluate_ops_alerts` checks (1) HTTP 5xx error rate > `OPS_ALERT_ERROR_RATE_THRESHOLD` (5%) once past a `OPS_ALERT_MIN_REQUESTS` (50) volume floor, (2) overall p99 > `OPS_ALERT_P99_MS` (1000ms) via new `http_metrics.overall_stats()`, (3) newest prediction older than `OPS_ALERT_STALE_PREDICTION_HOURS` (12h; empty table honestly never fires). Alerts dispatch through the EXISTING AlertDispatchService (persisted rows + `alerts` WS topic), dedupe-keyed per hourly bucket so a persisting condition re-alerts once/hour, not every pass. `ops_alerts_task` writes a JobRun and heartbeats with duration_ms (feeds the E2 worker-duration histogram). Registration: minimal import + functions entry + 10-min cron appended to workers/tasks.py under the claim (now RELEASED).<br>Tests (9): each rule fires/holds, volume floor, fresh/empty-table silence, Alert row persisted, `alerts` hub frame received, hourly dedupe then re-fire next bucket, worker+cron registration.<br>Gate: backend `1446 passed, 28 skipped in 254.04s`; ruff `All checks passed!`.<br>Self-review vs guardrails: new logic in a NEW module, tasks.py touched only with additive registration lines, reuses existing dispatch path (no new channels), no order-path imports, no network in tests, thresholds config-driven. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T21:45:00-04:00. |
+| E4 | OpenAPI polish + schema snapshot | DONE | Started 2026-07-13T21:50:00-04:00.<br>Exists at start: 142 operations across 131 paths; audit showed 0 missing summaries (FastAPI derives from handler names + most routers already documented) and only 2 untagged operations (`GET /` and `GET /health` in main.py). No schema-lock test existed.<br>Implemented: tagged + summarized + described `GET /` and `GET /health` (system tag). NEW `tests/fixtures/openapi_snapshot.json` (131 paths: per-operation summary, sorted tags, 2xx-response presence) + `tests/test_openapi_snapshot.py` — fails on any REMOVED path/method or CHANGED summary/tags (breaking-change lock) while ALLOWING additive paths per the repo's additive-API rule; plus quality gates: every operation must have a non-empty summary, >=1 tag, and a 2xx response. `scripts/regen_openapi_snapshot.py` regenerates the fixture for intentional changes.<br>Gate: backend `1449 passed, 28 skipped in 366.14s`; ruff `All checks passed!`.<br>Self-review: docs-only endpoint edits (no behavior/shape change), snapshot asserts on operation surface not byte-for-byte document, nothing weakened. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T22:10:00-04:00. |
+| E5 | [LIVE] Ops soak under load | DONE | Started 2026-07-13T22:15:00-04:00.<br>Stack note: Docker daemon unavailable on this host (same honest fallback as A6/B1) — real local Uvicorn (`app.main:app`, port 8765) with an isolated SQLite schema/database and ALL external loops disabled (LIVE_FEED + every scheduler flag off), so the soak made zero outbound network calls. `/health` confirmed `paper_trading_only=true`.<br>Load: scripted async client, 4 workers rotating 10 public GET routes for 4 minutes, 2026-07-14T01:09:49Z -> 01:13:50Z, **8760 requests: 7876x200 + 884x404 (one deliberately unmatched probe route), ZERO 5xx**, client p50 14.1ms / p95 67.3ms / p99 155.5ms.<br>Evidence: unauthenticated `/metrics` returned 401 (E2 gate live); admin-key `/metrics` served per-route histograms, e.g. `alphaedge_http_request_latency_ms_count{method="GET",route="/api/v1/markets"} 885.0` with buckets 334@5ms/760@10ms/865@25ms/885@250ms; `alphaedge_http_errors_total` series EMPTY (no 5xx ever recorded); `/api/v1/system/metrics` independently reported total_requests=8764, total_5xx=0 across all routes; uvicorn log contained 0 lines matching 5xx/error/traceback. Full exposition saved to the session scratchpad (`e5-soak/metrics_final.txt`, 212 lines).<br>Gate (unchanged tree re-run): backend `1449 passed, 28 skipped in 393.80s`; ruff `All checks passed!`.<br>Self-review: evidence-only ticket, no code change, prod untouched, no fabrication (all numbers from real responses). Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T22:45:00-04:00. |
 
 ## LOOP LOG (append one entry per iteration)
 
@@ -332,3 +333,55 @@ PASS backend ruff (exit 0)
 ```
 
 AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · E · E1 · DONE · Uniform mutating-endpoint rate limiting: identity-aware (bearer-token else IP) fixed-window middleware on POST/PUT/PATCH/DELETE with 429 + Retry-After, config-driven (RATE_LIMIT_MUTATING, kill switch), admin-key exempt, bounded state, 15 tests. Defaults mirror the existing 600/minute global limit so no existing behavior/test changed.
+
+```text
+=== GATE: backend pytest ===
+1430 passed, 28 skipped in 440.17s (0:07:20)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E2 · DONE · Gated Prometheus /metrics (admin key or METRICS_TOKEN bearer; 401 otherwise) and added per-route latency histograms + 5xx counters fed by the existing HTTP middleware path, a worker-job-duration histogram fed via record_heartbeat(duration_ms=...), and the C3 connector-health gauge name contract. No new dependency (prometheus_client was already in the tree). 9 new tests; existing /metrics tests updated to authenticate.
+
+```text
+=== GATE: backend pytest ===
+1437 passed, 28 skipped in 355.90s (0:05:55)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E3 · DONE · In-app ops alert rules: new workers/ops_alerts.py evaluator (error rate >5% past a 50-request floor, p99 >1s, stale predictions >12h) dispatching through the existing AlertDispatchService to persisted Alert rows + the `alerts` WS topic, hourly-bucket dedupe, JobRun + duration heartbeat, 10-min cron. tasks.py claim released.
+
+```text
+=== GATE: backend pytest ===
+1446 passed, 28 skipped in 254.04s (0:04:14)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E4 · DONE · OpenAPI polish: tagged/summarized the two undocumented operations (/ and /health); added a 131-path operation-surface snapshot test (locks paths+summaries+tags+2xx presence against accidental breaking changes, allows additive growth) + regen script + doc-quality assertions.
+
+```text
+=== GATE: backend pytest ===
+1449 passed, 28 skipped in 366.14s (0:06:06)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E5 · DONE · [LIVE] ops soak on real local Uvicorn (isolated SQLite, external loops off): 8760 requests over 4 minutes with ZERO 5xx (metrics counter empty, system metrics total_5xx=0, clean log), /metrics gate live (401 unauth), per-route latency histograms populated, client p99 155.5ms.
+
+```text
+=== GATE: backend pytest ===
+1449 passed, 28 skipped in 393.80s (0:06:33)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+Workstream E COMPLETE (5/5 DONE).
