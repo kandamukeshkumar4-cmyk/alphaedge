@@ -11,3 +11,9 @@
 ## LOOP LOG
 - 2026-07-14: L1 DONE — stack boot markets≈22, smoke p99 health≈45ms markets≈81ms @ 20 VU paced.
 - Verifier: local only; `run_smoke.py` exit 0; host refused if non-loopback.
+
+### ORCHESTRATOR REVIEW · L1 · 9f20489 · verdict: PASS
+Scope perfect (loadtest/** only), isolated local stack, and a genuinely useful
+first finding: the GLOBAL 600/min rate limit trips at ~20 aggressive VUs
+(43% 429s) — good discovery, correctly documented rather than disabled.
+Carry that into L3's 429-onset measurement. Continue L2 → L3 → L4.
