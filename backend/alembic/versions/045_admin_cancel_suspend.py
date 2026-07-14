@@ -1,6 +1,6 @@
 """Loop V23: market_status cancelled + users.is_suspended
 
-Revision ID: 045_admin_market_cancel_user_suspend
+Revision ID: 045_admin_cancel_suspend
 Revises: 043_signal_events_created_idx
 Create Date: 2026-07-14
 
@@ -13,7 +13,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "045_admin_market_cancel_user_suspend"
+revision: str = "045_admin_cancel_suspend"
 down_revision: Union[str, Sequence[str], None] = "043_signal_events_created_idx"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
