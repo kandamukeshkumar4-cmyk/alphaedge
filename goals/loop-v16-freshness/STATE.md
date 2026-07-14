@@ -305,3 +305,21 @@ Discover page horizontal overflow at 375px width: documentElement.scrollWidth
 full-bleed hero / topic-pill row / rail child missing clipping or min-w-0.
 Fix in your frontend lane after V5-V7; the QA suite has a fixme'd assertion
 in e2e/mobile.spec.ts (branch loop17/e2e-qa) that flips live when fixed.
+
+### ORCHESTRATOR NEEDS-FIX · V4-fix (PRIORITY — do BEFORE V5/V7/V8)
+Live prod verification found your V4 (and three other merged tasks) NEVER
+EXECUTE in production: they are registered only in workers/tasks.py (ARQ
+cron), and prod runs uvicorn ONLY — no ARQ worker (evidence: news_scan/
+weather_scan have been "never" forever; forecast_autolock/drift_detect/
+ops_alerts/portfolio_equity absent from /api/v1/system/loops entirely).
+FIX (one ticket, orchestrator routes all four to you to keep main.py single-
+writer): wire in-process demand-paced loops in backend/app/main.py mirroring
+_external_resolve_loop (flag-gated, _paced_sleep, record_heartbeat, try/
+except) for: forecast_autolock (your V4), drift_detect, ops_alerts,
+portfolio_equity_snapshot (daily — use a long paced interval). Add the four
+names to _ALL_LOOPS + LOOP_INTERVALS in app/api/v1/system.py and
+app/observability/loop_state.py as applicable; update
+tests/test_inprocess_scheduler.py expectations. Claim main.py + any shared
+files in SHARED FILE CLAIMS. Do NOT remove the ARQ registrations (they stay
+for environments that do run a worker). Gate + fresh verifier, commit
+feat(loop16): V4-fix in-process wiring. THEN resume V5.
