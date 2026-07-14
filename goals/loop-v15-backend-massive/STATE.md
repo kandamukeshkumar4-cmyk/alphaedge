@@ -71,7 +71,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream C — Connector hardening
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| C1 | Connector resilience audit | TODO | |
+| C1 | Connector resilience audit | DONE | Started 2026-07-13T20:20:00-04:00. DIR-C-001 acknowledged.<br>Exists: `JsonConnectorClient` timeout=10s + 5xx retry (max 3) + response cache; Fred per-series try/except; onchain timeout=15s only.<br>Missing at start: jittered backoff, circuit-breaker, named per-source isolation, structured degradation logs, onchain retry/breaker.<br>Implemented: full-jitter retry; per-source circuit (skip N min after M transport/5xx failures); `CircuitOpenError`; 4xx does not trip; structured warning logs; `get_source_health()` registry for C3; named sources on odds/fred/worldbank/onchain/kalshi/polymarket; onchain POSTs via resilient `post_json`. Docs: `notes-c1-resilience.md`.<br>Gate: backend `1420 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS (composer-2.5) — 20 focused tests, ruff, `git diff --check` exit 0. Manual review fallback N/A (verifier ran).<br>Bumblebee: N/A (no dependency/deploy change). AutoLab: N/A. Completed 2026-07-13T20:35:00-04:00. |
 | C2 | Sports results connector | TODO | signals only — NOT resolution (loop-v14) |
 | C3 | Source health endpoint | TODO | |
 | C4 | [LIVE] Connector soak | TODO | |
@@ -329,6 +329,20 @@ PASS backend ruff (exit 0)
 
 === ALEMBIC ===
 040_portfolio_equity_snapshots (head)
+```
+
+AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · C · C1 · DONE · DIR-C-001 acknowledged. Enhanced `JsonConnectorClient` with full-jitter retry, per-source circuit breaker, structured degradation logs, and `get_source_health()` registry; wired named sources on odds/fred/onchain/kalshi/polymarket; onchain POSTs use resilient `post_json`. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1420 passed, 28 skipped in 371.45s (0:06:11)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
 ```
 
 AutoLab: not applicable (no iterative measure).

@@ -1,21 +1,40 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 import httpx
 
+from app.data.connectors.http import JsonConnectorClient
+
 
 MONEY = Decimal("0.0001")
+_SUBGRAPH_SOURCE = "polymarket-subgraph"
 
 
-@dataclass(frozen=True)
+@dataclass
 class OnchainReadOnlyConnector:
     polygon_rpc_url: str
     polymarket_subgraph_url: str
     client: httpx.Client | None = None
+    http: JsonConnectorClient | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.http is None:
+            # Absolute-URL posts: leave base_url empty and pass the full subgraph URL as path.
+            owned_client = self.client or httpx.Client(timeout=15.0)
+            object.__setattr__(
+                self,
+                "http",
+                JsonConnectorClient(
+                    base_url="",
+                    client=owned_client,
+                    source=_SUBGRAPH_SOURCE,
+                    timeout=15.0,
+                ),
+            )
 
     def fetch_wallet_positions(
         self,
@@ -46,15 +65,8 @@ class OnchainReadOnlyConnector:
             """,
             "variables": {"wallet": wallet_address.lower()},
         }
-        if self.client is not None:
-            response = self.client.post(self.polymarket_subgraph_url, json=body)
-            response.raise_for_status()
-            payload = response.json()
-        else:
-            with httpx.Client(timeout=15.0) as client:
-                response = client.post(self.polymarket_subgraph_url, json=body)
-                response.raise_for_status()
-                payload = response.json()
+        assert self.http is not None
+        payload = self.http.post_json(self.polymarket_subgraph_url, json=body)
         if not isinstance(payload, dict):
             raise ValueError("Polymarket subgraph returned a non-object payload")
         return payload

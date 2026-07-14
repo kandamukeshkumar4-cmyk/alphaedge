@@ -27,10 +27,11 @@ class PolymarketGammaConnector:
         client: httpx.Client | None = None,
         clob_client: httpx.Client | None = None,
     ):
-        self.http = JsonConnectorClient(base_url=base_url, client=client)
+        self.http = JsonConnectorClient(base_url=base_url, client=client, source=SOURCE)
         self.clob_http = JsonConnectorClient(
             base_url=clob_base_url,
             client=clob_client,
+            source="polymarket.clob",
         )
 
     def list_active_markets(
