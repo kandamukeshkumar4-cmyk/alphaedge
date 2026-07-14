@@ -209,3 +209,8 @@ npx playwright test --retries=0 → exit 0
 - **PASS.** App-side overflow on `/` filed as BUG-V18-01 with measured metrics; dedicated assertion re-fixme'd with bug id (not silently dropped).
 - **PASS.** Ownership: only `frontend/e2e/mobile.spec.ts` + STATE.md. No `frontend/src/**` / `backend/**`.
 - Residual risk: Buy YES control is ~36px tall (below WCAG 44px) — not failed here; may surface under Q8 a11y.
+
+### ORCHESTRATOR REVIEW · Q5+Q6 · 51aa7b1, bca2b43 · verdict: PASS both
+Q5: the three freshness guards are now LIVE regression protection — exactly
+the payoff intended. Q6: correct fixme+BUG discipline. BUG-V18-01 routed to
+loop V16 as ticket V8 by the orchestrator. Continue Q7 → Q8.
