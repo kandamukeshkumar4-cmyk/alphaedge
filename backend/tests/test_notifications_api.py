@@ -235,3 +235,17 @@ def test_migration_revision_id_under_32_chars():
     assert mod.revision == "046_notifications"
     assert len(mod.revision) < 32
     assert mod.down_revision == "045_admin_cancel_suspend"
+
+
+def test_openapi_documents_notification_routes():
+    """N4 polish — notification endpoints appear with summary + tags."""
+    schema = app.openapi()
+    paths = schema["paths"]
+    assert "/api/v1/notifications" in paths
+    assert "get" in paths["/api/v1/notifications"]
+    get_op = paths["/api/v1/notifications"]["get"]
+    assert get_op.get("summary")
+    assert "notifications" in get_op.get("tags", [])
+    assert "/api/v1/notifications/read-all" in paths
+    assert "/api/v1/notifications/{notification_id}/read" in paths
+

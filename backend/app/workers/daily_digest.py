@@ -166,7 +166,7 @@ async def build_digest_for_user(
     moves = await _watchlist_moves_line(session, user.id)
     body = "\n".join([portfolio, resolved, moves])
     title = f"Daily digest — {day.isoformat()}"
-    return await create_notification(
+    row = await create_notification(
         session,
         user_id=user.id,
         type=DIGEST_TYPE,
@@ -174,6 +174,14 @@ async def build_digest_for_user(
         body=body,
         link="/portfolio",
     )
+    # N4: fan onto multiplex hub (never raises).
+    try:
+        from app.services.notification_service import _publish_new_notification
+
+        await _publish_new_notification(row)
+    except Exception:  # noqa: BLE001
+        pass
+    return row
 
 
 async def run_daily_digest(

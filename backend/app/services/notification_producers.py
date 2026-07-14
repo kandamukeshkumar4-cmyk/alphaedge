@@ -211,15 +211,19 @@ async def mirror_alert_to_admin_notifications(
 
         from app.db.models import User
         from app.db.session import AsyncSessionLocal
-        from app.services.notification_service import create_notification
+        from app.services.notification_service import (
+            _publish_new_notification,
+            create_notification,
+        )
 
         created = 0
+        rows = []
         async with AsyncSessionLocal() as session:
             users = (
                 await session.scalars(select(User).where(User.email.in_(emails)))
             ).all()
             for user in users:
-                await create_notification(
+                row = await create_notification(
                     session,
                     user_id=user.id,
                     type=alert_type[:64],
@@ -227,9 +231,12 @@ async def mirror_alert_to_admin_notifications(
                     body=message,
                     link=(payload or {}).get("link"),
                 )
+                rows.append(row)
                 created += 1
             if created:
                 await session.commit()
+        for row in rows:
+            await _publish_new_notification(row)
         return created
     except Exception:  # noqa: BLE001
         logger.warning("mirror_alert_to_admin_notifications failed", exc_info=True)

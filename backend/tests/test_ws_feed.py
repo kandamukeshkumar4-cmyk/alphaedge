@@ -111,6 +111,43 @@ async def test_activity_feed_routes_alerts_channel(monkeypatch):
     assert alert["message"] == "3 layers aligned"
 
 
+def test_ws_feed_registers_notifications_topic():
+    assert "notifications" in ws_mod._FEED_TOPICS
+
+
+@pytest.mark.asyncio
+async def test_activity_feed_routes_notifications_channel(monkeypatch):
+    """Loop V24 N4 — new-notification events on the multiplex hub."""
+    monkeypatch.setattr(ws_mod, "get_settings", lambda: SimpleNamespace(paper_trading_only=True))
+
+    class _NotifyWS(_FakeWS):
+        async def send_json(self, data: dict) -> None:
+            self.sent.append(data)
+            if data.get("channel") == "notifications":
+                raise WebSocketDisconnect()
+
+    fake = _NotifyWS()
+    task = asyncio.create_task(ws_mod.activity_feed(fake))
+    await asyncio.sleep(0.05)
+    await hub.publish(
+        "notifications",
+        {
+            "type": "notification",
+            "id": "nid",
+            "user_id": "uid",
+            "notification_type": "order_filled",
+            "title": "Order buy filled",
+            "body": "body",
+        },
+    )
+    await asyncio.wait_for(task, timeout=2.0)
+
+    frame = next(m for m in fake.sent if m.get("channel") == "notifications")
+    assert frame["type"] == "notification"
+    assert frame["notification_type"] == "order_filled"
+    assert frame["title"] == "Order buy filled"
+
+
 @pytest.mark.asyncio
 async def test_activity_feed_routes_order_cancelled_channel(monkeypatch):
     monkeypatch.setattr(ws_mod, "get_settings", lambda: SimpleNamespace(paper_trading_only=True))
