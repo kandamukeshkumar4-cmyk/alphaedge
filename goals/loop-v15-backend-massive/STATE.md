@@ -477,3 +477,5 @@ FAIL  1..6 status=503 (not used as gate)
 AutoLab: not applicable (no iterative measure).
 
 Adversarial self-review verdict: **PASS** — check direction is homepage⊆API (not catalog-on-homepage coverage); inactive/unknown slugs fail; ≥3 floor retained; reporting matches DIR example shape; no product/backend mutation; HF default still stale URL (out of scope — list only).
+
+2026-07-14 · ORCHESTRATOR · REVIEW D6 · 41a35e4 · PASS — subset semantics verified, honest counts, D lane closed permanently.
