@@ -3,7 +3,7 @@
 |----|--------|--------|-------|
 | A1 | Market management complete | DONE | create/edit/pause/unpause/cancel + audit; migration 045 (cancelled + is_suspended for A2); resolve path unchanged |
 | A2 | User administration | DONE | list/search/detail + suspend/unsuspend; RiskService.user_suspended + paper path 403 |
-| A3 | System stats | TODO | |
+| A3 | System stats | DONE | GET /admin/stats cheap aggregates, 30s cache |
 | A4 | Gate + polish | TODO | |
 
 ## SHARED FILE CLAIMS
@@ -16,6 +16,7 @@
 | backend/app/main.py | A2 | released (admin_users_router include) |
 | backend/app/risk/rules.py | A2 | released (user_suspended flag + check) |
 | backend/app/api/v1/orders.py | A2 | released (_reject_suspended_user on place/close) |
+| backend/app/main.py | A3 | released (admin_stats_router include) |
 
 ## Alembic
 - Pre-A1 head: `043_signal_events_created_idx` (one head)
@@ -80,4 +81,25 @@ All checks passed!
 - PASS: order path structure unchanged (only additive early reject; still RiskService→OrderIntent→OrderBookService for CLOB).
 - PASS: no migration this ticket; no frontend/deploy touch.
 - PASS: additive API only; existing tests not weakened.
+- VERDICT: **PASS**
+
+### A3 — System stats
+**Implemented:** `GET /api/v1/admin/stats` — users total, markets by status,
+trades 24h/7d, forecasts locked/graded, key table counts; 30s in-process cache;
+admin-gated.
+
+**Gate:**
+```
+pytest -q -p no:cacheprovider
+1522 passed, 28 skipped in 305.58s (0:05:05)
+
+ruff check app tests
+All checks passed!
+```
+
+**Adversarial verifier:**
+- PASS: admin key required (401 without).
+- PASS: cheap COUNT aggregates only; cache returns cached=true on second hit.
+- PASS: paper_trading_only on response; no order-path changes.
+- PASS: additive route only.
 - VERDICT: **PASS**

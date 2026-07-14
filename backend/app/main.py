@@ -15,6 +15,7 @@ from app import PAPER_TRADING_DISCLAIMER
 from app.admin.agent_routes import router as agent_admin_router
 from app.admin.routes import router as admin_router
 from app.api.v1.admin_markets import router as admin_markets_router
+from app.api.v1.admin_stats import router as admin_stats_router
 from app.api.v1.admin_users import router as admin_users_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.orders import router as orders_router
@@ -645,6 +646,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_markets_router)
+app.include_router(admin_stats_router)
 app.include_router(admin_users_router)
 app.include_router(wc2026_router)
 app.include_router(wc2026_admin_router)
