@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     # Loop V15 E2 — dedicated bearer token for the Prometheus /metrics scrape.
     # Empty (default) means /metrics accepts only the admin API key.
     metrics_token: str = Field(default="", alias="METRICS_TOKEN")
+    # Loop V15 E3 — in-app ops alert thresholds (evaluated by workers/ops_alerts).
+    ops_alert_error_rate_threshold: float = Field(
+        default=0.05, alias="OPS_ALERT_ERROR_RATE_THRESHOLD"
+    )
+    ops_alert_min_requests: int = Field(default=50, alias="OPS_ALERT_MIN_REQUESTS")
+    ops_alert_p99_ms: float = Field(default=1000.0, alias="OPS_ALERT_P99_MS")
+    ops_alert_stale_prediction_hours: float = Field(
+        default=12.0, alias="OPS_ALERT_STALE_PREDICTION_HOURS"
+    )
     live_feed_enabled: bool = Field(default=True, alias="LIVE_FEED_ENABLED")
     live_tick_interval_sec: int = Field(default=15, alias="LIVE_TICK_INTERVAL_SEC")
     # COST-01: when no client touched the API within the active window and no

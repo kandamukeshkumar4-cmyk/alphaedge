@@ -117,6 +117,29 @@ def snapshot() -> dict[str, Any]:
     }
 
 
+def overall_stats() -> dict[str, Any]:
+    """Aggregate totals across every route for the ops-alert evaluator (E3).
+
+    Returns request/error totals and an overall p99 across the (bounded)
+    latency rings. Honest zeros when no traffic has been recorded.
+    """
+    with _lock:
+        total_requests = 0
+        total_errors = 0
+        samples: list[float] = []
+        for entry in _routes.values():
+            total_requests += entry["request_count"]
+            total_errors += entry["error_count"]
+            samples.extend(entry["latencies"])
+    return {
+        "request_count": total_requests,
+        "error_count": total_errors,
+        "error_rate": (total_errors / total_requests) if total_requests else 0.0,
+        "p99_latency_ms": _percentile(samples, 99),
+        "sample_count": len(samples),
+    }
+
+
 def reset() -> None:
     """Clear all counters (tests only)."""
     with _lock:
