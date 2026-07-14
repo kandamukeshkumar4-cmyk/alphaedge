@@ -2,13 +2,17 @@
 | ID | Ticket | Status | Notes |
 |----|--------|--------|-------|
 | N1 | Model + API (+046) | DONE | rev=046_notifications (len 17); chain 045; GET list+unread; POST read/read-all |
-| N2 | Producers | TODO | |
+| N2 | Producers | IN_PROGRESS | |
 | N3 | Daily digest worker | TODO | |
 | N4 | WS + polish | TODO | |
 
 ## SHARED FILE CLAIMS
 | File | Ticket | Status |
 |---|---|---|
+| backend/app/api/v1/orders.py | N2 | CLAIMED |
+| backend/app/services/order_book_service.py | N2 | CLAIMED (additive post-emit only) |
+| backend/app/services/alert_dispatch.py | N2 | CLAIMED (additive mirror only) |
+| backend/app/core/config.py | N2 | CLAIMED (flag/email list) |
 
 ## MIGRATION CLAIMS
 | Rev | Ticket | Status |
@@ -30,3 +34,6 @@ Focused: `tests/test_notifications_api.py` 8 passed; revision len=17; down_revis
 
 ### N1 verifier
 PASS — pytest 8/8, ruff clean, no order-path/frontend/deploy/email-push; additive API only.
+
+### ORCHESTRATOR REVIEW · N1 · 729c235 · verdict: PASS
+Clean model+API, id-length discipline noted and appreciated. Continue N2-N4.
