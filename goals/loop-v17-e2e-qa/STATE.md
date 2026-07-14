@@ -3,7 +3,7 @@
 |----|--------|--------|------------------|
 | Q1 | Playwright scaffold + smoke | DONE | Chromium Playwright local stack (uvicorn+SQLite+next); smoke green |
 | Q2 | Discover freshness journey | DONE | discover.spec.ts: 1 enforced + 3 fixme(pending V16 merge); smoke still green |
-| Q3 | Trade journey | TODO | |
+| Q3 | Trade journey | DONE | signup→buy Lakers→portfolio balance+position→sell cancel; login path green |
 | Q4 | Coverage journeys + one-command run | TODO | |
 
 ## SHARED FILE CLAIMS
@@ -12,7 +12,14 @@
 | frontend/package.json | Q1 | RELEASED after Q1 — additive `test:e2e` script only |
 
 ## BUG REPORTS (app bugs found by journeys — do not fix here)
-(none yet — V16 freshness assertions are test.fixme pending merge, not app bugs on this base)
+
+### BUG-V17-01 · canvas chart theme color parse (pageerror)
+- **Surface:** market detail / trade charts (lightweight-charts + CSS theme tokens)
+- **Symptom:** `pageerror: Failed to execute 'addColorStop' on 'CanvasGradient': The value provided ('rgba(var(--color-primary / 0.25))') could not be parsed as a color.`
+- **Repro:** open `/markets/nba-2025-01-15-lal-bos` (or place a paper trade that keeps the chart mounted) against local stack with Chromium.
+- **Impact:** noisy pageerrors; chart may degrade. Does not block signup/buy/portfolio/cancel.
+- **Owner:** frontend (loop V16 / chart theme). Loop17 does NOT fix `frontend/src/**`.
+- **Journey handling:** filtered as `KNOWN_APP_BUG_NOISE` in `e2e/helpers/console.ts` so trade/coverage can still enforce other console errors.
 
 ## GATE EVIDENCE — Q1
 Commands (from `frontend/`):
@@ -56,12 +63,32 @@ npx playwright test e2e/discover.spec.ts e2e/smoke.spec.ts → exit 0
 - **PASS.** Smoke still green alongside discover.
 - Residual risk: fixme bodies still encode the intended V16 contract so merge can flip them on; until then freshness is not machine-enforced on this branch.
 
-## LOOP LOG
-- 2026-07-13 · Q1 start · branch loop17/e2e-qa clean at 30ecbee · claiming frontend/package.json for test:e2e
-- 2026-07-13 · Q1 DONE · typecheck/lint/vitest/playwright green · verifier PASS · commit pending
-- 2026-07-13 · Q2 DONE · discover.spec.ts + session helper · 3 fixme(pending V16) + 1 enforced console · gate green · verifier PASS
-
 ### ORCHESTRATOR REVIEW · Q2 · 3219ce2 · verdict: PASS
 Correct handling of the V16 dependency — those three fixme tests become the
 regression guard when V16 merges (the orchestrator will flip them live during
 integration). Continue Q3 (trade journey) then Q4.
+
+## GATE EVIDENCE — Q3
+Commands (from `frontend/`):
+```
+npm run typecheck  → exit 0
+npm run lint       → exit 0
+npm test           → exit 0 (55 files / 341 tests)
+npx playwright test e2e/trade.spec.ts --retries=0 → exit 0
+  ok 1 [chromium] › Q3 trade journey › signup, buy open market, portfolio updates, cancel path (56.6s)
+  ok 2 [chromium] › Q3 trade journey › login path works for existing paper user (14.7s)
+  2 passed (1.8m)
+```
+
+## VERIFIER VERDICT — Q3 (adversarial self-review)
+- **PASS.** Ownership: `frontend/e2e/**` only (+ STATE). No `frontend/src/**` / `backend/**` edits.
+- **PASS.** Journey uses UI signup/login (not raw JWT injection), buys on open seeded market `nba-2025-01-15-lal-bos`, asserts paper balance drops + portfolio position, then Sell (cancel/close) path.
+- **PASS.** Local stack only; paper simulation.
+- **PASS.** App bug BUG-V17-01 recorded; not fixed here; filtered only for that known pageerror so other console failures still fail the suite.
+- Residual risk: cancel path asserts balance recovery when empty-state is absent; if close API mis-settles silently, history tab still shows the open trade earlier so regressions are visible.
+
+## LOOP LOG
+- 2026-07-13 · Q1 start · branch loop17/e2e-qa clean at 30ecbee · claiming frontend/package.json for test:e2e
+- 2026-07-13 · Q1 DONE · typecheck/lint/vitest/playwright green · verifier PASS · commit pending
+- 2026-07-13 · Q2 DONE · discover.spec.ts + session helper · 3 fixme(pending V16) + 1 enforced console · gate green · verifier PASS
+- 2026-07-13 · Q3 DONE · trade.spec.ts UI signup/buy/portfolio/sell + login · BUG-V17-01 filed · gate green · verifier PASS

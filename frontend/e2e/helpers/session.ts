@@ -28,6 +28,23 @@ export function uniqueEmail(prefix = "loop17"): string {
   return `${prefix}+${Date.now()}_${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
+/** Fill a controlled React input so state updates (fill alone can race hydration). */
+async function fillControlled(page: Page, selector: string, value: string): Promise<void> {
+  const input = page.locator(selector);
+  await input.waitFor({ state: "visible", timeout: 20_000 });
+  await input.click();
+  await input.fill("");
+  await input.pressSequentially(value, { delay: 15 });
+  await page.waitForFunction(
+    ({ sel, expected }) => {
+      const el = document.querySelector(sel) as HTMLInputElement | null;
+      return el != null && el.value === expected;
+    },
+    { sel: selector, expected: value },
+    { timeout: 10_000 },
+  );
+}
+
 /** Sign up a fresh paper user via the UI; lands on /portfolio. */
 export async function signupPaperUser(
   page: Page,
@@ -41,15 +58,43 @@ export async function signupPaperUser(
     timeout: 60_000,
   });
   await dismissOnboardingIfPresent(page);
+  await page.getByRole("heading", { name: /Join AlphaEdge/i }).waitFor({
+    state: "visible",
+    timeout: 20_000,
+  });
 
-  await page.locator("#signup-email").fill(email);
-  await page.locator("#signup-password").fill(password);
-  await page.locator("#signup-confirm").fill(password);
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: /Create account/i }).click();
+  await fillControlled(page, "#signup-email", email);
+  await fillControlled(page, "#signup-password", password);
+  await fillControlled(page, "#signup-confirm", password);
 
-  await page.waitForURL(/\/portfolio/, { timeout: 30_000 });
+  const agree = page.locator('input[type="checkbox"]');
+  await agree.check({ force: true });
+  // Ensure React controlled `agree` flipped (canSubmit requires it).
+  await page.waitForFunction(() => {
+    const box = document.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    return box != null && box.checked;
+  });
+
+  const submit = page.getByRole("button", { name: /Create account/i });
+  await expectEnabled(submit, 15_000);
+  await submit.click();
+
+  await page.waitForURL(/\/portfolio/, { timeout: 45_000 });
   return { email, password };
+}
+
+async function expectEnabled(
+  locator: ReturnType<Page["getByRole"]>,
+  timeoutMs: number,
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await locator.isEnabled()) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error("Create account stayed disabled — form fields not accepted");
 }
 
 /** Log in an existing paper user via the UI; lands on /portfolio. */
@@ -63,8 +108,9 @@ export async function loginPaperUser(
     timeout: 60_000,
   });
   await dismissOnboardingIfPresent(page);
-  await page.locator("#login-email").fill(email);
-  await page.locator("#login-password").fill(password);
-  await page.getByRole("button", { name: /^Log in$/i }).click();
-  await page.waitForURL(/\/portfolio/, { timeout: 30_000 });
+  await fillControlled(page, "#login-email", email);
+  await fillControlled(page, "#login-password", password);
+  // Prefer form submit — header also has a "Log in" button.
+  await page.locator('main button[type="submit"]').click();
+  await page.waitForURL(/\/portfolio/, { timeout: 45_000 });
 }
