@@ -92,6 +92,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 | D3 | Drift API + in-app alert | DONE | Started 2026-07-13T22:35:00-04:00. DIR-D-001 ack.<br>Implemented: `GET /api/v1/eval/drift`; `maybe_dispatch_drift_alert` via AlertDispatchService (`forecast_drift` + hourly dedupe); worker `alerted` field; OpenAPI +1 path; 5 new API tests.<br>Gate: pytest exit 0; ruff clean. Fresh verifier: PASS ([verifier](54491aa9-5716-4ac9-a780-80b02b6ae223)). AutoLab: N/A. Completed 2026-07-13T23:00:00-04:00. |
 | D4 | Scheduled retrain (flag-gated OFF) | DONE | Started 2026-07-13T23:05:00-04:00. DIR-D-001 ack.<br>Implemented: `ML_RETRAIN_ENABLED` default false; `workers/model_retrain.py`; `train_xgboost_from_feature_matrix`; D1 register with activate=False + recommendation log; daily 04:00 cron; 5 tests.<br>Gate: `1474 passed, 28 skipped`; ruff clean.<br>Fresh verifier: PASS ([verifier](7bb66f86-e3b5-4ed5-8e29-65934bf6d25f)). AutoLab: N/A. Completed 2026-07-13T23:20:00-04:00. |
 | D5 | AutoLab calibration pass | BLOCKED | Started 2026-07-13T23:25:00-04:00. DIR-D-001 ack.<br>Prod read-only GET `https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count` returned HTTP 503 ("Your space is in error"). Koyeb alternate `alphaedge-api.koyeb.app` returned 404 no active service. Cannot verify ≥100 resolved outcomes.<br>**blocked on resolved-count — honest skip**. No calibration loop run; never trained on post-close information; no metric gaming.<br>AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count). Completed 2026-07-13T23:30:00-04:00. |
+| D6 | verify_prod check-5 subset semantics | DONE | Started 2026-07-14T16:17:00-04:00. DIR-D-002 ack.<br>Exists: check 5 counted how many *catalog* pm- slugs appeared on the homepage (full-catalog coverage premise; stale after loop16 V1 trending/active subset SSR).<br>Missing: subset semantics (homepage → API open/active), honest subset counts, full `/markets` listing as denominator.<br>Implemented: `scripts/verify_prod.py` check 5 extracts homepage `pm-` slugs (HTML+chunks), requires ≥3, asserts every slug is open/locked in `GET /api/v1/markets` (full listing, no limit), reports e.g. `N homepage slugs, all valid subset of M`; keeps `alpha_quant` anti-mock. Pure helpers `extract_pm_slugs` / `active_pm_slug_set` / `homepage_subset_ok`. No unit-test harness for the script — validated by read-only invocation.<br>Readonly sanity (Railway, not a gate): `PASS 5 frontend-live — 157 homepage slugs, all valid subset of 628 (HTML+15 chunks); no alpha_quant`; overall 6/6 vs Railway. Default HF URL still 503 (known).<br>Gate: backend `1474 passed, 28 skipped`; ruff clean. Script lives outside backend/ — gate is regression-only.<br>Fresh adversarial self-review: PASS — subset direction (home→API) not inverted; open/locked only; floor ≥3 preserved; counts honest; no order-path / PAPER_TRADING_ONLY / deploy-gate weaken; no backend product change. Manual review fallback (`requesting-code-review` unavailable). Bumblebee: N/A (no dep change). AutoLab: not applicable (no iterative measure). Completed 2026-07-14T16:25:00-04:00. Lane closed.
 
 ### Workstream E — Platform & observability
 | ID | Ticket | Status | Notes / evidence |
@@ -453,3 +454,26 @@ HTTP 404 (no active service)
 AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count)
 
 Workstream D COMPLETE (D1–D4 DONE, D5 BLOCKED honest skip).
+
+2026-07-14 · D · D6 · DONE · DIR-D-002 ack. verify_prod check 5 now asserts homepage pm- slugs are an open/active SUBSET of full GET /api/v1/markets (≥3 floor; honest subset counts). No script test harness — readonly Railway sanity pasted below. Fresh adversarial self-review: PASS. Lane closed again.
+
+```text
+=== GATE: backend pytest ===
+1474 passed, 28 skipped in 247.96s (0:04:07)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== READONLY sanity (not a gate): verify_prod --api Railway ===
+PASS  5 frontend-live — 157 homepage slugs, all valid subset of 628 (HTML+15 chunks); no alpha_quant
+RESULT: 6/6 checks passed
+
+=== Default HF URL (known down) ===
+FAIL  1..6 status=503 (not used as gate)
+```
+
+AutoLab: not applicable (no iterative measure).
+
+Adversarial self-review verdict: **PASS** — check direction is homepage⊆API (not catalog-on-homepage coverage); inactive/unknown slugs fail; ≥3 floor retained; reporting matches DIR example shape; no product/backend mutation; HF default still stale URL (out of scope — list only).

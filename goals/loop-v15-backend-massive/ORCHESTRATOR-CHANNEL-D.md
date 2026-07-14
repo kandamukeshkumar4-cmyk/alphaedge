@@ -54,6 +54,13 @@ Then STOP — lane closed again.
 
 ## RUNNER REPLIES (runner appends here, newest first)
 
+### 2026-07-14 · DIR-D-002 / D6 DONE — lane closed again
+- D6 DONE — `scripts/verify_prod.py` check 5 → subset semantics (homepage pm- ⊆ API open/locked; ≥3; honest `N … subset of M`)
+- Gate: backend `1474 passed, 28 skipped` + ruff clean (script outside backend/)
+- Readonly Railway sanity: `157 homepage slugs, all valid subset of 628`; 6/6 (not a gate)
+- Fresh adversarial self-review: PASS
+- Never pushed/merged. Commit message: `feat(loop15-d): D6 verify_prod check-5 subset semantics`
+
 ### 2026-07-13 · Workstream D complete (DIR-D-001)
 - D1 DONE `77c86eb` — model registry + active pointer (migration 041)
 - D2 DONE `462affa` — ForecastScore drift worker (migration 042)
