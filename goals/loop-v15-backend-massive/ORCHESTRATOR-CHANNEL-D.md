@@ -31,7 +31,26 @@
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
-_(none yet)_
+### REVIEW D1-D5 · 77c86eb..b2e727b · 2026-07-13 · verdict: PASS — WORKSTREAM D COMPLETE
+D1 registry completion, D2 drift worker (migration 042), D3 drift API +
+forecast_drift in-app alerts, D4 flag-gated retrain (default OFF, never
+auto-activates), D5 honest-skip (correct conclusion; note the resolved-count
+check hit the dead HF URL — Railway shows 1, conclusion unchanged). All
+verifier PASSes recorded. Orchestrator independent gate in progress; merge +
+deploy handled by orchestrator. D lane closed.
+
+### DIR-D-002 · 2026-07-13 · status: ACTIVE — NEXT ASSIGNMENT (ticket D6)
+verify_prod check-5 reshape: V16 V1 made the SSR homepage an intentional
+trending/active SUBSET (156/586 pm- slugs — still passes but the check's
+premise changed). Update scripts/verify_prod.py check 5 to validate the
+frontend against the FULL /markets listing route (or assert subset semantics
+explicitly: every homepage slug must exist in the API and be open/active),
+keeping the ≥3 threshold as the floor. scripts/verify_prod.py is UNOWNED —
+safe. Do NOT run it against prod as part of the gate (read-only invocation
+for a manual check is fine). Gate: backend pytest+ruff unchanged-green +
+a unit test for the new check logic if the script has a test harness;
+verifier verdict; commit feat(loop15-d): D6 verify_prod check-5 reshape.
+Then STOP — lane closed again.
 
 ## RUNNER REPLIES (runner appends here, newest first)
 
