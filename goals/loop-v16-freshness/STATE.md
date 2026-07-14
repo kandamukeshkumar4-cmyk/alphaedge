@@ -429,3 +429,57 @@ branch (loop16/v4fix-inprocess) — do NOT implement it yourself; the binding
 order is amended: your next tickets are V7 (canvas CSS-var chart crash) →
 V8 (375px overflow) → V9 (accent contrast) → V6 (live proof). Rebase/merge
 from your branch tip as usual; the orchestrator merges the side branch.
+
+### 2026-07-14 · V5 corrective runtime verification · DONE
+
+V6 browser diagnosis exposed two residual false-liveness strings that the
+initial V5 component review missed: a decided detail chart hard-coded
+`Market · live`, and the header showed `closes 47d` because resolved status
+did not suppress a future catalog close. The first correction then received a
+fresh verifier NEEDS-FIX: TradeTerminal relied on the chart's default-live
+prop, unknown close times could format as `NaNm`, and the old countdown helper
+used a frozen 2026-06-02 clock. A runtime re-test also found the separate
+Trade copy `Paper · live`.
+
+The final smallest correction derives both Trade labels and the chart socket
+flag from the shared lifecycle, labels non-live charts as snapshots, and uses
+a validated real-time close-countdown value only for genuinely live markets
+with a parseable future close. Empty, invalid, past, closed, and decided close
+values render no countdown. Playwright proof for the resolved Egypt market at
+`2026-07-14T18:16:22.036Z` returned `Paper · decided`,
+`Market · snapshot`, zero exact LIVE labels in the Trade main surface, and no
+page errors. Detail proof returned `DECIDED`, `Market · snapshot`, no close
+label, and no LIVE label.
+
+```text
+=== CORRECTIVE GATE: backend pytest ===
+1426 passed, 28 skipped in 373.47s (0:06:13)
+PASS backend pytest (exit 0)
+
+=== CORRECTIVE GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== CORRECTIVE GATE: frontend ===
+PASS typecheck and lint
+Test Files  61 passed (61)
+Tests  369 passed (369)
+PASS frontend test and build (exit 0)
+
+=== CORRECTIVE GATE VERDICT ===
+PASS: all checks green
+```
+
+The post-exit Windows pytest temp-directory cleanup warning occurred after
+exit 0 and was non-blocking. Fresh-context verifier iteration 1: NEEDS-FIX
+with the three Trade/countdown findings above. Fresh-context verifier
+iteration 2: PASS; 2 focused files / 15 tests passed, `git diff --check`
+passed, supplied runtime screenshots were inspected, and no blocking findings
+remained.
+
+Manual code-review fallback used because the Superpowers
+`requesting-code-review` skill is unavailable. `gh-address-comments`: not
+applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile,
+dependency loader, or deployment-image change; no merge requested).
+
+AutoLab: not applicable (corrective lifecycle bug fix; no iterative metric).

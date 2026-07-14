@@ -8,7 +8,6 @@ import {
   pct,
   multiplier,
   formatCompactUSD,
-  timeUntil,
   toneClass,
 } from "@/lib/mock-data";
 import { PriceChart } from "@/components/PriceChartLazy";
@@ -36,7 +35,10 @@ import { SimilarPastMarkets } from "@/components/SimilarPastMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
 import { DeskIntelligencePanel } from "@/components/DeskIntelligencePanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
-import { marketLifecycleFromDetail } from "@/lib/market-lifecycle";
+import {
+  marketCloseCountdown,
+  marketLifecycleFromDetail,
+} from "@/lib/market-lifecycle";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
 const PAPER_DISCLAIMER =
@@ -117,6 +119,7 @@ export default function MarketDetailClient({
 
   const displayOutcome =
     apiDetail?.winning_outcome ?? apiDetail?.resolution_outcome ?? resolutionOutcome;
+  const closeCountdown = marketCloseCountdown(lifecycle, market.endsAt);
 
   return (
     <main className="theme-polymarket mx-auto max-w-[1400px] overflow-x-hidden px-4 py-6">
@@ -195,9 +198,9 @@ export default function MarketDetailClient({
           {apiMarket && market.traders > 0 ? (
             <span className="font-mono">{market.traders.toLocaleString()} traders</span>
           ) : null}
-          {timeUntil(market.endsAt) !== "closed" || isResolved ? (
+          {closeCountdown ? (
             <span className="rounded-md bg-surface-2 px-2 py-1 font-mono">
-              closes {timeUntil(market.endsAt)}
+              closes {closeCountdown}
             </span>
           ) : null}
         </div>

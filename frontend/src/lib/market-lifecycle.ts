@@ -32,6 +32,25 @@ export function marketLifecycleLabel(lifecycle: MarketLifecycle): "LIVE" | "Clos
   return "LIVE";
 }
 
+/** Return an honest, current countdown only for a live market with a valid future close. */
+export function marketCloseCountdown(
+  lifecycle: MarketLifecycle | null,
+  endsAt: string,
+  nowMs = Date.now(),
+): string | null {
+  if (lifecycle !== "live") return null;
+
+  const closeMs = Date.parse(endsAt);
+  if (!Number.isFinite(closeMs) || closeMs <= nowMs) return null;
+
+  const remainingMs = closeMs - nowMs;
+  const hours = Math.floor(remainingMs / 3_600_000);
+  const minutes = Math.floor((remainingMs % 3_600_000) / 60_000);
+  if (hours >= 48) return `${Math.floor(hours / 24)}d`;
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 type DetailLifecycleEvidence = {
   status: Market["status"];
   outcomes: Array<{ label: string; price: number }>;

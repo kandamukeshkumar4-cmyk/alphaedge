@@ -15,6 +15,7 @@ import { API_BASE, fetchMarkets, fetchMarketDetail, hasLiveApi } from "@/lib/alp
 import { fetchOrderHistory, fetchPortfolio, type OrderHistoryItem } from "@/lib/portfolio-api";
 import { formatCompactUSD, getMarket, type Market } from "@/lib/mock-data";
 import { marketHref } from "@/lib/market-href";
+import { marketLifecycle, marketLifecycleLabel } from "@/lib/market-lifecycle";
 import { cn } from "@/lib/cn";
 
 type ReportTab =
@@ -153,6 +154,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
   }, [loadReports]);
 
   const yesPct = Math.round((market?.outcomes[0]?.price ?? 0.5) * 1000) / 10;
+  const lifecycle = market ? marketLifecycle(market) : null;
 
   const picker = useMemo(() => markets.slice(0, 40), [markets]);
 
@@ -257,8 +259,13 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
               </div>
               <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-2">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                  Paper · live
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      lifecycle === "live" ? "animate-pulse bg-primary" : "bg-muted-2",
+                    )}
+                  />
+                  Paper · {lifecycle ? marketLifecycleLabel(lifecycle).toLowerCase() : "loading"}
                 </span>
                 <span>·</span>
                 <span>2 outcomes</span>
@@ -282,6 +289,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
               <div className="h-full pl-10">
                 <PriceChart
                   slug={market.slug}
+                  live={lifecycle === "live"}
                   endPrice={market.outcomes[0]?.price ?? 0.5}
                   height={380}
                 />
