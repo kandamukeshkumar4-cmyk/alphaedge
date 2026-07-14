@@ -254,7 +254,6 @@ def test_huggingface_neon_deploy_doc_exists():
     doc = (ROOT / "docs" / "deploy" / "HUGGINGFACE_NEON.md").read_text(
         encoding="utf-8"
     )
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "Hugging Face Spaces + Neon Postgres" in doc
     assert "mukeshkumar007-alphaedge-api.hf.space" in doc
@@ -505,7 +504,6 @@ def test_huggingface_neon_doc_and_readme_link_live_verifier():
     doc = (ROOT / "docs" / "deploy" / "HUGGINGFACE_NEON.md").read_text(
         encoding="utf-8"
     )
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "scripts/verify_hf_paper_trading_ready.ps1" in doc
     # Retired platform: README no longer links the HF verifier script.
@@ -576,7 +574,6 @@ def test_koyeb_neon_readiness_script_checks_backend_and_frontend():
         encoding="utf-8"
     )
     doc = (ROOT / "docs" / "deploy" / "KOYEB_NEON.md").read_text(encoding="utf-8")
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "KOYEB_TOKEN" in script
     assert "NEON_DATABASE_URL" in script
