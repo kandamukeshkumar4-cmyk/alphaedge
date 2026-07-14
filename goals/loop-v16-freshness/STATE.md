@@ -22,7 +22,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 |----|--------|--------|------------------|
 | V1 | Trending ranks by recent activity; decided markets out | DONE | Additive `sort=active` ranks open/non-decided markets by 24h price movement, latest recent snapshot, close proximity, sync time, then lifetime volume; Discover, `/markets`, and `/home` consume that order without client-side volume re-sorting. Resolved markets remain reachable through a labeled Longshots / Decided affordance. Full proof and verifier output are in the loop log below. |
 | V2 | Live Signals rail: named, valued, deduped | DONE | Raw events optionally join market titles and dedupe identical semantic signals within a requested window while preserving opposite moves and default raw pagination. The rail renders real title, UP/DOWN/INFO, signed bps/¢ or honest Observed, signal label, and relative age; the fabricated whale fallback and repeated em-dash rows are removed. |
-| V3 | Ticker freshness: DESC order, dedupe, age, 48h window | IN-PROGRESS | AutoLab budget: 3 measure/edit cycles; diagnosis pending. |
+| V3 | Ticker freshness: DESC order, dedupe, age, 48h window | DONE | Production source ordering was already correct. Client normalization now sorts REST/WS rows DESC, dedupes bounded semantic repeats while preserving genuine opposite/later moves, shows real signal direction/value/age, and applies `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (default 48h). The footer no longer invents trades/sizes or clones quiet rows. Full proof and verifier output are in the loop log below. |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | TODO | new workers/forecast_autolock.py; claim tasks.py |
 | V5 | Decided/closed market hygiene (no false LIVE chip) | TODO | |
 | V6 | [LIVE] end-user re-test proof | TODO | prod READ-ONLY + local stack |
@@ -159,3 +159,51 @@ Fix is right-shaped (join fixed, payload consumed, backend window dedupe with
 tests both sides). Gates green. Continue V3 (ticker) then V4 (forecast
 auto-lock — claim workers/tasks.py; note loop15-D may also be appending it
 in a parallel worktree, keep your append minimal) then V5, V6.
+
+### 2026-07-13 · V3 · DONE
+
+Diagnosis: production was not emitting an out-of-order feed. At 2026-07-14T02:15:21.8595373Z, both `/signals/events?limit=200` and `/feed?limit=200` were strictly DESC, but 113/200 signal rows were already older than 48h (oldest 51.59h). The footer trusted response order, omitted age, invented trade verbs and dollar sizes from unrelated market volume/index values, and doubled every row into an animated loop. Unified activity only deduped IDs, so a distinct-ID semantic repeat or an older WebSocket insert could still look fresh.
+
+```json
+{
+  "captured_at": "2026-07-14T02:15:21.8595373+00:00",
+  "signals": {"count": 200, "strict_desc": true, "oldest_hours": 51.59, "over_48h": 113},
+  "feed": {"count": 200, "strict_desc": true, "oldest_hours": 51.56}
+}
+```
+
+Fix: the footer now consumes the same real signal view model as the rail, renders persisted direction/value plus relative age, sorts before bounded semantic dedupe, and filters against `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (positive hours; default 48). It renders one honest horizontal sequence, so quiet data is not cloned. Unified REST and WebSocket feed rows are normalized DESC and deduped within ten minutes; market-detail activity uses the same signal ordering/dedupe and retains age labels.
+
+Task gate: backend `1417 passed, 28 skipped in 639.86s`; Ruff `All checks passed!`; frontend typecheck and lint passed; Vitest `59 passed (59)`, `354 passed (354)`; Next build compiled and generated 100/100 pages.
+
+```text
+=== GATE: backend pytest ===
+1417 passed, 28 skipped in 579.57s (0:09:39)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== GATE: frontend typecheck ===
+PASS frontend typecheck (exit 0)
+
+=== GATE: frontend test ===
+Test Files  59 passed (59)
+Tests  354 passed (354)
+PASS frontend test (exit 0)
+
+=== GATE: frontend build ===
+PASS frontend build (exit 0)
+
+=== GATE VERDICT ===
+PASS: all checks green
+```
+
+The Windows pytest temp-directory cleanup warning occurred after gate exit 0 and is non-blocking.
+
+Fresh-context verifier: PASS — 9 focused frontend tests, typecheck, lint, and `git diff --check` passed. The verifier reviewed exactly the eight scoped paths and confirmed DESC ordering, bounded semantic dedupe, preservation of opposite/out-of-window events, configurable default-48h cutoff, real direction/value/age rendering, no cloned ticker loop, and REST/WebSocket normalization. No files were edited by the verifier.
+
+Manual code-review fallback used because the Superpowers `requesting-code-review` skill is unavailable; the complete diff and every changed line were reviewed with no blocking finding. `gh-address-comments`: not applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile, dependency loader, or deployment-image change; no merge requested).
+
+AutoLab: baseline=V2 gate backend 1417 passed/28 skipped and frontend 58 files/349 tests; prod sample had 113/200 signal rows older than 48h and the footer cloned all displayed rows | benchmark=freshness/dedupe focused tests plus full ticket/repo gates | iterations=1, best=backend 1417 passed/28 skipped and frontend 59 files/354 tests | budget=1/3 | outcome=improved

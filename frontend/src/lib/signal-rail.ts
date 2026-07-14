@@ -17,6 +17,7 @@ type BuildSignalRailOptions = {
   limit?: number;
   nowMs?: number;
   dedupeWindowMs?: number;
+  maxAgeMs?: number;
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -113,7 +114,14 @@ export function dedupeSignalEvents(
   windowMs = 10 * 60 * 1000,
 ): SignalEventItem[] {
   const newestByKey = new Map<string, number>();
-  return events.filter((event) => {
+  return [...events]
+    .sort((left, right) => {
+      const leftMs = Date.parse(left.created_at);
+      const rightMs = Date.parse(right.created_at);
+      return (Number.isFinite(rightMs) ? rightMs : -Infinity)
+        - (Number.isFinite(leftMs) ? leftMs : -Infinity);
+    })
+    .filter((event) => {
     const createdMs = Date.parse(event.created_at);
     if (!Number.isFinite(createdMs)) return true;
     const key = semanticKey(event);
@@ -121,7 +129,14 @@ export function dedupeSignalEvents(
     if (newerMs !== undefined && newerMs - createdMs <= windowMs) return false;
     newestByKey.set(key, createdMs);
     return true;
-  });
+    });
+}
+
+export function tickerFreshnessWindowMs(rawHours?: string): number {
+  const hours = Number(rawHours);
+  return Number.isFinite(hours) && hours > 0
+    ? hours * 60 * 60 * 1000
+    : 48 * 60 * 60 * 1000;
 }
 
 export function buildSignalRailRows(
@@ -133,7 +148,13 @@ export function buildSignalRailRows(
   const limit = options.limit ?? 5;
   const nowMs = options.nowMs ?? Date.now();
   const deduped = dedupeSignalEvents(events, options.dedupeWindowMs);
-  return deduped.slice(0, limit).map((event) => {
+  const fresh = options.maxAgeMs === undefined
+    ? deduped
+    : deduped.filter((event) => {
+        const createdMs = Date.parse(event.created_at);
+        return Number.isFinite(createdMs) && nowMs - createdMs <= options.maxAgeMs!;
+      });
+  return fresh.slice(0, limit).map((event) => {
     const payload = record(event.payload);
     const direction = directionOf(payload);
     return {

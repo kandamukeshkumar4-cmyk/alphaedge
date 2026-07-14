@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchSignalEvents, type SignalEventItem } from "@/lib/activity-api";
 import { cn } from "@/lib/cn";
+import { dedupeSignalEvents, relativeSignalAge } from "@/lib/signal-rail";
 
 const EVENT_TONE: Record<string, string> = {
   price_jump: "bg-primary-dim text-primary",
@@ -14,16 +15,6 @@ const EVENT_TONE: Record<string, string> = {
   alignment: "bg-primary-dim text-primary",
 };
 
-function timeLabel(iso: string): string {
-  const ts = Date.parse(iso);
-  if (!ts) return "";
-  const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
 // Market-detail activity feed: the diff-engine / whale / news events for THIS
 // market — the engine room behind the analyst brief. Hidden when empty.
 export function QuestMarketActivity({ slug }: { slug: string }) {
@@ -31,8 +22,8 @@ export function QuestMarketActivity({ slug }: { slug: string }) {
 
   useEffect(() => {
     let dead = false;
-    void fetchSignalEvents({ market: slug, limit: 8 }).then((rows) => {
-      if (!dead) setEvents(rows);
+    void fetchSignalEvents({ market: slug, limit: 16, dedupeWindowMinutes: 10 }).then((rows) => {
+      if (!dead) setEvents(dedupeSignalEvents(rows).slice(0, 8));
     });
     return () => {
       dead = true;
@@ -69,7 +60,7 @@ export function QuestMarketActivity({ slug }: { slug: string }) {
               {e.platform}
             </span>
             <span className="shrink-0 text-[10px] text-muted-2">
-              {timeLabel(e.created_at)}
+              {relativeSignalAge(e.created_at)}
             </span>
           </li>
         ))}

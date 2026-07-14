@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { SignalEventItem } from "./activity-api";
 import { MARKETS } from "./mock-data";
-import { buildSignalRailRows, dedupeSignalEvents, relativeSignalAge } from "./signal-rail";
+import {
+  buildSignalRailRows,
+  dedupeSignalEvents,
+  relativeSignalAge,
+  tickerFreshnessWindowMs,
+} from "./signal-rail";
 
 const NOW = Date.parse("2026-07-14T01:20:00Z");
 
@@ -59,6 +64,24 @@ describe("signal rail view model", () => {
 
     expect(dedupeSignalEvents([event({ id: "newest" }), duplicate, down]).map((e) => e.id))
       .toEqual(["newest", "down"]);
+  });
+
+  it("sorts events newest-first before deduping", () => {
+    expect(dedupeSignalEvents([
+      event({ id: "old", created_at: "2026-07-14T01:00:00Z" }),
+      event({ id: "new", created_at: "2026-07-14T01:18:00Z" }),
+    ], 0).map((row) => row.id)).toEqual(["new", "old"]);
+  });
+
+  it("drops ticker rows outside the configured freshness window", () => {
+    const rows = buildSignalRailRows([
+      event({ id: "stale", created_at: "2026-07-11T01:20:00Z" }),
+      event({ id: "fresh", created_at: "2026-07-14T00:20:00Z" }),
+    ], [], { nowMs: NOW, maxAgeMs: tickerFreshnessWindowMs(), limit: 10 });
+
+    expect(rows.map((row) => row.key)).toEqual(["fresh"]);
+    expect(tickerFreshnessWindowMs("12")).toBe(12 * 60 * 60 * 1000);
+    expect(tickerFreshnessWindowMs("invalid")).toBe(48 * 60 * 60 * 1000);
   });
 
   it("falls back to the catalog title and an honest non-numeric value", () => {
