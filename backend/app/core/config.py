@@ -114,6 +114,17 @@ class Settings(BaseSettings):
     external_autolock_batch: int = Field(
         default=25, alias="EXTERNAL_AUTOLOCK_BATCH"
     )
+    # V4-fix: in-process mirrors for tasks that otherwise only run under an
+    # ARQ worker (prod runs uvicorn only). Flag-gated, default on.
+    scheduler_drift_detect_enabled: bool = Field(
+        default=True, alias="SCHEDULER_DRIFT_DETECT_ENABLED"
+    )
+    scheduler_ops_alerts_enabled: bool = Field(
+        default=True, alias="SCHEDULER_OPS_ALERTS_ENABLED"
+    )
+    scheduler_portfolio_equity_enabled: bool = Field(
+        default=True, alias="SCHEDULER_PORTFOLIO_EQUITY_ENABLED"
+    )
     external_autolock_window_sec: int = Field(
         default=86400, alias="EXTERNAL_AUTOLOCK_WINDOW_SEC"
     )
