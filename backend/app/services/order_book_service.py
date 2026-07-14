@@ -390,6 +390,14 @@ class OrderBookService:
                 "remaining_quantity": payload["remaining_quantity"],
             },
         )
+        # Loop V24 N2: fan cancel into per-user inbox when Account→User resolves.
+        # Separate session inside producer; never raises into this cancel txn.
+        try:
+            from app.services.notification_producers import notify_clob_order_cancelled
+
+            await notify_clob_order_cancelled(payload)
+        except Exception:  # noqa: BLE001 — order path must not fail on notify
+            pass
         return order
 
     async def _match_order(self, taker: Order) -> None:

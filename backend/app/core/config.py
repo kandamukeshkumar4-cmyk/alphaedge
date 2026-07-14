@@ -125,6 +125,15 @@ class Settings(BaseSettings):
     scheduler_portfolio_equity_enabled: bool = Field(
         default=True, alias="SCHEDULER_PORTFOLIO_EQUITY_ENABLED"
     )
+    # Loop V24 N3: daily digest in-process loop (prod has no ARQ worker).
+    scheduler_daily_digest_enabled: bool = Field(
+        default=True, alias="SCHEDULER_DAILY_DIGEST_ENABLED"
+    )
+    # Loop V24 N2: comma-separated user emails that receive ops/drift
+    # notifications mirrored from AlertDispatchService (in-app only).
+    notification_admin_emails: str = Field(
+        default="", alias="NOTIFICATION_ADMIN_EMAILS"
+    )
     external_autolock_window_sec: int = Field(
         default=86400, alias="EXTERNAL_AUTOLOCK_WINDOW_SEC"
     )

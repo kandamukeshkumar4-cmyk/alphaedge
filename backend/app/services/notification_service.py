@@ -70,14 +70,16 @@ async def create_notification_best_effort(
     """
     try:
         if session is not None:
-            row = await create_notification(
-                session,
-                user_id=user_id,
-                type=type,
-                title=title,
-                body=body,
-                link=link,
-            )
+            # Savepoint so a flush failure cannot poison the producing txn.
+            async with session.begin_nested():
+                row = await create_notification(
+                    session,
+                    user_id=user_id,
+                    type=type,
+                    title=title,
+                    body=body,
+                    link=link,
+                )
             if publish_ws:
                 await _publish_new_notification(row)
             return row

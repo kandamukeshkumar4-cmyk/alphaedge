@@ -295,6 +295,20 @@ async def place_paper_order(
             created_at=order.created_at or datetime.now(timezone.utc),
         )
     )
+    # Loop V24 N2: per-user in-app notification (never raises into this txn).
+    from app.services.notification_producers import notify_order_filled
+
+    await notify_order_filled(
+        user_id=order.user_id,
+        order_id=str(order.id),
+        slug=order.slug,
+        side=order.side,
+        outcome=order.outcome,
+        shares=float(order.shares),
+        price=float(order.price),
+        action=order.action,
+        session=db,
+    )
     return _order_response(order, new_balance)
 
 
@@ -532,6 +546,20 @@ async def close_paper_position(
             action=order.action,
             created_at=order.created_at or datetime.now(timezone.utc),
         )
+    )
+    # Loop V24 N2: per-user in-app notification (never raises into this txn).
+    from app.services.notification_producers import notify_order_filled
+
+    await notify_order_filled(
+        user_id=order.user_id,
+        order_id=str(order.id),
+        slug=order.slug,
+        side=order.side,
+        outcome=order.outcome,
+        shares=float(order.shares),
+        price=float(order.price),
+        action=order.action,
+        session=db,
     )
     return PositionCloseResponse(
 

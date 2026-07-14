@@ -82,6 +82,21 @@ class AlertDispatchService:
             {"type": alert_type, "message": message, **payload},
         )
 
+        # Loop V24 N2: mirror ops/drift alerts into admin in-app inboxes.
+        # Secondary fan-out only — still the same AlertDispatchService path.
+        try:
+            from app.services.notification_producers import (
+                mirror_alert_to_admin_notifications,
+            )
+
+            await mirror_alert_to_admin_notifications(
+                alert_type=alert_type,
+                message=message,
+                payload=payload,
+            )
+        except Exception:  # noqa: BLE001 — never break alert dispatch
+            logger.warning("admin notification mirror failed", exc_info=True)
+
         await self._maybe_telegram(message)
         await self._maybe_webhook(alert_type, message, payload)
         return True
