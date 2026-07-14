@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import InterfaceError, OperationalError
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
@@ -67,7 +67,7 @@ from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
 from app.core.middleware import HttpMetricsMiddleware, RequestIdMiddleware
-from app.core.ratelimit import MutatingRateLimitMiddleware
+from app.core.ratelimit import MutatingRateLimitMiddleware, global_rate_limit_exceeded_handler
 from app.db.session import AsyncSessionLocal
 from app.schemas.market import HealthResponse
 from app.services.market_service import MarketService
@@ -75,6 +75,9 @@ from uuid import UUID
 from decimal import Decimal
 
 settings = get_settings()
+# headers_enabled left False: injecting on every success path breaks endpoints
+# that return Pydantic models (not yet Response). Retry-After on 429 is handled
+# by global_rate_limit_exceeded_handler (V21 P3 / V20 L3 finding).
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit])
 logger = logging.getLogger(__name__)
 
@@ -552,7 +555,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, global_rate_limit_exceeded_handler)
 
 
 async def db_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:

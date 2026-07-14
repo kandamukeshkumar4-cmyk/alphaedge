@@ -17,6 +17,10 @@ methods (POST/PUT/PATCH/DELETE). Design:
   existing global default so current behavior/tests are unchanged) and
   ``RATE_LIMIT_MUTATING_ENABLED``.
 
+Loop V21 P3: global slowapi 429s also carry ``Retry-After`` (see
+``global_rate_limit_exceeded_handler`` wired from main). Mutating path already
+set the header; both paths are covered by tests.
+
 No order-path imports. In-memory only (single-process deploy), bounded map,
 thread-safe. PAPER_TRADING_ONLY untouched.
 """
@@ -67,6 +71,44 @@ def reset() -> None:
     """Clear all window state (tests only)."""
     with _lock:
         _windows.clear()
+
+
+def global_rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
+    """slowapi RateLimitExceeded handler that always sets Retry-After (V21 P3).
+
+    Prefer seconds-to-reset from the active window when slowapi exposes it;
+    otherwise fall back to the configured global window length so clients
+    never see a bare 429 without guidance. Does not enable headers_enabled
+    on the Limiter (that path breaks Pydantic return models on success).
+    """
+    detail = getattr(exc, "detail", None) or "Rate limit exceeded"
+    response = JSONResponse(
+        {"error": f"Rate limit exceeded: {detail}"},
+        status_code=429,
+    )
+    retry_after: int | None = None
+    limiter = getattr(request.app.state, "limiter", None)
+    current_limit = getattr(request.state, "view_rate_limit", None)
+    if limiter is not None and current_limit is not None:
+        try:
+            # current_limit is (RateLimitItem, list[key_parts])
+            window_stats = limiter.limiter.get_window_stats(
+                current_limit[0], *current_limit[1]
+            )
+            # window_stats[0] is reset epoch; convert to seconds remaining.
+            retry_after = max(1, int(window_stats[0] - time.time()) + 1)
+        except Exception:  # noqa: BLE001 — fall through to config window
+            retry_after = None
+    if retry_after is None:
+        from app.core.config import get_settings
+
+        try:
+            _, window_sec = parse_rate(get_settings().rate_limit)
+        except ValueError:
+            window_sec = 60
+        retry_after = max(1, int(window_sec))
+    response.headers["Retry-After"] = str(retry_after)
+    return response
 
 
 def _identity(request: Request) -> str:

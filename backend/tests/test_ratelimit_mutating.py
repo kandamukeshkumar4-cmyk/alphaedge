@@ -79,6 +79,7 @@ async def test_mutating_limit_trips_with_retry_after():
     assert r1.status_code == 404
     assert r2.status_code == 404
     assert r3.status_code == 429
+    assert "retry-after" in {k.lower() for k in r3.headers.keys()}
     assert int(r3.headers["retry-after"]) >= 1
     assert r3.json()["detail"].startswith("Rate limit exceeded")
 
