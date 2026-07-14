@@ -22,13 +22,6 @@ async function openDiscoverTrending(page: Page) {
   });
 }
 
-function parseCardCents(text: string): number | null {
-  // Market cards render e.g. "55" + "¢" or "55¢"
-  const m = text.match(/(\d{1,3})\s*¢/);
-  if (!m) return null;
-  return Number(m[1]);
-}
-
 test.describe("Q2 discover freshness", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
@@ -37,13 +30,18 @@ test.describe("Q2 discover freshness", () => {
   test("trending contains no decided markets (≤1¢ / ≥99¢)", async ({ page }) => {
     // V16 V1 is merged (89d1297) — guard is live.
     await openDiscoverTrending(page);
-    const priceNodes = page.locator("main").locator("text=/\\d+\\s*¢/");
-    const count = await priceNodes.count();
-    expect(count).toBeGreaterThan(0);
-    for (let i = 0; i < count; i++) {
-      const text = (await priceNodes.nth(i).innerText()).replace(/\s+/g, " ");
-      const cents = parseCardCents(text);
-      if (cents == null) continue;
+    // Prices render as "42" + nested "¢" span — prefer main text scan over
+    // fragile text=/regex/ leaf locators (flaked with count=0 while DOM had ¢).
+    const pricePara = page.locator("main p.font-mono").filter({ hasText: /¢/ });
+    await expect(pricePara.first()).toBeVisible({ timeout: 20_000 });
+
+    const mainText = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    const matches = [...mainText.matchAll(/(\d{1,3})\s*¢/g)];
+    expect(matches.length, `no ¢ prices in main: ${mainText.slice(0, 200)}`).toBeGreaterThan(
+      0,
+    );
+    for (const m of matches) {
+      const cents = Number(m[1]);
       expect(
         cents,
         `decided market price ${cents}¢ found in trending grid`,

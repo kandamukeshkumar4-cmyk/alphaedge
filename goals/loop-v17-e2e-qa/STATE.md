@@ -7,7 +7,7 @@
 | Q4 | Coverage journeys + one-command run | DONE | coverage.spec.ts + `npm run test:e2e` 9 passed / 4 skipped |
 | Q5 | Activate V16 guards | DONE | Removed 3× fixme(pending V16 merge); all 3 pass live after 89d1297 |
 | Q6 | Mobile viewport journeys | DONE | mobile.spec.ts 375×812: smoke+discover+trade; BUG-V18-01 overflow fixme |
-| Q7 | Auth edge journeys | PENDING | |
+| Q7 | Auth edge journeys | DONE | auth-edges.spec.ts: wrong pw, dup signup, invalid token, protected redirect |
 | Q8 | A11y pass (@axe-core/playwright) | PENDING | |
 
 ## SHARED FILE CLAIMS
@@ -182,6 +182,33 @@ no intentional `frontend/src/**` changes.
 - 2026-07-13 · Q4 DONE · coverage.spec.ts + full `npm run test:e2e` 9 pass / 4 skip · gate green · verifier PASS · loop complete
 - 2026-07-14 · Q5 DONE · un-fixme 3 V16 guards after 89d1297 verify; all pass live; 12/1 suite · gate green · verifier PASS
 - 2026-07-14 · Q6 DONE · mobile.spec.ts 375×812 smoke/discover/trade; BUG-V18-01 overflow fixme; suite 15 pass / 2 skip · gate green · verifier PASS
+- 2026-07-14 · Q7 DONE · auth-edges.spec.ts 4 journeys; discover price locator hardened (test-side flake); suite 19 pass / 2 skip · gate green · verifier PASS
+
+## GATE EVIDENCE — Q7
+Commands (from `frontend/`):
+```
+npm run typecheck  → exit 0
+npm run lint       → exit 0
+npm test           → exit 0 (59 files / 354 tests)
+npx playwright test --retries=0 → exit 0
+
+  Running 21 tests using 1 worker
+  -  1 legacy mock-stub
+  ok  2–5 auth edges (wrong password, duplicate signup, invalid token, protected redirect)
+  ok  6–14 coverage + discover + …
+  - 17 mobile overflow [fixme BUG-V18-01]
+  ok 18–21 mobile trade + smoke + trade desktop
+  2 skipped / 19 passed (2.8m)
+```
+
+## VERIFIER VERDICT — Q7 (adversarial self-review)
+- **PASS.** Wrong password: stays on `/auth/login`, `role=alert` Login failed, no crash.
+- **PASS.** Duplicate signup: same email re-register → Signup failed alert, stays on signup.
+- **PASS.** Invalid token mid-session: garbage JWT in localStorage → honest error or login path, body non-blank.
+- **PASS.** Unauthed `/portfolio` → redirect `/auth/login` with Welcome back form.
+- **PASS.** Zero unexpected console errors; assertNotCrashed blocks React fatal overlays.
+- **PASS.** Ownership: `frontend/e2e/auth-edges.spec.ts` + discover test-side hardening + STATE. No app/backend edits.
+- Residual risk: invalid-token path currently relies on portfolio error copy / redirect heuristics, not a dedicated "session expired" screen.
 
 ## GATE EVIDENCE — Q6
 Commands (from `frontend/`):
