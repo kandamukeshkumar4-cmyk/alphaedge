@@ -406,6 +406,24 @@ async def _portfolio_equity_loop() -> None:
             )
 
 
+async def _daily_digest_loop() -> None:
+    """Loop V24 N3: per-user in-app daily digest (idempotent per user+day);
+    in-process mirror of the ARQ cron. Prod has no ARQ worker — cron-only
+    tasks are dead without this loop. Long paced interval."""
+    from app.workers.daily_digest import daily_digest_task
+
+    while True:
+        await _paced_sleep(21600, max(21600, settings.scheduler_idle_interval_sec))
+        try:
+            await daily_digest_task({})
+            record_heartbeat("daily_digest")
+        except Exception:
+            logger.error("Daily digest loop failed", exc_info=True)
+            record_heartbeat(
+                "daily_digest", status="error", detail="daily digest pass failed"
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
@@ -454,6 +472,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_ops_alerts_loop())
     if settings.scheduler_portfolio_equity_enabled:
         asyncio.create_task(_portfolio_equity_loop())
+    if settings.scheduler_daily_digest_enabled:
+        asyncio.create_task(_daily_digest_loop())
     if settings.live_feed_enabled:
         # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
         # must NOT block startup — a slow/429'd upstream would delay uvicorn from

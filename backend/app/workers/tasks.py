@@ -23,6 +23,7 @@ from app.workers.portfolio_equity import portfolio_equity_snapshot_task
 from app.workers.drift_detect import drift_detect_task
 from app.workers.model_retrain import model_retrain_task
 from app.workers.forecast_autolock import forecast_autolock_task
+from app.workers.daily_digest import daily_digest_task
 
 
 logger = logging.getLogger(__name__)
@@ -1040,6 +1041,7 @@ class WorkerSettings:
         drift_detect_task,
         model_retrain_task,
         forecast_autolock_task,
+        daily_digest_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1075,4 +1077,6 @@ class WorkerSettings:
         cron(drift_detect_task, minute={0, 15, 30, 45}),
         # D4: scheduled XGBoost retrain (flag-gated ML_RETRAIN_ENABLED=false) daily 04:00
         cron(model_retrain_task, hour={4}, minute={0}),
+        # Loop V24 N3: daily per-user in-app digest at 07:00 UTC
+        cron(daily_digest_task, hour={7}, minute={0}),
     ]

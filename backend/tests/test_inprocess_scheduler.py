@@ -33,6 +33,7 @@ EXPECTED_NEW_LOOPS = {
     "_drift_detect_loop",
     "_ops_alerts_loop",
     "_portfolio_equity_loop",
+    "_daily_digest_loop",
 }
 
 
