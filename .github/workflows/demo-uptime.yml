@@ -15,7 +15,7 @@ name: Demo Uptime Watch
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       run_full_journey:
@@ -28,7 +28,7 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  BASE_URL: https://mukeshkumar007-alphaedge-api.hf.space
+  BASE_URL: https://alphaedge-api-production-b9db.up.railway.app
   FRONTEND_URL: https://alphaedge-frontend-three.vercel.app
 
 jobs:
