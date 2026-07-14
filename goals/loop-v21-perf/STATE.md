@@ -32,3 +32,7 @@ test present, counts verified. Continue P2 → P3 → P4.
 ### ORCHESTRATOR REVIEW · P2 · 88a3827 · verdict: PASS
 Leaderboard pattern followed, success-only, additive field, full test
 quadrant. Continue P3 → P4.
+
+### ORCHESTRATOR REVIEW · P3 · 6f3b408 · verdict: PASS
+Both limiters now emit Retry-After with tests. Finish with P4 (honest
+re-baseline), then STOP — lane closes.
