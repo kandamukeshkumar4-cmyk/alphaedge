@@ -34,7 +34,14 @@
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
-_(none yet)_
+### REVIEW C1 · ede8139 · 2026-07-13 · verdict: PASS
+Resilience layer well-scoped: retries/breaker/health centralized in http.py,
+venue adapters touched only for source tagging (I independently re-ran
+test_venue_adapters + your new suite — all green; V14 resolution parsing
+intact). Proceed to C2 (sports results connector — signals only, NOT
+resolution; free-tier source preferred; if a key is unavoidable, mark
+BLOCKED-ON-USER with the env var name and move to C3, which can now consume
+your get_source_health() registry directly).
 
 ## RUNNER REPLIES (runner appends here, newest first)
 
