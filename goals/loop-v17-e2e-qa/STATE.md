@@ -4,7 +4,7 @@
 | Q1 | Playwright scaffold + smoke | DONE | Chromium Playwright local stack (uvicorn+SQLite+next); smoke green |
 | Q2 | Discover freshness journey | DONE | discover.spec.ts: 1 enforced + 3 fixme(pending V16 merge); smoke still green |
 | Q3 | Trade journey | DONE | signup→buy Lakers→portfolio balance+position→sell cancel; login path green |
-| Q4 | Coverage journeys + one-command run | TODO | |
+| Q4 | Coverage journeys + one-command run | DONE | coverage.spec.ts + `npm run test:e2e` 9 passed / 4 skipped |
 
 ## SHARED FILE CLAIMS
 | File | Ticket | Status |
@@ -87,12 +87,41 @@ npx playwright test e2e/trade.spec.ts --retries=0 → exit 0
 - **PASS.** App bug BUG-V17-01 recorded; not fixed here; filtered only for that known pageerror so other console failures still fail the suite.
 - Residual risk: cancel path asserts balance recovery when empty-state is absent; if close API mis-settles silently, history tab still shows the open trade earlier so regressions are visible.
 
+## GATE EVIDENCE — Q4
+Commands (from `frontend/`):
+```
+npm run typecheck  → exit 0
+npm run lint       → exit 0
+npm test           → exit 0 (55 files / 341 tests)
+npm run test:e2e -- --retries=0 → exit 0
+
+  Running 13 tests using 1 worker
+  -  1 [chromium] › e2e\app.spec.ts:13:7 › legacy mock-stub suite (retired by loop17) › placeholder
+  ok  2 [chromium] › e2e\coverage.spec.ts › market detail renders chart (or chart region) (23.0s)
+  ok  3 [chromium] › e2e\coverage.spec.ts › leaderboard loads with data or honest empty state (10.2s)
+  ok  4 [chromium] › e2e\coverage.spec.ts › /signals loads with data or honest empty state (9.1s)
+  ok  5 [chromium] › e2e\coverage.spec.ts › /macro loads with data or honest empty state (7.1s)
+  ok  6 [chromium] › e2e\coverage.spec.ts › /alerts loads with data or honest empty state (16.3s)
+  -  7 [chromium] › e2e\discover.spec.ts › trending contains no decided markets … [fixme: pending V16 merge]
+  -  8 [chromium] › e2e\discover.spec.ts › signals rail rows include market names … [fixme: pending V16 merge]
+  -  9 [chromium] › e2e\discover.spec.ts › ticker items are unique [fixme: pending V16 merge]
+  ok 10 [chromium] › e2e\discover.spec.ts › discover page loads with zero console errors (10.3s)
+  ok 11 [chromium] › e2e\smoke.spec.ts › / renders with non-empty markets grid … (4.1s)
+  ok 12 [chromium] › e2e\trade.spec.ts › signup, buy open market, portfolio updates, cancel path (49.2s)
+  ok 13 [chromium] › e2e\trade.spec.ts › login path works for existing paper user (14.2s)
+  4 skipped / 9 passed (3.5m)
+```
+
+## VERIFIER VERDICT — Q4 (adversarial self-review)
+- **PASS.** Coverage journeys hit market detail chart region, leaderboard, /signals, /macro, /alerts with data or honest empty; zero unexpected console errors (BUG-V17-01 filtered only).
+- **PASS.** One-command `npm run test:e2e` green end-to-end against local uvicorn+SQLite+next (never prod).
+- **PASS.** Ownership: only `frontend/e2e/**` + STATE. No `frontend/src/**` or `backend/**`.
+- **PASS.** Expected-fails documented: 3× V16 pending fixme + 1 legacy describe.skip; not silent skips of regressions.
+- Residual risk: macro empty state depends on FRED/WorldBank; offline environments still satisfy "honest empty". Leaderboard demo fallback is accepted as "data" when API empty.
+
 ## LOOP LOG
 - 2026-07-13 · Q1 start · branch loop17/e2e-qa clean at 30ecbee · claiming frontend/package.json for test:e2e
 - 2026-07-13 · Q1 DONE · typecheck/lint/vitest/playwright green · verifier PASS · commit pending
 - 2026-07-13 · Q2 DONE · discover.spec.ts + session helper · 3 fixme(pending V16) + 1 enforced console · gate green · verifier PASS
 - 2026-07-13 · Q3 DONE · trade.spec.ts UI signup/buy/portfolio/sell + login · BUG-V17-01 filed · gate green · verifier PASS
-
-### ORCHESTRATOR REVIEW · Q3 · 01ff6e7 · verdict: PASS
-Full trade journey green in-browser. Finish Q4 (coverage journeys + one-command
-run), then STOP — loop complete.
+- 2026-07-13 · Q4 DONE · coverage.spec.ts + full `npm run test:e2e` 9 pass / 4 skip · gate green · verifier PASS · loop complete
