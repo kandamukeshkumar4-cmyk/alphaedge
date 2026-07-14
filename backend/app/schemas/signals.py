@@ -46,6 +46,8 @@ class SignalFeedResponse(BaseModel):
     paper_trading_only: bool = True
     disclaimer: str
     signals: list[SignalFeedItemResponse]
+    # Additive (Loop V21 P2): true when served from in-process TTL cache.
+    cached: bool = False
 
 
 class SignalsDashboardResponse(BaseModel):

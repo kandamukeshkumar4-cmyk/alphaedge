@@ -7,8 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import PAPER_TRADING_DISCLAIMER
-from app.core import markets_cache
+from app.core import markets_cache, signal_feed_cache
 from app.core.config import get_settings
+from app.core.signal_feed_cache import SIGNAL_FEED_TTL_SEC
 from app.db.models import (
     Account,
     Evaluation,
@@ -288,7 +289,24 @@ async def get_forecast_signal(
 
 @router.get("/signals/feed", response_model=SignalFeedResponse)
 async def get_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
-    return await list_signal_feed(limit=limit, db=db)
+    """Public signal feed with short in-process TTL cache (Loop V21 P2)."""
+    bounded = max(1, min(int(limit or 50), 200))
+    cache_key = ("signal_feed", bounded)
+    cached = signal_feed_cache.get(cache_key, SIGNAL_FEED_TTL_SEC)
+    if cached is not None:
+        return SignalFeedResponse(**cached, cached=True)
+
+    body = await list_signal_feed(limit=bounded, db=db)
+    # Success-only: put after a full successful build (exceptions never reach put).
+    signal_feed_cache.put(
+        cache_key,
+        {
+            "paper_trading_only": body.paper_trading_only,
+            "disclaimer": body.disclaimer,
+            "signals": [s.model_dump(mode="json") for s in body.signals],
+        },
+    )
+    return body
 
 
 @router.get("/signals", response_model=SignalFeedResponse)
@@ -314,6 +332,7 @@ async def list_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
             )
             for item in items
         ],
+        cached=False,
     )
 
 
