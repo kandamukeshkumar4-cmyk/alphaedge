@@ -21,6 +21,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | Number | Claimed by | Ticket | Status |
 |---|---|---|---|
+| 042 | Workstream D | D2 | LANDED 2026-07-13T22:30:00-04:00 |
 | 041 | Workstream D | D1 | LANDED 2026-07-13T22:05:00-04:00 |
 | 038 | Workstream A | A1 | LANDED 2026-07-13T11:18:08-04:00 |
 | 039 | Workstream A | A4 | LANDED 2026-07-13T12:03:52-04:00 |
@@ -30,6 +31,8 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/db/models.py` | Workstream D | D2 | RELEASED 2026-07-13T22:30:00-04:00 |
+| `backend/app/workers/tasks.py` | Workstream D | D2 | RELEASED 2026-07-13T22:30:00-04:00 |
 | `backend/app/db/models.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
 | `backend/app/main.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
 | `backend/app/workers/tasks.py` | Workstream E | E3 | RELEASED 2026-07-13T21:45:00-04:00 |
@@ -84,7 +87,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
 | D1 | Model registry completed | DONE | Started 2026-07-13T21:40:00-04:00. DIR-D-001 ack.<br>Exists: classifier factory in `ml/model_registry.py`; thin `register_model_version` in `ml/versioning.py`; `ModelVersion` without training hash / active pointer.<br>Missing at start: training_data_hash, active pointer + rollback, admin GET `/api/v1/models`, metrics contract, tests.<br>Implemented: migration 041; `ModelActivePointer`; versioning helpers (hash, register, list, activate, rollback); admin list/activate/rollback; OpenAPI snapshot +6 paths; docs `notes-d1-model-registry.md`. Classifier factory untouched.<br>Gate: `1455 passed, 28 skipped`; ruff clean; alembic head `041_model_registry_active`.<br>Fresh verifier: PASS ([verifier](d985389c-edb5-4202-8c4a-205c45010cf4)). AutoLab: N/A. Completed 2026-07-13T22:05:00-04:00. |
-| D2 | Drift detection worker | TODO | read-only consumer of ForecastScore |
+| D2 | Drift detection worker | DONE | Started 2026-07-13T22:10:00-04:00. DIR-D-001 ack.<br>Exists: U12 BriefClaim drift (not ForecastScore); ops_alerts worker pattern.<br>Implemented: `eval/forecast_drift.py` + `workers/drift_detect.py`; migration 042; FORECAST_DRIFT_* settings; JobRun + 15-min cron; 9 synthetic-score tests. Read-only ForecastScore consumer. Alerts deferred to D3.<br>Gate: `1464 passed, 28 skipped`; ruff clean; head `042_forecast_drift_snapshots`.<br>Fresh verifier: PASS ([verifier](f814629a-ac1c-43f9-a1e7-04da0bfbd244)). AutoLab: N/A. Completed 2026-07-13T22:30:00-04:00. |
 | D3 | Drift API + in-app alert | TODO | |
 | D4 | Scheduled retrain (flag-gated OFF) | TODO | never auto-activates |
 | D5 | AutoLab calibration pass | TODO | blocked-check: needs ≥100 resolved |

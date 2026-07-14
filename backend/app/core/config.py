@@ -348,6 +348,21 @@ class Settings(BaseSettings):
     )
     # Number of most-recent graded claims to include in the rolling Brier window.
     drift_rolling_window: int = Field(default=30, alias="DRIFT_ROLLING_WINDOW")
+    # Loop V15 D2 — ForecastScore drift series (read-only consumer). Separate
+    # from U12 BriefClaim drift so the two pipelines do not share state.
+    forecast_drift_window: int = Field(default=50, alias="FORECAST_DRIFT_WINDOW")
+    forecast_drift_baseline_brier: float = Field(
+        default=0.25, alias="FORECAST_DRIFT_BASELINE_BRIER"
+    )
+    forecast_drift_baseline_ece: float = Field(
+        default=0.10, alias="FORECAST_DRIFT_BASELINE_ECE"
+    )
+    forecast_drift_brier_threshold: float = Field(
+        default=0.05, alias="FORECAST_DRIFT_BRIER_THRESHOLD"
+    )
+    forecast_drift_ece_threshold: float = Field(
+        default=0.05, alias="FORECAST_DRIFT_ECE_THRESHOLD"
+    )
     # Backtest replay nightly job (U10) — OFF by default.
     # When enabled, runs a nightly replay on configured market slugs and publishes
     # results to backtest_runs for the track record.
