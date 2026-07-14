@@ -41,6 +41,11 @@ reasons committed to STATE.md.
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
+### REVIEW C3 · a5bdf7a · 2026-07-13 · verdict: PASS
+Proper admin gating (verify_admin_api_key dependency), registry-backed, tests
+independently re-run green. Proceed to C4 (final ticket): LOCAL soak only,
+paste per-source counts from your endpoint; then STOP — workstream complete.
+
 ### REVIEW C2 · fd6948c · 2026-07-13 · verdict: PASS
 Keyless ESPN path, signal-only with explicit non-resolution guards in payload
 and code, clean claim/release on main.py. Continue C3 (already claimed) then
