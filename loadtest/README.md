@@ -13,8 +13,15 @@ or any non-loopback host. Scenarios refuse non-local hosts.
 
 ```powershell
 # From repo root (worktree loop20-load)
+# Full L1→L3 one-command runner
+py -3.13 loadtest/scripts/run_all.py
+
 # L1 smoke: boot isolated SQLite + uvicorn, 20 VUs × 60s on /health + /markets
 py -3.13 loadtest/scripts/run_smoke.py
+
+# L2 / L3
+py -3.13 loadtest/scripts/run_read_path.py
+py -3.13 loadtest/scripts/run_trade_path.py
 
 # Boot stack alone (stays up until Ctrl+C)
 py -3.13 loadtest/scripts/boot_local_stack.py --port 18020
@@ -22,6 +29,9 @@ py -3.13 loadtest/scripts/boot_local_stack.py --port 18020
 # Stack health check only
 py -3.13 loadtest/scripts/boot_local_stack.py --check
 ```
+
+Frozen report: [`results/PERF-BASELINE.md`](results/PERF-BASELINE.md).
+
 
 Default API port: **18020** (`LOADTEST_API_PORT`). Host: `http://127.0.0.1:18020`.
 
