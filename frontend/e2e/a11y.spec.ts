@@ -28,16 +28,9 @@ type AxeViolation = {
   }>;
 };
 
-/** BUG-V18-02: white-on-accent (#ffffff on #00c9a0) fails WCAG AA at ~2.12:1. */
-function isKnownAccentContrast(v: AxeViolation): boolean {
-  if (v.id !== "color-contrast") return false;
-  return v.nodes.some((node) =>
-    (node.any ?? []).some((check) => {
-      const bg = (check.data?.bgColor ?? "").toLowerCase();
-      const fg = (check.data?.fgColor ?? "").toLowerCase();
-      return bg === "#00c9a0" && (fg === "#ffffff" || fg === "#fff");
-    }),
-  );
+/** BUG-V18-02 fixed (loop16 V9) — no known-violation carve-out remains. */
+function isKnownAccentContrast(_v: AxeViolation): boolean {
+  return false;
 }
 
 function summarize(violations: AxeViolation[]): string {

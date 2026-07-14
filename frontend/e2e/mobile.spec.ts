@@ -123,11 +123,7 @@ test.describe("Q6 mobile viewport (375×812)", () => {
   });
 
   test("discover / has no horizontal overflow (mobile)", async ({ page }) => {
-    // App-side: measured scrollWidth=381 vs clientWidth=375 at 375×812.
-    test.fixme(
-      true,
-      "BUG-V18-01: discover / ~6px horizontal overflow at 375px viewport",
-    );
+    // BUG-V18-01 fixed (loop16 V8) — assertion now enforced.
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await dismissOnboardingIfPresent(page);
     await expect(marketCards(page).first()).toBeVisible({ timeout: 30_000 });

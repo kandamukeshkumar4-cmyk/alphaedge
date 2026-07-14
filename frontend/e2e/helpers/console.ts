@@ -5,10 +5,9 @@ import type { Page } from "@playwright/test";
 const NETWORK_NOISE =
   /Failed to load resource|net::ERR|ERR_FAILED|ERR_ABORTED|WebSocket connection to .* failed|favicon/i;
 
-// Known app bugs filed under goals/loop-v17-e2e-qa/STATE.md BUG REPORTS.
-// Do not expand this list without a matching BUG REPORT (no silent skips).
-const KNOWN_APP_BUG_NOISE =
-  /addColorStop.*could not be parsed as a color|rgba\(var\(--color-primary/i;
+// BUG-V17-01 fixed (loop16 V7): no known app-bug console noise remains.
+// Reintroduce a filter ONLY with a matching BUG REPORT (no silent skips).
+const KNOWN_APP_BUG_NOISE = /$^/; // matches nothing
 
 export function collectConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
