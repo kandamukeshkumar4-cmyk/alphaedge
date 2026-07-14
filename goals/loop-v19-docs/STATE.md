@@ -2,7 +2,7 @@
 | ID | Ticket | Status | Notes / verification evidence |
 |----|--------|--------|------------------|
 | W1 | API reference | DONE | `docs/api.md` — 111 table paths verified vs openapi_snapshot (131) + code; verifier PASS |
-| W2 | User guide | TODO | |
+| W2 | User guide | DONE | `docs/user-guide.md` — UI routes + API wiring verified; equity/attribution API-only noted |
 | W3 | Operations runbook | TODO | |
 | W4 | Model methodology | TODO | |
 | W5 | README refresh | TODO | |
@@ -41,6 +41,33 @@
 **Adversarial verifier:** `goals/loop-v19-docs/_verify_api_paths.py` → `table_paths=111` all found in snapshot or code → **PASS**. Explicitly confirmed fabricated `/api/v1/eval/drift` is **documented as non-existent**.
 
 **Gate:** docs-only; relative links self-contained; no app code edits.
+
+### W2 — User guide (2026-07-14)
+
+**Deliverable:** `docs/user-guide.md`
+
+**Verification evidence:**
+
+| Claim | Verified via |
+|-------|----------------|
+| Signup → POST `/api/v1/auth/signup`, redirect `/portfolio` | `frontend/src/app/auth/signup/page.tsx` |
+| Starting balance $100,000 | `User.paper_balance` default in `db/models.py`; `OnboardingModal` |
+| Discover `/` uses `sort=active` | `app/page.tsx` `fetchMarkets({ sort: "active" })` |
+| `/discover` redirects to `/` | `app/discover/page.tsx` |
+| Trending filter (open, price 0.01–0.99, future end) | `live-discovery.ts` `activeTrendingMarkets` |
+| Longshots/Decided → `/resolved` | `QuestDiscoverShell` Link href `/resolved` |
+| Paper trade + Idempotency-Key | `orders-api.ts`, `MarketTradingPanel`, `POST /api/v1/orders` |
+| Portfolio panels: clv/risk/exposure/profile | `portfolio/page.tsx` + `portfolio-api.ts` |
+| Equity-curve + attribution APIs exist, **UI not wired** on portfolio | API in `portfolio.py`; no frontend callers for those paths |
+| Equity chart on backtest only | `backtest/page.tsx` + `EquityCurveChart` |
+| Leaderboard + demo fallback | `leaderboard/page.tsx` |
+| Alerts notify-only | `alerts/page.tsx` comment + copy |
+| Forecast lock LIVE only on OPEN; grade after resolve | `forecast_service.py` `lock_forecast`; `track_record.py` primary source |
+| Thin/provisional track record | `track_record.py` `THIN_DATA_THRESHOLD`; UI PROVISIONAL badge |
+| All 26 documented API paths in OpenAPI | adversarial script → missing NONE |
+| All major frontend routes have `page.tsx` | `/`, auth, portfolio, signals, research, track-record, resolved, leaderboard, alerts, watchlist, trade, opportunities, feed, smart-money, backtest, markets |
+
+**Adversarial verifier:** no fabricated endpoints; equity/attribution documented as API-only (not fake UI).
 
 ### ORCHESTRATOR REVIEW · W1 · cf0faad · verdict: PASS
 Spot-verified 5 documented surfaces against code independently — all real;
