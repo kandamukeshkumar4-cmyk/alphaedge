@@ -135,7 +135,8 @@ uv run alembic heads
 - VERDICT: **PASS — LOOP V23 A1–A4 COMPLETE**
 
 ## Commits (loop23/admin, never pushed)
-1. `feat(loop23): A1 market management complete`
-2. `feat(loop23): A2 admin user management`
-3. `feat(loop23): A3 admin system stats`
-4. (pending) `feat(loop23): A4 OpenAPI polish + full gate`
+1. `8de04b6 feat(loop23): A1 market management complete`
+2. `295f383 feat(loop23): A2 admin user management`
+3. `bac56c7 feat(loop23): A3 admin system stats`
+4. `d4b6097 feat(loop23): A4 OpenAPI polish + full gate`
+(Also present: orchestrator `fdef185 docs(loop23): REVIEW A3 PASS`)
