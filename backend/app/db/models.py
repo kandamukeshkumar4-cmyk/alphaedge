@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -85,6 +86,8 @@ class User(Base):
     # Loop V23 A2: admin suspend flag — enforced in RiskService + paper-order path.
     is_suspended: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    profile_public: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
     )
 
     paper_orders: Mapped[list["PaperOrder"]] = relationship(back_populates="user")
@@ -121,6 +124,23 @@ class PaperOrder(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="paper_orders")
+
+
+class Follow(Base):
+    """A directed paper-trader follow relationship for the social layer."""
+
+    __tablename__ = "follows"
+    __table_args__ = (
+        UniqueConstraint("follower_id", "followee_id", name="uq_follows_follower_followee"),
+        CheckConstraint("follower_id <> followee_id", name="ck_follows_no_self"),
+        Index("ix_follows_follower_id", "follower_id"),
+        Index("ix_follows_followee_id", "followee_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    follower_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    followee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Watchlist(Base):

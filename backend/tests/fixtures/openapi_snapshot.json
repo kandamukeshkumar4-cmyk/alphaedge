@@ -164,55 +164,12 @@
    "tags": [
     "admin-markets"
    ]
-  },
-  "post": {
-   "has_success_response": true,
-   "summary": "Create Admin Market",
-   "tags": [
-    "admin-markets"
-   ]
-  }
- },
- "/api/v1/admin/markets/{slug}": {
-  "patch": {
-   "has_success_response": true,
-   "summary": "Edit Admin Market",
-   "tags": [
-    "admin-markets"
-   ]
-  }
- },
- "/api/v1/admin/markets/{slug}/cancel": {
-  "post": {
-   "has_success_response": true,
-   "summary": "Cancel Admin Market",
-   "tags": [
-    "admin-markets"
-   ]
-  }
- },
- "/api/v1/admin/markets/{slug}/pause": {
-  "post": {
-   "has_success_response": true,
-   "summary": "Pause Admin Market",
-   "tags": [
-    "admin-markets"
-   ]
   }
  },
  "/api/v1/admin/markets/{slug}/resolve": {
   "post": {
    "has_success_response": true,
    "summary": "Resolve Market",
-   "tags": [
-    "admin-markets"
-   ]
-  }
- },
- "/api/v1/admin/markets/{slug}/unpause": {
-  "post": {
-   "has_success_response": true,
-   "summary": "Unpause Admin Market",
    "tags": [
     "admin-markets"
    ]
@@ -251,51 +208,6 @@
    "summary": "List Agent Traces",
    "tags": [
     "observability"
-   ]
-  }
- },
- "/api/v1/admin/stats": {
-  "get": {
-   "has_success_response": true,
-   "summary": "Get Admin Stats",
-   "tags": [
-    "admin-stats"
-   ]
-  }
- },
- "/api/v1/admin/users": {
-  "get": {
-   "has_success_response": true,
-   "summary": "List Admin Users",
-   "tags": [
-    "admin-users"
-   ]
-  }
- },
- "/api/v1/admin/users/{user_id}": {
-  "get": {
-   "has_success_response": true,
-   "summary": "Get Admin User",
-   "tags": [
-    "admin-users"
-   ]
-  }
- },
- "/api/v1/admin/users/{user_id}/suspend": {
-  "post": {
-   "has_success_response": true,
-   "summary": "Suspend Admin User",
-   "tags": [
-    "admin-users"
-   ]
-  }
- },
- "/api/v1/admin/users/{user_id}/unsuspend": {
-  "post": {
-   "has_success_response": true,
-   "summary": "Unsuspend Admin User",
-   "tags": [
-    "admin-users"
    ]
   }
  },
@@ -1253,6 +1165,49 @@
    "summary": "Get Smart Money",
    "tags": [
     "smart-money"
+   ]
+  }
+ },
+ "/api/v1/social/feed": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List followed-trader activity",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/follow/{trader}": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Unfollow a public trader",
+   "tags": [
+    "social"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Follow a public trader",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/following": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List followed traders",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/traders/{trader}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get a public trader profile",
+   "tags": [
+    "social"
    ]
   }
  },
