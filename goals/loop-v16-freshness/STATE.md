@@ -25,7 +25,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | V2 | Live Signals rail: named, valued, deduped | DONE | Raw events optionally join market titles and dedupe identical semantic signals within a requested window while preserving opposite moves and default raw pagination. The rail renders real title, UP/DOWN/INFO, signed bps/¢ or honest Observed, signal label, and relative age; the fabricated whale fallback and repeated em-dash rows are removed. |
 | V3 | Ticker freshness: DESC order, dedupe, age, 48h window | DONE | Production source ordering was already correct. Client normalization now sorts REST/WS rows DESC, dedupes bounded semantic repeats while preserving genuine opposite/later moves, shows real signal direction/value/age, and applies `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (default 48h). The footer no longer invents trades/sizes or clones quiet rows. Full proof and verifier output are in the loop log below. |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | DONE | Default-on bounded worker now creates immutable LIVE forecasts only for eligible pre-close OPEN external markets, using real venue snapshots and the existing prediction/lock path. Per-market savepoints re-check terminal-snapshot and close-time races before commit; JobRun records the scheduled heartbeat. Full proof and verifier output are in the loop log below. |
-| V5 | Decided/closed market hygiene (no false LIVE chip) | TODO | |
+| V5 | Decided/closed market hygiene (no false LIVE chip) | IN-PROGRESS | AutoLab budget: 2 measure/edit cycles. Production at 2026-07-14T15:23:19Z had 658 markets, zero OPEN rows past close or at an exact 0/1 endpoint, 154 genuinely OPEN longshots that merely round to 0/100, and 69 RESOLVED rows with future lock times. Root cause is frontend lifecycle handling: the detail chip keys only off WebSocket connectivity, `isLiveMirror` keys only off source, and the local-match catalog adapter drops API status. Preserve real longshots; make authoritative status win, then exact endpoint/close time, and label non-live detail state explicitly. |
 | V6 | [LIVE] end-user re-test proof | TODO | prod READ-ONLY + local stack |
 
 ## LOOP LOG (append one entry per iteration; paste gate output tails)
@@ -298,3 +298,10 @@ close_at re-check), bounded batch, claimed tasks.py append, existing service
 reuse. Being merged + deployed IMMEDIATELY (batch 3) so forecasts start
 accruing tonight. Continue V5 (decided/closed chip hygiene) → V6 (live proof)
 → V7 (canvas CSS-var chart bug from QA).
+
+### ORCHESTRATOR: NEW TICKET V8 (routed from loop V18 QA) — BUG-V18-01
+Discover page horizontal overflow at 375px width: documentElement.scrollWidth
+381 vs clientWidth 375 (~6px). Portfolio routes are clean — suspect a
+full-bleed hero / topic-pill row / rail child missing clipping or min-w-0.
+Fix in your frontend lane after V5-V7; the QA suite has a fixme'd assertion
+in e2e/mobile.spec.ts (branch loop17/e2e-qa) that flips live when fixed.
