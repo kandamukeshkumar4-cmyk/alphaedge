@@ -291,3 +291,10 @@ PR/merge). Bumblebee: not applicable (no manifest, lockfile, dependency loader,
 or deployment-image change; no merge requested).
 
 AutoLab: baseline=V3 gate backend 1417 passed/28 skipped and prod resolved_count=1/100 | benchmark=autolock focused/leakage tests plus full ticket/repo gates | iterations=3, best=33 focused tests and backend 1426 passed/28 skipped with final verifier PASS | budget=3/3 | outcome=improved
+
+### ORCHESTRATOR REVIEW · V4 · 6e48dce · verdict: PASS
+Leakage-safe by construction (pre-close selection + post-persist locked_at <
+close_at re-check), bounded batch, claimed tasks.py append, existing service
+reuse. Being merged + deployed IMMEDIATELY (batch 3) so forecasts start
+accruing tonight. Continue V5 (decided/closed chip hygiene) → V6 (live proof)
+→ V7 (canvas CSS-var chart bug from QA).
