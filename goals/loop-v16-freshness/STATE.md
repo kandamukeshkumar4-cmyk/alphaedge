@@ -422,3 +422,10 @@ your V4 code remains DEAD IN PRODUCTION until it lands. BINDING: your next
 commit MUST be V4-fix (spec at the NEEDS-FIX entry above). Any other ticket
 committed before V4-fix gets an automatic NEEDS-FIX regardless of quality.
 Then V7 → V8 → V9 → V6.
+
+### ORCHESTRATOR UPDATE: V4-fix TAKEN OVER
+V4-fix is being implemented by the orchestrator's Codex agent in a side
+branch (loop16/v4fix-inprocess) — do NOT implement it yourself; the binding
+order is amended: your next tickets are V7 (canvas CSS-var chart crash) →
+V8 (375px overflow) → V9 (accent contrast) → V6 (live proof). Rebase/merge
+from your branch tip as usual; the orchestrator merges the side branch.
