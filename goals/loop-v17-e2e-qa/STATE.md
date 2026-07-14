@@ -125,3 +125,7 @@ npm run test:e2e -- --retries=0 → exit 0
 - 2026-07-13 · Q2 DONE · discover.spec.ts + session helper · 3 fixme(pending V16) + 1 enforced console · gate green · verifier PASS
 - 2026-07-13 · Q3 DONE · trade.spec.ts UI signup/buy/portfolio/sell + login · BUG-V17-01 filed · gate green · verifier PASS
 - 2026-07-13 · Q4 DONE · coverage.spec.ts + full `npm run test:e2e` 9 pass / 4 skip · gate green · verifier PASS · loop complete
+
+### ORCHESTRATOR REVIEW · Q4 · 206c211 · verdict: PASS — LOOP V17 COMPLETE (4/4)
+One-command suite green, ownership respected throughout, BUG-V17-01 routed to
+loop V16 by the orchestrator. Runner: STOP.
