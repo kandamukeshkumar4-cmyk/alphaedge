@@ -50,6 +50,26 @@ def test_risk_accepts_valid_intent():
     assert failures == []
 
 
+def test_risk_rejects_suspended_user():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="buy",
+        outcome="yes",
+        quantity=Decimal("10"),
+        price=Decimal("0.55"),
+        predicted_prob=0.62,
+        confidence=0.8,
+        edge=0.07,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.05,
+        minutes_before_start=30,
+        user_suspended=True,
+    )
+    ok, failures = RiskService().validate(intent)
+    assert not ok
+    assert any("suspended" in f for f in failures)
+
+
 def test_fractional_kelly_suggests_paper_stake_under_hard_cap():
     suggestion = suggest_fractional_kelly_stake(
         predicted_prob=0.62,

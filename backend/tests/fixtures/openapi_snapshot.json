@@ -164,12 +164,55 @@
    "tags": [
     "admin-markets"
    ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Admin Market",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/markets/{slug}": {
+  "patch": {
+   "has_success_response": true,
+   "summary": "Edit Admin Market",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/markets/{slug}/cancel": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Cancel Admin Market",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/markets/{slug}/pause": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Pause Admin Market",
+   "tags": [
+    "admin-markets"
+   ]
   }
  },
  "/api/v1/admin/markets/{slug}/resolve": {
   "post": {
    "has_success_response": true,
    "summary": "Resolve Market",
+   "tags": [
+    "admin-markets"
+   ]
+  }
+ },
+ "/api/v1/admin/markets/{slug}/unpause": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Unpause Admin Market",
    "tags": [
     "admin-markets"
    ]
@@ -208,6 +251,51 @@
    "summary": "List Agent Traces",
    "tags": [
     "observability"
+   ]
+  }
+ },
+ "/api/v1/admin/stats": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Admin Stats",
+   "tags": [
+    "admin-stats"
+   ]
+  }
+ },
+ "/api/v1/admin/users": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Admin Users",
+   "tags": [
+    "admin-users"
+   ]
+  }
+ },
+ "/api/v1/admin/users/{user_id}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Admin User",
+   "tags": [
+    "admin-users"
+   ]
+  }
+ },
+ "/api/v1/admin/users/{user_id}/suspend": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Suspend Admin User",
+   "tags": [
+    "admin-users"
+   ]
+  }
+ },
+ "/api/v1/admin/users/{user_id}/unsuspend": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Unsuspend Admin User",
+   "tags": [
+    "admin-users"
    ]
   }
  },
@@ -1168,6 +1256,24 @@
    ]
   }
  },
+ "/api/v1/sports/ingest": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Ingest Sports Results",
+   "tags": [
+    "sports"
+   ]
+  }
+ },
+ "/api/v1/sports/results": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Sports Results",
+   "tags": [
+    "sports"
+   ]
+  }
+ },
  "/api/v1/system/loops": {
   "get": {
    "has_success_response": true,
@@ -1199,6 +1305,15 @@
   "get": {
    "has_success_response": true,
    "summary": "Get Resolved Count",
+   "tags": [
+    "system"
+   ]
+  }
+ },
+ "/api/v1/system/sources": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Connector Sources",
    "tags": [
     "system"
    ]
