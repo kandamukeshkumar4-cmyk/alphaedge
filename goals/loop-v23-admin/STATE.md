@@ -103,3 +103,7 @@ All checks passed!
 - PASS: paper_trading_only on response; no order-path changes.
 - PASS: additive route only.
 - VERDICT: **PASS**
+
+### ORCHESTRATOR REVIEW · A3 · bac56c7 · verdict: PASS
+Admin-gated correctly, cached, tested. Ticket-order note: A1 remains the
+priority (existing admin_markets.py completion) — do it next, then A2, A4.
