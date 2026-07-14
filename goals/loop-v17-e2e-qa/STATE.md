@@ -5,6 +5,10 @@
 | Q2 | Discover freshness journey | DONE | discover.spec.ts: 1 enforced + 3 fixme(pending V16 merge); smoke still green |
 | Q3 | Trade journey | DONE | signup→buy Lakers→portfolio balance+position→sell cancel; login path green |
 | Q4 | Coverage journeys + one-command run | DONE | coverage.spec.ts + `npm run test:e2e` 9 passed / 4 skipped |
+| Q5 | Activate V16 guards | DONE | Removed 3× fixme(pending V16 merge); all 3 pass live after 89d1297 |
+| Q6 | Mobile viewport journeys | PENDING | |
+| Q7 | Auth edge journeys | PENDING | |
+| Q8 | A11y pass (@axe-core/playwright) | PENDING | |
 
 ## SHARED FILE CLAIMS
 | File | Ticket | Status |
@@ -119,13 +123,53 @@ npm run test:e2e -- --retries=0 → exit 0
 - **PASS.** Expected-fails documented: 3× V16 pending fixme + 1 legacy describe.skip; not silent skips of regressions.
 - Residual risk: macro empty state depends on FRED/WorldBank; offline environments still satisfy "honest empty". Leaderboard demo fallback is accepted as "data" when API empty.
 
+### ORCHESTRATOR REVIEW · Q4 · 206c211 · verdict: PASS — LOOP V17 COMPLETE (4/4)
+One-command suite green, ownership respected throughout, BUG-V17-01 routed to
+loop V16 by the orchestrator. Runner: STOP.
+
+## GATE EVIDENCE — Q5
+Verified V16 V1-V3 merged beneath this branch:
+```
+89d1297 merge(loop16): freshness V1-V3 — trending by recent activity, real signals rail, ticker freshness
+b55855b feat(loop16): V3 ticker freshness
+2b00099 feat(loop16): V2 render real live signals
+bdcc4a9 feat(loop16): V1 rank trending by recent activity
+```
+Commands (from `frontend/`):
+```
+npm run typecheck  → exit 0
+npm run lint       → exit 0
+npm test           → exit 0 (59 files / 354 tests)
+npx playwright test --retries=0 → exit 0
+
+  Running 13 tests using 1 worker
+  -  1 [chromium] › e2e\app.spec.ts › legacy mock-stub suite (retired by loop17) › placeholder
+  ok  2–6 coverage journeys
+  ok  7 [chromium] › trending contains no decided markets (≤1¢ / ≥99¢)          (was fixme)
+  ok  8 [chromium] › signals rail rows include market names …                  (was fixme)
+  ok  9 [chromium] › ticker items are unique                                   (was fixme)
+  ok 10 [chromium] › discover page loads with zero console errors
+  ok 11 smoke · ok 12–13 trade
+  1 skipped / 12 passed (2.5m)
+```
+Note: local `frontend/src/app/markets/page.tsx` was zero-byte/assume-unchanged
+(environment corruption, not our edit). Restored from HEAD to re-enable typecheck;
+no intentional `frontend/src/**` changes.
+
+## VERIFIER VERDICT — Q5 (adversarial self-review)
+- **PASS.** git log confirms loop16 V1-V3 merge (89d1297) is an ancestor; fixme
+  markers for "pending V16 merge" removed; all three assertions now enforce live.
+- **PASS.** No app-side failure → no new BUG REPORT / re-fixme needed.
+- **PASS.** Ownership: only `frontend/e2e/discover.spec.ts` + STATE.md. No
+  `frontend/src/**` or `backend/**` intentional edits.
+- **PASS.** Suite improved 9 pass/4 skip → 12 pass/1 skip (only legacy describe.skip remains).
+- Residual risk: trending/signals/ticker assertions still depend on seed data
+  shape; if seeds change to include decided markets in trending, this fails correctly.
+
 ## LOOP LOG
 - 2026-07-13 · Q1 start · branch loop17/e2e-qa clean at 30ecbee · claiming frontend/package.json for test:e2e
 - 2026-07-13 · Q1 DONE · typecheck/lint/vitest/playwright green · verifier PASS · commit pending
 - 2026-07-13 · Q2 DONE · discover.spec.ts + session helper · 3 fixme(pending V16) + 1 enforced console · gate green · verifier PASS
 - 2026-07-13 · Q3 DONE · trade.spec.ts UI signup/buy/portfolio/sell + login · BUG-V17-01 filed · gate green · verifier PASS
 - 2026-07-13 · Q4 DONE · coverage.spec.ts + full `npm run test:e2e` 9 pass / 4 skip · gate green · verifier PASS · loop complete
-
-### ORCHESTRATOR REVIEW · Q4 · 206c211 · verdict: PASS — LOOP V17 COMPLETE (4/4)
-One-command suite green, ownership respected throughout, BUG-V17-01 routed to
-loop V16 by the orchestrator. Runner: STOP.
+- 2026-07-14 · Q5 DONE · un-fixme 3 V16 guards after 89d1297 verify; all pass live; 12/1 suite · gate green · verifier PASS

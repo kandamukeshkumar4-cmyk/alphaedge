@@ -35,10 +35,7 @@ test.describe("Q2 discover freshness", () => {
   });
 
   test("trending contains no decided markets (≤1¢ / ≥99¢)", async ({ page }) => {
-    // V16 V1 not merged into loop17 base (loop16/freshness is parallel). Keep
-    // the assertion in-suite as expected-fail until merge.
-    test.fixme(true, "pending V16 merge — V1 trending excludes decided (≤1¢/≥99¢)");
-
+    // V16 V1 is merged (89d1297) — guard is live.
     await openDiscoverTrending(page);
     const priceNodes = page.locator("main").locator("text=/\\d+\\s*¢/");
     const count = await priceNodes.count();
@@ -61,11 +58,7 @@ test.describe("Q2 discover freshness", () => {
   test("signals rail rows include market names (not bare delta:price_jump —)", async ({
     page,
   }) => {
-    test.fixme(
-      true,
-      "pending V16 merge — signal rail should show market title, not bare delta:price_jump —",
-    );
-
+    // V16 V2 is merged (89d1297) — guard is live.
     await openDiscoverTrending(page);
     // Left rail "Live Signals" section (desktop). Viewport is Desktop Chrome.
     const signalsHeader = page.getByRole("heading", { name: /Live Signals/i });
@@ -81,11 +74,7 @@ test.describe("Q2 discover freshness", () => {
   });
 
   test("ticker items are unique", async ({ page }) => {
-    test.fixme(
-      true,
-      "pending V16 merge — live ticker items must be unique market labels",
-    );
-
+    // V16 V3 is merged (89d1297) — guard is live.
     await openDiscoverTrending(page);
     // Footer ticker is desktop-only (lg:block). Wait briefly for fetch.
     await page.waitForTimeout(2000);
