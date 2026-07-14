@@ -363,6 +363,10 @@ class Settings(BaseSettings):
     forecast_drift_ece_threshold: float = Field(
         default=0.05, alias="FORECAST_DRIFT_ECE_THRESHOLD"
     )
+    # Loop V15 D4 — scheduled XGBoost retrain on snapshot store. DEFAULT OFF.
+    # Registers via D1 but NEVER auto-activates (human decision / E06).
+    ml_retrain_enabled: bool = Field(default=False, alias="ML_RETRAIN_ENABLED")
+    ml_retrain_min_rows: int = Field(default=20, alias="ML_RETRAIN_MIN_ROWS")
     # Backtest replay nightly job (U10) — OFF by default.
     # When enabled, runs a nightly replay on configured market slugs and publishes
     # results to backtest_runs for the track record.

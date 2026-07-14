@@ -21,6 +21,7 @@ from app.ml.snapshot_dataset import load_resolved_snapshot_feature_matrix
 from app.ml.trainer import (
     train_walk_forward_xgboost_from_feature_matrix,
     train_walk_forward_xgboost_model,
+    train_xgboost_from_feature_matrix,
     train_xgboost_model,
 )
 from app.ml.versioning import (
@@ -57,5 +58,6 @@ __all__ = [
     "set_active_model",
     "train_walk_forward_xgboost_from_feature_matrix",
     "train_walk_forward_xgboost_model",
+    "train_xgboost_from_feature_matrix",
     "train_xgboost_model",
 ]
