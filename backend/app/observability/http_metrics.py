@@ -62,6 +62,17 @@ def record_request(*, method: str, route: str, status_code: int, latency_ms: flo
     A request is counted as an error when its status is >= 500 (server errors);
     client 4xx are NOT errors here (they are expected input rejections).
     """
+    # E2: mirror every sample into the Prometheus series so /metrics exposes
+    # per-route latency histograms + 5xx counters. A metrics failure must
+    # never break request handling.
+    try:
+        from app.observability.metrics import record_http_request
+
+        record_http_request(
+            method=method.upper(), route=route, status_code=status_code, latency_ms=latency_ms
+        )
+    except Exception:  # noqa: BLE001 — observability must not affect requests
+        pass
     key = (method.upper(), route)
     with _lock:
         entry = _routes.get(key)

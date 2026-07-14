@@ -89,7 +89,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
 | E1 | Uniform rate limiting | DONE | Started 2026-07-13T17:05:00-04:00.<br>Exists at start: slowapi global 600/minute per-IP default limit via `SlowAPIMiddleware` (main.py); per-IP anon limiter in assistant.py; no per-user identity, no mutating-specific limits, no admin exemption on limits, no Retry-After on 429.<br>Missing at start: uniform per-user/IP fixed-window limits on mutating methods, config-driven, admin exempt, 429+Retry-After, tests.<br>Implemented: new `app/core/ratelimit.py` `MutatingRateLimitMiddleware` (innermost of the stack so request-id is set and 429s are metered) applying a fixed-window limit ONLY to POST/PUT/PATCH/DELETE, keyed per identity+method+path (bearer-token hash when present, else client IP), valid `X-Admin-API-Key` exempt, malformed rate strings fail loudly, bounded window map with expiry pruning and fail-open under pathological growth. Config: `RATE_LIMIT_MUTATING` (default 600/minute — mirrors the existing global limit so behavior/tests are unchanged until ops tightens it) + `RATE_LIMIT_MUTATING_ENABLED` kill switch. 15 tests: parse variants/malformed, window reset (injected clock), trip with Retry-After, GET never limited, admin exempt, wrong admin key not exempt, per-token identity isolation, per-route bucket isolation, kill switch. Existing tests untouched (default limit is generous; the tight 2/minute limit is pinned only inside the new test module and restored after).<br>Gate (solo run, fresh basetemp): backend `1430 passed, 28 skipped in 440.17s`; ruff `All checks passed!`. An earlier overlapping duplicate gate run produced temp-db collision errors; the solo re-run is the authoritative result.<br>Self-review vs guardrails: additive only (no endpoint shapes changed), order path untouched, PAPER_TRADING_ONLY untouched, no test weakened, no network in tests. Verdict: PASS. AutoLab: not applicable (no iterative measure). Completed 2026-07-13T20:45:00-04:00. |
-| E2 | Prometheus /metrics | TODO | |
+| E2 | Prometheus /metrics | DONE | Started 2026-07-13T20:50:00-04:00.<br>Exists at start: `prometheus_client` ALREADY a dependency (U12) — no new dep added; `app/observability/metrics.py` exposed an UNGATED `GET /metrics` with stream/brief/claims/WS/SLO series; `http_metrics.py` held in-process per-route counters (JSON at /api/v1/system/metrics); no per-route Prometheus latency histogram, no 5xx counter, no worker-duration histogram, no connector-health gauge, no gating.<br>Implemented: /metrics now requires `X-Admin-API-Key` OR `Authorization: Bearer <METRICS_TOKEN>` (new empty-default setting; empty token can never open the gate) and returns 401 otherwise. New series: `alphaedge_http_request_latency_ms{method,route}` histogram + `alphaedge_http_errors_total{method,route}` counter fed from `http_metrics.record_request` (i.e. every request the middleware sees, templated routes, failure-isolated); `alphaedge_worker_job_duration_ms{job}` histogram fed via new optional `duration_ms` on `loop_state.record_heartbeat` (honest-empty until loops pass durations); `alphaedge_connector_health{source}` gauge + `set_connector_health` helper — STUB NAME CONTRACT for C3 (not landed), empty until a connector reports. Tests updated to send the admin key (gating is the ticket's required behavior — assertions strengthened, none weakened) + 9 new tests: 401 unauth/wrong key, token accept/reject, empty-token closed, http series count+errors, worker duration, gauge set/unset.<br>Gate: backend `1437 passed, 28 skipped in 355.90s`; ruff `All checks passed!`.<br>Self-review vs guardrails: additive (new series/settings; gating is the ticket's explicit mandate and admin surfaces follow the existing admin-key pattern), order path untouched, no fabricated metrics (all honest zero-state), no live network in tests. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T21:15:00-04:00. |
 | E3 | In-app alert rules | TODO | read alert_dispatch first |
 | E4 | OpenAPI polish + schema snapshot | TODO | |
 | E5 | [LIVE] Ops soak under load | TODO | |
@@ -338,6 +338,16 @@ AutoLab: not applicable (no iterative measure).
 ```text
 === GATE: backend pytest ===
 1430 passed, 28 skipped in 440.17s (0:07:20)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E2 · DONE · Gated Prometheus /metrics (admin key or METRICS_TOKEN bearer; 401 otherwise) and added per-route latency histograms + 5xx counters fed by the existing HTTP middleware path, a worker-job-duration histogram fed via record_heartbeat(duration_ms=...), and the C3 connector-health gauge name contract. No new dependency (prometheus_client was already in the tree). 9 new tests; existing /metrics tests updated to authenticate.
+
+```text
+=== GATE: backend pytest ===
+1437 passed, 28 skipped in 355.90s (0:05:55)
 
 === GATE: backend ruff ===
 All checks passed!

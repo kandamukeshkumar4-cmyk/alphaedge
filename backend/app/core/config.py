@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     rate_limit_mutating_enabled: bool = Field(
         default=True, alias="RATE_LIMIT_MUTATING_ENABLED"
     )
+    # Loop V15 E2 — dedicated bearer token for the Prometheus /metrics scrape.
+    # Empty (default) means /metrics accepts only the admin API key.
+    metrics_token: str = Field(default="", alias="METRICS_TOKEN")
     live_feed_enabled: bool = Field(default=True, alias="LIVE_FEED_ENABLED")
     live_tick_interval_sec: int = Field(default=15, alias="LIVE_TICK_INTERVAL_SEC")
     # COST-01: when no client touched the API within the active window and no
