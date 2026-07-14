@@ -4,7 +4,7 @@
 | W1 | API reference | DONE | `docs/api.md` — 111 table paths verified vs openapi_snapshot (131) + code; verifier PASS |
 | W2 | User guide | DONE | `docs/user-guide.md` — UI routes + API wiring verified; equity/attribution API-only noted |
 | W3 | Operations runbook | DONE | `docs/operations.md` — Railway path-as-root, env names, alembic head, monitoring |
-| W4 | Model methodology | TODO | |
+| W4 | Model methodology | DONE | `docs/methodology.md` — XGB/calib/WF/CLV/leakage/drift/A-B no auto-activate |
 | W5 | README refresh | TODO | |
 
 ## LOOP LOG (append per iteration; list endpoint/flag verifications)
@@ -94,6 +94,29 @@
 | Documented endpoints exist | `_verify_ops.py` missing apis NONE |
 
 **Adversarial verifier:** PASS (no secret values; no invented endpoints).
+
+### W4 — Model methodology (2026-07-14)
+
+**Deliverable:** `docs/methodology.md`
+
+**Verification evidence:**
+
+| Claim | Verified via |
+|-------|----------------|
+| XGBoost default + optional LightGBM fallback | `model_registry.py`, `ML_MODEL_TYPE` |
+| Calibrators Platt/isotonic/identity + ECE/Brier report | `calibration.py` |
+| Walk-forward trainer | `trainer.py` `train_walk_forward_xgboost_*` |
+| model_beats_closing = Brier+logloss vs closing | `backtesting/clv.py` |
+| Predictor multi-gate edge | `forecasting/predictor.py` |
+| Phase-3 blocked reasons | `backtesting/replay.py` |
+| Leakage audit known_at ≤ decision_ts | `features.py` `assert_no_post_game_leakage` |
+| Drift threshold 0.05, baseline 0.25, flag default off | `config.py` + `observability/drift.py` |
+| A/B never flips model; MIN_RESOLVED_FOR_AB=100 | `ab_harness.py` |
+| Nightly backtest flag-gated default off | `BACKTEST_NIGHTLY_ENABLED` |
+| Eval/track-record/drift/model-ab endpoints in OpenAPI | all listed paths present |
+| Paper-simulation disclaimer | doc header + PAPER_TRADING_ONLY |
+
+**Adversarial verifier:** all code needles + OpenAPI paths OK; no fabricated auto-activation.
 
 ### ORCHESTRATOR REVIEW · W1 · cf0faad · verdict: PASS
 Spot-verified 5 documented surfaces against code independently — all real;
