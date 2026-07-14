@@ -91,7 +91,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 | D2 | Drift detection worker | DONE | Started 2026-07-13T22:10:00-04:00. DIR-D-001 ack.<br>Exists: U12 BriefClaim drift (not ForecastScore); ops_alerts worker pattern.<br>Implemented: `eval/forecast_drift.py` + `workers/drift_detect.py`; migration 042; FORECAST_DRIFT_* settings; JobRun + 15-min cron; 9 synthetic-score tests. Read-only ForecastScore consumer. Alerts deferred to D3.<br>Gate: `1464 passed, 28 skipped`; ruff clean; head `042_forecast_drift_snapshots`.<br>Fresh verifier: PASS ([verifier](f814629a-ac1c-43f9-a1e7-04da0bfbd244)). AutoLab: N/A. Completed 2026-07-13T22:30:00-04:00. |
 | D3 | Drift API + in-app alert | DONE | Started 2026-07-13T22:35:00-04:00. DIR-D-001 ack.<br>Implemented: `GET /api/v1/eval/drift`; `maybe_dispatch_drift_alert` via AlertDispatchService (`forecast_drift` + hourly dedupe); worker `alerted` field; OpenAPI +1 path; 5 new API tests.<br>Gate: pytest exit 0; ruff clean. Fresh verifier: PASS ([verifier](54491aa9-5716-4ac9-a780-80b02b6ae223)). AutoLab: N/A. Completed 2026-07-13T23:00:00-04:00. |
 | D4 | Scheduled retrain (flag-gated OFF) | DONE | Started 2026-07-13T23:05:00-04:00. DIR-D-001 ack.<br>Implemented: `ML_RETRAIN_ENABLED` default false; `workers/model_retrain.py`; `train_xgboost_from_feature_matrix`; D1 register with activate=False + recommendation log; daily 04:00 cron; 5 tests.<br>Gate: `1474 passed, 28 skipped`; ruff clean.<br>Fresh verifier: PASS ([verifier](7bb66f86-e3b5-4ed5-8e29-65934bf6d25f)). AutoLab: N/A. Completed 2026-07-13T23:20:00-04:00. |
-| D5 | AutoLab calibration pass | TODO | blocked-check: needs ≥100 resolved |
+| D5 | AutoLab calibration pass | BLOCKED | Started 2026-07-13T23:25:00-04:00. DIR-D-001 ack.<br>Prod read-only GET `https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count` returned HTTP 503 ("Your space is in error"). Koyeb alternate `alphaedge-api.koyeb.app` returned 404 no active service. Cannot verify ≥100 resolved outcomes.<br>**blocked on resolved-count — honest skip**. No calibration loop run; never trained on post-close information; no metric gaming.<br>AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count). Completed 2026-07-13T23:30:00-04:00. |
 
 ### Workstream E — Platform & observability
 | ID | Ticket | Status | Notes / evidence |
@@ -438,3 +438,18 @@ All checks passed!
 ```
 
 AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · D · D5 · BLOCKED · blocked on resolved-count — honest skip. Prod HF API 503 on GET /api/v1/system/resolved-count; cannot confirm ≥100 resolved. No AutoLab calibration edits.
+
+```text
+=== PROD READ-ONLY ===
+GET https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count
+HTTP 503 body: Your space is in error, check its status on hf.co
+
+GET https://alphaedge-api.koyeb.app/api/v1/system/resolved-count
+HTTP 404 (no active service)
+```
+
+AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count)
+
+Workstream D COMPLETE (D1–D4 DONE, D5 BLOCKED honest skip).

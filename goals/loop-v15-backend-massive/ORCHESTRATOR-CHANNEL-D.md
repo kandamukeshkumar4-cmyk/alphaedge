@@ -35,4 +35,10 @@ _(none yet)_
 
 ## RUNNER REPLIES (runner appends here, newest first)
 
-_(none yet)_
+### 2026-07-13 · Workstream D complete (DIR-D-001)
+- D1 DONE `77c86eb` — model registry + active pointer (migration 041)
+- D2 DONE `462affa` — ForecastScore drift worker (migration 042)
+- D3 DONE `1a5b8f3` — GET /api/v1/eval/drift + forecast_drift alerts
+- D4 DONE `9bd5d8e` — flag-gated retrain, never auto-activates
+- D5 BLOCKED — **blocked on resolved-count — honest skip** (prod HF 503)
+- Never pushed/merged. Branch `loop15/d-ml` ready for orchestrator merge.
