@@ -3,7 +3,7 @@
 |----|--------|--------|------------------|
 | W1 | API reference | DONE | `docs/api.md` — 111 table paths verified vs openapi_snapshot (131) + code; verifier PASS |
 | W2 | User guide | DONE | `docs/user-guide.md` — UI routes + API wiring verified; equity/attribution API-only noted |
-| W3 | Operations runbook | TODO | |
+| W3 | Operations runbook | DONE | `docs/operations.md` — Railway path-as-root, env names, alembic head, monitoring |
 | W4 | Model methodology | TODO | |
 | W5 | README refresh | TODO | |
 
@@ -68,6 +68,32 @@
 | All major frontend routes have `page.tsx` | `/`, auth, portfolio, signals, research, track-record, resolved, leaderboard, alerts, watchlist, trade, opportunities, feed, smart-money, backtest, markets |
 
 **Adversarial verifier:** no fabricated endpoints; equity/attribution documented as API-only (not fake UI).
+
+### W3 — Operations runbook (2026-07-14)
+
+**Deliverable:** `docs/operations.md`
+
+**Verification evidence:**
+
+| Claim | Verified via |
+|-------|----------------|
+| Railway preDeploy alembic + uvicorn start + /health | `backend/railway.toml` |
+| Worker start command | `backend/railway.worker.toml` |
+| `railway up` from backend / `--path-as-root` | `scripts/deploy_railway.ps1`; `goals/build-loop-e2e/STATE.md` |
+| Deploy script env names (no values) | `deploy_railway.ps1` variables list |
+| PAPER_TRADING_ONLY required | `config.py` validator |
+| Prod rejects default JWT/admin secrets | `config.py` `production_secrets_must_be_explicit` |
+| Env field aliases | `config.py` Field aliases |
+| Dual 017 merge → single head via 018 | `018_wc2026_tag.py` down_revision tuple |
+| Head 040 | `040_portfolio_equity_snapshots.py` |
+| demo-uptime cron + verify_prod + paper_trading_only assert | `.github/workflows/demo-uptime.yml` |
+| Prometheus /metrics gated | `observability/metrics.py` |
+| system/loops, sources, resolved-count | `system.py`, `sports.py` sources_router |
+| Neon→Railway + rollback copy note | e2e STATE + deploy scripts (logical ops, no secrets) |
+| 50 env tokens all known | `_verify_ops.py` PASS |
+| Documented endpoints exist | `_verify_ops.py` missing apis NONE |
+
+**Adversarial verifier:** PASS (no secret values; no invented endpoints).
 
 ### ORCHESTRATOR REVIEW · W1 · cf0faad · verdict: PASS
 Spot-verified 5 documented surfaces against code independently — all real;
