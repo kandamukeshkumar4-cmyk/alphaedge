@@ -8,6 +8,13 @@
 
 ## ORCHESTRATOR DIRECTIVES (newest first)
 
+### DIR-C-002 · 2026-07-13 · status: ACTIVE
+CONTINUOUS MODE: do NOT end your session between tickets. Run C2 -> C3 -> C4
+back-to-back in one continuous run. Still: one commit per ticket, gate + fresh
+verifier per ticket, re-read this file between tickets (fix any NEEDS-FIX on
+your last commit first). Stop only when C2-C4 are all DONE or BLOCKED with
+reasons committed to STATE.md.
+
 ### DIR-C-001 · 2026-07-13 · status: ACTIVE
 1. Work order: C1 → C2 → C3 → C4. Your charter: `backend/app/data/connectors/**`
    plus new `backend/app/api/v1/sports.py`. The loop-v14 restriction on
