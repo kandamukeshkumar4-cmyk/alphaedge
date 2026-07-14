@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.db.models import Alert, SignalEvent
+from app.db.models import Alert, Market, MarketStatus, SignalEvent
 from app.db.session import get_db
 from app.main import app
 
@@ -40,11 +40,17 @@ async def _seed_alert(db, alert_type="alignment", message="3 layers aligned", ts
     return alert
 
 
-async def _seed_event(db, signal_type="price_jump", market_id="pm-a", ts=NOW):
+async def _seed_event(
+    db,
+    signal_type="price_jump",
+    market_id="pm-a",
+    ts=NOW,
+    payload=None,
+):
     event = SignalEvent(
         id=uuid4(), signal_type=signal_type, platform="polymarket",
         market_id=market_id, headline_eligible=True,
-        payload={"move_bps": 120}, created_at=ts,
+        payload=payload or {"move_bps": 120}, created_at=ts,
     )
     db.add(event)
     await db.flush()
@@ -99,3 +105,54 @@ async def test_signal_events_pagination(db_session):
     body = r.json()
     assert body["limit"] == 2 and body["offset"] == 1
     assert [i["market_id"] for i in body["items"]] == ["pm-1", "pm-2"]
+
+
+@pytest.mark.asyncio
+async def test_signal_events_join_title_and_dedupe_identical_window(db_session):
+    db_session.add(
+        Market(
+            slug="pm-a",
+            title="Will Alpha win?",
+            question="Alpha?",
+            status=MarketStatus.OPEN,
+        )
+    )
+    await db_session.flush()
+    up = {
+        "kind": "price_jump",
+        "direction": "up",
+        "magnitude": 0.02,
+        "detail": {"bps": 200.0},
+    }
+    down = {
+        "kind": "price_jump",
+        "direction": "down",
+        "magnitude": 0.02,
+        "detail": {"bps": 200.0},
+    }
+    await _seed_event(db_session, "delta:price_jump", "pm-a", NOW, up)
+    await _seed_event(
+        db_session, "delta:price_jump", "pm-a", NOW - timedelta(minutes=2), up
+    )
+    await _seed_event(
+        db_session, "delta:price_jump", "pm-a", NOW - timedelta(minutes=3), down
+    )
+    await _seed_event(
+        db_session, "delta:price_jump", "pm-b", NOW - timedelta(minutes=4), up
+    )
+
+    async with _client(db_session) as client:
+        r = await client.get(
+            "/api/v1/signals/events",
+            params={"limit": 10, "dedupe_window_minutes": 10},
+        )
+
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert [(item["market_id"], item["payload"]["direction"]) for item in items] == [
+        ("pm-a", "up"),
+        ("pm-a", "down"),
+        ("pm-b", "up"),
+    ]
+    assert items[0]["market_title"] == "Will Alpha win?"
+    assert items[-1]["market_title"] is None

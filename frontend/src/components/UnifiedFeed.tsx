@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { fetchFeed, subscribeFeedWS, type FeedItem, type FeedItemType } from "@/lib/feed-api";
 import { extractSignalEvidence } from "@/lib/signal-evidence";
 import { SignalEvidenceBlock } from "@/components/SignalEvidence";
+import { normalizeFeedItems } from "@/lib/feed-freshness";
 
 // ---------------------------------------------------------------------------
 // Type icon
@@ -224,6 +225,7 @@ export function UnifiedFeed({ activeType, activePlatform }: UnifiedFeedProps) {
   const [total, setTotal] = useState(0);
   const [liveCount, setLiveCount] = useState(0);
   const seenIds = useRef(new Set<string>());
+  const itemsRef = useRef<FeedItem[]>([]);
 
   // Initial load from REST
   useEffect(() => {
@@ -236,8 +238,10 @@ export function UnifiedFeed({ activeType, activePlatform }: UnifiedFeedProps) {
 
     void fetchFeed(params).then((page) => {
       if (dead) return;
-      page.items.forEach((i) => seenIds.current.add(i.id));
-      setItems(page.items);
+      const normalized = normalizeFeedItems(page.items);
+      normalized.forEach((i) => seenIds.current.add(i.id));
+      itemsRef.current = normalized;
+      setItems(normalized);
       setTotal(page.total);
     });
 
@@ -255,8 +259,11 @@ export function UnifiedFeed({ activeType, activePlatform }: UnifiedFeedProps) {
       if (seenIds.current.has(newItem.id)) return;
 
       seenIds.current.add(newItem.id);
-      setItems((prev) => (prev ? [newItem, ...prev].slice(0, 100) : [newItem]));
-      setLiveCount((n) => n + 1);
+      const normalized = normalizeFeedItems([newItem, ...itemsRef.current], { limit: 100 });
+      const accepted = normalized.some((item) => item.id === newItem.id);
+      itemsRef.current = normalized;
+      setItems(normalized);
+      if (accepted) setLiveCount((n) => n + 1);
     });
     return unsub;
   }, [activeType, activePlatform]);

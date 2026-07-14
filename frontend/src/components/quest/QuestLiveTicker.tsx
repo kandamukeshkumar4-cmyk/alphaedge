@@ -6,40 +6,18 @@ import { useEffect, useState } from "react";
 import { fetchSignalEvents } from "@/lib/activity-api";
 import { fetchMarkets } from "@/lib/alphaedge-api";
 import { marketHref } from "@/lib/market-href";
+import {
+  buildSignalRailRows,
+  tickerFreshnessWindowMs,
+  type SignalRailRow,
+} from "@/lib/signal-rail";
 
-// Global footer live-trade ticker (Questflow signature). Desktop only. Every
-// row is a real signal event from the backend, matched to its market title —
-// no fabricated users or trades. Silently hides when there is nothing live.
-
-type Row = {
-  id: string;
-  side: "long" | "short";
-  label: string;
-  slug?: string;
-  platform: string;
-  sizeHint: string;
-};
-
-function prettifySlug(raw: string): string {
-  return raw
-    .replace(/^(pm|km)-/, "")
-    .replace(/-\d{6,}$/, "")
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .slice(0, 60);
-}
-
-function sizeFromVolume(volume: number | undefined, index: number): string {
-  if (volume && volume > 0) {
-    if (volume >= 1_000_000) return `$${(volume / 1_000_000).toFixed(2)}M`;
-    if (volume >= 1_000) return `$${((volume / 1000) * (0.01 + (index % 7) * 0.003)).toFixed(2)}k`;
-    return `$${(8 + (index % 40)).toFixed(2)}`;
-  }
-  return `$${(12 + (index % 55)).toFixed(2)}`;
-}
+// Global recent-signal ticker. Every row is a persisted event with its actual
+// direction, magnitude, and age. Quiet periods render fewer rows without
+// replaying or fabricating activity.
 
 export function QuestLiveTicker() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<SignalRailRow[]>([]);
 
   useEffect(() => {
     let dead = false;
@@ -48,27 +26,14 @@ export function QuestLiveTicker() {
     const load = async () => {
       try {
         const [events, markets] = await Promise.all([
-          fetchSignalEvents({ limit: 24 }),
+          fetchSignalEvents({ limit: 48, dedupeWindowMinutes: 10 }),
           fetchMarkets({}),
         ]);
-        if (dead || events.length === 0) return;
-        const byId = new Map(markets.map((m) => [m.id, m]));
-        setRows(
-          events.map((e, i) => {
-            const m = byId.get(e.market_id);
-            const dir = String((e.payload as { direction?: unknown })?.direction ?? "").toLowerCase();
-            const up = dir === "up" || dir === "long" || dir === "yes";
-            const label = m?.title ?? prettifySlug(e.market_id);
-            return {
-              id: e.id,
-              side: up ? "long" : "short",
-              label,
-              slug: m?.slug,
-              platform: e.platform,
-              sizeHint: sizeFromVolume(m?.volume, i),
-            } satisfies Row;
-          }),
-        );
+        if (dead) return;
+        setRows(buildSignalRailRows(events, markets, {
+          limit: 12,
+          maxAgeMs: tickerFreshnessWindowMs(process.env.NEXT_PUBLIC_TICKER_MAX_AGE_HOURS),
+        }));
       } catch {
         /* keep last good rows */
       }
@@ -84,45 +49,37 @@ export function QuestLiveTicker() {
 
   if (rows.length === 0) return null;
 
-  const loop = [...rows, ...rows];
-
   return (
     <div className="sticky bottom-0 z-30 hidden border-t border-border bg-bg/95 backdrop-blur lg:block">
       <div className="group flex items-center gap-2 overflow-hidden py-1.5">
         <span className="shrink-0 pl-4 pr-2 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
-          ● Live
+          ● Recent
         </span>
         <div className="flex min-w-0 flex-1 overflow-hidden">
-          <div className="flex min-w-full shrink-0 animate-marquee items-center gap-8 whitespace-nowrap group-hover:[animation-play-state:paused] motion-reduce:animate-none">
-            {loop.map((r, i) => {
-              const verb = r.side === "long" ? "opened long" : "opened short";
+          <div className="flex min-w-0 items-center gap-8 overflow-x-auto whitespace-nowrap px-2">
+            {rows.map((r) => {
               const inner = (
                 <span className="inline-flex items-center gap-1.5 text-[11px]">
-                  <span className="font-semibold capitalize text-text">{r.platform}</span>
-                  <span className="text-muted">{verb}</span>
                   <span
                     className={
-                      r.side === "long"
+                      r.direction === "UP"
                         ? "font-mono font-semibold text-primary"
-                        : "font-mono font-semibold text-danger"
+                        : r.direction === "DOWN"
+                          ? "font-mono font-semibold text-danger"
+                          : "font-mono font-semibold text-muted"
                     }
                   >
-                    {r.sizeHint}
+                    {r.direction} {r.value}
                   </span>
-                  <span className="text-muted">on</span>
-                  <span className="max-w-[220px] truncate font-medium text-text">{r.label}</span>
+                  <span className="max-w-[220px] truncate font-medium text-text">{r.title}</span>
+                  <span className="text-muted">· {r.label}</span>
+                  <span className="font-mono text-muted-2">· {r.age}</span>
                 </span>
               );
-              return r.slug ? (
-                <Link
-                  key={`${r.id}-${i}`}
-                  href={marketHref(r.slug)}
-                  className="transition hover:opacity-80"
-                >
+              return (
+                <Link key={r.key} href={marketHref(r.slug)} className="transition hover:opacity-80">
                   {inner}
                 </Link>
-              ) : (
-                <span key={`${r.id}-${i}`}>{inner}</span>
               );
             })}
           </div>

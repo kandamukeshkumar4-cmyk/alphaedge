@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy import String, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -187,6 +187,7 @@ class MarketService:
         sort: str = "volume",
         q: str | None = None,
     ) -> list[MarketResponse]:
+        latest_yes_price = self._latest_yes_price_subquery()
         stmt = (
             select(
                 Market.id,
@@ -207,7 +208,7 @@ class MarketService:
                 MarketResolution.outcome.label("resolution_outcome"),
                 Market.source,
                 Market.image_url,
-                self._latest_yes_price_subquery().label("yes_price"),
+                latest_yes_price.label("yes_price"),
             )
             .outerjoin(MarketResolution, MarketResolution.slug == Market.slug)
         )
@@ -219,7 +220,25 @@ class MarketService:
         if q:
             stmt = stmt.where(Market.title.ilike(f"%{q}%"))
 
-        if sort == "traders":
+        if sort == "active":
+            now = datetime.now(timezone.utc)
+            cutoff = now - timedelta(hours=24)
+            latest_recent_price = self._recent_yes_price_subquery(cutoff, newest=True)
+            oldest_recent_price = self._recent_yes_price_subquery(cutoff, newest=False)
+            recent_captured_at = self._recent_snapshot_at_subquery(cutoff)
+            stmt = stmt.where(
+                Market.status == MarketStatus.OPEN,
+                or_(Market.lock_at.is_(None), Market.lock_at > now),
+                latest_yes_price > Decimal("0.01"),
+                latest_yes_price < Decimal("0.99"),
+            ).order_by(
+                func.abs(latest_recent_price - oldest_recent_price).desc().nullslast(),
+                recent_captured_at.desc().nullslast(),
+                Market.lock_at.asc().nullslast(),
+                Market.last_synced_at.desc().nullslast(),
+                Market.volume.desc(),
+            )
+        elif sort == "traders":
             stmt = stmt.order_by(Market.traders.desc(), Market.created_at.desc())
         elif sort == "newest":
             stmt = stmt.order_by(Market.created_at.desc())
@@ -311,6 +330,33 @@ class MarketService:
             .where(OddsSnapshot.market_slug == Market.slug)
             .order_by(OddsSnapshot.captured_at.desc())
             .limit(1)
+            .correlate(Market)
+            .scalar_subquery()
+        )
+
+    @staticmethod
+    def _recent_yes_price_subquery(cutoff: datetime, *, newest: bool):
+        order = OddsSnapshot.captured_at.desc() if newest else OddsSnapshot.captured_at.asc()
+        return (
+            select(OddsSnapshot.implied_yes)
+            .where(
+                OddsSnapshot.market_slug == Market.slug,
+                OddsSnapshot.captured_at >= cutoff,
+            )
+            .order_by(order)
+            .limit(1)
+            .correlate(Market)
+            .scalar_subquery()
+        )
+
+    @staticmethod
+    def _recent_snapshot_at_subquery(cutoff: datetime):
+        return (
+            select(func.max(OddsSnapshot.captured_at))
+            .where(
+                OddsSnapshot.market_slug == Market.slug,
+                OddsSnapshot.captured_at >= cutoff,
+            )
             .correlate(Market)
             .scalar_subquery()
         )

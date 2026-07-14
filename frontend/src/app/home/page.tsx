@@ -3,7 +3,7 @@
 // Z01 — Personalized home dashboard (backend M01, GET /api/v1/home). ONE public
 // GET (optional JWT) composes the "your intelligence" landing: recent signals
 // with H03 evidence, the L02 digest summary, I02/J03 model-A/B readiness, and
-// top markets by liquidity. Signed in, it also renders the watchlist strip;
+// active markets by recent movement. Signed in, it also renders the watchlist strip;
 // anon shows an honest "sign in to personalize" for that section only. Research
 // only, paper trading only — notify surfaces never trade. Fetch-on-load only
 // (no poll loop).
@@ -196,7 +196,7 @@ function ModelStatus({ view }: { view: HomeView }) {
 function TopMarkets({ view }: { view: HomeView }) {
   return (
     <Panel
-      title="Top markets by liquidity"
+      title="Active markets"
       action={
         <Link href="/markets" className="text-[11px] font-semibold text-accent hover:underline">
           All markets →
@@ -257,7 +257,7 @@ export default function HomePage() {
       <PageHeader
         kicker="Your intelligence"
         title="Home"
-        subtitle="Your personalized read on the desk — recent signals, the alerts digest, model readiness, and the most liquid markets, in one place. Research only, paper trading only."
+        subtitle="Your personalized read on the desk — recent signals, the alerts digest, model readiness, and active non-decided markets, in one place. Research only, paper trading only."
       />
 
       {view === null ? (

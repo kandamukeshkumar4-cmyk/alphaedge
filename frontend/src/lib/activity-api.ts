@@ -16,6 +16,7 @@ export type SignalEventItem = {
   signal_type: string;
   platform: string;
   market_id: string;
+  market_title?: string | null;
   headline_eligible: boolean;
   payload: Record<string, unknown>;
   created_at: string;
@@ -49,11 +50,15 @@ export async function fetchSignalEvents(opts?: {
   limit?: number;
   market?: string;
   signalType?: string;
+  dedupeWindowMinutes?: number;
 }): Promise<SignalEventItem[]> {
   const params = new URLSearchParams();
   params.set("limit", String(opts?.limit ?? 50));
   if (opts?.market) params.set("market", opts.market);
   if (opts?.signalType) params.set("signal_type", opts.signalType);
+  if (opts?.dedupeWindowMinutes) {
+    params.set("dedupe_window_minutes", String(opts.dedupeWindowMinutes));
+  }
   const data = await getJson<{ items?: SignalEventItem[] }>(
     `/api/v1/signals/events?${params}`,
   );

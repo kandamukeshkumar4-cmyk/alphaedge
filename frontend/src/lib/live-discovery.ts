@@ -5,11 +5,24 @@ function pricePct(m: Market): string {
   return pct(p);
 }
 
+export function activeTrendingMarkets(markets: Market[], nowMs = Date.now()): Market[] {
+  return markets.filter((market) => {
+    const price = market.outcomes[0]?.price;
+    const closeMs = Date.parse(market.endsAt);
+    return (
+      (market.status === undefined || market.status === "open") &&
+      typeof price === "number" &&
+      price > 0.01 &&
+      price < 0.99 &&
+      (Number.isNaN(closeMs) || closeMs > nowMs)
+    );
+  });
+}
+
 export function liveTrendingRows(markets: Market[]): RankRow[] {
   const live = markets.filter((m) => m.source === "polymarket" || m.source === "kalshi");
   const pool = live.length ? live : markets;
-  return [...pool]
-    .sort((a, b) => b.volume - a.volume)
+  return activeTrendingMarkets(pool)
     .slice(0, 6)
     .map((m) => ({
       slug: m.slug,

@@ -8,6 +8,7 @@ import { fetchMarkets, hasLiveApi } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatCompactUSD, MARKETS, type Market } from "@/lib/mock-data";
 import { marketHref, marketIntelHref } from "@/lib/market-href";
+import { activeTrendingMarkets } from "@/lib/live-discovery";
 
 const FETCH_MS = 8000;
 const LIVE_API = hasLiveApi();
@@ -15,14 +16,15 @@ const LIVE_API = hasLiveApi();
 async function loadMarketsOrFallback(): Promise<Market[]> {
   try {
     const rows = await Promise.race([
-      fetchMarkets({}),
+      fetchMarkets({ sort: "active" }),
       new Promise<Market[]>((_, reject) => {
         window.setTimeout(() => reject(new Error("markets-timeout")), FETCH_MS);
       }),
     ]);
-    const live = rows.filter((m) => m.slug.startsWith("pm-") || m.slug.startsWith("ks-"));
+    const active = activeTrendingMarkets(rows);
+    const live = active.filter((m) => m.slug.startsWith("pm-") || m.slug.startsWith("ks-"));
     if (live.length > 0) return live;
-    if (rows.length > 0) return rows;
+    if (active.length > 0) return active;
     // Only fall back to bundled seed catalog when the live API is unavailable.
     return LIVE_API ? [] : MARKETS;
   } catch {
@@ -93,7 +95,7 @@ export function QuestLiveMarketsBoard({
   }, []);
 
   const filtered = useMemo(() => {
-    let list = [...markets];
+    let list = activeTrendingMarkets(markets);
     if (cat !== "All") list = list.filter((m) => m.category === cat);
     if (platform === "Polymarket") {
       list = list.filter((m) => m.source === "polymarket" || !m.source || m.source === "seed");
@@ -105,7 +107,7 @@ export function QuestLiveMarketsBoard({
       const live = list.filter(isLiveish);
       if (live.length > 0) list = live;
     }
-    return list.sort((a, b) => b.volume - a.volume);
+    return list;
   }, [markets, cat, platform, sport]);
 
   const grouped = useMemo(() => {
@@ -192,6 +194,12 @@ export function QuestLiveMarketsBoard({
               ) : null}
             </button>
           ))}
+          <Link
+            href="/resolved"
+            className="ml-auto shrink-0 px-3 py-2.5 text-sm font-semibold text-muted transition hover:text-text"
+          >
+            Longshots / Decided
+          </Link>
         </div>
 
         <h2 className="mb-3 flex items-center gap-2 text-[22px] font-black tracking-tight text-text">

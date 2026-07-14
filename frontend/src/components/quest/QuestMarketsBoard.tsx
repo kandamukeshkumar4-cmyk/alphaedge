@@ -17,6 +17,7 @@ import {
   type KalshiTopicId,
 } from "@/lib/kalshi-topics";
 import { cn } from "@/lib/cn";
+import { activeTrendingMarkets } from "@/lib/live-discovery";
 import { type Market } from "@/lib/mock-data";
 
 function parseTopic(raw: string | null): KalshiTopicId {
@@ -48,7 +49,10 @@ export function QuestMarketsBoard({
     setError(false);
     try {
       const apiCat = topicToApiCategory(topic);
-      const result = await fetchMarkets(apiCat ? { category: apiCat } : {});
+      const result = await fetchMarkets({
+        ...(apiCat ? { category: apiCat } : {}),
+        sort: "active",
+      });
       if (requestId !== requestIdRef.current) return;
       // Live data only — no mock fallback. Empty/error render honest states.
       setMarkets(result);
@@ -77,7 +81,7 @@ export function QuestMarketsBoard({
   );
 
   const filtered = useMemo(() => {
-    let list = filterByTopic(markets, topic);
+    let list = activeTrendingMarkets(filterByTopic(markets, topic));
     if (query) {
       list = list.filter(
         (m) =>
@@ -86,7 +90,7 @@ export function QuestMarketsBoard({
           m.slug.toLowerCase().includes(query),
       );
     }
-    return [...list].sort((a, b) => b.volume - a.volume);
+    return list;
   }, [markets, topic, query]);
 
   const prioritySlugs = useMemo(
@@ -115,6 +119,12 @@ export function QuestMarketsBoard({
               {t.label}
             </button>
           ))}
+          <Link
+            href="/resolved"
+            className="shrink-0 rounded-pill bg-surface px-4 py-1.5 text-sm font-semibold text-muted transition hover:text-text"
+          >
+            Longshots / Decided
+          </Link>
         </div>
 
         {topic !== "trending" && !query ? (
