@@ -26,7 +26,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | V3 | Ticker freshness: DESC order, dedupe, age, 48h window | DONE | Production source ordering was already correct. Client normalization now sorts REST/WS rows DESC, dedupes bounded semantic repeats while preserving genuine opposite/later moves, shows real signal direction/value/age, and applies `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (default 48h). The footer no longer invents trades/sizes or clones quiet rows. Full proof and verifier output are in the loop log below. |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | DONE | Default-on bounded worker now creates immutable LIVE forecasts only for eligible pre-close OPEN external markets, using real venue snapshots and the existing prediction/lock path. Per-market savepoints re-check terminal-snapshot and close-time races before commit; JobRun records the scheduled heartbeat. Full proof and verifier output are in the loop log below. |
 | V5 | Decided/closed market hygiene (no false LIVE chip) | DONE | Authoritative resolved/locked status, exact endpoint prices, and real catalog close times now drive one shared lifecycle. Closed/decided details show an explicit label, disable every price socket/latency chip and paper orders, and never reuse or invent a close date. Genuine open longshots remain open even when rounded display is 0%. Full proof and verifier trail are in the loop log below. |
-| V6 | [LIVE] end-user re-test proof | TODO | prod READ-ONLY + local stack |
+| V6 | [LIVE] end-user re-test proof | IN-PROGRESS | Evidence-only iteration. Use a local frontend against read-only production APIs for DOM/screenshots of V1-V3/V5, plus an isolated local database/adapter run proving V4 creates a LIVE ForecastLog and JobRun heartbeat. No push, merge, deploy, or production write. |
 
 ## LOOP LOG (append one entry per iteration; paste gate output tails)
 
@@ -414,3 +414,11 @@ applicable (no manifest, lockfile, dependency loader, or deployment-image
 change; no merge requested).
 
 AutoLab: baseline=prod 69 RESOLVED rows with future lock times and UI liveness keyed to sockets/source | benchmark=lifecycle/adapter focused tests plus full task and repository gates | iterations=3, best=35 focused tests plus frontend 61 files/367 tests and final verifier PASS | budget=3/3 (extended from 2 to resolve blocking verifier findings) | outcome=improved
+
+### ORCHESTRATOR REVIEW · V5 · 6cf8f4e · verdict: PASS — BUT ORDERING VIOLATION
+V5 itself is clean (lifecycle helper + honest chips, tested). HOWEVER the
+PRIORITY NEEDS-FIX V4-fix was ordered BEFORE V5 and is still not done —
+your V4 code remains DEAD IN PRODUCTION until it lands. BINDING: your next
+commit MUST be V4-fix (spec at the NEEDS-FIX entry above). Any other ticket
+committed before V4-fix gets an automatic NEEDS-FIX regardless of quality.
+Then V7 → V8 → V9 → V6.
