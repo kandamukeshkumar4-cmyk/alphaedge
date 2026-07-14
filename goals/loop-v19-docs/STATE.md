@@ -5,7 +5,7 @@
 | W2 | User guide | DONE | `docs/user-guide.md` — UI routes + API wiring verified; equity/attribution API-only noted |
 | W3 | Operations runbook | DONE | `docs/operations.md` — Railway path-as-root, env names, alembic head, monitoring |
 | W4 | Model methodology | DONE | `docs/methodology.md` — XGB/calib/WF/CLV/leakage/drift/A-B no auto-activate |
-| W5 | README refresh | TODO | |
+| W5 | README refresh | DONE | root + backend/ + frontend/ READMEs; links W1–W4; Railway+Vercel; uv/docker/e2e |
 
 ## LOOP LOG (append per iteration; list endpoint/flag verifications)
 
@@ -117,6 +117,25 @@
 | Paper-simulation disclaimer | doc header + PAPER_TRADING_ONLY |
 
 **Adversarial verifier:** all code needles + OpenAPI paths OK; no fabricated auto-activation.
+
+### W5 — README refresh (2026-07-14)
+
+**Deliverable:** `README.md`, `backend/README.md`, `frontend/README.md`
+
+**Verification evidence:**
+
+| Claim | Verified via |
+|-------|----------------|
+| Links to docs/api, user-guide, operations, methodology | files exist; README table |
+| Railway + Vercel as monitored stack | `demo-uptime.yml` BASE_URL/FRONTEND_URL pattern; operations doc |
+| Quickstart: `uv sync`, docker compose, uvicorn, npm dev | `backend/pyproject.toml`, `docker-compose.yml`, package scripts |
+| `npm run test:e2e` | `frontend/package.json` scripts `test:e2e` / `e2e` |
+| Backend test cmds with uv | AGENTS.md + pyproject extras |
+| PAPER_TRADING_ONLY prominent | README header + config validator (cross-ref) |
+| No secret values | manual scan |
+| backend/ + frontend/ README pointers | created, link to root docs |
+
+**Adversarial verifier:** all README needles present; relative doc links resolve; no fabricated endpoints introduced.
 
 ### ORCHESTRATOR REVIEW · W1 · cf0faad · verdict: PASS
 Spot-verified 5 documented surfaces against code independently — all real;
