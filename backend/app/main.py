@@ -57,6 +57,7 @@ from app.api.v1.system import router as system_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.api.v1.alerts_feed import router as alerts_feed_router
 from app.api.v1.notify_prefs import router as notify_prefs_router
+from app.api.v1.notifications import router as notifications_router
 from app.api.v1.home import router as home_router
 from app.api.v1.market_snapshot import router as market_snapshot_router
 from app.api.v1.opportunities import router as opportunities_router
@@ -683,6 +684,7 @@ app.include_router(system_router)
 app.include_router(watchlist_router)
 app.include_router(alerts_feed_router)
 app.include_router(notify_prefs_router)
+app.include_router(notifications_router)
 app.include_router(home_router)
 app.include_router(market_snapshot_router)
 app.include_router(opportunities_router)
