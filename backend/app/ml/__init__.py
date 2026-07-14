@@ -23,7 +23,14 @@ from app.ml.trainer import (
     train_walk_forward_xgboost_model,
     train_xgboost_model,
 )
-from app.ml.versioning import register_model_version
+from app.ml.versioning import (
+    get_active_model,
+    hash_training_data,
+    list_model_versions,
+    register_model_version,
+    rollback_active_model,
+    set_active_model,
+)
 
 __all__ = [
     "CalibrationReport",
@@ -42,7 +49,12 @@ __all__ = [
     "fit_platt_calibrator",
     "load_resolved_snapshot_feature_matrix",
     "reliability_curve",
+    "get_active_model",
+    "hash_training_data",
+    "list_model_versions",
     "register_model_version",
+    "rollback_active_model",
+    "set_active_model",
     "train_walk_forward_xgboost_from_feature_matrix",
     "train_walk_forward_xgboost_model",
     "train_xgboost_model",

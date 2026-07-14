@@ -21,6 +21,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | Number | Claimed by | Ticket | Status |
 |---|---|---|---|
+| 041 | Workstream D | D1 | LANDED 2026-07-13T22:05:00-04:00 |
 | 038 | Workstream A | A1 | LANDED 2026-07-13T11:18:08-04:00 |
 | 039 | Workstream A | A4 | LANDED 2026-07-13T12:03:52-04:00 |
 | 040 | Workstream B | B5 | LANDED 2026-07-13T16:18:57-04:00 |
@@ -29,6 +30,8 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/db/models.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
+| `backend/app/main.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
 | `backend/app/workers/tasks.py` | Workstream E | E3 | RELEASED 2026-07-13T21:45:00-04:00 |
 | `backend/app/db/models.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
 | `backend/app/workers/tasks.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
@@ -80,7 +83,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream D — ML lifecycle
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| D1 | Model registry completed | TODO | model_registry.py/versioning.py exist — read first |
+| D1 | Model registry completed | DONE | Started 2026-07-13T21:40:00-04:00. DIR-D-001 ack.<br>Exists: classifier factory in `ml/model_registry.py`; thin `register_model_version` in `ml/versioning.py`; `ModelVersion` without training hash / active pointer.<br>Missing at start: training_data_hash, active pointer + rollback, admin GET `/api/v1/models`, metrics contract, tests.<br>Implemented: migration 041; `ModelActivePointer`; versioning helpers (hash, register, list, activate, rollback); admin list/activate/rollback; OpenAPI snapshot +6 paths; docs `notes-d1-model-registry.md`. Classifier factory untouched.<br>Gate: `1455 passed, 28 skipped`; ruff clean; alembic head `041_model_registry_active`.<br>Fresh verifier: PASS ([verifier](d985389c-edb5-4202-8c4a-205c45010cf4)). AutoLab: N/A. Completed 2026-07-13T22:05:00-04:00. |
 | D2 | Drift detection worker | TODO | read-only consumer of ForecastScore |
 | D3 | Drift API + in-app alert | TODO | |
 | D4 | Scheduled retrain (flag-gated OFF) | TODO | never auto-activates |
@@ -385,3 +388,18 @@ All checks passed!
 ```
 
 Workstream E COMPLETE (5/5 DONE).
+
+2026-07-13 · D · D1 · DONE · DIR-D-001 ack. Finished model registry: training_data_hash + metrics, active pointer with rollback, admin GET/activate/rollback. Fresh verifier PASS. Migration 041 landed.
+
+```text
+=== GATE: backend pytest ===
+1455 passed, 28 skipped in 574.96s (0:09:34)
+
+=== GATE: backend ruff ===
+All checks passed!
+
+=== ALEMBIC ===
+041_model_registry_active (head)
+```
+
+AutoLab: not applicable (no iterative measure).

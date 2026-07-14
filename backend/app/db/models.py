@@ -403,8 +403,34 @@ class ModelVersion(Base):
     name: Mapped[str] = mapped_column(String(128))
     version: Mapped[str] = mapped_column(String(32))
     artifact_path: Mapped[str] = mapped_column(String(512))
+    # SHA-256 (or equivalent) of the training dataset used to fit this version.
+    # Nullable for rows registered before Loop V15 D1; new registrations require it.
+    training_data_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModelActivePointer(Base):
+    """Singleton active-model pointer with one-step rollback (Loop V15 D1).
+
+    Exactly one row (id=1). Activation updates ``active_model_version_id`` and
+    stashes the prior active id in ``previous_model_version_id`` so rollback can
+    restore it. Never auto-flipped by workers (E06 / D4 rule).
+    """
+
+    __tablename__ = "model_active_pointer"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    active_model_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("model_versions.id"), nullable=True
+    )
+    previous_model_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("model_versions.id"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class FeatureVersion(Base):
