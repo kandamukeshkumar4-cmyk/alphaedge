@@ -64,6 +64,7 @@ from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
 from app.core.middleware import HttpMetricsMiddleware, RequestIdMiddleware
+from app.core.ratelimit import MutatingRateLimitMiddleware
 from app.db.session import AsyncSessionLocal
 from app.schemas.market import HealthResponse
 from app.services.market_service import MarketService
@@ -542,6 +543,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 app.add_exception_handler(OperationalError, db_unavailable_handler)
 app.add_exception_handler(InterfaceError, db_unavailable_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
+# E1: innermost of the stack so RequestIdMiddleware (outer) has already set
+# request.state.request_id and HttpMetricsMiddleware records the 429s.
+app.add_middleware(MutatingRateLimitMiddleware)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(HttpMetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)

@@ -30,6 +30,14 @@ class Settings(BaseSettings):
         alias="CORS_ORIGINS",
     )
     rate_limit: str = Field(default="600/minute", alias="RATE_LIMIT")
+    # Loop V15 E1 — stricter identity-aware limit for mutating methods only
+    # (POST/PUT/PATCH/DELETE). Keyed per bearer-token user (else client IP)
+    # and per route. Admin-key requests are exempt. Default mirrors the
+    # global limit so existing behavior is unchanged until ops tightens it.
+    rate_limit_mutating: str = Field(default="600/minute", alias="RATE_LIMIT_MUTATING")
+    rate_limit_mutating_enabled: bool = Field(
+        default=True, alias="RATE_LIMIT_MUTATING_ENABLED"
+    )
     live_feed_enabled: bool = Field(default=True, alias="LIVE_FEED_ENABLED")
     live_tick_interval_sec: int = Field(default=15, alias="LIVE_TICK_INTERVAL_SEC")
     # COST-01: when no client touched the API within the active window and no

@@ -88,7 +88,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream E — Platform & observability
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| E1 | Uniform rate limiting | TODO | |
+| E1 | Uniform rate limiting | DONE | Started 2026-07-13T17:05:00-04:00.<br>Exists at start: slowapi global 600/minute per-IP default limit via `SlowAPIMiddleware` (main.py); per-IP anon limiter in assistant.py; no per-user identity, no mutating-specific limits, no admin exemption on limits, no Retry-After on 429.<br>Missing at start: uniform per-user/IP fixed-window limits on mutating methods, config-driven, admin exempt, 429+Retry-After, tests.<br>Implemented: new `app/core/ratelimit.py` `MutatingRateLimitMiddleware` (innermost of the stack so request-id is set and 429s are metered) applying a fixed-window limit ONLY to POST/PUT/PATCH/DELETE, keyed per identity+method+path (bearer-token hash when present, else client IP), valid `X-Admin-API-Key` exempt, malformed rate strings fail loudly, bounded window map with expiry pruning and fail-open under pathological growth. Config: `RATE_LIMIT_MUTATING` (default 600/minute — mirrors the existing global limit so behavior/tests are unchanged until ops tightens it) + `RATE_LIMIT_MUTATING_ENABLED` kill switch. 15 tests: parse variants/malformed, window reset (injected clock), trip with Retry-After, GET never limited, admin exempt, wrong admin key not exempt, per-token identity isolation, per-route bucket isolation, kill switch. Existing tests untouched (default limit is generous; the tight 2/minute limit is pinned only inside the new test module and restored after).<br>Gate (solo run, fresh basetemp): backend `1430 passed, 28 skipped in 440.17s`; ruff `All checks passed!`. An earlier overlapping duplicate gate run produced temp-db collision errors; the solo re-run is the authoritative result.<br>Self-review vs guardrails: additive only (no endpoint shapes changed), order path untouched, PAPER_TRADING_ONLY untouched, no test weakened, no network in tests. Verdict: PASS. AutoLab: not applicable (no iterative measure). Completed 2026-07-13T20:45:00-04:00. |
 | E2 | Prometheus /metrics | TODO | |
 | E3 | In-app alert rules | TODO | read alert_dispatch first |
 | E4 | OpenAPI polish + schema snapshot | TODO | |
@@ -332,3 +332,13 @@ PASS backend ruff (exit 0)
 ```
 
 AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · E · E1 · DONE · Uniform mutating-endpoint rate limiting: identity-aware (bearer-token else IP) fixed-window middleware on POST/PUT/PATCH/DELETE with 429 + Retry-After, config-driven (RATE_LIMIT_MUTATING, kill switch), admin-key exempt, bounded state, 15 tests. Defaults mirror the existing 600/minute global limit so no existing behavior/test changed.
+
+```text
+=== GATE: backend pytest ===
+1430 passed, 28 skipped in 440.17s (0:07:20)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
