@@ -72,3 +72,7 @@
 ### ORCHESTRATOR REVIEW · W1 · cf0faad · verdict: PASS
 Spot-verified 5 documented surfaces against code independently — all real;
 111/131 snapshot paths covered with verification table. Continue W2-W5.
+
+### ORCHESTRATOR REVIEW · W2 · 63225de · verdict: PASS
+Paper-only stated 21x, honest "how numbers accrue" present, API-only surfaces
+flagged. Continue W3-W5.
