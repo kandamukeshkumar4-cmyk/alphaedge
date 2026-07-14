@@ -23,6 +23,8 @@ class OrderIntent:
     minutes_before_start: int
     agent_enabled: bool = True
     expires_at: Optional[datetime] = None
+    # Loop V23 A2: when True, RiskService rejects (admin-suspended JWT user).
+    user_suspended: bool = False
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class RiskService:
             failures.append("PAPER_TRADING_ONLY must be true")
         if not intent.agent_enabled:
             failures.append("agent trading disabled")
+        if intent.user_suspended:
+            failures.append("user is suspended")
         if intent.edge < self.MIN_EDGE:
             failures.append(f"edge {intent.edge:.2%} < {self.MIN_EDGE:.0%}")
         if intent.confidence < self.MIN_CONFIDENCE:

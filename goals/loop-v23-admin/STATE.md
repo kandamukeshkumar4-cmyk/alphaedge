@@ -2,7 +2,7 @@
 | ID | Ticket | Status | Notes |
 |----|--------|--------|-------|
 | A1 | Market management complete | DONE | create/edit/pause/unpause/cancel + audit; migration 045 (cancelled + is_suspended for A2); resolve path unchanged |
-| A2 | User administration | TODO | is_suspended column already in 045 |
+| A2 | User administration | DONE | list/search/detail + suspend/unsuspend; RiskService.user_suspended + paper path 403 |
 | A3 | System stats | TODO | |
 | A4 | Gate + polish | TODO | |
 
@@ -13,11 +13,15 @@
 | backend/app/schemas/admin_markets.py | A1 | released |
 | backend/app/services/market_service.py | A1 | released (update/pause/unpause/cancel additive) |
 | backend/alembic/versions/045_* | A1 | released; head=045 chains from 043 |
+| backend/app/main.py | A2 | released (admin_users_router include) |
+| backend/app/risk/rules.py | A2 | released (user_suspended flag + check) |
+| backend/app/api/v1/orders.py | A2 | released (_reject_suspended_user on place/close) |
 
 ## Alembic
 - Pre-A1 head: `043_signal_events_created_idx` (one head)
 - A1 migration: `045_admin_market_cancel_user_suspend` (pre-assigned 045; 044 reserved for V22)
 - Post-A1 head: `045_admin_market_cancel_user_suspend` (one head)
+- A2: no new migration (is_suspended already in 045)
 
 ## LOOP LOG
 
@@ -47,4 +51,33 @@ All checks passed!
 - PASS: migration single head 043→045; additive enum value + column only.
 - PASS: tests cover auth 401, create, dup 409, edit, lifecycle, audit events.
 - NOTE: is_suspended column landed in 045 for A2 (unused until A2) — additive only.
+- VERDICT: **PASS**
+
+### A2 — User administration
+**Exists vs missing:**
+- No admin_users API; User had is_suspended from A1 migration but unused.
+- RiskService had no suspend check; paper orders path had market guards only.
+
+**Implemented:**
+- `GET /api/v1/admin/users` paginated + search (email/display_name)
+- `GET /api/v1/admin/users/{id}` detail (balance, trade_count, total_volume, flags)
+- `POST .../suspend` + `POST .../unsuspend` with domain_events audit
+- `OrderIntent.user_suspended` + RiskService rejection
+- Paper path `_reject_suspended_user` on place + close (403)
+
+**Gate:**
+```
+pytest -q -p no:cacheprovider
+1520 passed, 28 skipped in 275.31s (0:04:35)
+
+ruff check app tests
+All checks passed!
+```
+
+**Adversarial verifier:**
+- PASS: all admin user endpoints admin-gated.
+- PASS: suspend blocks paper trades (403); unsuspend restores; RiskService unit test.
+- PASS: order path structure unchanged (only additive early reject; still RiskService→OrderIntent→OrderBookService for CLOB).
+- PASS: no migration this ticket; no frontend/deploy touch.
+- PASS: additive API only; existing tests not weakened.
 - VERDICT: **PASS**

@@ -149,6 +149,19 @@ def _reject_untradable_market(market: Market) -> None:
             )
 
 
+def _reject_suspended_user(user: User) -> None:
+    """Loop V23 A2: admin-suspended users cannot open or close paper trades.
+
+    Mirrors RiskService.validate(user_suspended=True) for the JWT paper path,
+    which does not run full model-risk gates by design.
+    """
+    if bool(getattr(user, "is_suspended", False)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is suspended",
+        )
+
+
 
 
 
@@ -176,7 +189,7 @@ async def place_paper_order(
 
         )
 
-
+    _reject_suspended_user(current_user)
 
     market = await db.scalar(select(Market).where(Market.slug == body.slug))
 
@@ -382,7 +395,7 @@ async def close_paper_position(
 
         )
 
-
+    _reject_suspended_user(current_user)
 
     market = await db.scalar(select(Market).where(Market.slug == body.slug))
 
