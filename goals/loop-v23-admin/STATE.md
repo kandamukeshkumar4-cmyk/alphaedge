@@ -140,3 +140,11 @@ uv run alembic heads
 3. `bac56c7 feat(loop23): A3 admin system stats`
 4. `d4b6097 feat(loop23): A4 OpenAPI polish + full gate`
 (Also present: orchestrator `fdef185 docs(loop23): REVIEW A3 PASS`)
+
+### ORCHESTRATOR REVIEW · A1+A2+A4 · 8de04b6,295f383,d4b6097 · verdict: PASS with one orchestrator hotfix — LOOP V23 COMPLETE (4/4)
+Substance solid: audit rows on destructive admin actions, suspension enforced
+in the risk path (403 on paper orders), OpenAPI snapshot regenerated, gates
+count-verified (1514→1522). HOTFIX: revision id was 37 chars — the exact
+varchar(32) failure mode called out in your brief; renamed to
+045_admin_cancel_suspend (24). Protocol note on the record: migration id
+length is a hard constraint, not advice. Lane closed.
