@@ -4,6 +4,7 @@ import {
   marketLifecycle,
   marketLifecycleFromDetail,
   marketLifecycleLabel,
+  marketCloseCountdown,
 } from "./market-lifecycle";
 import { isLiveMirror } from "./hero-market";
 import { MARKETS, type Market } from "./mock-data";
@@ -89,6 +90,15 @@ describe("marketLifecycle", () => {
     expect(marketLifecycleLabel("live")).toBe("LIVE");
     expect(marketLifecycleLabel("closed")).toBe("Closed");
     expect(marketLifecycleLabel("decided")).toBe("Decided");
+  });
+
+  it("only shows a current close countdown for a genuinely live future market", () => {
+    expect(marketCloseCountdown("live", "2026-07-20T00:00:00Z", NOW)).toBe("5d");
+    expect(marketCloseCountdown("closed", "2099-01-01T00:00:00Z", NOW)).toBeNull();
+    expect(marketCloseCountdown("decided", "2099-01-01T00:00:00Z", NOW)).toBeNull();
+    expect(marketCloseCountdown("live", "2020-01-01T00:00:00Z", NOW)).toBeNull();
+    expect(marketCloseCountdown("live", "", NOW)).toBeNull();
+    expect(marketCloseCountdown("live", "not-a-date", NOW)).toBeNull();
   });
 
   it("does not subscribe resolved or closed mirrors as live sources", () => {

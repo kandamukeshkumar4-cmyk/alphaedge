@@ -41,7 +41,7 @@ function WindowToggle({
           className={cn(
             "rounded-lg px-2.5 py-1 font-mono text-[11px] font-bold uppercase transition",
             w === window
-              ? "bg-accent text-white"
+              ? "bg-accent text-bg"
               : "border border-border text-muted hover:text-text",
           )}
         >

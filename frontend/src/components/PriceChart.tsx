@@ -382,7 +382,7 @@ export function PriceChart({
           <div className="mt-1 flex items-center gap-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm bg-accent" />
-              {hovered !== null ? "hovered" : "Market · live"}
+              {hovered !== null ? "hovered" : live ? "Market · live" : "Market · snapshot"}
             </span>
             {typeof modelProb === "number" && (
               <span className="flex items-center gap-1.5">

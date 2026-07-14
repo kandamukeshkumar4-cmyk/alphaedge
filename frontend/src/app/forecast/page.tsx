@@ -235,7 +235,7 @@ export default function ForecastMirrorPage() {
                 Profile
               </h2>
               <button
-                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isCreating || !apiConfigured}
                 title="Create forecaster profile"
                 type="button"
@@ -312,7 +312,7 @@ export default function ForecastMirrorPage() {
                     className={cn(
                       "min-h-10 rounded-lg px-3 text-sm font-bold capitalize transition",
                       mode === nextMode
-                        ? "bg-accent text-white"
+                        ? "bg-accent text-bg"
                         : "text-muted hover:bg-surface-2 hover:text-text",
                     )}
                     type="button"

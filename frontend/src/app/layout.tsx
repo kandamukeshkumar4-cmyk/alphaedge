@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {/* M-A11Y-01: skip past the header/nav straight to the page. */}
               <a
                 href="#main-content"
-                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-[100] focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-[100] focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-bg"
               >
                 Skip to main content
               </a>

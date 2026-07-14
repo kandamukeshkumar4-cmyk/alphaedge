@@ -138,7 +138,7 @@ export function MarketTradingPanel({
         <p className="text-sm font-semibold text-text">Log in to trade</p>
         <Link
           href="/auth/login"
-          className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
+          className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
         >
           Log In
         </Link>
@@ -163,7 +163,7 @@ export function MarketTradingPanel({
         </span>
       </div>
 
-      {closeTime && (
+      {status === "open" && closeTime && (
         <p className="mb-3 text-[11px] text-muted-2">
           Closes {new Date(closeTime).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
         </p>

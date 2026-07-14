@@ -91,4 +91,17 @@ describe("critical component smoke tests", () => {
     expect(html).toContain("area");
     expect(html).toContain("1d");
   });
+
+  it("labels a non-live price chart as a snapshot", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(PriceChart, {
+        slug: market.slug,
+        endPrice: market.outcomes[0].price,
+        live: false,
+      }),
+    );
+
+    expect(html).toContain("Market · snapshot");
+    expect(html).not.toContain("Market · live");
+  });
 });

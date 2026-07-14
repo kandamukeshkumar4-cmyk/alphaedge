@@ -17,7 +17,7 @@ function MarketViewInner() {
         <p className="text-lg font-semibold text-text">Market not found</p>
         <Link
           href="/markets"
-          className="mt-5 inline-block rounded-pill bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-active"
+          className="mt-5 inline-block rounded-pill bg-accent px-5 py-2 text-sm font-semibold text-bg hover:bg-accent-active"
         >
           Browse markets
         </Link>

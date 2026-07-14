@@ -208,7 +208,7 @@ export default function AdminPage() {
             onChange={(event) => setViewerToken(event.target.value)}
           />
           <button
-            className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isLoadingRuns}
             type="submit"
           >

@@ -192,7 +192,7 @@ export default function PortfolioPage() {
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-bold transition",
                   activeTab === "positions"
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-bg"
                     : "text-muted hover:text-text",
                 )}
               >
@@ -204,7 +204,7 @@ export default function PortfolioPage() {
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-bold transition",
                   activeTab === "history"
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-bg"
                     : "text-muted hover:text-text",
                 )}
               >
@@ -221,7 +221,7 @@ export default function PortfolioPage() {
                   </p>
                   <Link
                     href="/markets"
-                    className="mt-5 inline-block rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
+                    className="mt-5 inline-block rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
                   >
                     Browse markets
                   </Link>

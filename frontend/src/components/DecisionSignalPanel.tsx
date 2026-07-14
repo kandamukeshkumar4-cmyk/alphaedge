@@ -142,7 +142,7 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 "relative rounded-md px-3 py-1.5 text-xs font-bold transition",
-                activeTab === tab.id ? "text-white" : "text-muted hover:text-text",
+                activeTab === tab.id ? "text-bg" : "text-muted hover:text-text",
               )}
             >
               {activeTab === tab.id && (
@@ -221,7 +221,7 @@ export function DecisionSignalPanel({ market }: { market: Market }) {
                 "mt-1 rounded-xl py-2 text-sm font-black transition",
                 submitted
                   ? "border border-accent/35 bg-accent-dim text-accent"
-                  : "bg-accent text-white hover:brightness-110",
+                  : "bg-accent text-bg hover:brightness-110",
               )}
             >
               {submitted ? "Signal recorded" : "Submit paper signal"}

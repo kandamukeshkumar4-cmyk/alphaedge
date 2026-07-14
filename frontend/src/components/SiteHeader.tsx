@@ -72,7 +72,9 @@ export function SiteHeader() {
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[56px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+        {/* BUG-V18-01: gap-2/gap-1.5 below 640px — the logo + auth cluster
+            otherwise overflows a 375px viewport by ~6px (scrollWidth 381). */}
+        <div className="mx-auto flex h-[56px] max-w-[1600px] items-center gap-2 px-3 sm:gap-3 sm:px-5">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="AlphaEdge home">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-mono text-xs font-black text-bg shadow-glow">
               AE
@@ -122,7 +124,7 @@ export function SiteHeader() {
             <HeaderSearch />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2 md:ml-0">
             <Link
               href="/portfolio"
               className="hidden h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"

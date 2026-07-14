@@ -9,6 +9,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { fetchMarketHistory, type HistoryPoint } from "@/lib/alphaedge-api";
+import { CHART_COLOR_FALLBACKS, chartRgb, chartRgba } from "@/lib/chart-colors";
 
 function directionArrow(history: HistoryPoint[]) {
   if (history.length < 2) return null;
@@ -68,12 +69,16 @@ export function ProbabilityHistoryChart({
     });
 
     const isUp = (history[history.length - 1]?.yes_price ?? 0.5) >= (history[0]?.yes_price ?? 0.5);
-    const color = isUp ? "rgb(var(--color-primary))" : "rgb(var(--color-danger))";
+    // Canvas color strings can't contain CSS var() — resolve concrete values.
+    const varName = isUp ? "--color-primary" : "--color-danger";
+    const fallback = isUp
+      ? CHART_COLOR_FALLBACKS.primary
+      : CHART_COLOR_FALLBACKS.danger;
 
     const series = chart.addSeries(AreaSeries, {
-      lineColor: color,
-      topColor: color.replace("rgb(", "rgba(").replace(")", " / 0.25)"),
-      bottomColor: color.replace("rgb(", "rgba(").replace(")", " / 0.01)"),
+      lineColor: chartRgb(varName, fallback),
+      topColor: chartRgba(varName, fallback, 0.25),
+      bottomColor: chartRgba(varName, fallback, 0.01),
       lineWidth: 2,
       priceFormat: { type: "percent", precision: 0, minMove: 0.01 },
     });
