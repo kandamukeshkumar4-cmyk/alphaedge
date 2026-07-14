@@ -37,3 +37,9 @@
 - 2026-07-14: L2 DONE — read-path baseline 777 reqs / 0 fails. Commit `perf(loop20): L2 read-path baseline`.
 - 2026-07-14: L3 DONE — trade cycle 141 reqs / 0 fails; 429 onset @583. Commit `perf(loop20): L3 trade-path + 429 onset`.
 - 2026-07-14: L4 DONE — PERF-BASELINE.md + PERF-01..04 + `run_all.py`. Verifier: local-only, no backend/frontend edits; tickets L1–L4 DONE.
+
+### ORCHESTRATOR REVIEW · L2+L3+L4 · 964a22d..aae4dde · verdict: PASS — LOOP V20 COMPLETE (4/4)
+Honest baselines (local-contention caveats correctly stated), precise 429
+onset, zero 5xx, ownership held. PERF-01/02 + the missing Retry-After on the
+global limiter are queued for a future backend-perf loop (medians are healthy;
+not urgent). Lane closed. Runner: STOP.
