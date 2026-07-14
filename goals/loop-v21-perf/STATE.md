@@ -76,3 +76,7 @@ re-baseline), then STOP — lane closes.
 - P3 evidence in the wild: `first_429_retry_after: "23"` (was null on V20).
 - P2 evidence: `/signals/feed` p99 2100→24 with p50 still ~4–8ms.
 - Honest caveats recorded for SQLite multi-VU p99 noise on uncached paths.
+
+### ORCHESTRATOR REVIEW · P4 · 20aa1c4 · verdict: PASS — LOOP V21 COMPLETE (4/4)
+Honest re-baseline (feed p99 2100ms -> 24ms, Retry-After live, variance
+caveats stated). Independent gate 1506 passed, head 043. Lane closed.
