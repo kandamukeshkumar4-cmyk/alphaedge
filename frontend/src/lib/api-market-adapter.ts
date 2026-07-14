@@ -50,7 +50,7 @@ export function mergeApiMarketsForCards(
         question: apiMarket.question,
         category,
         icon: apiMarket.icon || local.icon,
-        endsAt: apiMarket.lock_at ?? local.endsAt,
+        endsAt: apiMarket.lock_at ?? "",
         volume: apiMarket.volume,
         traders: apiMarket.traders,
         marketCount: apiMarket.market_count,
@@ -58,6 +58,7 @@ export function mergeApiMarketsForCards(
         resolution: apiMarket.resolution || local.resolution,
         source: apiMarket.source ?? local.source,
         imageUrl: apiMarket.image_url ?? local.imageUrl,
+        status: apiMarket.status,
       };
       if (typeof apiMarket.yes_price === "number") {
         merged.outcomes = buildBinaryOutcomes(apiMarket.yes_price);
@@ -83,7 +84,7 @@ function buildApiOnlyMarket(apiMarket: ApiMarketCatalogItem, category: Category)
     icon: apiMarket.icon || iconForCategory(category),
     title: apiMarket.title,
     question: apiMarket.question,
-    endsAt: apiMarket.lock_at ?? new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    endsAt: apiMarket.lock_at ?? "",
     volume: apiMarket.volume,
     traders: apiMarket.traders,
     marketCount: apiMarket.market_count,

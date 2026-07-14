@@ -25,7 +25,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | V2 | Live Signals rail: named, valued, deduped | DONE | Raw events optionally join market titles and dedupe identical semantic signals within a requested window while preserving opposite moves and default raw pagination. The rail renders real title, UP/DOWN/INFO, signed bps/¢ or honest Observed, signal label, and relative age; the fabricated whale fallback and repeated em-dash rows are removed. |
 | V3 | Ticker freshness: DESC order, dedupe, age, 48h window | DONE | Production source ordering was already correct. Client normalization now sorts REST/WS rows DESC, dedupes bounded semantic repeats while preserving genuine opposite/later moves, shows real signal direction/value/age, and applies `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (default 48h). The footer no longer invents trades/sizes or clones quiet rows. Full proof and verifier output are in the loop log below. |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | DONE | Default-on bounded worker now creates immutable LIVE forecasts only for eligible pre-close OPEN external markets, using real venue snapshots and the existing prediction/lock path. Per-market savepoints re-check terminal-snapshot and close-time races before commit; JobRun records the scheduled heartbeat. Full proof and verifier output are in the loop log below. |
-| V5 | Decided/closed market hygiene (no false LIVE chip) | IN-PROGRESS | AutoLab budget: 2 measure/edit cycles. Production at 2026-07-14T15:23:19Z had 658 markets, zero OPEN rows past close or at an exact 0/1 endpoint, 154 genuinely OPEN longshots that merely round to 0/100, and 69 RESOLVED rows with future lock times. Root cause is frontend lifecycle handling: the detail chip keys only off WebSocket connectivity, `isLiveMirror` keys only off source, and the local-match catalog adapter drops API status. Preserve real longshots; make authoritative status win, then exact endpoint/close time, and label non-live detail state explicitly. |
+| V5 | Decided/closed market hygiene (no false LIVE chip) | DONE | Authoritative resolved/locked status, exact endpoint prices, and real catalog close times now drive one shared lifecycle. Closed/decided details show an explicit label, disable every price socket/latency chip and paper orders, and never reuse or invent a close date. Genuine open longshots remain open even when rounded display is 0%. Full proof and verifier trail are in the loop log below. |
 | V6 | [LIVE] end-user re-test proof | TODO | prod READ-ONLY + local stack |
 
 ## LOOP LOG (append one entry per iteration; paste gate output tails)
@@ -333,3 +333,84 @@ brand consistency arbitrarily; check frontend/.claude/CLAUDE.md design rules.
 QA has an axe filter for exactly this in e2e/a11y.spec.ts (branch loop17/
 e2e-qa) — remove the filter when fixed. Order: V4-fix (priority) → V5 → V7 →
 V8 → V9 → V6 (live proof last).
+
+### 2026-07-14 · V5 · DONE
+
+Diagnosis: a production read-only catalog capture at
+`2026-07-14T15:23:19.4215171Z` returned 658 markets: 374 OPEN, 158 LOCKED,
+and 126 RESOLVED. There were zero OPEN rows past `lock_at` and zero at an
+exact 0/1 endpoint. There were 154 genuinely OPEN small-probability rows that
+round to 0/100 in the UI; those are honest longshots, not decided markets. By
+contrast, 69 RESOLVED rows had future lock times, including eliminated World
+Cup teams. Status was correct in production; the frontend was wrong to infer
+liveness from source, sport category, or socket connectivity.
+
+```json
+{"captured_at":"2026-07-14T15:23:19.4215171+00:00","total":658,"open_past_close":0,"open_exact_0_or_1":0,"open_rounds_to_0_or_100":154,"resolved_with_future_lock":69}
+```
+
+Root causes: the detail page rendered `LIVE` whenever its WebSocket connected;
+nested chart and latency components still streamed independently; mirror
+collection treated every Polymarket/Kalshi source as live; the local-match API
+adapter dropped authoritative status; and catalog/detail fallbacks reused a
+stale bundled close date or invented seven future days when `lock_at` was
+unknown.
+
+Fix: one lifecycle helper now gives resolved/locked status precedence, uses
+exact 0/1 only as a defensive decided fallback, and checks a real catalog close
+time when present. The detail path fetches the existing single-market catalog
+row because the detail schema does not expose `lock_at`; a missing/null close
+stays explicitly unknown (`""`) instead of becoming a fabricated date.
+Initial server detail status/prices participate before hydration completes.
+Decided/closed pages show one `Decided`/`Closed` label, suppress the parent and
+chart sockets plus the latency chip, and disable paper orders. Mirror polling
+and board chips use the same lifecycle. The V1 `>1% && <99%` trending threshold
+and incoming activity order are unchanged.
+
+Task gate: backend `1426 passed, 28 skipped in 389.99s`; Ruff
+`All checks passed!`. Final frontend typecheck and lint passed; Vitest `61
+passed (61)`, `367 passed (367)`; Next build compiled and generated 100/100
+pages. The first parallel gate attempt hit Windows process error `0xc000070a`
+at 34% backend; sequential rerun passed and no assertion failed.
+
+```text
+=== GATE: backend pytest ===
+1426 passed, 28 skipped in 296.78s (0:04:56)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== GATE: frontend typecheck ===
+PASS frontend typecheck (exit 0)
+
+=== GATE: frontend test ===
+Test Files  61 passed (61)
+Tests  367 passed (367)
+PASS frontend test (exit 0)
+
+=== GATE: frontend build ===
+PASS frontend build (exit 0)
+
+=== GATE VERDICT ===
+PASS: all checks green
+```
+
+Post-exit Windows pytest temp-directory cleanup warnings were non-blocking.
+
+Fresh-context verification trail: the first verifier returned NEEDS-FIX for a
+detail-only invented `lock_at` and ignoring `initialDetail.status`; both were
+fixed with real catalog lookup and first-render evidence. The second verifier
+returned NEEDS-FIX for the older adapter's null-lock synthetic/stale date; both
+adapter paths now keep it unknown. Final re-review: PASS — 7 focused test files
+and 35 tests passed, `git diff --check` passed, every changed line was reviewed,
+and no backend or forbidden path changed.
+
+Manual code-review fallback used because the Superpowers
+`requesting-code-review` skill is unavailable; findings were fixed before the
+final gate. `gh-address-comments`: not applicable (no PR/merge). Bumblebee: not
+applicable (no manifest, lockfile, dependency loader, or deployment-image
+change; no merge requested).
+
+AutoLab: baseline=prod 69 RESOLVED rows with future lock times and UI liveness keyed to sockets/source | benchmark=lifecycle/adapter focused tests plus full task and repository gates | iterations=3, best=35 focused tests plus frontend 61 files/367 tests and final verifier PASS | budget=3/3 (extended from 2 to resolve blocking verifier findings) | outcome=improved

@@ -632,7 +632,7 @@ export type MarketDetailApi = {
   slug: string;
   title: string;
   category: string;
-  status: string;
+  status: "open" | "locked" | "resolved";
   outcomes: Array<{ label: string; implied_prob: number; price: number }>;
   forecast: {
     model_prob: number;
@@ -680,7 +680,11 @@ export async function fetchMarketDetailApi(
 export async function fetchMarketDetail(slug: string): Promise<CardMarket | null> {
   const detail = await fetchMarketDetailApi(slug);
   if (detail) {
-    return mergeApiDetailForCards(detail, MARKETS);
+    const base = (await ensureApiBase()) || API_BASE;
+    const catalogMarket = await fetchCatalogMarketForDetail(slug, base);
+    // Detail responses do not contain lock_at. Only merge a catalog row whose
+    // close time came from the API; never reuse a stale bundled close date.
+    return mergeApiDetailForCards(detail, catalogMarket ? [catalogMarket] : []);
   }
 
   const base = (await ensureApiBase()) || API_BASE;
@@ -696,7 +700,24 @@ export async function fetchMarketDetail(slug: string): Promise<CardMarket | null
   }
 }
 
-function mergeApiDetailForCards(
+export async function fetchCatalogMarketForDetail(
+  slug: string,
+  base: string,
+): Promise<CardMarket | null> {
+  if (!base) return null;
+  try {
+    const response = await fetch(apiUrl(`/api/v1/markets/${encodeURIComponent(slug)}`, base), {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const raw = (await response.json()) as ApiMarketCatalogItem;
+    return apiCatalogToMarkets([raw])[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function mergeApiDetailForCards(
   detail: MarketDetailApi,
   localMarkets: CardMarket[],
 ): CardMarket {
@@ -713,7 +734,7 @@ function mergeApiDetailForCards(
     icon: local?.icon ?? "📊",
     title: detail.title,
     question: local?.question ?? detail.title,
-    endsAt: local?.endsAt ?? new Date().toISOString(),
+    endsAt: local?.endsAt ?? "",
     volume: detail.volume_usd,
     traders: detail.traders,
     marketCount: local?.marketCount ?? 1,
@@ -774,6 +795,7 @@ function mergeApiDetailForCards(
     seed: local?.seed ?? 0,
     description: local?.description ?? detail.resolution_criteria,
     resolution: detail.resolution_criteria,
+    status: detail.status,
   };
 }
 

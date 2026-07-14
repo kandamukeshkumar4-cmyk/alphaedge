@@ -59,4 +59,28 @@ describe("api market adapter", () => {
     expect(market.outcomes.map((outcome) => outcome.label)).toEqual(["YES", "NO"]);
     expect(market.forecast.prob).toBeGreaterThanOrEqual(0);
   });
+
+  it("keeps API lifecycle status authoritative when a local card matches", () => {
+    const [market] = mergeApiMarketsForCards(
+      [{ ...baseApiMarket, status: "resolved", yes_price: 0 }],
+      MARKETS,
+    );
+
+    expect(market.status).toBe("resolved");
+    expect(market.outcomes[0].price).toBe(0);
+  });
+
+  it("keeps a null API close time unknown instead of reusing or inventing a date", () => {
+    const [matching] = mergeApiMarketsForCards(
+      [{ ...baseApiMarket, lock_at: null }],
+      MARKETS,
+    );
+    const [apiOnly] = mergeApiMarketsForCards(
+      [{ ...baseApiMarket, slug: "api-only-null-close", lock_at: null }],
+      MARKETS,
+    );
+
+    expect(matching.endsAt).toBe("");
+    expect(apiOnly.endsAt).toBe("");
+  });
 });

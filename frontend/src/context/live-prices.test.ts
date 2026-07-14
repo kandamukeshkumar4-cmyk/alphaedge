@@ -34,7 +34,7 @@ function kalshiMarket(slug: string, outcomes: { id: string; price: number }[]): 
     icon: "⚽",
     title: slug,
     question: slug,
-    endsAt: "2026-06-27T22:00:00Z",
+    endsAt: "2099-06-27T22:00:00Z",
     volume: 1_000_000,
     traders: 0,
     marketCount: outcomes.length,

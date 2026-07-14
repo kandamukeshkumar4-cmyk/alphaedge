@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatCompactUSD, MARKETS, type Market } from "@/lib/mock-data";
 import { marketHref, marketIntelHref } from "@/lib/market-href";
 import { activeTrendingMarkets } from "@/lib/live-discovery";
+import { marketLifecycle } from "@/lib/market-lifecycle";
 
 const FETCH_MS = 8000;
 const LIVE_API = hasLiveApi();
@@ -235,7 +236,8 @@ export function QuestLiveMarketsBoard({
                     const yesC = Math.round((yes?.price ?? 0.5) * 100);
                     const noC = Math.round((no?.price ?? 1 - (yes?.price ?? 0.5)) * 100);
                     const teams = splitTeams(m.title);
-                    const live = isLiveish(m);
+                    const lifecycle = marketLifecycle(m);
+                    const live = lifecycle === "live" && isLiveish(m);
                     return (
                       <motion.li
                         key={m.id}
@@ -249,7 +251,9 @@ export function QuestLiveMarketsBoard({
                       >
                         <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wide">
                           {live ? (
-                            <span className="rounded bg-danger/15 px-1.5 py-0.5 text-danger">LIVE</span>
+                            <span className="rounded bg-danger/15 px-1.5 py-0.5 text-danger">
+                              LIVE
+                            </span>
                           ) : null}
                           <span className="text-muted-2">{formatCompactUSD(m.volume)} Vol.</span>
                           {/* D03: deep-link to the desk Intelligence anchor */}

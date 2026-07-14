@@ -36,6 +36,7 @@ import { SimilarPastMarkets } from "@/components/SimilarPastMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
 import { DeskIntelligencePanel } from "@/components/DeskIntelligencePanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
+import { marketLifecycleFromDetail } from "@/lib/market-lifecycle";
 
 const PROVISIONAL_LABEL = "⚠️ Provisional — model not yet CLV-validated";
 const PAPER_DISCLAIMER =
@@ -55,7 +56,6 @@ export default function MarketDetailClient({
   const localMarket = getMarket(slug);
   const market = apiMarket ?? localMarket;
   const forecastProvisional = apiDetail?.forecast?.provisional ?? true;
-  const isResolved = apiDetail?.resolved ?? false;
   const resolutionOutcome = apiDetail?.resolution_outcome ?? null;
   const resolutionCriteria =
     apiDetail?.resolution_criteria ?? market?.resolution ?? "Resolution criteria unavailable.";
@@ -90,7 +90,11 @@ export default function MarketDetailClient({
     };
   }, [slug]);
 
-  const livePrice = useMarketPrice(slug);
+  const lifecycle = market
+    ? marketLifecycleFromDetail(market, apiDetail, apiMarket?.endsAt)
+    : null;
+  const isResolved = Boolean(apiDetail?.resolved) || lifecycle === "decided";
+  const livePrice = useMarketPrice(slug, lifecycle === "live" && !isResolved);
 
   if (!market && loadedApi) {
     return (
@@ -140,7 +144,7 @@ export default function MarketDetailClient({
               <h1 className="text-xl font-black text-text sm:text-2xl">
                 {apiDetail?.title ?? market.title}
               </h1>
-              <LatencyBadge slug={market.slug} />
+              {lifecycle === "live" && !isResolved ? <LatencyBadge slug={market.slug} /> : null}
             </div>
             <p className="mt-0.5 text-sm text-muted">
               {market.question === "Paper market snapshot unavailable"
@@ -173,15 +177,18 @@ export default function MarketDetailClient({
           </Link>
           {isResolved ? (
             <span className="rounded-md bg-primary-dim px-2 py-1 font-bold uppercase text-primary">
-              Resolved {resolutionOutcome ?? ""}
+              Decided {resolutionOutcome ?? ""}
             </span>
-          ) : null}
-          {livePrice.connected && (
+          ) : lifecycle === "live" && livePrice.connected ? (
             <span className="flex items-center gap-1 text-xs font-medium text-green-400">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
               LIVE
             </span>
-          )}
+          ) : lifecycle === "closed" ? (
+            <span className="rounded-md bg-surface-3 px-2 py-1 font-bold text-muted">
+              Closed
+            </span>
+          ) : null}
           <span className="font-mono">{formatCompactUSD(market.volume)} vol</span>
           {/* Traders/closes come from the mock catalog for unknown slugs; a
               live pm-/ks- market must omit them rather than show fake stats. */}
@@ -230,6 +237,7 @@ export default function MarketDetailClient({
           <div className="rounded-2xl border border-border bg-surface p-4">
             <PriceChart
               slug={market.slug}
+              live={lifecycle === "live" && !isResolved}
               endPrice={
                 livePrice.connected && livePrice.yes > 0
                   ? livePrice.yes
@@ -329,7 +337,13 @@ export default function MarketDetailClient({
           <MarketTradingPanel
             slug={slug}
             title={market.title}
-            status={isResolved || resolutionOutcome != null ? "resolved" : "open"}
+            status={
+              isResolved || resolutionOutcome != null
+                ? "resolved"
+                : lifecycle === "closed"
+                  ? "closed"
+                  : "open"
+            }
             closeTime={market.endsAt}
             initialYesPrice={
               livePrice.connected && livePrice.yes > 0

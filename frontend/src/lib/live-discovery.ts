@@ -1,4 +1,5 @@
 import { formatCompactUSD, pct, type Market, type RankRow } from "./mock-data";
+import { marketLifecycle } from "./market-lifecycle";
 
 function pricePct(m: Market): string {
   const p = m.outcomes[0]?.price ?? 0.5;
@@ -8,13 +9,11 @@ function pricePct(m: Market): string {
 export function activeTrendingMarkets(markets: Market[], nowMs = Date.now()): Market[] {
   return markets.filter((market) => {
     const price = market.outcomes[0]?.price;
-    const closeMs = Date.parse(market.endsAt);
     return (
-      (market.status === undefined || market.status === "open") &&
+      marketLifecycle(market, nowMs) === "live" &&
       typeof price === "number" &&
       price > 0.01 &&
-      price < 0.99 &&
-      (Number.isNaN(closeMs) || closeMs > nowMs)
+      price < 0.99
     );
   });
 }

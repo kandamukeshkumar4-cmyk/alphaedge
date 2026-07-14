@@ -1,4 +1,5 @@
 import type { Market, MarketOutcome } from "./mock-data";
+import { marketLifecycle } from "./market-lifecycle";
 
 /** Kalshi-only hero carousel for the landing page. */
 export function pickHeroMarkets(all: Market[]): Market[] {
@@ -157,7 +158,10 @@ export function pickHomeGridMarkets(all: Market[], limit = 20): Market[] {
 }
 
 export function isLiveMirror(market: Market): boolean {
-  return market.source === "polymarket" || market.source === "kalshi";
+  return (
+    (market.source === "polymarket" || market.source === "kalshi") &&
+    marketLifecycle(market) === "live"
+  );
 }
 
 export function isKalshiMatchCard(market: Market): boolean {
