@@ -15,6 +15,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | File | Ticket | Status |
 |---|---|---|
 | `backend/app/api/v1/routes.py` | V1 | RELEASED 2026-07-13T21:17:44-04:00 |
+| `backend/app/workers/tasks.py` | V4 | CLAIMED 2026-07-13T22:23:27-04:00 — minimal additive import/function/cron only; parallel Workstream D D2 claim acknowledged |
 
 ## Tickets
 
@@ -23,7 +24,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | V1 | Trending ranks by recent activity; decided markets out | DONE | Additive `sort=active` ranks open/non-decided markets by 24h price movement, latest recent snapshot, close proximity, sync time, then lifetime volume; Discover, `/markets`, and `/home` consume that order without client-side volume re-sorting. Resolved markets remain reachable through a labeled Longshots / Decided affordance. Full proof and verifier output are in the loop log below. |
 | V2 | Live Signals rail: named, valued, deduped | DONE | Raw events optionally join market titles and dedupe identical semantic signals within a requested window while preserving opposite moves and default raw pagination. The rail renders real title, UP/DOWN/INFO, signed bps/¢ or honest Observed, signal label, and relative age; the fabricated whale fallback and repeated em-dash rows are removed. |
 | V3 | Ticker freshness: DESC order, dedupe, age, 48h window | DONE | Production source ordering was already correct. Client normalization now sorts REST/WS rows DESC, dedupes bounded semantic repeats while preserving genuine opposite/later moves, shows real signal direction/value/age, and applies `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (default 48h). The footer no longer invents trades/sizes or clones quiet rows. Full proof and verifier output are in the loop log below. |
-| V4 | F04 forecast auto-lock worker (unblocks grading) | TODO | new workers/forecast_autolock.py; claim tasks.py |
+| V4 | F04 forecast auto-lock worker (unblocks grading) | IN-PROGRESS | AutoLab budget: 3 measure/edit cycles. Root cause: config, venue snapshots, immutable LIVE locks, resolver scoring, and leakage gate exist, but no worker selects pre-close OPEN external markets and creates the forecast that can later be scored. Fix: new bounded worker module with a dedicated non-authenticatable system forecaster, real implied snapshot + existing model prediction/lock path, JobRun heartbeat, per-market isolation, and minimal claimed task registration. Files: `backend/app/workers/forecast_autolock.py`, `backend/app/workers/tasks.py`, `backend/tests/test_forecast_autolock.py`, `STATE.md`. |
 | V5 | Decided/closed market hygiene (no false LIVE chip) | TODO | |
 | V6 | [LIVE] end-user re-test proof | TODO | prod READ-ONLY + local stack |
 
@@ -207,3 +208,11 @@ Fresh-context verifier: PASS — 9 focused frontend tests, typecheck, lint, and 
 Manual code-review fallback used because the Superpowers `requesting-code-review` skill is unavailable; the complete diff and every changed line were reviewed with no blocking finding. `gh-address-comments`: not applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile, dependency loader, or deployment-image change; no merge requested).
 
 AutoLab: baseline=V2 gate backend 1417 passed/28 skipped and frontend 58 files/349 tests; prod sample had 113/200 signal rows older than 48h and the footer cloned all displayed rows | benchmark=freshness/dedupe focused tests plus full ticket/repo gates | iterations=1, best=backend 1417 passed/28 skipped and frontend 59 files/354 tests | budget=1/3 | outcome=improved
+
+### ORCHESTRATOR: NEW TICKET V7 (routed from loop V17 QA) — BUG-V17-01
+The price chart throws a browser pageerror: `addColorStop` receives invalid
+color `rgba(var(--color-primary / 0.25))` — CSS var() is not resolved inside
+canvas color strings; resolve the computed color first (getComputedStyle) or
+use a literal. Found by the E2E suite (frontend/e2e on branch loop17/e2e-qa,
+helpers/console.ts currently filters it as known noise — remove that filter
+once fixed). Fix in your frontend lane after V4-V6, gate + verifier as usual.
