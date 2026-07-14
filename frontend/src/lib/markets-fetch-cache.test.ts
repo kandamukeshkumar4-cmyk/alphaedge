@@ -70,6 +70,15 @@ describe("fetchMarkets shared cache", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("sends the additive active sort to the market catalog", async () => {
+    fetchMock.mockResolvedValue(okResponse());
+    await fetchMarkets({ sort: "active" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/api/v1/markets?sort=active",
+      { cache: "no-store" },
+    );
+  });
+
   it("does not cache failures", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
     await expect(fetchMarkets({})).rejects.toThrow("Markets HTTP 429");

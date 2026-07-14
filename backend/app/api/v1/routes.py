@@ -75,7 +75,7 @@ _VALID_CATEGORIES = {
     # legacy capitalized values kept for backward-compat
     "NBA", "FIFA WC2026", "Elections", "Crypto", "Culture", "Economics",
 }
-_VALID_SORTS = {"volume", "traders", "newest"}
+_VALID_SORTS = {"volume", "traders", "newest", "active"}
 
 
 # B01: the homepage rails poll /markets dozens of times per second per client,

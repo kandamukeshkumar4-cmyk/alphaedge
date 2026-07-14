@@ -10,8 +10,8 @@ services so the home page renders without a fan-out of per-widget requests:
 * ``model_ab`` — the I02/J03 resolved-count + A/B readiness numbers (reuses
   ``count_resolved_outcomes`` + the A/B gate constants; the deployed default
   model is NEVER flipped here);
-* ``top_markets`` — the highest-liquidity public markets (volume proxy, reuses
-  ``MarketService.list_public_markets``).
+* ``top_markets`` — active public markets ranked by recent price movement and
+  close proximity (reuses ``MarketService.list_public_markets``).
 
 **PUBLIC GET with OPTIONAL JWT** (``get_optional_user``): anonymous callers get
 the four non-personal sections above with ``watchlist_count = null`` and
@@ -22,6 +22,7 @@ Read-only composition of existing stores only — no new pipeline, no new table,
 persists nothing, and the order write path is never imported. Honest empties
 everywhere (empty DB → empty lists / zero counts, never fabricated data).
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -58,9 +59,8 @@ HOME_DISCLAIMER = (
 
 
 async def _top_markets(db: AsyncSession, limit: int) -> list[dict[str, Any]]:
-    """Highest-liquidity public markets (volume is the liquidity proxy the rest
-    of the catalog already ranks by). Compact projection only."""
-    markets = await MarketService(db).list_public_markets(sort="volume")
+    """Active, non-decided markets. Compact projection only."""
+    markets = await MarketService(db).list_public_markets(sort="active")
     top = markets[:limit]
     return [
         {

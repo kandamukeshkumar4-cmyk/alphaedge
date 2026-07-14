@@ -6,11 +6,12 @@ callers also get their K03 watchlist count + recent watchlist alerts. Honest
 empties everywhere; anon omits (nulls/empties) the personal sections.
 """
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.db.models import Market, MarketStatus, SignalEvent
+from app.db.models import Market, MarketStatus, OddsSnapshot, SignalEvent
 from app.db.session import get_db
 from app.main import app
 
@@ -53,6 +54,26 @@ async def _seed(db_session) -> None:
     await db_session.flush()
     db_session.add_all(
         [
+            OddsSnapshot(
+                market_slug=SLUG_A,
+                implied_yes=Decimal("0.50"),
+                captured_at=now - timedelta(hours=4),
+            ),
+            OddsSnapshot(
+                market_slug=SLUG_A,
+                implied_yes=Decimal("0.52"),
+                captured_at=now - timedelta(minutes=5),
+            ),
+            OddsSnapshot(
+                market_slug=SLUG_B,
+                implied_yes=Decimal("0.45"),
+                captured_at=now - timedelta(hours=4),
+            ),
+            OddsSnapshot(
+                market_slug=SLUG_B,
+                implied_yes=Decimal("0.55"),
+                captured_at=now - timedelta(minutes=4),
+            ),
             SignalEvent(
                 signal_type="news:mispricing",
                 platform="seed",
@@ -102,7 +123,7 @@ async def test_anon_shape_omits_watchlist(db_session):
     assert body["digest"]["total"] == 2
     assert body["model_ab"]["ab_ready"] in (True, False)
     assert body["model_ab"]["applied"] is False
-    assert [m["slug"] for m in body["top_markets"]] == [SLUG_B, SLUG_A]  # volume desc
+    assert [m["slug"] for m in body["top_markets"]] == [SLUG_B, SLUG_A]  # 24h movement desc
     # Personal sections nulled/empty for anon.
     assert body["watchlist_count"] is None
     assert body["watchlist_alerts"] == []

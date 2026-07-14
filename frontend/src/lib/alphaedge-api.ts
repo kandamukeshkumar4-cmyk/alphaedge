@@ -493,7 +493,7 @@ export const fallbackSnapshot: MarketSnapshot = {
 
 export type MarketFilterParams = {
   category?: string;
-  sort?: "volume" | "traders" | "newest";
+  sort?: "volume" | "traders" | "newest" | "active";
   q?: string;
 };
 

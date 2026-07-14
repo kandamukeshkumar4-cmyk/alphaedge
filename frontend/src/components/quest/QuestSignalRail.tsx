@@ -7,6 +7,7 @@ import { fetchMarkets } from "@/lib/alphaedge-api";
 import { fetchLeaderboard, type LeaderboardEntry } from "@/lib/leaderboard-api";
 import { fetchSignalEvents } from "@/lib/activity-api";
 import { marketHref } from "@/lib/market-href";
+import { activeTrendingMarkets } from "@/lib/live-discovery";
 import { formatCompactUSD, type Market } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
@@ -59,12 +60,12 @@ export function QuestSignalRail({
   const [traders, setTraders] = useState<LeaderboardEntry[] | null>(null);
   const [trending, setTrending] = useState<Market[] | null>(
     initialMarkets && initialMarkets.length > 0
-      ? [...initialMarkets].sort((a, b) => b.volume - a.volume).slice(0, 6)
+      ? activeTrendingMarkets(initialMarkets).slice(0, 6)
       : null,
   );
   const [allTrending, setAllTrending] = useState<Market[]>(
     initialMarkets && initialMarkets.length > 0
-      ? [...initialMarkets].sort((a, b) => b.volume - a.volume).slice(0, 12)
+      ? activeTrendingMarkets(initialMarkets).slice(0, 12)
       : [],
   );
   const [signals, setSignals] = useState<Signal[] | null>(null);
@@ -76,12 +77,12 @@ export function QuestSignalRail({
       .then((rows) => !dead && setTraders(rows.slice(0, 5)))
       .catch(() => !dead && setTraders([]));
 
-    fetchMarkets({})
+    fetchMarkets({ sort: "active" })
       .then((rows) => {
         if (dead) return;
-        const sorted = [...rows].sort((a, b) => b.volume - a.volume);
-        setAllTrending(sorted.slice(0, 12));
-        const top = sorted.slice(0, 6);
+        const active = activeTrendingMarkets(rows);
+        setAllTrending(active.slice(0, 12));
+        const top = active.slice(0, 6);
         setTrending(top);
 
         // Live signals: prefer real signal events; else derive whale flow from
@@ -216,6 +217,12 @@ export function QuestSignalRail({
             ))}
           </ul>
         )}
+        <Link
+          href="/resolved"
+          className="mt-2 inline-flex px-1 text-[11px] font-semibold text-muted-2 transition hover:text-primary"
+        >
+          Longshots / decided markets →
+        </Link>
       </section>
 
       {/* Live Signals */}

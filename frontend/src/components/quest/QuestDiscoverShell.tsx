@@ -19,6 +19,7 @@ import {
   type KalshiTopicId,
 } from "@/lib/kalshi-topics";
 import { cn } from "@/lib/cn";
+import { activeTrendingMarkets } from "@/lib/live-discovery";
 import { type Market } from "@/lib/mock-data";
 
 const INTELLIGENCE_LINKS = [
@@ -55,7 +56,10 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
     setError(false);
     try {
       const apiCat = topicToApiCategory(topic);
-      const result = await fetchMarkets(apiCat ? { category: apiCat } : {});
+      const result = await fetchMarkets({
+        ...(apiCat ? { category: apiCat } : {}),
+        sort: "active",
+      });
       setMarkets(result);
     } catch {
       setMarkets((prev) => (prev.length > 0 ? prev : []));
@@ -81,7 +85,7 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
   );
 
   const filtered = useMemo(() => {
-    let list = filterByTopic(markets, topic);
+    let list = activeTrendingMarkets(filterByTopic(markets, topic));
     if (query) {
       list = list.filter(
         (m) =>
@@ -90,7 +94,7 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
           m.slug.toLowerCase().includes(query),
       );
     }
-    return [...list].sort((a, b) => b.volume - a.volume);
+    return list;
   }, [markets, topic, query]);
 
   const prioritySlugs = useMemo(
@@ -169,6 +173,12 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
                   {t.label}
                 </button>
               ))}
+              <Link
+                href="/resolved"
+                className="shrink-0 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-bold text-muted transition hover:border-border-light hover:text-text"
+              >
+                Longshots / Decided
+              </Link>
             </div>
 
             {error ? (

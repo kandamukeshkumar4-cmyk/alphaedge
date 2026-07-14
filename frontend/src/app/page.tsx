@@ -11,7 +11,7 @@ import type { Market } from "@/lib/mock-data";
 export default async function DiscoverHome() {
   let initialMarkets: Market[] = [];
   try {
-    initialMarkets = await fetchMarkets({});
+    initialMarkets = await fetchMarkets({ sort: "active" });
   } catch {
     // API unreachable at request time — client components will retry.
   }
