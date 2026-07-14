@@ -530,6 +530,8 @@ class SignalEvent(Base):
     __tablename__ = "signal_events"
     __table_args__ = (
         Index("ix_signal_events_type_market", "signal_type", "platform", "market_id"),
+        # PERF-01: feed path is ORDER BY created_at DESC LIMIT n
+        Index("ix_signal_events_created_at", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
