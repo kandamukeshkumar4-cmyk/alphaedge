@@ -612,7 +612,13 @@ app.include_router(agent_admin_router)
 app.include_router(metrics_router)
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["system"],
+    summary="Liveness/health check",
+    description="Basic liveness probe; always confirms paper_trading_only.",
+)
 @limiter.limit(settings.rate_limit)
 async def health(request: Request):
     return HealthResponse(
@@ -622,7 +628,12 @@ async def health(request: Request):
     )
 
 
-@app.get("/")
+@app.get(
+    "/",
+    tags=["system"],
+    summary="API root",
+    description="Service identity, paper-trading disclaimer, and mode flag.",
+)
 async def root():
     return {
         "name": "AlphaEdge",
