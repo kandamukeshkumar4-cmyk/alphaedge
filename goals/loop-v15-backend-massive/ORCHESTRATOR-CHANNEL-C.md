@@ -41,6 +41,14 @@ reasons committed to STATE.md.
 
 ## TICKET REVIEWS (orchestrator verdicts — appended after each commit)
 
+### REVIEW C2 · fd6948c · 2026-07-13 · verdict: PASS
+Keyless ESPN path, signal-only with explicit non-resolution guards in payload
+and code, clean claim/release on main.py. Continue C3 (already claimed) then
+C4 per DIR-C-002. For C3 remember: implement the alphaedge_connector_health
+gauge contract Workstream E stubbed in /metrics (gauge name
+alphaedge_connector_health{source=...}) if trivially compatible with your
+get_source_health() registry — E landed on the integration branch already.
+
 ### REVIEW C1 · ede8139 · 2026-07-13 · verdict: PASS
 Resilience layer well-scoped: retries/breaker/health centralized in http.py,
 venue adapters touched only for source tagging (I independently re-ran
