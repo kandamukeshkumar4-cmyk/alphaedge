@@ -19,6 +19,7 @@ from app.pipeline.ingest import (
 )
 from app.workers.order_expiry import order_expiry_task
 from app.workers.portfolio_equity import portfolio_equity_snapshot_task
+from app.workers.forecast_autolock import forecast_autolock_task
 
 
 logger = logging.getLogger(__name__)
@@ -1032,6 +1033,7 @@ class WorkerSettings:
         weather_scan_task,
         order_expiry_task,
         portfolio_equity_snapshot_task,
+        forecast_autolock_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1044,6 +1046,8 @@ class WorkerSettings:
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # V14 F02/F03: resolve past-close external markets from venue data + score
         cron(resolve_external_markets_task, minute={10, 40}),
+        # V16 V4: lock model forecasts pre-close so later venue resolution can grade them
+        cron(forecast_autolock_task, minute={0, 30}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
         cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
         cron(snapshot_whale_positions_task, minute=set(range(0, 60, 3))),
