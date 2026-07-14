@@ -42,3 +42,20 @@ tails in STATE.md. Fresh verifier verdict before DONE.
   /signals, /macro, /alerts pages load with data or honest empty states,
   zero console errors each. Final: one-command run (npm run test:e2e) green;
   paste full run output in STATE.md.
+
+## LOOP V18 EXTENSION (assigned after V17 completion — same ownership rules)
+- Q5 Activate the V16 guards: V16 V1-V3 are now MERGED beneath you (verify:
+  git log --oneline | grep loop16). Remove the three test.fixme("pending V16
+  merge") markers; the assertions must now PASS against the local stack. If
+  one fails, diagnose: test-side bug -> fix it here; app-side bug -> BUG
+  REPORT + re-fixme with the new bug id.
+- Q6 Mobile viewport journeys: re-run smoke + discover + trade journeys at
+  375x812 (iPhone) viewport; assert no horizontal overflow, tap targets work,
+  zero console errors. New spec file, reuse helpers.
+- Q7 Auth edge journeys: wrong password, duplicate signup, expired/invalid
+  token handling (clear localStorage token mid-session), protected-route
+  redirect. Assert honest error states, never a blank/crashed page.
+- Q8 A11y pass: integrate @axe-core/playwright; run axe on /, market detail,
+  /portfolio, /leaderboard; fail only on serious+critical violations; file
+  BUG REPORTS for the rest. One-command run stays green at the end
+  (npm run test:e2e).
