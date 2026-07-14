@@ -1,46 +1,51 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Default: E2E runs against a locally served PRODUCTION build (`next start`) with
-// NEXT_PUBLIC_API_URL unset, so the app falls back to its bundled mock catalog.
-// Static export is deliberately NOT used: `output: "export"` 500s every dynamic
-// /markets/[slug] route (see next.config.ts), which would break the card-click
-// test. `next start` serves the same production bundle dynamically.
-//
-// Production acceptance: set PLAYWRIGHT_BASE_URL to the deployed frontend
-// (e.g. https://alphaedge-frontend-three.vercel.app) to skip the local
-// webServer and hit live pages. Pair with E2E_LIVE=1 so specs do not stub
-// the backend.
-const PORT = 3100;
+/**
+ * Loop V17 — local-stack Playwright config.
+ *
+ * Default: boot real uvicorn (isolated SQLite) + next dev via
+ * e2e/helpers/start-local-stack.mjs. Never targets prod Railway.
+ *
+ * Override: set PLAYWRIGHT_BASE_URL to hit an already-running local stack
+ * (then set E2E_SKIP_WEBSERVER=1).
+ */
+const FE_PORT = Number(process.env.E2E_FE_PORT || 31017);
+const API_PORT = Number(process.env.E2E_API_PORT || 18017);
 const PLAYWRIGHT_BASE_URL =
-  process.env.PLAYWRIGHT_BASE_URL?.trim() || `http://localhost:${PORT}`;
-const AGAINST_DEPLOYED = !PLAYWRIGHT_BASE_URL.includes("localhost");
+  process.env.PLAYWRIGHT_BASE_URL?.trim() || `http://127.0.0.1:${FE_PORT}`;
+const SKIP_WEBSERVER =
+  process.env.E2E_SKIP_WEBSERVER === "1" ||
+  (!!process.env.PLAYWRIGHT_BASE_URL &&
+    !process.env.PLAYWRIGHT_BASE_URL.includes("127.0.0.1") &&
+    !process.env.PLAYWRIGHT_BASE_URL.includes("localhost"));
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  testMatch: /.*\.spec\.ts/,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: "list",
+  timeout: 90_000,
+  expect: { timeout: 20_000 },
   use: {
     baseURL: PLAYWRIGHT_BASE_URL,
     trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
-  projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-  ],
-  ...(AGAINST_DEPLOYED
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  ...(SKIP_WEBSERVER
     ? {}
     : {
         webServer: {
-          command: `npm run start -- --port ${PORT}`,
-          url: `http://localhost:${PORT}`,
-          timeout: 120_000,
+          command: "node e2e/helpers/start-local-stack.mjs",
+          url: PLAYWRIGHT_BASE_URL,
+          timeout: 180_000,
           reuseExistingServer: !process.env.CI,
           env: {
-            // Ensure the mock fallback path: no real backend is contacted.
-            NEXT_PUBLIC_API_URL: "",
-            NEXT_PUBLIC_WS_URL: "",
+            E2E_API_PORT: String(API_PORT),
+            E2E_FE_PORT: String(FE_PORT),
           },
         },
       }),

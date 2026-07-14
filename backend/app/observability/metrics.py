@@ -7,7 +7,7 @@ No order-path imports. PAPER_TRADING_ONLY untouched.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 router = APIRouter(tags=["metrics"])
@@ -54,6 +54,36 @@ BRIER_ROLLING_GAUGE = Gauge(
     "Current rolling Brier score (overall, all windows)",
 )
 
+# Loop V15 E2 — per-route HTTP latency/error series (fed by
+# app.observability.http_metrics.record_request, i.e. every request the
+# HttpMetricsMiddleware sees), worker job durations (fed by
+# loop_state.record_heartbeat when a caller passes duration_ms), and a
+# connector-health gauge. The connector gauge NAME is the stable contract for
+# C3's source-health work; until a connector reports, the series is empty
+# (honest zero-state, never fabricated).
+HTTP_REQUEST_LATENCY_MS = Histogram(
+    "alphaedge_http_request_latency_ms",
+    "HTTP request latency in milliseconds per templated route",
+    ["method", "route"],
+    buckets=(5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10_000),
+)
+HTTP_ERRORS_TOTAL = Counter(
+    "alphaedge_http_errors_total",
+    "HTTP 5xx responses per templated route",
+    ["method", "route"],
+)
+WORKER_JOB_DURATION_MS = Histogram(
+    "alphaedge_worker_job_duration_ms",
+    "Background worker/loop pass duration in milliseconds",
+    ["job"],
+    buckets=(10, 50, 100, 500, 1000, 5000, 15_000, 60_000, 300_000),
+)
+CONNECTOR_HEALTH = Gauge(
+    "alphaedge_connector_health",
+    "External connector health (1 = healthy, 0 = degraded/failing)",
+    ["source"],
+)
+
 
 def record_stream_event(*, source: str, kind: str) -> None:
     STREAM_EVENTS_TOTAL.labels(source=source, kind=kind).inc()
@@ -87,6 +117,56 @@ def update_drift_gauge(drift: float, rolling_brier: float) -> None:
     BRIER_ROLLING_GAUGE.set(rolling_brier)
 
 
-@router.get("/metrics")
-async def metrics() -> Response:
+def record_http_request(
+    *, method: str, route: str, status_code: int, latency_ms: float
+) -> None:
+    """Feed the per-route Prometheus series (called by http_metrics)."""
+    HTTP_REQUEST_LATENCY_MS.labels(method=method, route=route).observe(latency_ms)
+    if status_code >= 500:
+        HTTP_ERRORS_TOTAL.labels(method=method, route=route).inc()
+
+
+def record_worker_job_duration(*, job: str, duration_ms: float) -> None:
+    """Record one background job/loop pass duration."""
+    WORKER_JOB_DURATION_MS.labels(job=job).observe(duration_ms)
+
+
+def set_connector_health(*, source: str, healthy: bool) -> None:
+    """Set the health gauge for one external connector (C3 contract)."""
+    CONNECTOR_HEALTH.labels(source=source).set(1.0 if healthy else 0.0)
+
+
+def _authorized(request: Request) -> bool:
+    """E2 gate — admin key header, or the dedicated metrics bearer token.
+
+    ``METRICS_TOKEN`` lets a Prometheus scraper authenticate without holding
+    the (more powerful) admin key. Empty token = admin-key-only.
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    admin_key = request.headers.get("x-admin-api-key")
+    if admin_key and admin_key == settings.admin_api_key:
+        return True
+    token = getattr(settings, "metrics_token", "") or ""
+    if token:
+        auth = request.headers.get("authorization", "")
+        if auth == f"Bearer {token}":
+            return True
+    return False
+
+
+@router.get(
+    "/metrics",
+    summary="Prometheus metrics exposition (admin/token gated)",
+    description=(
+        "Prometheus text-format exposition: per-route HTTP latency histograms "
+        "and 5xx counters, worker job durations, connector health gauges, and "
+        "the stream/brief/eval series. Requires the X-Admin-API-Key header or "
+        "`Authorization: Bearer <METRICS_TOKEN>`."
+    ),
+)
+async def metrics(request: Request) -> Response:
+    if not _authorized(request):
+        raise HTTPException(status_code=401, detail="Not authorized for /metrics")
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

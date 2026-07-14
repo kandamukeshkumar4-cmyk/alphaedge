@@ -22,6 +22,7 @@ from app.api.v1.portfolio_clv import router as portfolio_clv_router
 from app.api.v1.calibration import router as calibration_router
 from app.api.v1.eval_routes import router as eval_router
 from app.api.v1.forecast_routes import router as forecast_router
+from app.api.v1.models import router as models_router
 from app.api.v1.health import router as health_router
 from app.api.v1.market_candles import router as market_candles_router
 from app.api.v1.market_detail import router as market_detail_router
@@ -37,6 +38,8 @@ from app.api.v1.briefs import router as briefs_router
 from app.api.v1.memories import router as memories_router
 from app.api.v1.macro import router as macro_router
 from app.api.v1.weather import router as weather_router
+from app.api.v1.sports import router as sports_router
+from app.api.v1.sports import sources_router as system_sources_router
 from app.api.v1.feed import router as feed_router
 from app.api.v1.agent_trace import router as agent_trace_router
 from app.api.v1.assistant import router as assistant_router
@@ -64,6 +67,7 @@ from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
 from app.core.middleware import HttpMetricsMiddleware, RequestIdMiddleware
+from app.core.ratelimit import MutatingRateLimitMiddleware
 from app.db.session import AsyncSessionLocal
 from app.schemas.market import HealthResponse
 from app.services.market_service import MarketService
@@ -542,6 +546,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 app.add_exception_handler(OperationalError, db_unavailable_handler)
 app.add_exception_handler(InterfaceError, db_unavailable_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
+# E1: innermost of the stack so RequestIdMiddleware (outer) has already set
+# request.state.request_id and HttpMetricsMiddleware records the 429s.
+app.add_middleware(MutatingRateLimitMiddleware)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(HttpMetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)
@@ -577,6 +584,8 @@ app.include_router(memories_router)
 app.include_router(activity_router)
 app.include_router(macro_router)
 app.include_router(weather_router)
+app.include_router(sports_router)
+app.include_router(system_sources_router)
 app.include_router(feed_router)
 app.include_router(agent_trace_router)
 app.include_router(assistant_router)
@@ -603,12 +612,19 @@ app.include_router(compare_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
+app.include_router(models_router)
 app.include_router(admin_router)
 app.include_router(agent_admin_router)
 app.include_router(metrics_router)
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["system"],
+    summary="Liveness/health check",
+    description="Basic liveness probe; always confirms paper_trading_only.",
+)
 @limiter.limit(settings.rate_limit)
 async def health(request: Request):
     return HealthResponse(
@@ -618,7 +634,12 @@ async def health(request: Request):
     )
 
 
-@app.get("/")
+@app.get(
+    "/",
+    tags=["system"],
+    summary="API root",
+    description="Service identity, paper-trading disclaimer, and mode flag.",
+)
 async def root():
     return {
         "name": "AlphaEdge",

@@ -11,10 +11,13 @@ from app.observability.metrics import (
 )
 
 
+ADMIN_HEADERS = {"X-Admin-API-Key": "dev-admin-key"}
+
+
 @pytest.mark.asyncio
 async def test_metrics_endpoint_prometheus_text():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/metrics")
+        response = await client.get("/metrics", headers=ADMIN_HEADERS)
     assert response.status_code == 200
     assert "text/plain" in response.headers["content-type"]
     body = response.text
@@ -22,6 +25,116 @@ async def test_metrics_endpoint_prometheus_text():
     assert "alphaedge_briefs_generated_total" in body
     assert "alphaedge_claims_scored_total" in body
     assert "alphaedge_ws_clients" in body
+    # E2 series
+    assert "alphaedge_http_request_latency_ms" in body
+    assert "alphaedge_http_errors_total" in body
+    assert "alphaedge_worker_job_duration_ms" in body
+    assert "alphaedge_connector_health" in body
+
+
+# ---------------------------------------------------------------------------
+# E2 — gating
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_metrics_requires_auth():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/metrics")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_metrics_rejects_wrong_admin_key():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/metrics", headers={"X-Admin-API-Key": "wrong"})
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_metrics_accepts_metrics_token():
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    original = settings.metrics_token
+    settings.metrics_token = "scrape-token"
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            ok = await client.get(
+                "/metrics", headers={"Authorization": "Bearer scrape-token"}
+            )
+            bad = await client.get(
+                "/metrics", headers={"Authorization": "Bearer nope"}
+            )
+    finally:
+        settings.metrics_token = original
+    assert ok.status_code == 200
+    assert bad.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_empty_metrics_token_does_not_open_the_gate():
+    """Empty METRICS_TOKEN (default) must not make `Bearer <empty>` valid."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/metrics", headers={"Authorization": "Bearer "})
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# E2 — per-route HTTP series fed by http_metrics, worker durations
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_http_request_series_recorded_via_http_metrics():
+    from app.observability import http_metrics
+
+    http_metrics.record_request(
+        method="GET", route="/api/v1/__e2_probe__", status_code=200, latency_ms=12.0
+    )
+    http_metrics.record_request(
+        method="GET", route="/api/v1/__e2_probe__", status_code=500, latency_ms=40.0
+    )
+    count = REGISTRY.get_sample_value(
+        "alphaedge_http_request_latency_ms_count",
+        labels={"method": "GET", "route": "/api/v1/__e2_probe__"},
+    )
+    errors = REGISTRY.get_sample_value(
+        "alphaedge_http_errors_total_total",
+        labels={"method": "GET", "route": "/api/v1/__e2_probe__"},
+    ) or REGISTRY.get_sample_value(
+        "alphaedge_http_errors_total",
+        labels={"method": "GET", "route": "/api/v1/__e2_probe__"},
+    )
+    assert count is not None and count >= 2
+    assert errors is not None and errors >= 1
+
+
+def test_worker_job_duration_recorded_via_heartbeat():
+    from app.observability.loop_state import record_heartbeat
+
+    record_heartbeat("e2_test_job", status="ok", duration_ms=123.0)
+    count = REGISTRY.get_sample_value(
+        "alphaedge_worker_job_duration_ms_count", labels={"job": "e2_test_job"}
+    )
+    assert count is not None and count >= 1
+
+
+def test_connector_health_gauge_settable():
+    from app.observability.metrics import set_connector_health
+
+    set_connector_health(source="e2_test_source", healthy=True)
+    value = REGISTRY.get_sample_value(
+        "alphaedge_connector_health", labels={"source": "e2_test_source"}
+    )
+    assert value == 1.0
+    set_connector_health(source="e2_test_source", healthy=False)
+    value = REGISTRY.get_sample_value(
+        "alphaedge_connector_health", labels={"source": "e2_test_source"}
+    )
+    assert value == 0.0
 
 
 def test_record_helpers_increment_counters():

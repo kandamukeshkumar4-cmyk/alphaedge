@@ -30,6 +30,26 @@ class Settings(BaseSettings):
         alias="CORS_ORIGINS",
     )
     rate_limit: str = Field(default="600/minute", alias="RATE_LIMIT")
+    # Loop V15 E1 — stricter identity-aware limit for mutating methods only
+    # (POST/PUT/PATCH/DELETE). Keyed per bearer-token user (else client IP)
+    # and per route. Admin-key requests are exempt. Default mirrors the
+    # global limit so existing behavior is unchanged until ops tightens it.
+    rate_limit_mutating: str = Field(default="600/minute", alias="RATE_LIMIT_MUTATING")
+    rate_limit_mutating_enabled: bool = Field(
+        default=True, alias="RATE_LIMIT_MUTATING_ENABLED"
+    )
+    # Loop V15 E2 — dedicated bearer token for the Prometheus /metrics scrape.
+    # Empty (default) means /metrics accepts only the admin API key.
+    metrics_token: str = Field(default="", alias="METRICS_TOKEN")
+    # Loop V15 E3 — in-app ops alert thresholds (evaluated by workers/ops_alerts).
+    ops_alert_error_rate_threshold: float = Field(
+        default=0.05, alias="OPS_ALERT_ERROR_RATE_THRESHOLD"
+    )
+    ops_alert_min_requests: int = Field(default=50, alias="OPS_ALERT_MIN_REQUESTS")
+    ops_alert_p99_ms: float = Field(default=1000.0, alias="OPS_ALERT_P99_MS")
+    ops_alert_stale_prediction_hours: float = Field(
+        default=12.0, alias="OPS_ALERT_STALE_PREDICTION_HOURS"
+    )
     live_feed_enabled: bool = Field(default=True, alias="LIVE_FEED_ENABLED")
     live_tick_interval_sec: int = Field(default=15, alias="LIVE_TICK_INTERVAL_SEC")
     # COST-01: when no client touched the API within the active window and no
@@ -328,6 +348,25 @@ class Settings(BaseSettings):
     )
     # Number of most-recent graded claims to include in the rolling Brier window.
     drift_rolling_window: int = Field(default=30, alias="DRIFT_ROLLING_WINDOW")
+    # Loop V15 D2 — ForecastScore drift series (read-only consumer). Separate
+    # from U12 BriefClaim drift so the two pipelines do not share state.
+    forecast_drift_window: int = Field(default=50, alias="FORECAST_DRIFT_WINDOW")
+    forecast_drift_baseline_brier: float = Field(
+        default=0.25, alias="FORECAST_DRIFT_BASELINE_BRIER"
+    )
+    forecast_drift_baseline_ece: float = Field(
+        default=0.10, alias="FORECAST_DRIFT_BASELINE_ECE"
+    )
+    forecast_drift_brier_threshold: float = Field(
+        default=0.05, alias="FORECAST_DRIFT_BRIER_THRESHOLD"
+    )
+    forecast_drift_ece_threshold: float = Field(
+        default=0.05, alias="FORECAST_DRIFT_ECE_THRESHOLD"
+    )
+    # Loop V15 D4 — scheduled XGBoost retrain on snapshot store. DEFAULT OFF.
+    # Registers via D1 but NEVER auto-activates (human decision / E06).
+    ml_retrain_enabled: bool = Field(default=False, alias="ML_RETRAIN_ENABLED")
+    ml_retrain_min_rows: int = Field(default=20, alias="ML_RETRAIN_MIN_ROWS")
     # Backtest replay nightly job (U10) — OFF by default.
     # When enabled, runs a nightly replay on configured market slugs and publishes
     # results to backtest_runs for the track record.

@@ -45,7 +45,25 @@ class ConstantProbabilityModel:
 
 def train_xgboost_model(fixtures_dir: Path, artifact_dir: Path) -> dict[str, Any]:
     df = _training_dataset(fixtures_dir)
+    return train_xgboost_from_feature_matrix(df, artifact_dir)
+
+
+def train_xgboost_from_feature_matrix(
+    df: pd.DataFrame,
+    artifact_dir: Path,
+    *,
+    model_type: str | None = None,
+) -> dict[str, Any]:
+    """Fit a calibrated XGBoost (or configured) model on a feature matrix.
+
+    Used by the scheduled retrain worker (D4) on the latest resolved-snapshot
+    dataset. Callers must not activate the resulting artifact automatically.
+    """
+    if df is None or len(df) == 0:
+        raise ValueError("training feature matrix is empty")
     feature_columns = _feature_columns(df)
+    if not feature_columns:
+        raise ValueError("training feature matrix has no feature columns")
     split_idx = max(1, int(len(df) * 0.7))
     train_df = df.iloc[:split_idx]
     eval_df = df.iloc[split_idx:] if split_idx < len(df) else train_df
@@ -54,6 +72,7 @@ def train_xgboost_model(fixtures_dir: Path, artifact_dir: Path) -> dict[str, Any
         train_df,
         eval_df,
         feature_columns,
+        model_type=model_type,
     )
     brier = float(brier_score_loss(labels, calibrated_probs))
     paths = _persist_artifacts(model, calibrator, artifact_dir)
@@ -65,6 +84,7 @@ def train_xgboost_model(fixtures_dir: Path, artifact_dir: Path) -> dict[str, Any
         "feature_columns": feature_columns,
         "train_rows": len(train_df),
         "test_rows": len(eval_df) if split_idx < len(df) else 0,
+        "row_count": len(df),
     }
 
 

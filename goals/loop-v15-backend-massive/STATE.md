@@ -21,6 +21,8 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | Number | Claimed by | Ticket | Status |
 |---|---|---|---|
+| 042 | Workstream D | D2 | LANDED 2026-07-13T22:30:00-04:00 |
+| 041 | Workstream D | D1 | LANDED 2026-07-13T22:05:00-04:00 |
 | 038 | Workstream A | A1 | LANDED 2026-07-13T11:18:08-04:00 |
 | 039 | Workstream A | A4 | LANDED 2026-07-13T12:03:52-04:00 |
 | 040 | Workstream B | B5 | LANDED 2026-07-13T16:18:57-04:00 |
@@ -29,6 +31,14 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/workers/tasks.py` | Workstream D | D4 | RELEASED 2026-07-13T23:20:00-04:00 |
+| `backend/app/db/models.py` | Workstream D | D2 | RELEASED 2026-07-13T22:30:00-04:00 |
+| `backend/app/workers/tasks.py` | Workstream D | D2 | RELEASED 2026-07-13T22:30:00-04:00 |
+| `backend/app/db/models.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
+| `backend/app/main.py` | Workstream D | D1 | RELEASED 2026-07-13T22:05:00-04:00 |
+| `backend/app/workers/tasks.py` | Workstream E | E3 | RELEASED 2026-07-13T21:45:00-04:00 |
+| `backend/app/main.py` | Workstream C | C3 | RELEASED 2026-07-13T21:39:37-04:00 |
+| `backend/app/main.py` | Workstream C | C2 | RELEASED 2026-07-13T21:23:42-04:00 |
 | `backend/app/db/models.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
 | `backend/app/workers/tasks.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
 | `backend/app/schemas/portfolio.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
@@ -71,28 +81,28 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 ### Workstream C — Connector hardening
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| C1 | Connector resilience audit | TODO | |
-| C2 | Sports results connector | TODO | signals only — NOT resolution (loop-v14) |
-| C3 | Source health endpoint | TODO | |
-| C4 | [LIVE] Connector soak | TODO | |
+| C1 | Connector resilience audit | DONE | Started 2026-07-13T20:20:00-04:00. DIR-C-001 acknowledged.<br>Exists: `JsonConnectorClient` timeout=10s + 5xx retry (max 3) + response cache; Fred per-series try/except; onchain timeout=15s only.<br>Missing at start: jittered backoff, circuit-breaker, named per-source isolation, structured degradation logs, onchain retry/breaker.<br>Implemented: full-jitter retry; per-source circuit (skip N min after M transport/5xx failures); `CircuitOpenError`; 4xx does not trip; structured warning logs; `get_source_health()` registry for C3; named sources on odds/fred/worldbank/onchain/kalshi/polymarket; onchain POSTs via resilient `post_json`. Docs: `notes-c1-resilience.md`.<br>Gate: backend `1420 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS (composer-2.5) — 20 focused tests, ruff, `git diff --check` exit 0. Manual review fallback N/A (verifier ran).<br>Bumblebee: N/A (no dependency/deploy change). AutoLab: N/A. Completed 2026-07-13T20:35:00-04:00. |
+| C2 | Sports results connector | DONE | Started 2026-07-13T21:12:28-04:00. DIR-C-001/002 ack.<br>Exists: odds_api (needs ODDS_API_KEY); no sports-results connector.<br>Missing: NBA results → SignalEvent path (signals only).<br>Implemented: ESPN public scoreboard connector (`espn-nba`, no key — balldontlie needs BALLDONTLIE_API_KEY so avoided); `games_to_signal_events` with `resolves_markets=False`; GET `/api/v1/sports/results` + admin-gated POST `/api/v1/sports/ingest` (dedupe); fixture/MockTransport tests. Docs: `notes-c2-sports-results.md`.<br>Gate: backend `1425 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS (admin-gated ingest after non-blocking note). Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T21:23:42-04:00. |
+| C3 | Source health endpoint | DONE | Started 2026-07-13T21:24:45-04:00. DIR-C-001/002 ack.<br>Exists: C1 get_source_health registry; public system/loops+metrics.<br>Missing: admin-gated /system/sources.<br>Implemented: refresh_source_health(); sources_router GET /api/v1/system/sources (X-Admin-API-Key); serialize state/successes/failures/ages; tests for 401/422/empty/registry. Docs: notes-c3-sources.md.<br>Gate: backend `1428 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS. Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T21:39:37-04:00. |
+| C4 | [LIVE] Connector soak | DONE | Started 2026-07-13T21:40:34-04:00. DIR-C-001/002 ack.<br>Stack: Docker daemon down → local Uvicorn `127.0.0.1:8765` + SQLite `c4_soak.db` (A6 pattern); NOT Railway. Live feed/schedulers off. Server up 21:43:37→22:15:36-04:00 (~32 min).<br>Compressed exercise 21:44:16→21:44:30: /health ok paper=true; sports/results x5 (espn-nba); macro x2 (worldbank).<br>GET /api/v1/system/sources (admin): espn-nba healthy **successes=5 failures=0**; worldbank healthy **successes=3 failures=0**; fred/polymarket.clob/polymarket.gamma healthy successes=0 failures=0; count=5; paper_trading_only=true. Auth 422/401.<br>Zero unhandled exceptions in soak log (one handled polymarket 404 during seed).<br>Docs: notes-c4-soak.md.<br>Gate: backend `1428 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS (live re-hit confirmed counts). Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T22:15:36-04:00. |
 
 ### Workstream D — ML lifecycle
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| D1 | Model registry completed | TODO | model_registry.py/versioning.py exist — read first |
-| D2 | Drift detection worker | TODO | read-only consumer of ForecastScore |
-| D3 | Drift API + in-app alert | TODO | |
-| D4 | Scheduled retrain (flag-gated OFF) | TODO | never auto-activates |
-| D5 | AutoLab calibration pass | TODO | blocked-check: needs ≥100 resolved |
+| D1 | Model registry completed | DONE | Started 2026-07-13T21:40:00-04:00. DIR-D-001 ack.<br>Exists: classifier factory in `ml/model_registry.py`; thin `register_model_version` in `ml/versioning.py`; `ModelVersion` without training hash / active pointer.<br>Missing at start: training_data_hash, active pointer + rollback, admin GET `/api/v1/models`, metrics contract, tests.<br>Implemented: migration 041; `ModelActivePointer`; versioning helpers (hash, register, list, activate, rollback); admin list/activate/rollback; OpenAPI snapshot +6 paths; docs `notes-d1-model-registry.md`. Classifier factory untouched.<br>Gate: `1455 passed, 28 skipped`; ruff clean; alembic head `041_model_registry_active`.<br>Fresh verifier: PASS ([verifier](d985389c-edb5-4202-8c4a-205c45010cf4)). AutoLab: N/A. Completed 2026-07-13T22:05:00-04:00. |
+| D2 | Drift detection worker | DONE | Started 2026-07-13T22:10:00-04:00. DIR-D-001 ack.<br>Exists: U12 BriefClaim drift (not ForecastScore); ops_alerts worker pattern.<br>Implemented: `eval/forecast_drift.py` + `workers/drift_detect.py`; migration 042; FORECAST_DRIFT_* settings; JobRun + 15-min cron; 9 synthetic-score tests. Read-only ForecastScore consumer. Alerts deferred to D3.<br>Gate: `1464 passed, 28 skipped`; ruff clean; head `042_forecast_drift_snapshots`.<br>Fresh verifier: PASS ([verifier](f814629a-ac1c-43f9-a1e7-04da0bfbd244)). AutoLab: N/A. Completed 2026-07-13T22:30:00-04:00. |
+| D3 | Drift API + in-app alert | DONE | Started 2026-07-13T22:35:00-04:00. DIR-D-001 ack.<br>Implemented: `GET /api/v1/eval/drift`; `maybe_dispatch_drift_alert` via AlertDispatchService (`forecast_drift` + hourly dedupe); worker `alerted` field; OpenAPI +1 path; 5 new API tests.<br>Gate: pytest exit 0; ruff clean. Fresh verifier: PASS ([verifier](54491aa9-5716-4ac9-a780-80b02b6ae223)). AutoLab: N/A. Completed 2026-07-13T23:00:00-04:00. |
+| D4 | Scheduled retrain (flag-gated OFF) | DONE | Started 2026-07-13T23:05:00-04:00. DIR-D-001 ack.<br>Implemented: `ML_RETRAIN_ENABLED` default false; `workers/model_retrain.py`; `train_xgboost_from_feature_matrix`; D1 register with activate=False + recommendation log; daily 04:00 cron; 5 tests.<br>Gate: `1474 passed, 28 skipped`; ruff clean.<br>Fresh verifier: PASS ([verifier](7bb66f86-e3b5-4ed5-8e29-65934bf6d25f)). AutoLab: N/A. Completed 2026-07-13T23:20:00-04:00. |
+| D5 | AutoLab calibration pass | BLOCKED | Started 2026-07-13T23:25:00-04:00. DIR-D-001 ack.<br>Prod read-only GET `https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count` returned HTTP 503 ("Your space is in error"). Koyeb alternate `alphaedge-api.koyeb.app` returned 404 no active service. Cannot verify ≥100 resolved outcomes.<br>**blocked on resolved-count — honest skip**. No calibration loop run; never trained on post-close information; no metric gaming.<br>AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count). Completed 2026-07-13T23:30:00-04:00. |
 
 ### Workstream E — Platform & observability
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
-| E1 | Uniform rate limiting | TODO | |
-| E2 | Prometheus /metrics | TODO | |
-| E3 | In-app alert rules | TODO | read alert_dispatch first |
-| E4 | OpenAPI polish + schema snapshot | TODO | |
-| E5 | [LIVE] Ops soak under load | TODO | |
+| E1 | Uniform rate limiting | DONE | Started 2026-07-13T17:05:00-04:00.<br>Exists at start: slowapi global 600/minute per-IP default limit via `SlowAPIMiddleware` (main.py); per-IP anon limiter in assistant.py; no per-user identity, no mutating-specific limits, no admin exemption on limits, no Retry-After on 429.<br>Missing at start: uniform per-user/IP fixed-window limits on mutating methods, config-driven, admin exempt, 429+Retry-After, tests.<br>Implemented: new `app/core/ratelimit.py` `MutatingRateLimitMiddleware` (innermost of the stack so request-id is set and 429s are metered) applying a fixed-window limit ONLY to POST/PUT/PATCH/DELETE, keyed per identity+method+path (bearer-token hash when present, else client IP), valid `X-Admin-API-Key` exempt, malformed rate strings fail loudly, bounded window map with expiry pruning and fail-open under pathological growth. Config: `RATE_LIMIT_MUTATING` (default 600/minute — mirrors the existing global limit so behavior/tests are unchanged until ops tightens it) + `RATE_LIMIT_MUTATING_ENABLED` kill switch. 15 tests: parse variants/malformed, window reset (injected clock), trip with Retry-After, GET never limited, admin exempt, wrong admin key not exempt, per-token identity isolation, per-route bucket isolation, kill switch. Existing tests untouched (default limit is generous; the tight 2/minute limit is pinned only inside the new test module and restored after).<br>Gate (solo run, fresh basetemp): backend `1430 passed, 28 skipped in 440.17s`; ruff `All checks passed!`. An earlier overlapping duplicate gate run produced temp-db collision errors; the solo re-run is the authoritative result.<br>Self-review vs guardrails: additive only (no endpoint shapes changed), order path untouched, PAPER_TRADING_ONLY untouched, no test weakened, no network in tests. Verdict: PASS. AutoLab: not applicable (no iterative measure). Completed 2026-07-13T20:45:00-04:00. |
+| E2 | Prometheus /metrics | DONE | Started 2026-07-13T20:50:00-04:00.<br>Exists at start: `prometheus_client` ALREADY a dependency (U12) — no new dep added; `app/observability/metrics.py` exposed an UNGATED `GET /metrics` with stream/brief/claims/WS/SLO series; `http_metrics.py` held in-process per-route counters (JSON at /api/v1/system/metrics); no per-route Prometheus latency histogram, no 5xx counter, no worker-duration histogram, no connector-health gauge, no gating.<br>Implemented: /metrics now requires `X-Admin-API-Key` OR `Authorization: Bearer <METRICS_TOKEN>` (new empty-default setting; empty token can never open the gate) and returns 401 otherwise. New series: `alphaedge_http_request_latency_ms{method,route}` histogram + `alphaedge_http_errors_total{method,route}` counter fed from `http_metrics.record_request` (i.e. every request the middleware sees, templated routes, failure-isolated); `alphaedge_worker_job_duration_ms{job}` histogram fed via new optional `duration_ms` on `loop_state.record_heartbeat` (honest-empty until loops pass durations); `alphaedge_connector_health{source}` gauge + `set_connector_health` helper — STUB NAME CONTRACT for C3 (not landed), empty until a connector reports. Tests updated to send the admin key (gating is the ticket's required behavior — assertions strengthened, none weakened) + 9 new tests: 401 unauth/wrong key, token accept/reject, empty-token closed, http series count+errors, worker duration, gauge set/unset.<br>Gate: backend `1437 passed, 28 skipped in 355.90s`; ruff `All checks passed!`.<br>Self-review vs guardrails: additive (new series/settings; gating is the ticket's explicit mandate and admin surfaces follow the existing admin-key pattern), order path untouched, no fabricated metrics (all honest zero-state), no live network in tests. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T21:15:00-04:00. |
+| E3 | In-app alert rules | DONE | Started 2026-07-13T21:20:00-04:00.<br>Exists at start: `AlertDispatchService.dispatch` (persists Alert row + publishes `alerts` hub topic + process-level dedupe; Telegram/webhook off by default = zero network); `alerts` already multiplexed on `/api/v1/ws/feed`; `http_metrics` per-route counters; `PredictionLog.predicted_at`. No threshold evaluator existed.<br>Implemented: NEW `workers/ops_alerts.py` — `evaluate_ops_alerts` checks (1) HTTP 5xx error rate > `OPS_ALERT_ERROR_RATE_THRESHOLD` (5%) once past a `OPS_ALERT_MIN_REQUESTS` (50) volume floor, (2) overall p99 > `OPS_ALERT_P99_MS` (1000ms) via new `http_metrics.overall_stats()`, (3) newest prediction older than `OPS_ALERT_STALE_PREDICTION_HOURS` (12h; empty table honestly never fires). Alerts dispatch through the EXISTING AlertDispatchService (persisted rows + `alerts` WS topic), dedupe-keyed per hourly bucket so a persisting condition re-alerts once/hour, not every pass. `ops_alerts_task` writes a JobRun and heartbeats with duration_ms (feeds the E2 worker-duration histogram). Registration: minimal import + functions entry + 10-min cron appended to workers/tasks.py under the claim (now RELEASED).<br>Tests (9): each rule fires/holds, volume floor, fresh/empty-table silence, Alert row persisted, `alerts` hub frame received, hourly dedupe then re-fire next bucket, worker+cron registration.<br>Gate: backend `1446 passed, 28 skipped in 254.04s`; ruff `All checks passed!`.<br>Self-review vs guardrails: new logic in a NEW module, tasks.py touched only with additive registration lines, reuses existing dispatch path (no new channels), no order-path imports, no network in tests, thresholds config-driven. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T21:45:00-04:00. |
+| E4 | OpenAPI polish + schema snapshot | DONE | Started 2026-07-13T21:50:00-04:00.<br>Exists at start: 142 operations across 131 paths; audit showed 0 missing summaries (FastAPI derives from handler names + most routers already documented) and only 2 untagged operations (`GET /` and `GET /health` in main.py). No schema-lock test existed.<br>Implemented: tagged + summarized + described `GET /` and `GET /health` (system tag). NEW `tests/fixtures/openapi_snapshot.json` (131 paths: per-operation summary, sorted tags, 2xx-response presence) + `tests/test_openapi_snapshot.py` — fails on any REMOVED path/method or CHANGED summary/tags (breaking-change lock) while ALLOWING additive paths per the repo's additive-API rule; plus quality gates: every operation must have a non-empty summary, >=1 tag, and a 2xx response. `scripts/regen_openapi_snapshot.py` regenerates the fixture for intentional changes.<br>Gate: backend `1449 passed, 28 skipped in 366.14s`; ruff `All checks passed!`.<br>Self-review: docs-only endpoint edits (no behavior/shape change), snapshot asserts on operation surface not byte-for-byte document, nothing weakened. Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T22:10:00-04:00. |
+| E5 | [LIVE] Ops soak under load | DONE | Started 2026-07-13T22:15:00-04:00.<br>Stack note: Docker daemon unavailable on this host (same honest fallback as A6/B1) — real local Uvicorn (`app.main:app`, port 8765) with an isolated SQLite schema/database and ALL external loops disabled (LIVE_FEED + every scheduler flag off), so the soak made zero outbound network calls. `/health` confirmed `paper_trading_only=true`.<br>Load: scripted async client, 4 workers rotating 10 public GET routes for 4 minutes, 2026-07-14T01:09:49Z -> 01:13:50Z, **8760 requests: 7876x200 + 884x404 (one deliberately unmatched probe route), ZERO 5xx**, client p50 14.1ms / p95 67.3ms / p99 155.5ms.<br>Evidence: unauthenticated `/metrics` returned 401 (E2 gate live); admin-key `/metrics` served per-route histograms, e.g. `alphaedge_http_request_latency_ms_count{method="GET",route="/api/v1/markets"} 885.0` with buckets 334@5ms/760@10ms/865@25ms/885@250ms; `alphaedge_http_errors_total` series EMPTY (no 5xx ever recorded); `/api/v1/system/metrics` independently reported total_requests=8764, total_5xx=0 across all routes; uvicorn log contained 0 lines matching 5xx/error/traceback. Full exposition saved to the session scratchpad (`e5-soak/metrics_final.txt`, 212 lines).<br>Gate (unchanged tree re-run): backend `1449 passed, 28 skipped in 393.80s`; ruff `All checks passed!`.<br>Self-review: evidence-only ticket, no code change, prod untouched, no fabrication (all numbers from real responses). Verdict: PASS. AutoLab: not applicable. Completed 2026-07-13T22:45:00-04:00. |
 
 ## LOOP LOG (append one entry per iteration)
 
@@ -332,3 +342,162 @@ PASS backend ruff (exit 0)
 ```
 
 AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · E · E1 · DONE · Uniform mutating-endpoint rate limiting: identity-aware (bearer-token else IP) fixed-window middleware on POST/PUT/PATCH/DELETE with 429 + Retry-After, config-driven (RATE_LIMIT_MUTATING, kill switch), admin-key exempt, bounded state, 15 tests. Defaults mirror the existing 600/minute global limit so no existing behavior/test changed.
+
+```text
+=== GATE: backend pytest ===
+1430 passed, 28 skipped in 440.17s (0:07:20)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E2 · DONE · Gated Prometheus /metrics (admin key or METRICS_TOKEN bearer; 401 otherwise) and added per-route latency histograms + 5xx counters fed by the existing HTTP middleware path, a worker-job-duration histogram fed via record_heartbeat(duration_ms=...), and the C3 connector-health gauge name contract. No new dependency (prometheus_client was already in the tree). 9 new tests; existing /metrics tests updated to authenticate.
+
+```text
+=== GATE: backend pytest ===
+1437 passed, 28 skipped in 355.90s (0:05:55)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E3 · DONE · In-app ops alert rules: new workers/ops_alerts.py evaluator (error rate >5% past a 50-request floor, p99 >1s, stale predictions >12h) dispatching through the existing AlertDispatchService to persisted Alert rows + the `alerts` WS topic, hourly-bucket dedupe, JobRun + duration heartbeat, 10-min cron. tasks.py claim released.
+
+```text
+=== GATE: backend pytest ===
+1446 passed, 28 skipped in 254.04s (0:04:14)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E4 · DONE · OpenAPI polish: tagged/summarized the two undocumented operations (/ and /health); added a 131-path operation-surface snapshot test (locks paths+summaries+tags+2xx presence against accidental breaking changes, allows additive growth) + regen script + doc-quality assertions.
+
+```text
+=== GATE: backend pytest ===
+1449 passed, 28 skipped in 366.14s (0:06:06)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · E · E5 · DONE · [LIVE] ops soak on real local Uvicorn (isolated SQLite, external loops off): 8760 requests over 4 minutes with ZERO 5xx (metrics counter empty, system metrics total_5xx=0, clean log), /metrics gate live (401 unauth), per-route latency histograms populated, client p99 155.5ms.
+
+```text
+=== GATE: backend pytest ===
+1449 passed, 28 skipped in 393.80s (0:06:33)
+
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+Workstream E COMPLETE (5/5 DONE).
+2026-07-13 · C · C1 · DONE · DIR-C-001 acknowledged. Enhanced `JsonConnectorClient` with full-jitter retry, per-source circuit breaker, structured degradation logs, and `get_source_health()` registry; wired named sources on odds/fred/onchain/kalshi/polymarket; onchain POSTs use resilient `post_json`. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1420 passed, 28 skipped in 371.45s (0:06:11)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+2026-07-13 · D · D1 · DONE · DIR-D-001 ack. Finished model registry: training_data_hash + metrics, active pointer with rollback, admin GET/activate/rollback. Fresh verifier PASS. Migration 041 landed.
+
+```text
+=== GATE: backend pytest ===
+1455 passed, 28 skipped in 574.96s (0:09:34)
+
+=== GATE: backend ruff ===
+All checks passed!
+
+=== ALEMBIC ===
+041_model_registry_active (head)
+```
+
+AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · C · C2 · DONE · DIR-C-001/002 ack. ESPN NBA scoreboard connector (no key) → sports:result SignalEvents only (never resolves). Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1425 passed, 28 skipped in 366.76s (0:06:06)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+2026-07-13 · D · D2 · DONE · ForecastScore drift worker + series table 042. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1464 passed, 28 skipped in 426.35s (0:07:06)
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+2026-07-13 · D · D3 · DONE · GET /api/v1/eval/drift + forecast_drift in-app alert (hourly dedupe). Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+exit 0 (focused 17 passed; full suite green)
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · C · C3 · DONE · DIR-C-001/002 ack. Admin-gated GET /api/v1/system/sources from C1 registry. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1428 passed, 28 skipped in 312.78s (0:05:12)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+2026-07-13 · D · D4 · DONE · Flag-gated scheduled retrain (default OFF); registers via D1; never auto-activates. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1474 passed, 28 skipped in 429.18s (0:07:09)
+=== GATE: backend ruff ===
+All checks passed!
+```
+
+AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · C · C4 · DONE · DIR-C-001/002 ack. Local Uvicorn soak (~32 min). /system/sources: espn-nba 5/0, worldbank 3/0, others 0/0; zero unhandled exceptions. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1428 passed, 28 skipped in 571.74s (0:09:31)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
+
+Live /api/v1/system/sources (2026-07-13T22:15:36-04:00):
+espn-nba successes=5 failures=0 | worldbank successes=3 failures=0 | fred=0/0 | polymarket.clob=0/0 | polymarket.gamma=0/0 | count=5 | paper_trading_only=true
+
+AutoLab: not applicable (no iterative measure).
+2026-07-13 · D · D5 · BLOCKED · blocked on resolved-count — honest skip. Prod HF API 503 on GET /api/v1/system/resolved-count; cannot confirm ≥100 resolved. No AutoLab calibration edits.
+
+```text
+=== PROD READ-ONLY ===
+GET https://mukeshkumar007-alphaedge-api.hf.space/api/v1/system/resolved-count
+HTTP 503 body: Your space is in error, check its status on hf.co
+
+GET https://alphaedge-api.koyeb.app/api/v1/system/resolved-count
+HTTP 404 (no active service)
+```
+
+AutoLab: baseline=n/a | benchmark=resolved-count≥100 | iterations=0 | budget=0/1 | outcome=retired (blocked on resolved-count)
+
+Workstream D COMPLETE (D1–D4 DONE, D5 BLOCKED honest skip).

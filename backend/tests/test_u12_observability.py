@@ -126,7 +126,7 @@ async def test_metrics_endpoint_returns_valid_prometheus_text_with_new_series():
     mini.include_router(metrics_router)
 
     async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as ac:
-        resp = await ac.get("/metrics")
+        resp = await ac.get("/metrics", headers={"X-Admin-API-Key": "dev-admin-key"})
 
     assert resp.status_code == 200
     ct = resp.headers.get("content-type", "")
@@ -151,7 +151,7 @@ async def test_metrics_endpoint_contains_stream_latency_histogram():
     mini.include_router(metrics_router)
 
     async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as ac:
-        resp = await ac.get("/metrics")
+        resp = await ac.get("/metrics", headers={"X-Admin-API-Key": "dev-admin-key"})
 
     assert "alphaedge_stream_latency_ms" in resp.text
 
@@ -167,7 +167,7 @@ async def test_metrics_endpoint_contains_brief_latency_histogram():
     mini.include_router(metrics_router)
 
     async with AsyncClient(transport=ASGITransport(app=mini), base_url="http://test") as ac:
-        resp = await ac.get("/metrics")
+        resp = await ac.get("/metrics", headers={"X-Admin-API-Key": "dev-admin-key"})
 
     assert "alphaedge_brief_latency_ms" in resp.text
 

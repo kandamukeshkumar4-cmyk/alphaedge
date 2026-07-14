@@ -39,11 +39,24 @@ LOOP_INTERVALS: dict[str, int] = {
 
 
 def record_heartbeat(
-    name: str, *, status: str = "ok", detail: str | None = None
+    name: str,
+    *,
+    status: str = "ok",
+    detail: str | None = None,
+    duration_ms: float | None = None,
 ) -> None:
     """Record one loop pass. ``status`` is "ok" on success or "error" on a
     caught exception so the endpoint can show a loop that is alive-but-failing
-    without hiding the failure."""
+    without hiding the failure. Callers that know the pass duration may pass
+    ``duration_ms`` to also feed the Prometheus worker-duration histogram (E2);
+    a metrics failure never breaks the heartbeat."""
+    if duration_ms is not None:
+        try:
+            from app.observability.metrics import record_worker_job_duration
+
+            record_worker_job_duration(job=name, duration_ms=duration_ms)
+        except Exception:  # noqa: BLE001 — observability must not break loops
+            pass
     now = time.time()
     with _lock:
         _heartbeats[name] = {

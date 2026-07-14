@@ -62,6 +62,17 @@ def record_request(*, method: str, route: str, status_code: int, latency_ms: flo
     A request is counted as an error when its status is >= 500 (server errors);
     client 4xx are NOT errors here (they are expected input rejections).
     """
+    # E2: mirror every sample into the Prometheus series so /metrics exposes
+    # per-route latency histograms + 5xx counters. A metrics failure must
+    # never break request handling.
+    try:
+        from app.observability.metrics import record_http_request
+
+        record_http_request(
+            method=method.upper(), route=route, status_code=status_code, latency_ms=latency_ms
+        )
+    except Exception:  # noqa: BLE001 — observability must not affect requests
+        pass
     key = (method.upper(), route)
     with _lock:
         entry = _routes.get(key)
@@ -103,6 +114,29 @@ def snapshot() -> dict[str, Any]:
     return {
         "uptime_seconds": round(time.time() - _START_TIME, 3),
         "routes": rows,
+    }
+
+
+def overall_stats() -> dict[str, Any]:
+    """Aggregate totals across every route for the ops-alert evaluator (E3).
+
+    Returns request/error totals and an overall p99 across the (bounded)
+    latency rings. Honest zeros when no traffic has been recorded.
+    """
+    with _lock:
+        total_requests = 0
+        total_errors = 0
+        samples: list[float] = []
+        for entry in _routes.values():
+            total_requests += entry["request_count"]
+            total_errors += entry["error_count"]
+            samples.extend(entry["latencies"])
+    return {
+        "request_count": total_requests,
+        "error_count": total_errors,
+        "error_rate": (total_errors / total_requests) if total_requests else 0.0,
+        "p99_latency_ms": _percentile(samples, 99),
+        "sample_count": len(samples),
     }
 
 

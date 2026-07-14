@@ -1,16 +1,34 @@
 # AlphaEdge
 
-**AlphaEdge** is a paper-trading prediction market **simulation** for NBA, broader sports, and election markets. It combines a real central limit order book (CLOB), sports/election fixtures, XGBoost modeling, LangGraph agents, risk controls, and continuous evaluation (Brier, calibration, drift).
+**AlphaEdge** is a **paper-trading** prediction-market **simulation** for NBA,
+broader sports, and election markets. It combines a central limit order book
+(CLOB), venue market data, XGBoost modeling, LangGraph agents, risk controls,
+and continuous evaluation (Brier, calibration, drift, CLV).
 
-> **Paper-trading disclaimer:** This project uses simulated funds for research and portfolio demonstration only.
+> **Paper-trading disclaimer:** Simulated funds only. No cash deposits,
+> withdrawals, payment rails, or real-money execution.
 
-`PAPER_TRADING_ONLY=true` is required.
+**`PAPER_TRADING_ONLY=true` is required** in local, CI, and production.
+Settings validation refuses to boot when the flag is false.
 
-**Safety:** LLM agents can explain and adjust confidence, but **cannot bypass RiskAgent**. Orders flow only through `RiskService` → validated `OrderIntent` → `OrderBookService` — never from raw LLM text.
+**Order safety:** LLM/agent code cannot submit raw orders. The only agent path is
+`RiskService` → validated `OrderIntent` → `OrderBookService`. Human UI paper
+trades use a separate JWT `PaperOrder` ledger (also paper-only).
 
 ---
 
-## Canonical example: Lakers vs Celtics
+## Documentation (Loop V19)
+
+| Doc | Contents |
+|-----|----------|
+| [docs/api.md](docs/api.md) | Verified HTTP/WebSocket API reference |
+| [docs/user-guide.md](docs/user-guide.md) | Signup, discover, paper trade, portfolio, track record lifecycle |
+| [docs/operations.md](docs/operations.md) | Deploy (Railway/Vercel), env names, migrations, monitoring |
+| [docs/methodology.md](docs/methodology.md) | Forecast engine, walk-forward CLV gate, leakage, drift, A/B |
+
+---
+
+## Canonical example market
 
 | Field | Value |
 |-------|--------|
@@ -20,105 +38,146 @@
 | Slug | `nba-2025-01-15-lal-bos` |
 | Resolve | Lakers win → YES @ $1 |
 
-This market is seeded automatically on API startup (and via `scripts/seed_nba_markets.py`).
+Seeded on API startup and via `scripts/seed_nba_markets.py`.
+
+---
+
+## Production stack (monitored)
+
+Uptime CI (`.github/workflows/demo-uptime.yml`) targets:
+
+| Layer | Host role |
+|-------|-----------|
+| Backend API | Railway (`*.up.railway.app`) — Docker build from `backend/` |
+| Frontend | Vercel — `alphaedge-frontend-three.vercel.app` |
+| Database | Postgres (`DATABASE_URL` / `DATABASE_URL_SYNC`; Neon and Railway Postgres both used historically) |
+
+Deploy details, env **names** (no secret values), migrations, and rollback notes:
+**[docs/operations.md](docs/operations.md)**.
+
+Hugging Face Spaces, Koyeb, and Azure recipes under `docs/deploy/` are
+**alternate/legacy** paths — not the default monitor target. The old Azure
+Static Web Apps frontend host is **dead (404)** and must not be used.
+
+Verify production (read-only):
+
+```bash
+py -3.13 scripts/verify_prod.py --api https://<api-host> --frontend https://alphaedge-frontend-three.vercel.app
+```
 
 ---
 
 ## Quick start (local)
 
-**Prerequisites:** Docker Desktop (running), Python 3.12+, Node 18+
+**Prerequisites:** Docker Desktop (for compose), **Python 3.11+** (3.13 OK),
+**Node 18+**, [`uv`](https://github.com/astral-sh/uv) recommended for the backend.
+
+### 1. Environment
 
 ```bash
-# 1. Environment
 cp .env.example .env
+# Ensure PAPER_TRADING_ONLY=true
+```
 
-# 2. Start API + Postgres + Redis (migrations run on boot)
+### 2a. Full API stack with Docker (simplest)
+
+```bash
 docker compose up --build
 ```
 
+Migrations run on boot (`alembic upgrade head`), then uvicorn on port 8000.
+
 | URL | Purpose |
 |-----|---------|
-| http://localhost:8000 | API root |
-| http://localhost:8000/health | Health check |
-| http://localhost:8000/docs | OpenAPI / Swagger |
-| http://localhost:3000 | Frontend (after `npm run dev`) |
+| http://localhost:8000 | API |
+| http://localhost:8000/health | Health (`paper_trading_only` should be true) |
+| http://localhost:8000/docs | OpenAPI UI |
+| http://localhost:3000 | Frontend (after step 3) |
 
-Admin routes require header `X-Admin-API-Key` (default in compose: `dev-admin-key`).
+Admin header: `X-Admin-API-Key` (compose default name `ADMIN_API_KEY`; local
+default is for **dev only** — never reuse in production).
 
-### Full stack (background worker)
+Optional worker profile:
 
 ```bash
 docker compose --profile full up --build
 ```
 
-### Run tests (no Docker required)
+### 2b. Backend without Docker API container
 
 ```bash
+# Postgres + Redis still needed (compose db/redis services, or local installs)
 cd backend
-python -m pip install -e ".[dev]"
-pytest -v
+uv sync --extra dev
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-On Windows, if `python` points to a venv without pip, use: `py -3.13 -m pip install -e ".[dev]"` then `py -3.13 -m pytest -v`.
+Point `DATABASE_URL` / `DATABASE_URL_SYNC` / `REDIS_URL` at your instances
+(see `.env.example`).
 
-### Frontend
+### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-npm run build    # production build
-npm run dev      # dev server at http://localhost:3000
+# optional: echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
+npm run dev
 ```
 
-Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `frontend/.env.local` for live API calls.
-
-### AlphaEdge Mirror extension
-
-AlphaEdge Mirror is the research-only forecasting skill tracker. It lets a
-forecaster lock their own probability before resolution, then scores the locked
-forecast after resolution with Brier, calibration, edge-over-market, timing
-buckets, anchoring, and synthetic paper P&L.
+### 4. Tests
 
 ```bash
-cd extension
-npm install
+# Backend
+cd backend
+uv sync --extra dev
+uv run --extra dev pytest -q
+uv run --extra dev ruff check app tests
+
+# Frontend unit + type + lint + build
+cd frontend
+npm run lint
+npm run typecheck
 npm run test
 npm run build
+
+# End-to-end (Playwright)
+cd frontend
+npm run test:e2e
 ```
 
-Load `extension/dist/` as an unpacked Chrome MV3 extension. Host permissions are
-limited to Polymarket, Kalshi, FanDuel, localhost API, and deployed AlphaEdge API
-hosts. Polymarket and Kalshi snapshots are requested through server-side
-read-only API adapters. FanDuel is manual capture only.
+Windows note: if `python` is wrong, use `py -3.13 -m …` equivalents for scripts
+outside `uv run`.
 
-### Seed Lakers market manually (optional)
+### Optional extras
 
 ```bash
-# API must be running
-python scripts/seed_nba_markets.py
-```
-
-### Backtest
-
-```bash
+python scripts/seed_nba_markets.py   # API must be up
 python scripts/run_backtest.py
+
+cd extension && npm install && npm test && npm run build   # AlphaEdge Mirror MV3
 ```
 
 ---
 
-## Architecture
+## Architecture (high level)
 
 ```text
-CLOB → Backtest → XGBoost → Eval → Risk → Agents
+Venues / fixtures → features → XGBoost (+ calibration)
+                              → walk-forward CLV gate
+CLOB / paper ledgers ← RiskService ← agents (no raw LLM orders)
+Eval → Brier / ECE / drift / track-record (real resolutions only)
 ```
 
-| Week | Deliverable |
-|------|-------------|
-| 1 | CLOB, ledger, domain_events, admin API |
-| 2 | Fixtures, workers, XGBoost, backtest proof |
-| 3 | Eval worker, Brier/calibration APIs, risk tests |
-| 4 | LangGraph, guardrails, admin + proof dashboard |
-| 5 | Deploy configs, CI, worker in compose |
+| Week gate | Theme |
+|-----------|--------|
+| 1 | CLOB, ledger, domain events, admin API |
+| 2 | Fixtures, workers, XGBoost, backtest |
+| 3 | Eval, Brier/calibration APIs, risk tests |
+| 4 | LangGraph agents, guardrails, dashboards |
+| 5 | Deploy, CI, live paper-run |
+
+Quant roadmap goals live under `goals/` + `workflows/` (see `goals/README.md`).
 
 ---
 
@@ -127,150 +186,45 @@ CLOB → Backtest → XGBoost → Eval → Risk → Agents
 ```text
 alphaedge/
 ├── docker-compose.yml
-├── fixtures/
-├── backend/
-├── extension/
-├── frontend/
-└── scripts/
+├── docs/                 # api, user-guide, operations, methodology, deploy/*
+├── backend/              # FastAPI, Alembic, workers, ML
+├── frontend/             # Next.js app
+├── extension/            # Mirror skill tracker (optional)
+├── scripts/              # deploy + verify_prod helpers
+└── orchestration/        # multi-agent gates
 ```
+
+Backend-specific notes: [backend/README.md](backend/README.md)  
+Frontend-specific notes: [frontend/README.md](frontend/README.md)
 
 ---
 
 ## Optional API keys (not required for local demo)
 
+Names only — never commit values:
+
 | Variable | Purpose |
 |----------|---------|
-| `GEMINI_API_KEY` | LLM drift judge + agent reasoning (falls back to heuristics without it) |
+| `LLM_API_KEY` / `NIM_API_KEY` / provider keys | Analyst + assistant LLM |
+| `GEMINI_API_KEY` | Drift judge / reasoning fallbacks |
 | `LANGSMITH_API_KEY` | Agent tracing |
-| `ODDS_API_KEY` | Live NBA odds (fixtures used when unset) |
-| `ENSEMBLE_ENABLED` | Multi-model ensemble router (**default `true`**); set `false` to force single-model |
-| `KALSHI_WS_ENABLED` / `POLYMARKET_WS_ENABLED` | Live WebSocket price streams (**default `true`** for both) |
-| `SCHEDULER_*_ENABLED` | In-process scheduled jobs — news scan, weather scan, morning research, whale refresh, WC2026 resolve (**default `true`**). On the workerless free tier (`REDIS_URL=redis://disabled`) these run inside the API process instead of an ARQ worker, so scheduled tasks work with no separate worker deployment. |
+| `ODDS_API_KEY` | Live odds (fixtures used when unset) |
+| `ENSEMBLE_ENABLED` | Multi-model ensemble router (default on; degrades safely) |
+| `KALSHI_WS_ENABLED` / `POLYMARKET_WS_ENABLED` | Venue price websockets (default on) |
+| `SCHEDULER_*_ENABLED` | In-process scheduled jobs when Redis worker is disabled |
+| `ML_MODEL_TYPE` | Deployed classifier type (`xgboost` default; never auto-flipped by A/B) |
+| `DRIFT_ALARM_ENABLED` | Calibration drift alerts (default off) |
 
----
-
-## Deploy (Week 5)
-
-### Canonical live stack (one stack, verified live)
-
-AlphaEdge runs as **one canonical deployment stack**. The deployed frontend
-bundle (`frontend/src/lib/alphaedge-api.ts`) and the uptime monitor
-(`.github/workflows/demo-uptime.yml`) both target the URLs below — this table is
-the single source of truth. Every other subsection in this Deploy area is an
-**alternate/fallback recipe kept for portability, not a parallel production
-deployment**, and none of them is monitored.
-
-| Layer | Service | URL | Deploy path |
-|---|---|---|---|
-| Backend API + worker | Hugging Face Docker Space | `https://mukeshkumar007-alphaedge-api.hf.space` | `.github/workflows/deploy-hf-space.yml` (copies `backend/` at build time) |
-| Frontend | Vercel | `https://alphaedge-frontend-three.vercel.app` | `vercel --prod` from `frontend/` (project `alphaedge-frontend`) |
-| Database | Neon Postgres | (private) | `NEON_DATABASE_URL` GitHub secret |
-
-- **Canonical code is `backend/`.** The HF Space workflow copies `backend/` at
-  build time; the local `hf_stage/` scratch tree is a CI artifact, not a source
-  of truth — never edit features there.
-- Verify the live stack end-to-end with
-  `scripts/verify_hf_paper_trading_ready.ps1` (health, canonical market, paper
-  order lifecycle, admin agent proof, frontend API URL).
-- **Last verified live: 2026-07-07** — backend `/health` → `200`
-  `paper_trading_only=true`; frontend → `200`.
-
-> Railway, Koyeb, Azure Static Web Apps, and Azure Container Apps below are
-> alternate/legacy deploy targets. They are not the live stack — do not point
-> users at them as production. The Azure SWA URL
-> (`proud-meadow-01b42b810.7.azurestaticapps.net`) is **DEAD (404)** and must
-> not be used.
-
-### Railway (API + worker)
-
-- API service config: `backend/railway.toml` (Dockerfile build; service **Root Directory must be `backend`**)
-- Worker service config: `backend/railway.worker.toml` — `python -m app.workers.main`
-- Env: `DATABASE_URL`, `DATABASE_URL_SYNC`, `REDIS_URL`, `ADMIN_API_KEY`, `CORS_ORIGINS`, `PAPER_TRADING_ONLY=true`
-- Migrations run automatically via the start command (`alembic upgrade head && uvicorn ...`)
-
-One-token deploy (reuses the existing Neon Postgres):
-
-1. Create a Railway project + a service named `alphaedge-api`, set its Root Directory to `backend`, and generate a **project token** (Project Settings → Tokens).
-2. `scripts/set_railway_secrets.ps1` sets `RAILWAY_TOKEN`, `NEON_DATABASE_URL`, and `ADMIN_API_KEY` as GitHub secrets and can trigger the deploy.
-3. The manual GitHub Actions workflow **Deploy Backend to Railway** (`deploy-railway-backend.yml`) runs `scripts/deploy_railway.ps1`, which pushes the service variables and deploys the `backend/` Docker image.
-4. Once Railway assigns a public domain, pass it as the workflow `api_url` (or run `scripts/set_frontend_api_url.ps1`) to point the Azure frontend at the new backend.
-
-`scripts/deploy_railway.ps1` can also be run locally with the Railway CLI for a one-off deploy. Verify with `scripts/verify_koyeb_neon_ready.ps1 -ApiUrl https://<your-app>.up.railway.app`.
-
-### Vercel (frontend) — canonical production
-
-- Live URL: `https://alphaedge-frontend-three.vercel.app`
-- Root directory: `frontend/`
-- Env: `NEXT_PUBLIC_API_URL=https://mukeshkumar007-alphaedge-api.hf.space`
-- Deploy: `cd frontend && npx vercel --prod --yes`
-
-### Azure Static Web Apps frontend (DEAD — do not use)
-
-The former Azure SWA frontend URL is retired and returns 404:
-
-```text
-https://proud-meadow-01b42b810.7.azurestaticapps.net  # DEAD (404)
-```
-
-Do not point users, CORS, or the uptime monitor at this host. Canonical
-frontend is the Vercel URL above. The workflow
-`azure-static-web-apps-proud-meadow-01b42b810.yml` is legacy only.
-
-### Koyeb + Neon backend fallback
-
-Use this when Azure Container Apps/App Service quotas block the backend and Vercel is unavailable:
-
-- Koyeb Free Web Service for the FastAPI Docker backend
-- Neon Free Postgres for `DATABASE_URL` and `DATABASE_URL_SYNC`
-- Existing Azure Static Web Apps frontend remains live
-
-See `docs/deploy/KOYEB_NEON.md`.
-
-There is also a manual GitHub Actions workflow, `Deploy Backend to Koyeb`, for running the Koyeb deploy after adding the required repository secrets.
-
-After creating the Neon DB and Koyeb token, `scripts/set_koyeb_neon_secrets.ps1` can set the required GitHub secrets and optionally trigger the deploy workflow.
-
-Use `scripts/verify_koyeb_neon_ready.ps1` to verify Koyeb secrets, backend health,
-canonical market data, and the frontend API URL after deployment.
-
-### Hugging Face Spaces + Neon backend fallback
-
-Use this when the Koyeb account flow requires payment verification but you still need a free/no-card public backend for the portfolio demo:
-
-- Hugging Face Docker Space for the FastAPI backend
-- Neon Free Postgres for `DATABASE_URL` and `DATABASE_URL_SYNC`
-- Existing Azure Static Web Apps frontend remains live
-
-Current public API:
-
-```text
-https://mukeshkumar007-alphaedge-api.hf.space
-```
-
-After creating the Neon DB and Hugging Face write token,
-`scripts/set_hf_space_secrets.ps1` can set the required GitHub secrets and
-optionally trigger the HF Space deploy workflow. The workflow syncs those
-secrets into the Space before rebuilding it.
-
-Use `scripts/verify_hf_paper_trading_ready.ps1` to verify HF health, canonical
-market data, the paper order lifecycle, optional admin agent proof, and the
-Azure frontend API URL after deployment.
-
-See `docs/deploy/HUGGINGFACE_NEON.md`.
-
-### Azure for Students + Vercel
-
-See `docs/deploy/AZURE_VERCEL.md` for the free-tier-oriented Azure Container Apps/PostgreSQL backend script and Vercel frontend deploy script.
-
-### GitHub Actions
-
-Push to `main` — CI runs `ruff` + `pytest` (CLOB + backtest golden fixtures).
+Full operator table: [docs/operations.md](docs/operations.md).
 
 ---
 
 ## Resume bullet
 
-> Architected AlphaEdge, an event-driven AI paper-trading platform using FastAPI, Redis workers, XGBoost, LangGraph, and Postgres to simulate sports and election prediction markets with real CLOB execution, risk controls, Brier scoring, calibration tracking, and drift monitoring.
+> Architected AlphaEdge, an event-driven AI paper-trading platform using
+> FastAPI, Redis workers, XGBoost, LangGraph, and Postgres to simulate sports
+> and election prediction markets with real CLOB execution, risk controls,
+> Brier scoring, calibration tracking, and drift monitoring.
 
 ---
 

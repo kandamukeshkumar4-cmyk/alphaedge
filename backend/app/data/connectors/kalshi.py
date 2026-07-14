@@ -24,7 +24,7 @@ class KalshiConnector:
         base_url: str = "https://api.elections.kalshi.com/trade-api/v2",
         client: httpx.Client | None = None,
     ):
-        self.http = JsonConnectorClient(base_url=base_url, client=client)
+        self.http = JsonConnectorClient(base_url=base_url, client=client, source=SOURCE)
 
     def list_series_events(self, series_ticker: str, *, limit: int = 50) -> list[dict[str, Any]]:
         payload = self.http.get_json(
