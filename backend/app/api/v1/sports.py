@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import date
 from typing import Any
 
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_db
 from app.core.security import verify_admin_api_key
+from app.data.connectors.http import SourceHealth, refresh_source_health
 from app.data.connectors.sports_results import (
     SOURCE,
     SPORTS_RESULT_SIGNAL_TYPE,
@@ -26,6 +28,11 @@ from app.data.connectors.sports_results import (
 from app.db.models import SignalEvent
 
 router = APIRouter(prefix="/api/v1/sports", tags=["sports"])
+sources_router = APIRouter(
+    prefix="/api/v1/system",
+    tags=["system"],
+    dependencies=[Depends(verify_admin_api_key)],
+)
 logger = logging.getLogger(__name__)
 
 
@@ -187,3 +194,63 @@ def _parse_optional_date(raw: str | None) -> date | None:
         return date.fromisoformat(raw[:10])
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="date must be YYYY-MM-DD") from exc
+
+
+class SourceHealthOut(BaseModel):
+    source: str
+    state: str
+    consecutive_failures: int
+    total_successes: int
+    total_failures: int
+    last_error: str | None = None
+    last_success_age_sec: float | None = None
+    circuit_open_remaining_sec: float | None = None
+
+
+class SourcesOut(BaseModel):
+    sources: list[SourceHealthOut]
+    count: int
+    paper_trading_only: bool = True
+
+
+def serialize_source_health(row: SourceHealth, *, now: float | None = None) -> SourceHealthOut:
+    """Map a SourceHealth registry row to the admin API shape."""
+    clock = time.monotonic() if now is None else now
+    age: float | None = None
+    if row.last_success_at is not None:
+        age = round(max(0.0, clock - row.last_success_at), 3)
+    remaining: float | None = None
+    if row.open_until is not None:
+        remaining = round(max(0.0, row.open_until - clock), 3)
+    return SourceHealthOut(
+        source=row.source,
+        state=row.state,
+        consecutive_failures=row.consecutive_failures,
+        total_successes=row.total_successes,
+        total_failures=row.total_failures,
+        last_error=row.last_error,
+        last_success_age_sec=age,
+        circuit_open_remaining_sec=remaining,
+    )
+
+
+@sources_router.get("/sources", response_model=SourcesOut)
+async def list_connector_sources() -> SourcesOut:
+    """Admin-gated per-connector health from the C1 get_source_health registry.
+
+    Requires ``X-Admin-API-Key`` (same pattern as ``/admin/observability/*``).
+    Read-only — no order path, no fabricated counters.
+    """
+    from app.core.config import get_settings
+
+    now = time.monotonic()
+    registry = refresh_source_health(monotonic=lambda: now)
+    rows = [
+        serialize_source_health(registry[name], now=now)
+        for name in sorted(registry.keys())
+    ]
+    return SourcesOut(
+        sources=rows,
+        count=len(rows),
+        paper_trading_only=get_settings().paper_trading_only,
+    )

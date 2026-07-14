@@ -72,6 +72,15 @@ def get_source_health(source: str | None = None) -> dict[str, SourceHealth] | So
     return _SOURCE_HEALTH.get(source)
 
 
+def refresh_source_health(*, monotonic: Callable[[], float] = time.monotonic) -> dict[str, SourceHealth]:
+    """Expire cooldowns lazily (same rule as JsonConnectorClient) and return all rows."""
+    now = monotonic()
+    for row in _SOURCE_HEALTH.values():
+        if row.open_until is not None and now >= row.open_until:
+            row.open_until = None
+    return dict(_SOURCE_HEALTH)
+
+
 def reset_source_health() -> None:
     """Test helper — clear the module-level health registry."""
     _SOURCE_HEALTH.clear()

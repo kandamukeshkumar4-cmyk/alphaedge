@@ -29,6 +29,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 
 | File | Claimed by | Ticket | Status |
 |---|---|---|---|
+| `backend/app/main.py` | Workstream C | C3 | RELEASED 2026-07-13T21:39:37-04:00 |
 | `backend/app/main.py` | Workstream C | C2 | RELEASED 2026-07-13T21:23:42-04:00 |
 | `backend/app/db/models.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
 | `backend/app/workers/tasks.py` | Workstream B | B5 | RELEASED 2026-07-13T16:18:57-04:00 |
@@ -74,7 +75,7 @@ Integration branch: `loop3-agent-memory` (orchestrator merges + pushes to
 |----|--------|--------|------------------|
 | C1 | Connector resilience audit | DONE | Started 2026-07-13T20:20:00-04:00. DIR-C-001 acknowledged.<br>Exists: `JsonConnectorClient` timeout=10s + 5xx retry (max 3) + response cache; Fred per-series try/except; onchain timeout=15s only.<br>Missing at start: jittered backoff, circuit-breaker, named per-source isolation, structured degradation logs, onchain retry/breaker.<br>Implemented: full-jitter retry; per-source circuit (skip N min after M transport/5xx failures); `CircuitOpenError`; 4xx does not trip; structured warning logs; `get_source_health()` registry for C3; named sources on odds/fred/worldbank/onchain/kalshi/polymarket; onchain POSTs via resilient `post_json`. Docs: `notes-c1-resilience.md`.<br>Gate: backend `1420 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS (composer-2.5) — 20 focused tests, ruff, `git diff --check` exit 0. Manual review fallback N/A (verifier ran).<br>Bumblebee: N/A (no dependency/deploy change). AutoLab: N/A. Completed 2026-07-13T20:35:00-04:00. |
 | C2 | Sports results connector | DONE | Started 2026-07-13T21:12:28-04:00. DIR-C-001/002 ack.<br>Exists: odds_api (needs ODDS_API_KEY); no sports-results connector.<br>Missing: NBA results → SignalEvent path (signals only).<br>Implemented: ESPN public scoreboard connector (`espn-nba`, no key — balldontlie needs BALLDONTLIE_API_KEY so avoided); `games_to_signal_events` with `resolves_markets=False`; GET `/api/v1/sports/results` + admin-gated POST `/api/v1/sports/ingest` (dedupe); fixture/MockTransport tests. Docs: `notes-c2-sports-results.md`.<br>Gate: backend `1425 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS (admin-gated ingest after non-blocking note). Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T21:23:42-04:00. |
-| C3 | Source health endpoint | TODO | |
+| C3 | Source health endpoint | DONE | Started 2026-07-13T21:24:45-04:00. DIR-C-001/002 ack.<br>Exists: C1 get_source_health registry; public system/loops+metrics.<br>Missing: admin-gated /system/sources.<br>Implemented: refresh_source_health(); sources_router GET /api/v1/system/sources (X-Admin-API-Key); serialize state/successes/failures/ages; tests for 401/422/empty/registry. Docs: notes-c3-sources.md.<br>Gate: backend `1428 passed, 28 skipped`; ruff All checks passed.<br>Fresh verifier: PASS. Bumblebee: N/A. AutoLab: N/A. Completed 2026-07-13T21:39:37-04:00. |
 | C4 | [LIVE] Connector soak | TODO | |
 
 ### Workstream D — ML lifecycle
@@ -353,6 +354,20 @@ AutoLab: not applicable (no iterative measure).
 ```text
 === GATE: backend pytest ===
 1425 passed, 28 skipped in 366.76s (0:06:06)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+```
+
+AutoLab: not applicable (no iterative measure).
+
+2026-07-13 · C · C3 · DONE · DIR-C-001/002 ack. Admin-gated GET /api/v1/system/sources from C1 registry. Fresh verifier PASS.
+
+```text
+=== GATE: backend pytest ===
+1428 passed, 28 skipped in 312.78s (0:05:12)
 PASS backend pytest (exit 0)
 
 === GATE: backend ruff ===
