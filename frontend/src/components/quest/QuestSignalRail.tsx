@@ -8,6 +8,7 @@ import { fetchLeaderboard, type LeaderboardEntry } from "@/lib/leaderboard-api";
 import { fetchSignalEvents } from "@/lib/activity-api";
 import { marketHref } from "@/lib/market-href";
 import { activeTrendingMarkets } from "@/lib/live-discovery";
+import { buildSignalRailRows, type SignalRailRow } from "@/lib/signal-rail";
 import { formatCompactUSD, type Market } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 
@@ -43,12 +44,6 @@ function Empty({ text }: { text: string }) {
   return <p className="px-1 py-3 text-[11px] leading-relaxed text-muted-2">{text}</p>;
 }
 
-type Signal = { key: string; side: "LONG" | "SHORT"; ticker: string; label: string; value: string };
-
-function tickerOf(m: Market): string {
-  return m.title.split(" ")[0].toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) || "MKT";
-}
-
 type PlatformTab = "all" | "polymarket" | "kalshi";
 
 export function QuestSignalRail({
@@ -68,7 +63,7 @@ export function QuestSignalRail({
       ? activeTrendingMarkets(initialMarkets).slice(0, 12)
       : [],
   );
-  const [signals, setSignals] = useState<Signal[] | null>(null);
+  const [signals, setSignals] = useState<SignalRailRow[] | null>(null);
 
   useEffect(() => {
     let dead = false;
@@ -85,37 +80,10 @@ export function QuestSignalRail({
         const top = active.slice(0, 6);
         setTrending(top);
 
-        // Live signals: prefer real signal events; else derive whale flow from
-        // the strongest real market moves (still backend data, not mock).
-        fetchSignalEvents({ limit: 6 })
+        fetchSignalEvents({ limit: 30, dedupeWindowMinutes: 10 })
           .then((events) => {
             if (dead) return;
-            if (events.length > 0) {
-              const byId = new Map(rows.map((m) => [m.id, m]));
-              setSignals(
-                events.slice(0, 5).map((e, i) => {
-                  const m = byId.get(e.market_id);
-                  const up = e.signal_type.toLowerCase().includes("buy");
-                  return {
-                    key: e.id,
-                    side: up ? "LONG" : "SHORT",
-                    ticker: m ? tickerOf(m) : e.platform.slice(0, 4).toUpperCase(),
-                    label: e.signal_type.replace(/_/g, " "),
-                    value: m ? formatCompactUSD(m.volume) : "—",
-                  } satisfies Signal;
-                }),
-              );
-            } else {
-              setSignals(
-                top.slice(0, 5).map((m, i) => ({
-                  key: m.id,
-                  side: (m.trendDelta ?? 0) >= 0 ? "LONG" : "SHORT",
-                  ticker: tickerOf(m),
-                  label: (m.trendDelta ?? 0) >= 0 ? "Whale entering" : "Whale exiting",
-                  value: formatCompactUSD(m.volume),
-                })),
-              );
-            }
+            setSignals(buildSignalRailRows(events, rows, { limit: 5 }));
           })
           .catch(() => !dead && setSignals([]));
       })
@@ -239,15 +207,26 @@ export function QuestSignalRail({
                 <span
                   className={cn(
                     "rounded border px-1.5 py-0.5 text-[9px] font-bold tracking-wide",
-                    s.side === "LONG"
+                    s.direction === "UP"
                       ? "border-primary/40 bg-primary-dim/60 text-primary"
-                      : "border-danger/40 bg-danger-dim/60 text-danger",
+                      : s.direction === "DOWN"
+                        ? "border-danger/40 bg-danger-dim/60 text-danger"
+                        : "border-border bg-surface-2 text-muted",
                   )}
                 >
-                  {s.side}
+                  {s.direction}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] text-text">
-                  <span className="font-bold">{s.ticker}</span> <span className="text-muted">{s.label}</span>
+                <span className="min-w-0 flex-1">
+                  <Link
+                    href={marketHref(s.slug)}
+                    className="block truncate text-[12px] font-bold text-text hover:text-primary"
+                    title={s.title}
+                  >
+                    {s.title}
+                  </Link>
+                  <span className="block truncate text-[10px] text-muted-2">
+                    {s.label} · {s.age}
+                  </span>
                 </span>
                 <span className="text-[12px] font-semibold tabular-nums text-text">{s.value}</span>
               </li>

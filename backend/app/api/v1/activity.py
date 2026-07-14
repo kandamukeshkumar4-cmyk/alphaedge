@@ -4,7 +4,7 @@ Read-only public surfaces (alerts/signals) plus B4 anonymized paper-trade feed.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Alert, PaperOrder, SignalEvent
+from app.db.models import Alert, Market, PaperOrder, SignalEvent
 from app.db.session import get_db
 from app.services.analytics_activity import trade_activity_payload
 
@@ -39,6 +39,7 @@ class SignalEventOut(BaseModel):
     signal_type: str
     platform: str
     market_id: str
+    market_title: str | None = None
     headline_eligible: bool
     payload: dict[str, Any]
     created_at: datetime
@@ -103,10 +104,12 @@ async def list_signal_events(
     offset: int = Query(default=0, ge=0),
     market: Optional[str] = Query(default=None, description="Filter by market_id/slug"),
     signal_type: Optional[str] = Query(default=None),
+    dedupe_window_minutes: int = Query(default=0, ge=0, le=1440),
     db: AsyncSession = Depends(get_db),
 ) -> SignalEventListOut:
     stmt = (
-        select(SignalEvent)
+        select(SignalEvent, Market.title)
+        .outerjoin(Market, Market.slug == SignalEvent.market_id)
         .order_by(SignalEvent.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -115,7 +118,9 @@ async def list_signal_events(
         stmt = stmt.where(SignalEvent.market_id == market)
     if signal_type:
         stmt = stmt.where(SignalEvent.signal_type == signal_type)
-    rows = (await db.execute(stmt)).scalars().all()
+    rows = (await db.execute(stmt)).all()
+    if dedupe_window_minutes:
+        rows = _dedupe_signal_rows(rows, timedelta(minutes=dedupe_window_minutes))
     return SignalEventListOut(
         items=[
             SignalEventOut(
@@ -123,15 +128,43 @@ async def list_signal_events(
                 signal_type=e.signal_type,
                 platform=e.platform,
                 market_id=e.market_id,
+                market_title=market_title,
                 headline_eligible=e.headline_eligible,
                 payload=dict(e.payload or {}),
                 created_at=e.created_at,
             )
-            for e in rows
+            for e, market_title in rows
         ],
         limit=limit,
         offset=offset,
     )
+
+
+def _dedupe_signal_rows(rows, window: timedelta):
+    """Keep the newest copy of the same semantic signal inside ``window``."""
+    kept = []
+    newest_by_key: dict[tuple[Any, ...], datetime] = {}
+    for event, market_title in rows:
+        payload = dict(event.payload or {})
+        detail = payload.get("detail")
+        detail = detail if isinstance(detail, dict) else {}
+        key = (
+            event.market_id,
+            event.signal_type,
+            payload.get("kind"),
+            payload.get("direction"),
+            payload.get("magnitude"),
+            detail.get("bps"),
+        )
+        created_at = event.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        newer = newest_by_key.get(key)
+        if newer is not None and newer - created_at <= window:
+            continue
+        newest_by_key[key] = created_at
+        kept.append((event, market_title))
+    return kept
 
 
 @router.get("/activity/trades", response_model=TradeActivityPage)

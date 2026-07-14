@@ -21,7 +21,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
 | V1 | Trending ranks by recent activity; decided markets out | DONE | Additive `sort=active` ranks open/non-decided markets by 24h price movement, latest recent snapshot, close proximity, sync time, then lifetime volume; Discover, `/markets`, and `/home` consume that order without client-side volume re-sorting. Resolved markets remain reachable through a labeled Longshots / Decided affordance. Full proof and verifier output are in the loop log below. |
-| V2 | Live Signals rail: named, valued, deduped | IN-PROGRESS | AutoLab budget: 3 measure/edit cycles; diagnosis pending. |
+| V2 | Live Signals rail: named, valued, deduped | DONE | Raw events optionally join market titles and dedupe identical semantic signals within a requested window while preserving opposite moves and default raw pagination. The rail renders real title, UP/DOWN/INFO, signed bps/¢ or honest Observed, signal label, and relative age; the fabricated whale fallback and repeated em-dash rows are removed. |
 | V3 | Ticker freshness: DESC order, dedupe, age, 48h window | TODO | |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | TODO | new workers/forecast_autolock.py; claim tasks.py |
 | V5 | Decided/closed market hygiene (no false LIVE chip) | TODO | |
@@ -85,6 +85,61 @@ Fresh-context verifier: PASS — 9 focused backend tests, full backend Ruff, fro
 Manual code-review fallback used because the Superpowers `requesting-code-review` skill is unavailable; the complete diff and every changed line were reviewed, and formatter-only churn in shared `routes.py` was removed before gating. `gh-address-comments`: not applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile, dependency loader, or deployment-image change; no merge requested).
 
 AutoLab: baseline=backend 1415 passed/28 skipped and frontend 55 files/341 tests green; prod top six had five resolved 0% rows | benchmark=active-sort focused tests plus full ticket/repo gates | iterations=1, best=backend 1416 passed/28 skipped and frontend 56 files/344 tests | budget=1/3 | outcome=improved
+
+### 2026-07-13 · V2 · DONE
+
+Diagnosis: production `/signals/events` already carried direction, magnitude, bps, and timestamps. The rail joined the slug-valued `market_id` against UUID `market.id`, ignored the payload, and mapped every non-`buy` type to SHORT with an em-dash value. Captured 2026-07-14T01:40:15.8660644Z.
+
+```json
+{
+  "before_current_mapping": [
+    ["POLY", "delta:price_jump", "—"],
+    ["POLY", "delta:price_jump", "—"],
+    ["POLY", "delta:price_jump", "—"],
+    ["POLY", "delta:price_jump", "—"],
+    ["POLY", "delta:price_jump", "—"]
+  ],
+  "after_payload_projection": [
+    ["Will Iran announce withdrawal from MOU negotiations by July 31?", "DOWN", "-200 bps"],
+    ["Will Alana Haim attend Taylor Swift's wedding?", "UP", "+130 bps"],
+    ["Will Elon Musk post 180-199 tweets from July 7 to July 14, 2026?", "UP", "+115 bps"],
+    ["Will OpenAI announce earbuds or headphones in 2026?", "DOWN", "-200 bps"],
+    ["Will OpenAI announce earbuds or headphones in 2026?", "UP", "+200 bps"]
+  ]
+}
+```
+
+Task gate: backend `1417 passed, 28 skipped in 433.62s`; Ruff `All checks passed!`; frontend typecheck and lint passed; Vitest `58 passed (58)`, `349 passed (349)`; Next build compiled and generated 100/100 pages.
+
+```text
+=== GATE: backend pytest ===
+1417 passed, 28 skipped in 344.75s (0:05:44)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== GATE: frontend typecheck ===
+PASS frontend typecheck (exit 0)
+
+=== GATE: frontend test ===
+Test Files  58 passed (58)
+Tests  349 passed (349)
+PASS frontend test (exit 0)
+
+=== GATE: frontend build ===
+PASS frontend build (exit 0)
+
+=== GATE VERDICT ===
+PASS: all checks green
+```
+
+Fresh-context verifier: PASS — 5 focused backend tests, full backend Ruff, frontend typecheck, 5 focused frontend tests, and `git diff --check` all passed; changed paths exactly matched the eight-file work order. Windows pytest temp-cleanup warnings occurred after gate exit 0 and are non-blocking.
+
+Manual code-review fallback used because the Superpowers `requesting-code-review` skill is unavailable; complete diff review confirmed dedupe is opt-in, default raw pagination is unchanged, and opposite directions remain distinct. `gh-address-comments`: not applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile, dependency loader, or deployment-image change; no merge requested).
+
+AutoLab: baseline=V1 branch gate backend 1416 passed/28 skipped and frontend 56 files/344 tests; live rail projection had five degenerate rows | benchmark=signal view-model/dedupe focused tests plus full ticket/repo gates | iterations=1, best=backend 1417 passed/28 skipped and frontend 58 files/349 tests | budget=1/3 | outcome=improved
 
 ### ORCHESTRATOR REVIEW · V1 · bdcc4a9 · verdict: PASS
 Exemplary diagnosis — the double volume-sort (backend default + frontend
