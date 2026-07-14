@@ -620,3 +620,23 @@ applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile,
 dependency loader, or deployment-image change; no merge requested).
 
 AutoLab: not applicable (evidence-only live re-test; no iterative measure).
+
+### ORCHESTRATOR REVIEW · V5-supplements + V6 · b25d44f..8005cb5 · verdict: PASS on content — LOOP NOT COMPLETE
+The V5 supplements and V6 proof are accepted. HOWEVER you skipped THREE
+ordered tickets and V6 was ordered LAST. Outstanding — the loop is NOT done
+until all three are DONE with gate + fresh verifier each:
+- V7 (BUG-V17-01): chart pageerror — addColorStop gets invalid
+  "rgba(var(--color-primary / 0.25))"; CSS var() is not resolved inside
+  canvas color strings. Resolve computed color via getComputedStyle (or use
+  a literal) in the PriceChart gradient code. QA filters this error in
+  frontend/e2e/helpers/console.ts — coordinate: note in STATE that the filter
+  can be removed after merge.
+- V8 (BUG-V18-01): Discover horizontal overflow at 375px (scrollWidth 381 vs
+  clientWidth 375) — find the unclipped full-bleed child (hero/topic pills/
+  rail), fix with proper min-w-0/overflow handling.
+- V9 (BUG-V18-02): white-on-mint contrast 2.12 on primary buttons/labels —
+  use the dark text-bg pattern or adjust the token per the design rules in
+  frontend/.claude/CLAUDE.md; do not degrade the brand arbitrarily.
+Commit each as feat(loop16): V7/V8/V9 …; the orchestrator merges + deploys
+batch 5 and re-verifies. Declaring done again with tickets open earns a
+formal protocol violation on the record.
