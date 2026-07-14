@@ -333,6 +333,73 @@ async def _external_resolve_loop() -> None:
             )
 
 
+async def _forecast_autolock_loop() -> None:
+    """V14 F04 / loop16 V4: lock LIVE model forecasts on OPEN external markets
+    nearing close that lack one, so a genuine pre-close prediction exists to
+    score when external_resolve settles them. In-process mirror of the ARQ
+    cron (prod has no worker)."""
+    from app.workers.forecast_autolock import forecast_autolock_task
+
+    while True:
+        await _paced_sleep(900, settings.scheduler_idle_interval_sec)
+        try:
+            await forecast_autolock_task({})
+            record_heartbeat("forecast_autolock")
+        except Exception:
+            logger.error("Forecast autolock loop failed", exc_info=True)
+            record_heartbeat(
+                "forecast_autolock", status="error", detail="autolock pass failed"
+            )
+
+
+async def _drift_detect_loop() -> None:
+    """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
+    in-process mirror of the ARQ cron."""
+    from app.workers.drift_detect import drift_detect_task
+
+    while True:
+        await _paced_sleep(3600, settings.scheduler_idle_interval_sec)
+        try:
+            await drift_detect_task({})
+            record_heartbeat("drift_detect")
+        except Exception:
+            logger.error("Drift detect loop failed", exc_info=True)
+            record_heartbeat("drift_detect", status="error", detail="drift pass failed")
+
+
+async def _ops_alerts_loop() -> None:
+    """Loop15 E3: error-rate/p99/staleness threshold alerts to the in-app
+    alerts topic; in-process mirror of the ARQ cron."""
+    from app.workers.ops_alerts import ops_alerts_task
+
+    while True:
+        await _paced_sleep(900, settings.scheduler_idle_interval_sec)
+        try:
+            await ops_alerts_task({})
+            record_heartbeat("ops_alerts")
+        except Exception:
+            logger.error("Ops alerts loop failed", exc_info=True)
+            record_heartbeat("ops_alerts", status="error", detail="ops alerts pass failed")
+
+
+async def _portfolio_equity_loop() -> None:
+    """Loop15 B5: daily per-user equity snapshots (idempotent per user+day);
+    in-process mirror of the ARQ cron. Long paced interval — the task no-ops
+    on days already snapshotted."""
+    from app.workers.portfolio_equity import portfolio_equity_snapshot_task
+
+    while True:
+        await _paced_sleep(21600, max(21600, settings.scheduler_idle_interval_sec))
+        try:
+            await portfolio_equity_snapshot_task({})
+            record_heartbeat("portfolio_equity")
+        except Exception:
+            logger.error("Portfolio equity loop failed", exc_info=True)
+            record_heartbeat(
+                "portfolio_equity", status="error", detail="equity snapshot failed"
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
@@ -373,6 +440,14 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.scheduler_external_resolve_enabled:
         asyncio.create_task(_external_resolve_loop())
+    if settings.scheduler_external_autolock_enabled:
+        asyncio.create_task(_forecast_autolock_loop())
+    if settings.scheduler_drift_detect_enabled:
+        asyncio.create_task(_drift_detect_loop())
+    if settings.scheduler_ops_alerts_enabled:
+        asyncio.create_task(_ops_alerts_loop())
+    if settings.scheduler_portfolio_equity_enabled:
+        asyncio.create_task(_portfolio_equity_loop())
     if settings.live_feed_enabled:
         # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
         # must NOT block startup — a slow/429'd upstream would delay uvicorn from

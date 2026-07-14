@@ -10,7 +10,7 @@ interface MarketPrice {
 
 const RECONNECT_DELAY_MS = 3000;
 
-export function useMarketPrice(slug: string): MarketPrice {
+export function useMarketPrice(slug: string, enabled = true): MarketPrice {
   const [state, setState] = useState<MarketPrice>({
     yes: 0,
     no: 0,
@@ -20,7 +20,10 @@ export function useMarketPrice(slug: string): MarketPrice {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || !enabled) {
+      setState({ yes: 0, no: 0, ts: null, connected: false });
+      return;
+    }
     let dead = false;
 
     function connect() {
@@ -56,7 +59,7 @@ export function useMarketPrice(slug: string): MarketPrice {
       dead = true;
       wsRef.current?.close();
     };
-  }, [slug]);
+  }, [slug, enabled]);
 
   return state;
 }

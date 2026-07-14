@@ -29,6 +29,10 @@ EXPECTED_NEW_LOOPS = {
     "_morning_research_loop",
     "_whale_refresh_loop",
     "_wc2026_resolve_loop",
+    "_forecast_autolock_loop",
+    "_drift_detect_loop",
+    "_ops_alerts_loop",
+    "_portfolio_equity_loop",
 }
 
 

@@ -117,12 +117,14 @@ export function PriceChart({
   modelProb,
   height = 360,
   compact = false,
+  live = true,
 }: {
   slug: string;
   endPrice: number;
   modelProb?: number;
   height?: number;
   compact?: boolean;
+  live?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -141,7 +143,7 @@ export function PriceChart({
   const [openPrice, setOpenPrice] = useState(endPrice);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
 
-  const livePrice = useMarketPrice(slug);
+  const livePrice = useMarketPrice(slug, live);
 
   const cfg = useMemo(
     () => RANGES.find((r) => r.key === range) ?? RANGES[4],
