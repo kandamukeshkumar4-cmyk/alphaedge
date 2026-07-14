@@ -6,7 +6,7 @@
 | Q3 | Trade journey | DONE | signup→buy Lakers→portfolio balance+position→sell cancel; login path green |
 | Q4 | Coverage journeys + one-command run | DONE | coverage.spec.ts + `npm run test:e2e` 9 passed / 4 skipped |
 | Q5 | Activate V16 guards | DONE | Removed 3× fixme(pending V16 merge); all 3 pass live after 89d1297 |
-| Q6 | Mobile viewport journeys | PENDING | |
+| Q6 | Mobile viewport journeys | DONE | mobile.spec.ts 375×812: smoke+discover+trade; BUG-V18-01 overflow fixme |
 | Q7 | Auth edge journeys | PENDING | |
 | Q8 | A11y pass (@axe-core/playwright) | PENDING | |
 
@@ -24,6 +24,14 @@
 - **Impact:** noisy pageerrors; chart may degrade. Does not block signup/buy/portfolio/cancel.
 - **Owner:** frontend (loop V16 / chart theme). Loop17 does NOT fix `frontend/src/**`.
 - **Journey handling:** filtered as `KNOWN_APP_BUG_NOISE` in `e2e/helpers/console.ts` so trade/coverage can still enforce other console errors.
+
+### BUG-V18-01 · discover horizontal overflow at 375px
+- **Surface:** `/` (discover) at mobile viewport 375×812
+- **Symptom:** `documentElement.scrollWidth` = 381, `clientWidth` = 375 (~6px horizontal overflow). Portfolio routes measure clean.
+- **Repro:** Playwright Chromium `viewport: { width: 375, height: 812 }`, open `/`, wait for market cards, measure scrollWidth vs clientWidth.
+- **Impact:** slight horizontal page scroll on iPhone-class widths; likely a full-bleed hero / topic-pill / rail child not clipped.
+- **Owner:** frontend layout (not Loop V18 ownership — do not edit `frontend/src/**` here).
+- **Journey handling:** `test.fixme(true, "BUG-V18-01: …")` on the dedicated overflow assertion in `e2e/mobile.spec.ts`. Smoke/discover/trade still enforce load, taps, and console.
 
 ## GATE EVIDENCE — Q1
 Commands (from `frontend/`):
@@ -173,3 +181,31 @@ no intentional `frontend/src/**` changes.
 - 2026-07-13 · Q3 DONE · trade.spec.ts UI signup/buy/portfolio/sell + login · BUG-V17-01 filed · gate green · verifier PASS
 - 2026-07-13 · Q4 DONE · coverage.spec.ts + full `npm run test:e2e` 9 pass / 4 skip · gate green · verifier PASS · loop complete
 - 2026-07-14 · Q5 DONE · un-fixme 3 V16 guards after 89d1297 verify; all pass live; 12/1 suite · gate green · verifier PASS
+- 2026-07-14 · Q6 DONE · mobile.spec.ts 375×812 smoke/discover/trade; BUG-V18-01 overflow fixme; suite 15 pass / 2 skip · gate green · verifier PASS
+
+## GATE EVIDENCE — Q6
+Commands (from `frontend/`):
+```
+npm run typecheck  → exit 0
+npm run lint       → exit 0
+npm test           → exit 0 (59 files / 354 tests)
+npx playwright test --retries=0 → exit 0
+
+  Running 17 tests using 1 worker
+  -  1 legacy mock-stub suite
+  ok  2–10 prior Q1–Q5 journeys
+  ok 11 mobile smoke / grid + tap + console
+  ok 12 mobile discover taps + console
+  - 13 mobile discover no horizontal overflow  [fixme: BUG-V18-01]
+  ok 14 mobile trade signup/buy/portfolio
+  ok 15–17 smoke + trade desktop
+  2 skipped / 15 passed (2.4m)
+```
+
+## VERIFIER VERDICT — Q6 (adversarial self-review)
+- **PASS.** Viewport locked to 375×812 via `test.use({ viewport })`; new file only, reuses session/console helpers.
+- **PASS.** Smoke/discover assert visible main-grid market cards (not hidden desktop ticker), tap targets ≥32px work, zero unexpected console errors.
+- **PASS.** Trade journey on mobile: signup → Buy YES → portfolio position; portfolio has no horizontal overflow.
+- **PASS.** App-side overflow on `/` filed as BUG-V18-01 with measured metrics; dedicated assertion re-fixme'd with bug id (not silently dropped).
+- **PASS.** Ownership: only `frontend/e2e/mobile.spec.ts` + STATE.md. No `frontend/src/**` / `backend/**`.
+- Residual risk: Buy YES control is ~36px tall (below WCAG 44px) — not failed here; may surface under Q8 a11y.
