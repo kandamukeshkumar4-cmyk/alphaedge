@@ -282,3 +282,8 @@ npx playwright test --retries=0 → exit 0
 Q5: the three freshness guards are now LIVE regression protection — exactly
 the payoff intended. Q6: correct fixme+BUG discipline. BUG-V18-01 routed to
 loop V16 as ticket V8 by the orchestrator. Continue Q7 → Q8.
+
+### ORCHESTRATOR REVIEW · Q7+Q8 · b5c81a9, 35f214c · verdict: PASS — LOOP V18 COMPLETE (4/4)
+Auth edges honest-error verified; axe integrated with correctly-narrow filter
+(only the known accent-contrast finding excluded, everything else enforced).
+BUG-V18-02 routed to loop V16 as ticket V9. Lane closed. Runner: STOP.
