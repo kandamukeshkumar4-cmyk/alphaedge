@@ -8,12 +8,13 @@
 | Q5 | Activate V16 guards | DONE | Removed 3× fixme(pending V16 merge); all 3 pass live after 89d1297 |
 | Q6 | Mobile viewport journeys | DONE | mobile.spec.ts 375×812: smoke+discover+trade; BUG-V18-01 overflow fixme |
 | Q7 | Auth edge journeys | DONE | auth-edges.spec.ts: wrong pw, dup signup, invalid token, protected redirect |
-| Q8 | A11y pass (@axe-core/playwright) | PENDING | |
+| Q8 | A11y pass (@axe-core/playwright) | DONE | a11y.spec.ts on / market portfolio leaderboard; BUG-V18-02 filtered |
 
 ## SHARED FILE CLAIMS
 | File | Ticket | Status |
 |---|---|---|
 | frontend/package.json | Q1 | RELEASED after Q1 — additive `test:e2e` script only |
+| frontend/package.json | Q8 | CLAIMED then RELEASED — additive devDep `@axe-core/playwright` only |
 
 ## BUG REPORTS (app bugs found by journeys — do not fix here)
 
@@ -32,6 +33,16 @@
 - **Impact:** slight horizontal page scroll on iPhone-class widths; likely a full-bleed hero / topic-pill / rail child not clipped.
 - **Owner:** frontend layout (not Loop V18 ownership — do not edit `frontend/src/**` here).
 - **Journey handling:** `test.fixme(true, "BUG-V18-01: …")` on the dedicated overflow assertion in `e2e/mobile.spec.ts`. Smoke/discover/trade still enforce load, taps, and console.
+
+### BUG-V18-02 · white-on-accent color contrast (axe serious)
+- **Surface:** market detail + `/portfolio` (and any `bg-accent text-white` control)
+- **Symptom:** axe `color-contrast` serious — foreground `#ffffff` on background `#00c9a0` (theme accent), measured ratio **2.12:1** (WCAG AA needs 4.5:1 for normal text).
+- **Nodes (sample):** Signal tab label, "Submit paper signal", "Log In" CTA, portfolio "Positions" tab, "Browse markets".
+- **Repro:** `npx playwright test e2e/a11y.spec.ts` against local stack; axe tags wcag2a/aa + wcag21a/aa.
+- **Impact:** low-vision users may not read accent CTAs/tabs.
+- **Owner:** frontend design tokens / button styles (not Loop V18 — do not edit `frontend/src/**`).
+- **Journey handling:** filtered only when `bgColor=#00c9a0` && `fgColor=#ffffff` in `e2e/a11y.spec.ts` (`isKnownAccentContrast`). Any other serious/critical still fails the suite.
+- **Residual moderate/minor:** none observed on `/`, market detail, `/portfolio`, `/leaderboard` in the Q8 run.
 
 ## GATE EVIDENCE — Q1
 Commands (from `frontend/`):
@@ -183,6 +194,36 @@ no intentional `frontend/src/**` changes.
 - 2026-07-14 · Q5 DONE · un-fixme 3 V16 guards after 89d1297 verify; all pass live; 12/1 suite · gate green · verifier PASS
 - 2026-07-14 · Q6 DONE · mobile.spec.ts 375×812 smoke/discover/trade; BUG-V18-01 overflow fixme; suite 15 pass / 2 skip · gate green · verifier PASS
 - 2026-07-14 · Q7 DONE · auth-edges.spec.ts 4 journeys; discover price locator hardened (test-side flake); suite 19 pass / 2 skip · gate green · verifier PASS
+- 2026-07-14 · Q8 DONE · a11y.spec.ts + @axe-core/playwright; BUG-V18-02 accent contrast filter; `npm run test:e2e` 23 pass / 2 skip · gate green · verifier PASS · LOOP V18 COMPLETE
+
+## GATE EVIDENCE — Q8
+Commands (from `frontend/`):
+```
+npm run typecheck  → exit 0
+npm run lint       → exit 0
+npm test           → exit 0 (59 files / 354 tests)
+npm run test:e2e -- --retries=0 → exit 0
+
+  Running 25 tests using 1 worker
+  ok  1–4 a11y (/, market detail, /portfolio, /leaderboard)
+  -  5 legacy mock-stub
+  ok  6–20 prior journeys
+  - 21 mobile overflow [fixme BUG-V18-01]
+  ok 22–25 mobile trade + smoke + trade
+  2 skipped / 23 passed (3.3m)
+```
+Additive package.json claim: devDependency `@axe-core/playwright@^4.12.1` only.
+
+## VERIFIER VERDICT — Q8 (adversarial self-review)
+- **PASS.** Axe integrated via `@axe-core/playwright`; runs on /, market detail, authed /portfolio, /leaderboard with WCAG 2 A/AA + 2.1 A/AA tags.
+- **PASS.** Fail set = serious+critical only; moderate/minor would be residual BUG REPORTS (none this run).
+- **PASS.** Known app theme defect (white on #00c9a0) filed as BUG-V18-02 and narrowly filtered — other serious/critical still fail.
+- **PASS.** One-command `npm run test:e2e` green (23 pass / 2 skip). Local stack only.
+- **PASS.** Ownership: `frontend/e2e/a11y.spec.ts`, package.json + lock additive dep, STATE.md. No `frontend/src/**` / `backend/**`.
+- Residual risk: filter is color-pair specific; if accent hex changes, filter must be updated. Color-contrast elsewhere still enforced.
+
+### ORCHESTRATOR REVIEW · Q8 · pending · LOOP V18 COMPLETE (Q5–Q8)
+Runner: STOP after Q5–Q8 DONE.
 
 ## GATE EVIDENCE — Q7
 Commands (from `frontend/`):
