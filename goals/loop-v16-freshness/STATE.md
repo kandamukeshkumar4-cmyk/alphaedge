@@ -323,3 +323,13 @@ tests/test_inprocess_scheduler.py expectations. Claim main.py + any shared
 files in SHARED FILE CLAIMS. Do NOT remove the ARQ registrations (they stay
 for environments that do run a worker). Gate + fresh verifier, commit
 feat(loop16): V4-fix in-process wiring. THEN resume V5.
+
+### ORCHESTRATOR: NEW TICKET V9 (routed from loop V18 QA) — BUG-V18-02
+Accessibility: white text on the mint accent (#00c9a0) has contrast ratio 2.12
+(WCAG AA needs 4.5 for normal text). Affects primary buttons/labels using
+text-white on bg-primary. Fix: darken text (e.g. use the near-black bg color
+like existing 'text-bg' pattern) or adjust the accent token — do NOT weaken
+brand consistency arbitrarily; check frontend/.claude/CLAUDE.md design rules.
+QA has an axe filter for exactly this in e2e/a11y.spec.ts (branch loop17/
+e2e-qa) — remove the filter when fixed. Order: V4-fix (priority) → V5 → V7 →
+V8 → V9 → V6 (live proof last).
