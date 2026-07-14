@@ -26,7 +26,7 @@ Orchestrator (Claude main thread) reviews every commit; never push/merge/deploy 
 | V3 | Ticker freshness: DESC order, dedupe, age, 48h window | DONE | Production source ordering was already correct. Client normalization now sorts REST/WS rows DESC, dedupes bounded semantic repeats while preserving genuine opposite/later moves, shows real signal direction/value/age, and applies `NEXT_PUBLIC_TICKER_MAX_AGE_HOURS` (default 48h). The footer no longer invents trades/sizes or clones quiet rows. Full proof and verifier output are in the loop log below. |
 | V4 | F04 forecast auto-lock worker (unblocks grading) | DONE | Default-on bounded worker now creates immutable LIVE forecasts only for eligible pre-close OPEN external markets, using real venue snapshots and the existing prediction/lock path. Per-market savepoints re-check terminal-snapshot and close-time races before commit; JobRun records the scheduled heartbeat. Full proof and verifier output are in the loop log below. |
 | V5 | Decided/closed market hygiene (no false LIVE chip) | DONE | Authoritative resolved/locked status, exact endpoint prices, and real catalog close times now drive one shared lifecycle. Closed/decided details show an explicit label, disable every price socket/latency chip and paper orders, and never reuse or invent a close date. Genuine open longshots remain open even when rounded display is 0%. Full proof and verifier trail are in the loop log below. |
-| V6 | [LIVE] end-user re-test proof | IN-PROGRESS | Evidence-only iteration. Use a local frontend against read-only production APIs for DOM/screenshots of V1-V3/V5, plus an isolated local database/adapter run proving V4 creates a LIVE ForecastLog and JobRun heartbeat. No push, merge, deploy, or production write. |
+| V6 | [LIVE] end-user re-test proof | DONE | Local browser proof against read-only production APIs shows moving non-endpoint Trending rows, named/valued/deduped signals, fresh unique ticker items with ages, and honest decided lifecycle/order behavior. An isolated local SQLite/fixture-adapter pass created one pre-close LIVE ForecastLog plus a successful matching JobRun heartbeat without weakening CLV/leakage gates. Screenshots, DOM JSON, gate, and verifier trail are below. |
 
 ## LOOP LOG (append one entry per iteration; paste gate output tails)
 
@@ -498,3 +498,125 @@ deterministic gate on the corrected tree: backend `1426 passed, 28 skipped in
 251.50s`, Ruff clean, frontend 62 files / 370 tests, typecheck and build green,
 `=== GATE VERDICT === PASS: all checks green`. Windows temp cleanup warnings
 occurred after exit 0 and were non-blocking.
+
+### 2026-07-14 · V6 · DONE
+
+This was an evidence-only re-test after V1-V5. A local Next frontend at
+`127.0.0.1:3106` consumed the production API read-only; production received no
+writes. Playwright used a 1440×1000 viewport with onboarding dismissed and
+emitted zero page errors. The durable captures are:
+
+- `output/playwright/v6-trending.png`
+- `output/playwright/v6-signals.png`
+- `output/playwright/v6-ticker.png`
+- `output/playwright/v6-decided-detail-fixed.png`
+- `output/playwright/v6-decided-trade-fixed.png`
+
+DOM capture at `2026-07-14T18:14:37.014Z`:
+
+```json
+{
+  "trending": [
+    "Bitcoin $65,000 in July | 91% | $888K",
+    "Fed next-three decisions differ | 8% | $165K",
+    "No Fed change after July meeting | 92% | $17.4M",
+    "Fed Rate Hike by July meeting | 8% | $456K",
+    "Fed +25 bps after July meeting | 8% | $13.2M",
+    "Fed Pause-Pause-Pause | 91% | $313K"
+  ],
+  "trending_has_0_or_100_percent": false,
+  "signals": [
+    "UP Anthropic best Math AI model | +200 bps | Price Jump | 1m ago",
+    "DOWN Bitcoin reaches $65,000 | -170 bps | Price Jump | 1m ago",
+    "UP next Claude Opus by July 31 | +150 bps | Price Jump | 4m ago",
+    "DOWN Google best AI model | -145 bps | Price Jump | 4m ago",
+    "UP Anthropic best Math AI model | +150 bps | Price Jump | 4m ago"
+  ],
+  "signals_unique_count": 5,
+  "ticker_item_count": 12,
+  "ticker_unique_count": 12,
+  "ticker_ages": ["1m ago", "4m ago", "19m ago"],
+  "decided_detail": {
+    "lifecycle": ["DECIDED"],
+    "chart_labels": ["Market · snapshot"],
+    "close_labels": [],
+    "live_labels": []
+  },
+  "page_errors": []
+}
+```
+
+The signed-out decided Trade capture initially proved `Market · snapshot` but
+the fresh verifier correctly required the authenticated branch too. That
+review exposed and caused the final V5 order-control fix. Authenticated
+regression evidence now proves `resolved`, `Market closed`, no `Closes` copy,
+and four disabled order controls. A browser capture at
+`2026-07-14T18:16:22.036Z` also returned `Paper · decided`,
+`Market · snapshot`, no exact LIVE labels, and no page errors.
+
+The isolated local database/fixture-adapter run at
+`2026-07-14T18:24:32.284615Z` executed the real
+`forecast_autolock_task` entrypoint:
+
+```json
+{
+  "worker_summary": {"candidates": 1, "locked": 1, "skipped": 0, "errors": 0},
+  "forecast": {
+    "mode": "live",
+    "probability": 0.7,
+    "market_implied_probability": 0.45,
+    "lock_origin": "model_autolock",
+    "locked_at": "2026-07-14T18:24:32.270544+00:00",
+    "market_close_at": "2026-07-14T20:24:32.022684+00:00",
+    "locked_before_close": true,
+    "snapshot_captured_at": "2026-07-14T18:24:32.270544+00:00",
+    "snapshot_not_after_lock": true,
+    "model_provisional": true,
+    "clv_gate_passed": false
+  },
+  "heartbeat": {
+    "job_name": "forecast_autolock_task",
+    "status": "success",
+    "summary": {"candidates": 1, "locked": 1, "skipped": 0, "errors": 0}
+  }
+}
+```
+
+The false CLV flag and provisional result are intentional proof that the
+re-test did not lower thresholds or fabricate model quality. The lock and
+snapshot precede close, preserving the leakage gate. This proves the worker
+locally; no deployment or production scheduling claim is made.
+
+```text
+=== FINAL DETERMINISTIC GATE: backend pytest ===
+1426 passed, 28 skipped in 251.50s (0:04:11)
+PASS backend pytest (exit 0)
+
+=== FINAL DETERMINISTIC GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+
+=== FINAL DETERMINISTIC GATE: frontend ===
+PASS frontend typecheck
+Test Files  62 passed (62)
+Tests  370 passed (370)
+PASS frontend test (exit 0)
+PASS frontend build (exit 0; 100/100 static pages)
+
+=== GATE VERDICT ===
+PASS: all checks green
+```
+
+Windows pytest temp-directory cleanup warnings occurred after exit 0 and were
+non-blocking. Fresh-context verifier iteration 1: NEEDS-FIX because the
+authenticated Trade panel still defaulted to open. After lifecycle status was
+wired and the authenticated regression added, fresh-context verifier iteration
+2: PASS; no blocking findings, focused 3 files / 16 tests, typecheck, lint, and
+`git diff --check` passed.
+
+Manual code-review fallback used because the Superpowers
+`requesting-code-review` skill is unavailable. `gh-address-comments`: not
+applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile,
+dependency loader, or deployment-image change; no merge requested).
+
+AutoLab: not applicable (evidence-only live re-test; no iterative measure).
