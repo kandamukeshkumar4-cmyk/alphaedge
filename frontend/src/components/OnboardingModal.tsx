@@ -150,7 +150,7 @@ export function OnboardingModal({ onDone }: Props) {
           </button>
           <button
             onClick={next}
-            className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white transition hover:bg-primary/90 active:scale-95"
+            className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-bg transition hover:bg-primary/90 active:scale-95"
           >
             {isLast ? "Get started" : "Next →"}
           </button>

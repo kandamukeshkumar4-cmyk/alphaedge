@@ -86,7 +86,7 @@ export function TradePanel({
         <p className="text-sm font-semibold text-text">Log in to trade</p>
         <Link
           href="/auth/login"
-          className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:brightness-110"
+          className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
         >
           Log In
         </Link>

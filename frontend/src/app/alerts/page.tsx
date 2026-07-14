@@ -235,7 +235,7 @@ function ScopeTabButton({
       onClick={onClick}
       className={cn(
         "rounded-lg px-3 py-1.5 text-sm font-bold transition",
-        active ? "bg-accent text-white" : "text-muted hover:text-text",
+        active ? "bg-accent text-bg" : "text-muted hover:text-text",
       )}
     >
       {label}

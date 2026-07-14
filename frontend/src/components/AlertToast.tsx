@@ -105,7 +105,7 @@ export function AlertToast({ alerts }: AlertToastProps) {
           <div className="mt-3 flex justify-end">
             <Link
               href="/signals"
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white transition hover:brightness-110"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-bg transition hover:brightness-110"
             >
               View
             </Link>

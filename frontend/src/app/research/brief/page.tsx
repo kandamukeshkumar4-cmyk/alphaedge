@@ -82,7 +82,7 @@ function BriefDetailInner() {
         </p>
         <Link
           href="/research"
-          className="mt-5 inline-block rounded-pill bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-active"
+          className="mt-5 inline-block rounded-pill bg-accent px-5 py-2 text-sm font-semibold text-bg hover:bg-accent-active"
         >
           Back to research
         </Link>

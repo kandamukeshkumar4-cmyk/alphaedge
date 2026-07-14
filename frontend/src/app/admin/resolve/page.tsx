@@ -153,7 +153,7 @@ export default function AdminResolvePage() {
                 onClick={() => setOutcome(value)}
                 className={
                   outcome === value
-                    ? "rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white"
+                    ? "rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg"
                     : "rounded-xl border border-border px-4 py-2 text-sm font-bold text-muted"
                 }
               >
@@ -177,7 +177,7 @@ export default function AdminResolvePage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-bg disabled:opacity-50"
         >
           {loading ? "Resolving…" : "Resolve market"}
         </button>
@@ -213,7 +213,7 @@ export default function AdminResolvePage() {
               <button
                 type="button"
                 onClick={() => void confirmResolve()}
-                className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white"
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg"
               >
                 Confirm
               </button>

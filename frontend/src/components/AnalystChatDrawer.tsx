@@ -91,7 +91,7 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
       <div
         className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
           isUser
-            ? "bg-accent text-white"
+            ? "bg-accent text-bg"
             : "bg-surface-2 text-text border border-border"
         }`}
       >
@@ -329,7 +329,7 @@ export function AnalystChatDrawer({
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded-xl bg-accent px-3 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rounded-xl bg-accent px-3 py-2 text-sm font-bold text-bg transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Send
         </button>

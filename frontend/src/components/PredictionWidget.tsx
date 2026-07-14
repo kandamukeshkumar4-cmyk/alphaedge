@@ -70,7 +70,7 @@ export function PredictionWidget({ slug, className }: PredictionWidgetProps) {
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#0D9488] font-mono text-[11px] font-black text-white">
+        <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#0D9488] font-mono text-[11px] font-black text-bg">
           AI
         </span>
         <h3 className="text-sm font-black text-text">Market prediction</h3>

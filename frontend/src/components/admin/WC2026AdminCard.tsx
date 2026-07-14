@@ -99,7 +99,7 @@ export function WC2026AdminCard({ apiKey }: WC2026AdminCardProps) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
-          className="min-h-10 rounded-lg bg-accent px-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-10 rounded-lg bg-accent px-4 text-sm font-semibold text-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={seeding || !apiKey.trim()}
           onClick={() => void handleSeed()}
           type="button"
