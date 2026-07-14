@@ -483,3 +483,18 @@ applicable (no PR/merge). Bumblebee: not applicable (no manifest, lockfile,
 dependency loader, or deployment-image change; no merge requested).
 
 AutoLab: not applicable (corrective lifecycle bug fix; no iterative metric).
+
+V6's fresh verifier then exercised the authenticated Trade branch and found
+one final V5 gap: TradeTerminal did not pass lifecycle status to
+MarketTradingPanel, whose default is `open`. The panel now receives
+resolved/closed/open from the same lifecycle used by the chart, and close copy
+is centrally limited to open markets. An authenticated regression with a
+future-close resolved market proves the resolved label, `Market closed`, no
+`Closes` copy, and four disabled order controls.
+
+Final fresh verifier: PASS after the signed-in finding was fixed; 3 focused
+files / 16 tests, typecheck, lint, and `git diff --check` passed. Final
+deterministic gate on the corrected tree: backend `1426 passed, 28 skipped in
+251.50s`, Ruff clean, frontend 62 files / 370 tests, typecheck and build green,
+`=== GATE VERDICT === PASS: all checks green`. Windows temp cleanup warnings
+occurred after exit 0 and were non-blocking.

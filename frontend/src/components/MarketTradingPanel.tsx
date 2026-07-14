@@ -163,7 +163,7 @@ export function MarketTradingPanel({
         </span>
       </div>
 
-      {closeTime && (
+      {status === "open" && closeTime && (
         <p className="mb-3 text-[11px] text-muted-2">
           Closes {new Date(closeTime).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
         </p>

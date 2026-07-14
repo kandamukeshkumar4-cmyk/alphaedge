@@ -391,6 +391,14 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
                 <MarketTradingPanel
                   slug={market.slug}
                   title={market.title}
+                  status={
+                    lifecycle === "decided"
+                      ? "resolved"
+                      : lifecycle === "closed"
+                        ? "closed"
+                        : "open"
+                  }
+                  closeTime={market.endsAt}
                   initialYesPrice={market.outcomes[0]?.price ?? 0.5}
                 />
                 {/* P08: reuse the advisory DecisionCard (verdict + edge + CLV gate)
