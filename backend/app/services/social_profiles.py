@@ -37,7 +37,9 @@ SELECT
         END
     ), 0) AS wins,
     COALESCE(SUM(CASE WHEN po.settled IS TRUE THEN 1 ELSE 0 END), 0)
-        AS settled_trades
+        AS settled_trades,
+    (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers_count,
+    (SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id) AS following_count
 FROM users u
 LEFT JOIN paper_orders po ON po.user_id = u.id
 LEFT JOIN market_resolutions mr ON mr.slug = po.slug
@@ -48,12 +50,15 @@ GROUP BY u.id, u.display_name, u.created_at
 
 @dataclass(frozen=True)
 class PublicTraderProfile:
+    user_id: UUID
     username: str
     member_since: datetime
     trade_count: int
     settled_trade_count: int
     win_rate: float
     roi: float
+    followers_count: int
+    following_count: int
 
 
 def _profile_from_row(row) -> PublicTraderProfile:
@@ -64,12 +69,15 @@ def _profile_from_row(row) -> PublicTraderProfile:
     realized_pnl = float(row["realized_pnl"] or 0.0)
     total_cost = float(row["total_cost"] or 0.0)
     return PublicTraderProfile(
+        user_id=user_id,
         username=anonymized_username(user_id, display_name=display_name),
         member_since=row["created_at"],
         trade_count=total_trades,
         settled_trade_count=settled_trades,
         win_rate=win_rate(int(row["wins"] or 0), settled_trades),
         roi=roi(realized_pnl, total_cost),
+        followers_count=int(row["followers_count"] or 0),
+        following_count=int(row["following_count"] or 0),
     )
 
 

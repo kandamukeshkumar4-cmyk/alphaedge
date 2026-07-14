@@ -8,7 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.deps import get_current_user
+from app.db.models import User
 from app.db.session import get_db
+from app.services.social_follows import (
+    FollowTargetNotFound,
+    SelfFollowError,
+    follow_trader,
+    list_following,
+    unfollow_trader,
+)
 from app.services.social_profiles import get_public_trader_profile
 
 router = APIRouter(prefix="/api/v1/social", tags=["social"])
@@ -21,6 +30,27 @@ class PublicTraderProfileResponse(BaseModel):
     settled_trade_count: int
     win_rate: float
     roi: float
+    followers_count: int
+    following_count: int
+    paper_trading_only: bool = True
+
+
+class FollowResponse(BaseModel):
+    username: str
+    following: bool
+    changed: bool
+    followers_count: int
+    paper_trading_only: bool = True
+
+
+class FollowingEntryResponse(BaseModel):
+    username: str
+    member_since: datetime
+
+
+class FollowingResponse(BaseModel):
+    items: list[FollowingEntryResponse]
+    total: int
     paper_trading_only: bool = True
 
 
@@ -44,4 +74,73 @@ async def get_trader_profile(
         settled_trade_count=profile.settled_trade_count,
         win_rate=profile.win_rate,
         roi=profile.roi,
+        followers_count=profile.followers_count,
+        following_count=profile.following_count,
+    )
+
+
+@router.post(
+    "/follow/{trader}",
+    response_model=FollowResponse,
+    summary="Follow a public trader",
+    description="Follow a public paper trader by anonymized label or display name; repeated calls are idempotent.",
+)
+async def follow_public_trader(
+    trader: str = Path(min_length=1, max_length=64),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FollowResponse:
+    try:
+        result = await follow_trader(db, current_user.id, trader)
+    except FollowTargetNotFound as exc:
+        raise HTTPException(status_code=404, detail="Trader profile not found") from exc
+    except SelfFollowError as exc:
+        raise HTTPException(status_code=400, detail="You cannot follow yourself") from exc
+    return FollowResponse(
+        username=result.username,
+        following=result.following,
+        changed=result.changed,
+        followers_count=result.followers_count,
+    )
+
+
+@router.delete(
+    "/follow/{trader}",
+    response_model=FollowResponse,
+    summary="Unfollow a public trader",
+    description="Remove a paper-trader follow edge; repeated calls are idempotent.",
+)
+async def unfollow_public_trader(
+    trader: str = Path(min_length=1, max_length=64),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FollowResponse:
+    try:
+        result = await unfollow_trader(db, current_user.id, trader)
+    except FollowTargetNotFound as exc:
+        raise HTTPException(status_code=404, detail="Trader profile not found") from exc
+    except SelfFollowError as exc:
+        raise HTTPException(status_code=400, detail="You cannot follow yourself") from exc
+    return FollowResponse(
+        username=result.username,
+        following=result.following,
+        changed=result.changed,
+        followers_count=result.followers_count,
+    )
+
+
+@router.get(
+    "/following",
+    response_model=FollowingResponse,
+    summary="List followed traders",
+    description="List public paper traders followed by the authenticated user without identity fields.",
+)
+async def get_following(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FollowingResponse:
+    items = await list_following(db, current_user.id)
+    return FollowingResponse(
+        items=[FollowingEntryResponse(username=i.username, member_since=i.member_since) for i in items],
+        total=len(items),
     )

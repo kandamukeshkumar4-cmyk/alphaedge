@@ -8,7 +8,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from app.db.models import User
+from app.db.models import Follow, User
 from app.db.session import get_db
 from app.main import app
 from app.services.analytics_leaderboard import anonymized_username
@@ -104,3 +104,96 @@ async def test_unknown_and_opted_out_profiles_return_404(db_session):
         response = await client.get(f"/api/v1/social/traders/{label}")
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_follow_unfollow_are_idempotent_and_update_public_counts(db_session):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        follower_token = await _signup(client, "follower@example.com")
+        target_token = await _signup(client, "follow-target@example.com")
+        target = await db_session.scalar(
+            select(User).where(User.email == "follow-target@example.com")
+        )
+        assert target is not None
+        target.display_name = "Alpha"
+        await db_session.flush()
+
+        first = await client.post(
+            "/api/v1/social/follow/Alpha",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        duplicate = await client.post(
+            "/api/v1/social/follow/Alpha",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        following = await client.get(
+            "/api/v1/social/following",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        profile = await client.get("/api/v1/social/traders/Alpha")
+        removed = await client.delete(
+            "/api/v1/social/follow/Alpha",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        removed_again = await client.delete(
+            "/api/v1/social/follow/Alpha",
+            headers={"Authorization": f"Bearer {follower_token}"},
+        )
+        after = await client.get("/api/v1/social/traders/Alpha")
+
+    assert first.status_code == 200
+    assert first.json()["changed"] is True
+    assert duplicate.status_code == 200
+    assert duplicate.json()["changed"] is False
+    assert duplicate.json()["followers_count"] == 1
+    assert following.status_code == 200
+    assert following.json()["total"] == 1
+    assert following.json()["items"][0]["username"] == "Alpha"
+    assert profile.json()["followers_count"] == 1
+    assert removed.status_code == 200
+    assert removed.json()["changed"] is True
+    assert removed.json()["following"] is False
+    assert removed_again.status_code == 200
+    assert removed_again.json()["changed"] is False
+    assert after.json()["followers_count"] == 0
+    assert target_token
+    assert await db_session.scalar(select(Follow).where(Follow.followee_id == target.id)) is None
+
+
+@pytest.mark.asyncio
+async def test_follow_rejects_self_unknown_private_and_unauthenticated(db_session):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup(client, "self-follow@example.com")
+        user = await db_session.scalar(select(User).where(User.email == "self-follow@example.com"))
+        assert user is not None
+        user.display_name = "Self"
+        await db_session.flush()
+
+        self_follow = await client.post(
+            "/api/v1/social/follow/Self",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        unknown = await client.post(
+            "/api/v1/social/follow/unknown-trader",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as anon_client:
+            unauthenticated = await anon_client.get("/api/v1/social/following")
+        private_token = await _signup(client, "private-follow-target@example.com")
+        private_user = await db_session.scalar(
+            select(User).where(User.email == "private-follow-target@example.com")
+        )
+        assert private_user is not None
+        private_user.profile_public = False
+        await db_session.flush()
+        private_label = anonymized_username(UUID(str(private_user.id)))
+        private = await client.post(
+            f"/api/v1/social/follow/{private_label}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert self_follow.status_code == 400
+    assert unknown.status_code == 404
+    assert unauthenticated.status_code == 401
+    assert private.status_code == 404
+    assert private_token
