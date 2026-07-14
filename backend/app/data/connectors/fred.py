@@ -58,8 +58,10 @@ class FredConnector:
         world_bank_client: JsonConnectorClient | None = None,
     ) -> None:
         self.api_key = api_key
-        self.fred = fred_client or JsonConnectorClient(base_url=FRED_BASE)
-        self.world_bank = world_bank_client or JsonConnectorClient(base_url=WORLD_BANK_BASE)
+        self.fred = fred_client or JsonConnectorClient(base_url=FRED_BASE, source="fred")
+        self.world_bank = world_bank_client or JsonConnectorClient(
+            base_url=WORLD_BANK_BASE, source="worldbank"
+        )
 
     def fetch_indicators(self) -> list[MacroIndicator]:
         if self.api_key:

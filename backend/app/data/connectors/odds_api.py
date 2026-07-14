@@ -27,7 +27,11 @@ class TheOddsApiConnector:
         if not api_key:
             raise ValueError("The Odds API connector requires a server-side api_key")
         self.api_key = api_key
-        self.http = JsonConnectorClient(base_url=base_url, client=client)
+        self.http = JsonConnectorClient(
+            base_url=base_url,
+            client=client,
+            source=SOURCE_PREFIX,
+        )
 
     def fetch_h2h_snapshots(
         self,
