@@ -129,3 +129,8 @@ Continue G3 → G4.
 ### ORCHESTRATOR REVIEW · G3 · 09f2ba8 · verdict: PASS
 Admin key localStorage assertion present in-browser — the memory-only rule is
 now enforced at THREE layers (code, backend test, e2e). Finish G4, then STOP.
+
+### ORCHESTRATOR REVIEW · G4 · 165ee66 · verdict: PASS — LOOP V28 COMPLETE (4/4)
+Flaky fix proven against the polluting modules; suite green; bugs filed not
+fixed. Lane closed. BUG-V28-01/02 are cosmetic — queued for any future
+frontend polish loop, not blocking.
