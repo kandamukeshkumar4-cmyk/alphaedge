@@ -37,8 +37,23 @@ async function enterAdminKey(page: Page, key: string) {
   await expect(
     page.getByRole("heading", { name: /Admin API Key/i }),
   ).toBeVisible({ timeout: 20_000 });
-  await page.locator("#admin-api-key").fill(key);
-  await page.getByRole("button", { name: /Save Key/i }).click();
+  // Controlled React input — fill alone can race hydration (Save stays disabled).
+  const input = page.locator("#admin-api-key");
+  await input.waitFor({ state: "visible", timeout: 15_000 });
+  await input.click();
+  await input.fill("");
+  await input.pressSequentially(key, { delay: 15 });
+  await page.waitForFunction(
+    ({ sel, expected }) => {
+      const el = document.querySelector(sel) as HTMLInputElement | null;
+      return el != null && el.value === expected;
+    },
+    { sel: "#admin-api-key", expected: key },
+    { timeout: 10_000 },
+  );
+  const save = page.getByRole("button", { name: /Save Key/i });
+  await expect(save).toBeEnabled({ timeout: 10_000 });
+  await save.click();
   await expect(
     page.getByRole("button", { name: /Change API key/i }),
   ).toBeVisible({ timeout: 10_000 });

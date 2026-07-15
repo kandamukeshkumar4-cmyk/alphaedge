@@ -4,7 +4,7 @@
 | G1 | Social journeys | DONE | social.spec.ts: follow/Following/stats/unfollow/opt-out; BUG-V28-01 fixme |
 | G2 | Notification journeys | DONE | notifications.spec.ts: unread after follow+trade; mark-all; mark-one; badge clears |
 | G3 | Admin + eval journeys | DONE | admin-eval.spec.ts: key not in storage; stats; pause/unpause; /eval drift empty; BUG-V28-02 |
-| G4 | Watching-count flaky fix | TODO | |
+| G4 | Watching-count flaky fix | DONE | delta-scoped watching_count; proved after loop26 modules; full e2e green |
 
 ## BUG REPORTS
 
@@ -32,6 +32,7 @@
 | G1 | 2026-07-14 | DONE | typecheck exit 0; playwright 25 passed / 2 skipped (3.9m) |
 | G2 | 2026-07-15 | DONE | typecheck exit 0; playwright 26 passed / 2 skipped (5.3m) |
 | G3 | 2026-07-15 | DONE | typecheck exit 0; playwright 27 passed / 3 skipped (3.8m) |
+| G4 | 2026-07-15 | DONE | watchlist pytest 7p; after-loop26 17p; e2e 27p/3s; ruff ok |
 
 ## GATE EVIDENCE — G1
 ```
@@ -87,6 +88,40 @@ npx playwright test → exit 0
 - **PASS.** assertNoConsoleErrors on /admin and /eval.
 - **PASS.** BUG-V28-02 filed + narrow filter (tv-attr-logo/tradingview nested-interactive only) + fixme; suite green.
 - Residual: pause leaves market locked if unpause fails mid-run (round-trip asserts recovery).
+
+## GATE EVIDENCE — G4
+```
+# Ordering proof (loop26 modules then the flaky test)
+uv run --extra dev pytest \
+  tests/test_loop26_admin_journeys.py \
+  tests/test_loop26_authz_matrix.py \
+  tests/test_loop26_negative_abuse.py \
+  tests/test_loop26_social_notify_journeys.py \
+  tests/test_watchlist_api.py::test_market_detail_watching_count -q
+→ 17 passed in 29.85s
+
+# Module + lint
+uv run --extra dev pytest tests/test_watchlist_api.py -q → 7 passed in 9.12s
+uv run --extra dev ruff check tests/test_watchlist_api.py → All checks passed!
+
+# Full e2e (GOAL final)
+npm run typecheck → exit 0
+npx playwright test → exit 0
+  27 passed
+  3 skipped  (legacy app.spec + BUG-V28-01 + BUG-V28-02)
+  (3.7m)
+```
+
+## VERIFIER VERDICT — G4 (fresh adversarial)
+- **PASS.** Ownership: only `backend/tests/test_watchlist_api.py` (+ e2e harden for admin key controlled-input flake) + STATE; no app code.
+- **PASS.** Absolute 0/2/1 replaced by baseline deltas; intermediate steps assert +1 per unique user and zero inflate on duplicate add; remove → baseline+1.
+- **PASS.** Never loosened: clean DB still implies 0→1→1→2→2→1 path; polluted DB still requires exact deltas.
+- **PASS.** Ordering proof after all four loop26 modules: 17 passed.
+- **PASS.** Full e2e one-command green with counts; admin key entry uses pressSequentially (G3 flake fix, tests only).
+- Residual: suite-wide shared DB pollution still possible for other absolute-count tests outside this ticket.
+
+### LOOP V28 COMPLETE
+G1–G4 DONE. Branch loop28/qa2 local only — never push/merge.
 
 ### ORCHESTRATOR REVIEW · G2 · 4bffa06 · verdict: PASS
 Continue G3 → G4.

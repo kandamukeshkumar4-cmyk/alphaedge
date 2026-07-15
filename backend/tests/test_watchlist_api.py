@@ -152,35 +152,70 @@ async def test_watchlist_is_per_user(db_session):
 
 @pytest.mark.asyncio
 async def test_market_detail_watching_count(db_session):
-    """B3 — additive watching_count on market detail reflects unique watchers."""
+    """B3 — additive watching_count on market detail reflects unique watchers.
+
+    Assertions are scoped to *this test's* deltas (baseline + N), not absolute
+    0/2/1. Full-suite order can leave other modules' watch rows on the catalog
+    slug; absolute counts flake while unique-watcher + dedupe intent remains.
+    Strengthened: per-user steps assert +1 only once (dedupe non-inflation).
+    """
     await MarketService(db_session).seed_catalog_markets()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         before = await client.get(f"/api/v1/markets/{SLUG}/detail")
         assert before.status_code == 200
-        assert before.json()["watching_count"] == 0
+        baseline = int(before.json()["watching_count"])
+        assert baseline >= 0
 
-        token_a = await _signup_token(client, "wl-count-a@example.com")
-        token_b = await _signup_token(client, "wl-count-b@example.com")
-        for token in (token_a, token_b):
-            await client.post(
-                "/api/v1/watchlist",
-                json={"slug": SLUG},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            # duplicate add must not inflate count
-            await client.post(
-                "/api/v1/watchlist",
-                json={"slug": SLUG},
-                headers={"Authorization": f"Bearer {token}"},
-            )
+        # Unique emails avoid signup collisions if prior suite rows persist.
+        token_a = await _signup_token(client, "wl-count-a-delta@example.com")
+        token_b = await _signup_token(client, "wl-count-b-delta@example.com")
 
+        # User A: first watch → +1; duplicate add must not inflate.
+        add_a = await client.post(
+            "/api/v1/watchlist",
+            json={"slug": SLUG},
+            headers={"Authorization": f"Bearer {token_a}"},
+        )
+        assert add_a.status_code == 201
+        mid_a = await client.get(f"/api/v1/markets/{SLUG}/detail")
+        assert mid_a.status_code == 200
+        assert mid_a.json()["watching_count"] == baseline + 1
+
+        dup_a = await client.post(
+            "/api/v1/watchlist",
+            json={"slug": SLUG},
+            headers={"Authorization": f"Bearer {token_a}"},
+        )
+        assert dup_a.status_code == 201
+        mid_a_dup = await client.get(f"/api/v1/markets/{SLUG}/detail")
+        assert mid_a_dup.json()["watching_count"] == baseline + 1
+
+        # User B: first watch → +1 more; duplicate must not inflate.
+        add_b = await client.post(
+            "/api/v1/watchlist",
+            json={"slug": SLUG},
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+        assert add_b.status_code == 201
+        mid_b = await client.get(f"/api/v1/markets/{SLUG}/detail")
+        assert mid_b.json()["watching_count"] == baseline + 2
+
+        dup_b = await client.post(
+            "/api/v1/watchlist",
+            json={"slug": SLUG},
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+        assert dup_b.status_code == 201
         after = await client.get(f"/api/v1/markets/{SLUG}/detail")
         assert after.status_code == 200
-        assert after.json()["watching_count"] == 2
+        assert after.json()["watching_count"] == baseline + 2
 
-        await client.delete(
+        # Remove B → net +1 vs baseline (A still watching).
+        removed = await client.delete(
             f"/api/v1/watchlist/{SLUG}",
             headers={"Authorization": f"Bearer {token_b}"},
         )
+        assert removed.status_code == 200
         final = await client.get(f"/api/v1/markets/{SLUG}/detail")
-        assert final.json()["watching_count"] == 1
+        assert final.status_code == 200
+        assert final.json()["watching_count"] == baseline + 1
