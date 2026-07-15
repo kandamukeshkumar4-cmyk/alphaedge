@@ -1,4 +1,4 @@
-"""Sports results API — ESPN NBA scoreboard signals (Workstream C).
+"""Sports results API — multi-league ESPN scoreboard signals (Workstream C / Loop V31).
 
 READ-ONLY signal input. Does NOT resolve or settle markets.
 """
@@ -20,10 +20,14 @@ from app.api.v1.deps import get_db
 from app.core.security import verify_admin_api_key
 from app.data.connectors.http import SourceHealth, refresh_source_health
 from app.data.connectors.sports_results import (
+    DEFAULT_LEAGUE,
     SOURCE,
     SPORTS_RESULT_SIGNAL_TYPE,
+    SUPPORTED_LEAGUES,
     SportsResultsConnector,
     games_to_signal_events,
+    get_league_spec,
+    source_for_league,
 )
 from app.db.models import SignalEvent
 
@@ -48,10 +52,12 @@ class GameResultOut(BaseModel):
     status: str
     status_detail: str
     source: str
+    league: str = DEFAULT_LEAGUE
 
 
 class SportsResultsOut(BaseModel):
     date: str | None
+    league: str = DEFAULT_LEAGUE
     source: str
     games: list[GameResultOut]
     finals: int
@@ -61,6 +67,7 @@ class SportsResultsOut(BaseModel):
 
 class SportsIngestOut(BaseModel):
     date: str | None
+    league: str = DEFAULT_LEAGUE
     fetched: int
     finals: int
     inserted: int
@@ -75,22 +82,39 @@ class SportsIngestOut(BaseModel):
     )
 
 
+def _resolve_league(league: str | None) -> str:
+    """Validate league key; default nba. Unknown → 422 (additive API)."""
+    key = (league or DEFAULT_LEAGUE).strip().lower() or DEFAULT_LEAGUE
+    try:
+        return get_league_spec(key).key
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"league must be one of: {', '.join(SUPPORTED_LEAGUES)}",
+        ) from exc
+
+
 @router.get("/results", response_model=SportsResultsOut)
 async def list_sports_results(
     game_date: str | None = Query(default=None, alias="date"),
+    league: str = Query(default=DEFAULT_LEAGUE, description="League key (default nba)"),
 ) -> SportsResultsOut:
-    """Fetch NBA scoreboard rows (signals only — never resolves markets)."""
+    """Fetch scoreboard rows for a league (signals only — never resolves markets)."""
+    resolved = _resolve_league(league)
     parsed = _parse_optional_date(game_date)
     try:
-        connector = SportsResultsConnector()
+        connector = SportsResultsConnector(league=resolved)
         games = await asyncio.to_thread(connector.fetch_games, parsed)
     except Exception:  # noqa: BLE001 — honest-empty degrade, never 5xx
-        logger.warning("sports_results upstream fetch failed", exc_info=True)
+        logger.warning(
+            "sports_results upstream fetch failed league=%s", resolved, exc_info=True
+        )
         games = []
 
     return SportsResultsOut(
         date=parsed.isoformat() if isinstance(parsed, date) else game_date,
-        source=SOURCE,
+        league=resolved,
+        source=source_for_league(resolved),
         games=[
             GameResultOut(
                 event_id=g.event_id,
@@ -104,6 +128,7 @@ async def list_sports_results(
                 status=g.status,
                 status_detail=g.status_detail,
                 source=g.source,
+                league=g.league,
             )
             for g in games
         ],
@@ -114,16 +139,22 @@ async def list_sports_results(
 @router.post("/ingest", response_model=SportsIngestOut)
 async def ingest_sports_results(
     game_date: str | None = Query(default=None, alias="date"),
+    league: str = Query(default=DEFAULT_LEAGUE, description="League key (default nba)"),
     session: AsyncSession = Depends(get_db),
     _admin: str = Depends(verify_admin_api_key),
 ) -> SportsIngestOut:
     """Persist final-game sports:result SignalEvents (no market resolution)."""
+    resolved = _resolve_league(league)
     parsed = _parse_optional_date(game_date)
     try:
-        connector = SportsResultsConnector()
+        connector = SportsResultsConnector(league=resolved)
         games = await asyncio.to_thread(connector.fetch_games, parsed)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("sports_results ingest fetch failed: %s", type(exc).__name__)
+        logger.warning(
+            "sports_results ingest fetch failed league=%s: %s",
+            resolved,
+            type(exc).__name__,
+        )
         raise HTTPException(status_code=502, detail="upstream sports results unavailable") from exc
 
     event_dicts = games_to_signal_events(games)
@@ -131,9 +162,11 @@ async def ingest_sports_results(
     await session.commit()
     return SportsIngestOut(
         date=parsed.isoformat() if isinstance(parsed, date) else game_date,
+        league=resolved,
         fetched=len(games),
         finals=sum(1 for g in games if g.status == "final"),
         inserted=inserted,
+        source=source_for_league(resolved),
     )
 
 
@@ -168,11 +201,11 @@ async def persist_sports_signal_events(
 
 
 async def _existing_event_keys(session: AsyncSession) -> set[tuple[str, str, str]]:
+    # All sports platforms (espn-nba, espn-nfl, …) — not only the NBA default source.
     rows = (
         await session.execute(
             select(SignalEvent.platform, SignalEvent.market_id, SignalEvent.payload).where(
                 SignalEvent.signal_type == SPORTS_RESULT_SIGNAL_TYPE,
-                SignalEvent.platform == SOURCE,
             )
         )
     ).all()
