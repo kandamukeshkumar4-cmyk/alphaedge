@@ -6,9 +6,11 @@ import { fetchAdminJobs, type AdminJobRun } from "@/lib/admin-dashboard-api";
 
 type SystemHealthCardProps = {
   apiKey: string;
+  /** Recent runs to fetch (default 5). */
+  limit?: number;
 };
 
-export function SystemHealthCard({ apiKey }: SystemHealthCardProps) {
+export function SystemHealthCard({ apiKey, limit = 5 }: SystemHealthCardProps) {
   const [runs, setRuns] = useState<AdminJobRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export function SystemHealthCard({ apiKey }: SystemHealthCardProps) {
     }
     setLoading(true);
     setError(null);
-    const result = await fetchAdminJobs(apiKey, 5);
+    const result = await fetchAdminJobs(apiKey, limit);
     setLoading(false);
     if (!result.ok) {
       setError(result.message);
@@ -28,7 +30,7 @@ export function SystemHealthCard({ apiKey }: SystemHealthCardProps) {
       return;
     }
     setRuns(result.data.runs);
-  }, [apiKey]);
+  }, [apiKey, limit]);
 
   useEffect(() => {
     void loadJobs();

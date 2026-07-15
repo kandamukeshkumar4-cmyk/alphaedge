@@ -1,16 +1,21 @@
 "use client";
 
 // U12 + Loop V38 Observability admin page.
-// Ops boards (loops) plus agent-run traces, calibration drift, latency SLOs.
+// Ops boards (loops, sources, jobs, stats) plus traces / drift / SLOs.
 // All data sourced from real backend endpoints — no fabricated numbers.
 
-import { TraceExplorer } from "@/components/admin/TraceExplorer";
+import { AdminStatsCard } from "@/components/admin/AdminStatsCard";
 import { DriftChart } from "@/components/admin/DriftChart";
 import { LoopHealthBoard } from "@/components/admin/LoopHealthBoard";
 import { SourceHealthBoard } from "@/components/admin/SourceHealthBoard";
 import { SloTiles } from "@/components/admin/SloTiles";
+import { SystemHealthCard } from "@/components/admin/SystemHealthCard";
+import { TraceExplorer } from "@/components/admin/TraceExplorer";
+import { useAdminApiKey } from "@/lib/admin-context";
 
 export default function ObservabilityPage() {
+  const apiKey = useAdminApiKey();
+
   return (
     <>
       <header>
@@ -21,13 +26,15 @@ export default function ObservabilityPage() {
           System Observability
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Loop heartbeats, connector sources, agent-run traces, calibration drift,
-          and latency SLOs. All metrics sourced live — no fabricated values.
+          Loop heartbeats, connector sources, job runs, system stats, traces,
+          calibration drift, and latency SLOs. Live backend data only.
         </p>
       </header>
 
       <LoopHealthBoard />
       <SourceHealthBoard />
+      <AdminStatsCard apiKey={apiKey} />
+      <SystemHealthCard apiKey={apiKey} limit={20} />
       <SloTiles />
       <DriftChart />
       <TraceExplorer />
