@@ -30,6 +30,7 @@ from app.ml.ab_harness import (
     LIGHTGBM_AVAILABLE,
     MIN_RESOLVED_FOR_AB,
     count_resolved_outcomes,
+    resolved_outcomes_breakdown,
     run_walk_forward_ab,
 )
 from app.observability import http_metrics
@@ -129,15 +130,25 @@ async def get_resolved_count(db: AsyncSession = Depends(get_db)) -> dict[str, An
     ``ab_ready`` merely reports whether the walk-forward A/B harness is
     eligible to run — the deployed default model is NEVER flipped here (or
     anywhere else in the harness); ``model_default`` is what's deployed.
+
+    V33 B2'c — ``source`` and ``forecast_scored_count`` are additive disclosure:
+    ``resolved_count`` silently falls back to resolved paper orders when no
+    scored forecast rows exist, which is a *different* population from the one
+    the forecast loops accrue. ``resolved_count`` / ``ab_ready`` are unchanged.
     """
     settings = get_settings()
-    resolved_count = await count_resolved_outcomes(db)
+    breakdown = await resolved_outcomes_breakdown(db)
+    resolved_count = int(breakdown["count"])
     return {
         "resolved_count": resolved_count,
         "ab_threshold": MIN_RESOLVED_FOR_AB,
         "ab_ready": resolved_count >= MIN_RESOLVED_FOR_AB,
         "model_default": settings.ml_model_type,
         "paper_trading_only": settings.paper_trading_only,
+        # Which population resolved_count came from. "paper_orders_fallback"
+        # means no pre-close forecast has been scored yet.
+        "source": breakdown["source"],
+        "forecast_scored_count": breakdown["forecast_scored_count"],
     }
 
 

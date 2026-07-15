@@ -366,13 +366,21 @@ async def _forecast_autolock_loop() -> None:
     nearing close that lack one, so a genuine pre-close prediction exists to
     score when external_resolve settles them. In-process mirror of the ARQ
     cron (prod has no worker)."""
+    from app.observability.autolock_funnel import funnel_detail
     from app.workers.forecast_autolock import forecast_autolock_task
 
     while True:
         await _paced_sleep(900, settings.scheduler_idle_interval_sec)
         try:
-            await forecast_autolock_task({})
-            record_heartbeat("forecast_autolock")
+            summary = await forecast_autolock_task({})
+            # V33 B2'b: surface the staged funnel on the public heartbeat so
+            # "alive but selecting nothing" is visible without an admin key —
+            # exactly the blind spot that hid V33 B1's starvation in prod.
+            funnel = summary.get("funnel") if isinstance(summary, dict) else None
+            record_heartbeat(
+                "forecast_autolock",
+                detail=funnel_detail(funnel) if funnel else None,
+            )
         except Exception:
             logger.error("Forecast autolock loop failed", exc_info=True)
             record_heartbeat(
