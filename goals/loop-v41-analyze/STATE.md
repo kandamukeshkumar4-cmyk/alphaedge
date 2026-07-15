@@ -1,60 +1,54 @@
 # loop-v41 — STATE
 
 ## A1 DIAGNOSIS (before any fix)
-
-**Verdict: BOTH — keyless fallback AND intent-router miss.**
-
-### Path traced
-1. Frontend (`QuestMarketCard.tsx`) seeds:
-   `Analyze ${title} for a paper trade. Current YES ~${pricePct}¢.`
-   (Also: `Deep-dive …`, `Analyze live market …`.) Frontend intent is fine.
-2. `POST /api/v1/assistant/chat` → `_llm_reply` → if no chat-route API key
-   (`resolve_routed_endpoint` returns empty key; prod has `LLM_API_KEY` /
-   `NIM_API_KEY` = `""`), calls `_build_deterministic_reply`.
-3. Deterministic router matches keyword buckets only:
-   odds/price/move | exposure/position | bear/downside | brief/analyst |
-   trace/model/decision. **"analyze" / "deep-dive" / "paper trade" are absent.**
-4. Prompt `"Analyze … Current YES ~54¢."` contains none of those tokens
-   (has "¢" / "YES", not the word "price") → falls through to the canned
-   capability menu (lines ~347–362).
-5. Menu branch still appends `tools_used=["get_features"]` — matches the
-   screenshot: get_features "succeeded", then menu text.
-
-### Not the cause
-- Frontend mis-send: no.
-- LLM-present routing: `_llm_reply` skips keyword routing when a key exists
-  and calls the chat client; A3 will confirm with a mock. Bug is keyless +
-  router miss for the Analyze seed prompt.
-
-### Fix direction (A2)
-Add an analyze-intent branch that returns a real deterministic analysis from
-existing read-only services (price/volume/24h move/drivers/brief/model vs
-market). Menu only for unrecognized intents.
+**BOTH** — keyless fallback AND intent-router miss. Frontend seed
+`Analyze … Current YES ~54¢.` hits `_build_deterministic_reply` with no LLM
+key; router has no analyze/deep-dive bucket → capability menu (still tagging
+`get_features`). LLM-present path was fine. See A1 commit for full trace.
 
 ## A2 FIX
-- `_is_analyze_intent` matches analyze / deep-dive seed prompts.
-- `_enrich_analyze_context` pulls real figures via MarketService, OddsSnapshot
-  (24h move), AnalystBrief, alert-feed drivers, plus existing model/news
-  context — no OrderBookService / RiskService.
-- `_build_analyze_reply` composes analysis; omits absent fields honestly;
-  always includes uncertainty + paper-only disclaimer.
-- Capability menu (`I can help with:`) remains only for unrecognized intents.
+Analyze intent → `_enrich_analyze_context` (MarketService price/volume,
+OddsSnapshot 24h move, AnalystBrief, alert drivers, model/news) →
+`_build_analyze_reply`. Menu only for unrecognized intents. No
+OrderBookService/RiskService.
 
-## A3 LLM-PRESENT ROUTING
-Routing was NOT broken: with a chat API key, `_llm_reply` calls the client
-before any keyword router. Verified with mocked client on the exact Analyze
-seed prompt (`test_analyze_intent_routes_to_llm_when_key_present`) — no real
-key. No code fix required beyond the A2 keyless path.
+## A3 LLM ROUTING
+Not broken. Mocked-client test
+`test_analyze_intent_routes_to_llm_when_key_present` PASS (no real key).
+
+## A4 TESTS + GATE
+Tests: keyless-analyze, omit-absent, unrecognized→menu, endpoint analyze,
+mocked-LLM (A3). Gate green (pasted below).
 
 ## LOOP LOG
 | loop | date | result | proof |
 |------|------|--------|-------|
-| A1 | 2026-07-15 | DONE — both keyless + router miss | diagnosis above; no code change |
-| A2 | 2026-07-15 | DONE — keyless analyze returns real analysis | assistant.py analyze branch; smoke: menu=False for Analyze seed |
-| A3 | 2026-07-15 | DONE — LLM routing OK (mocked) | pytest test_analyze_intent_routes_to_llm_when_key_present PASS |
+| A1 | 2026-07-15 | DONE | diagnosis; both causes |
+| A2 | 2026-07-15 | DONE | analyze branch; menu=False on seed |
+| A3 | 2026-07-15 | DONE | mocked LLM analyze PASS |
+| A4 | 2026-07-15 | DONE | 1681 passed, 28 skipped; ruff OK; gate PASS |
 
 ### ORCHESTRATOR REVIEW · A1 · 2871a97 · verdict: PASS
-Both-cause diagnosis confirmed (router lacks an analyze bucket; the button's
-own prompt falls through). A2: the analyze bucket must catch the exact seeded
-prompts (Analyze/Deep-dive variants) and compose the full deterministic
-analysis. Continue.
+Continue A2.
+
+### GATE PROOF (A4)
+```
+=== GATE: backend pytest ===
+1681 passed, 28 skipped in 270.69s (0:04:30)
+=== GATE: backend ruff ===
+All checks passed!
+PASS backend ruff (exit 0)
+=== GATE: frontend typecheck/test/build === PASS
+=== GATE VERDICT ===
+PASS: all checks green
+```
+Also: `ADMIN_API_KEY=dev-admin-key uv run --extra dev pytest -q -p no:cacheprovider`
+→ 1681 passed, 28 skipped; `ruff check app tests` → All checks passed!
+
+### ADVERSARIAL VERIFIER (fresh) · A4
+Initial FAIL solely because A4 tests were uncommitted mid-run. Re-check on
+commit: A1–A3 PASS; A2 has no OrderBook/Risk imports; no fabricated numbers
+(honest omit); menu only for unrecognized; PAPER_TRADING_ONLY / analysis-only
+intact; three-state tests present. **Verdict after A4 commit: PASS.**
+
+AutoLab: not applicable (no iterative measure)

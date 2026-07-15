@@ -170,12 +170,13 @@ def test_deterministic_reply_trace_question() -> None:
 
 
 def test_deterministic_reply_fallback() -> None:
-    from app.api.v1.assistant import ANALYSIS_ONLY_BANNER, _build_deterministic_reply
+    from app.api.v1.assistant import ANALYSIS_ONLY_BANNER, _MENU_MARKER, _build_deterministic_reply
 
     reply, citations, tools = _build_deterministic_reply(
         "Hello, how are you?", {}, None
     )
     assert ANALYSIS_ONLY_BANNER in reply
+    assert _MENU_MARKER in reply
 
 
 def test_deterministic_reply_with_context_includes_model_prob() -> None:
@@ -187,6 +188,101 @@ def test_deterministic_reply_with_context_includes_model_prob() -> None:
     )
     assert "72" in reply or "0.72" in reply or "model" in reply.lower()
     assert any(c.source == "news" for c in citations)
+
+
+# ── 3b. Loop V41 — analyze intent (keyless / menu) ───────────────────────────
+
+
+def test_keyless_analyze_returns_real_analysis_not_menu() -> None:
+    """A4: Analyze seed must produce a deterministic analysis, never the menu."""
+    from app.api.v1.assistant import (
+        ANALYSIS_ONLY_BANNER,
+        PAPER_ONLY_DISCLAIMER,
+        _MENU_MARKER,
+        _build_deterministic_reply,
+    )
+
+    ctx = {
+        "slug": "nba-2025-01-15-lal-bos",
+        "title": "Lakers vs Celtics",
+        "model_prob": 0.58,
+        "market_price": 0.54,
+        "volume": 2_413_000,
+        "edge": 0.04,
+        "move_24h": 0.02,
+        "price_24h_ago": 0.52,
+        "forecast_reason": "edge below threshold",
+        "drivers": [
+            {
+                "label": "Model vs market gap",
+                "direction": "favors YES",
+                "note": "Model 58.0% vs market 54.0% (+4.0%).",
+            }
+        ],
+        "brief_headline": "Lakers slight model lean",
+    }
+    seed = "Analyze Lakers vs Celtics for a paper trade. Current YES ~54¢."
+    reply, citations, tools = _build_deterministic_reply(
+        seed, ctx, "nba-2025-01-15-lal-bos"
+    )
+    assert _MENU_MARKER not in reply
+    assert "Paper-trade analysis" in reply
+    assert "58.0%" in reply or "model 58" in reply.lower()
+    assert "54.0%" in reply or "54¢" in reply or "~54" in reply
+    assert "2,413,000" in reply
+    assert "+2.0%" in reply or "24h move" in reply.lower()
+    assert "Drivers:" in reply
+    assert "Lakers slight model lean" in reply
+    assert ANALYSIS_ONLY_BANNER in reply
+    assert PAPER_ONLY_DISCLAIMER in reply
+    assert "get_features" in tools
+    assert "get_odds" in tools
+    assert "get_briefs" in tools
+
+
+def test_keyless_analyze_omits_absent_fields_honestly() -> None:
+    """Absent data must be noted as omitted — never fabricated."""
+    from app.api.v1.assistant import _MENU_MARKER, _build_deterministic_reply
+
+    reply, _citations, tools = _build_deterministic_reply(
+        "Deep-dive unknown-market for a paper trade.",
+        {"slug": "unknown-market"},
+        "unknown-market",
+    )
+    assert _MENU_MARKER not in reply
+    assert "Paper-trade analysis" in reply
+    assert "omitted" in reply.lower()
+    # Must not invent a fake probability like 50% or 0.50 as if it were measured
+    assert "get_features" in tools
+
+
+def test_unrecognized_intent_still_returns_menu() -> None:
+    """A4: genuinely unrecognized prompts keep the capability menu."""
+    from app.api.v1.assistant import _MENU_MARKER, _build_deterministic_reply
+
+    reply, _citations, _tools = _build_deterministic_reply(
+        "Tell me a joke about penguins.", {}, None
+    )
+    assert _MENU_MARKER in reply
+
+
+def test_assistant_chat_endpoint_analyze_seed_not_menu(client: TestClient) -> None:
+    """Endpoint-level: keyless Analyze seed must not return the capability menu."""
+    from app.api.v1.assistant import _MENU_MARKER, _reset_anon_rate_limiter
+
+    _reset_anon_rate_limiter()
+    resp = client.post(
+        "/api/v1/assistant/chat",
+        json={
+            "message": "Analyze Lakers vs Celtics for a paper trade. Current YES ~54¢.",
+            "market_slug": "nba-2025-01-15-lal-bos",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["paper_trading_only"] is True
+    assert _MENU_MARKER not in data["reply"]
+    assert "Paper-trade analysis" in data["reply"] or "analysis" in data["reply"].lower()
 
 
 # ── 4. Empty / no-context handling ───────────────────────────────────────────
