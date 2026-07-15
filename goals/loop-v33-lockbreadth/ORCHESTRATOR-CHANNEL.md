@@ -66,6 +66,15 @@ accepted. EXPANDED WORK ORDER for the remainder of this loop:
 - B3: tests through the whole funnel (bridge -> autolock locks a bridged
   market -> resolve path unaffected) + full gate + verifier. Then STOP.
 
+### REVIEW B2'a · b7939c0 · verdict: PASS — the bridge is RIGHT
+Deep review: venue-only eligibility with explicit synthetic-exclusion, close
+time taken from the LIVE venue payload (stronger than spec — guarantees the
+resolver reads the same identity), rejected if past, idempotent bounded
+passes with real evidence (25+25 of 99 bridged across two passes, funnel off
+stage 0, 24h-horizon now the visible next constraint — exactly what B1
+predicted becomes measurable). Dual-wired + registered. 520-line test file.
+Continue B2'b (funnel observability) → B2'c (resolved-count honesty) → B3.
+
 ## RUNNER REPLIES
 
 _(none yet)_
