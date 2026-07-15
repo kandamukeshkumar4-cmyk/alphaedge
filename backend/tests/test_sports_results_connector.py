@@ -19,9 +19,12 @@ from app.data.connectors.sports_results import (
     SPORTS_RESULT_SIGNAL_TYPE,
     SUPPORTED_LEAGUES,
     SportsResultsConnector,
+    fetch_enabled_league_games,
     games_to_signal_events,
     get_league_spec,
+    is_league_enabled,
     normalize_espn_scoreboard,
+    parse_enabled_leagues,
 )
 from app.db.models import SignalEvent
 
@@ -185,3 +188,42 @@ async def test_persist_sports_signal_events_dedupes(db_session):
 def test_normalize_rejects_non_object_payload():
     with pytest.raises(ValueError, match="object"):
         normalize_espn_scoreboard([])
+
+
+def test_parse_enabled_leagues_default_and_csv():
+    assert parse_enabled_leagues("nba") == ["nba"]
+    assert parse_enabled_leagues("nba,nfl,mlb") == ["nba", "nfl", "mlb"]
+    assert parse_enabled_leagues("nba, not-a-league, nfl") == ["nba", "nfl"]
+    assert parse_enabled_leagues("") == ["nba"]
+    assert parse_enabled_leagues([]) == ["nba"]
+
+
+def test_is_league_enabled_gates_poll_path():
+    enabled = ["nba", "nfl"]
+    assert is_league_enabled("nba", enabled=enabled)
+    assert is_league_enabled("nfl", enabled=enabled)
+    assert not is_league_enabled("mlb", enabled=enabled)
+
+
+def test_fetch_enabled_league_games_only_polls_enabled():
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(str(request.url.path))
+        league = "nba"
+        if "nfl" in str(request.url.path):
+            league = "nfl"
+        elif "mlb" in str(request.url.path):
+            league = "mlb"
+        return httpx.Response(200, json=_load_fixture(league))
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://site.api.espn.com",
+    )
+    out = fetch_enabled_league_games(enabled=["nba", "nfl"], client=client)
+    assert set(out) == {"nba", "nfl"}
+    assert "mlb" not in out
+    assert any("nba" in p for p in seen_paths)
+    assert any("nfl" in p for p in seen_paths)
+    assert not any("mlb" in p for p in seen_paths)

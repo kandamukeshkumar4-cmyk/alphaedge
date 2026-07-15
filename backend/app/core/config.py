@@ -158,6 +158,10 @@ class Settings(BaseSettings):
         alias="SMOKE_ACCOUNT_ID",
     )
     system_initial_bankroll: float = Field(default=100_000.0, alias="SYSTEM_INITIAL_BANKROLL")
+    # Loop V31 L3 — which ESPN sports leagues the connector may poll (CSV).
+    # Default nba preserves C2 single-league behavior. Signals only — never
+    # resolves markets. Unknown keys in the CSV are ignored at parse time.
+    sports_leagues_enabled: str = Field(default="nba", alias="SPORTS_LEAGUES_ENABLED")
 
     # News signals (last30days skill)
     news_signals_enabled: bool = Field(default=True, alias="NEWS_SIGNALS_ENABLED")
@@ -457,6 +461,11 @@ class Settings(BaseSettings):
     @property
     def tracked_wallet_address_list(self) -> List[str]:
         return self._csv_list(self.tracked_wallet_addresses)
+
+    @property
+    def sports_leagues_enabled_list(self) -> List[str]:
+        """CSV of league keys allowed for sports results polling (default nba)."""
+        return [item.lower() for item in self._csv_list(self.sports_leagues_enabled)]
 
     @property
     def openapi_description(self) -> str:

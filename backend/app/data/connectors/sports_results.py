@@ -92,6 +92,54 @@ def source_for_league(league: str | None = None) -> str:
     return get_league_spec(league).source
 
 
+def parse_enabled_leagues(raw: str | list[str] | None = None) -> list[str]:
+    """Return known league keys from a CSV / list; empty/invalid → [nba].
+
+    Unknown tokens are skipped (never raise). Used by config gating so a typo
+    in SPORTS_LEAGUES_ENABLED cannot crash the poll path.
+    """
+    if raw is None:
+        from app.core.config import get_settings
+
+        tokens = get_settings().sports_leagues_enabled_list
+    elif isinstance(raw, str):
+        tokens = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    else:
+        tokens = [str(item).strip().lower() for item in raw if str(item).strip()]
+
+    out: list[str] = []
+    for token in tokens:
+        if token in LEAGUE_SPECS and token not in out:
+            out.append(token)
+    return out or [DEFAULT_LEAGUE]
+
+
+def is_league_enabled(league: str, *, enabled: list[str] | None = None) -> bool:
+    """True when league is in SPORTS_LEAGUES_ENABLED (or provided enabled list)."""
+    key = get_league_spec(league).key
+    allowed = enabled if enabled is not None else parse_enabled_leagues()
+    return key in allowed
+
+
+def fetch_enabled_league_games(
+    game_date: date | str | None = None,
+    *,
+    enabled: list[str] | None = None,
+    base_url: str = ESPN_BASE,
+    client: httpx.Client | None = None,
+) -> dict[str, list[GameResult]]:
+    """Poll scoreboards for every enabled league only (signals path).
+
+    Returns ``{league_key: [GameResult, ...]}``. Does not resolve markets.
+    """
+    leagues = enabled if enabled is not None else parse_enabled_leagues()
+    results: dict[str, list[GameResult]] = {}
+    for league in leagues:
+        connector = SportsResultsConnector(base_url=base_url, client=client, league=league)
+        results[league] = connector.fetch_games(game_date)
+    return results
+
+
 @dataclass(frozen=True)
 class GameResult:
     """Normalized game result (signal payload only — not a market truth)."""

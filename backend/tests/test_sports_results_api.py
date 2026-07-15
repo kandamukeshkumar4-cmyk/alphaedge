@@ -61,17 +61,26 @@ async def test_results_default_league_is_nba():
 
 
 @pytest.mark.asyncio
-async def test_results_league_param_nfl():
+async def test_results_league_param_nfl(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("SPORTS_LEAGUES_ENABLED", "nba,nfl")
+    get_settings.cache_clear()
     connector = _mock_connector("nfl")
-    with patch("app.api.v1.sports.SportsResultsConnector", return_value=connector):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.get("/api/v1/sports/results", params={"league": "nfl"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["league"] == "nfl"
-    assert body["source"] == "espn-nfl"
-    assert body["resolves_markets"] is False
-    assert all(g["source"] == "espn-nfl" for g in body["games"])
+    try:
+        with patch("app.api.v1.sports.SportsResultsConnector", return_value=connector):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get("/api/v1/sports/results", params={"league": "nfl"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["league"] == "nfl"
+        assert body["source"] == "espn-nfl"
+        assert body["resolves_markets"] is False
+        assert all(g["source"] == "espn-nfl" for g in body["games"])
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -80,6 +89,41 @@ async def test_results_unknown_league_422():
         resp = await client.get("/api/v1/sports/results", params={"league": "xyz"})
     assert resp.status_code == 422
     assert "league" in resp.json()["detail"].lower() or "league" in str(resp.json())
+
+
+@pytest.mark.asyncio
+async def test_results_disabled_league_422(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("SPORTS_LEAGUES_ENABLED", "nba")
+    get_settings.cache_clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get("/api/v1/sports/results", params={"league": "nfl"})
+        assert resp.status_code == 422
+        assert "not enabled" in resp.json()["detail"].lower()
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_results_enabled_nfl_when_configured(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("SPORTS_LEAGUES_ENABLED", "nba,nfl")
+    get_settings.cache_clear()
+    connector = _mock_connector("nfl")
+    try:
+        with patch("app.api.v1.sports.SportsResultsConnector", return_value=connector):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get("/api/v1/sports/results", params={"league": "nfl"})
+        assert resp.status_code == 200
+        assert resp.json()["league"] == "nfl"
+        assert resp.json()["source"] == "espn-nfl"
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.asyncio

@@ -27,6 +27,8 @@ from app.data.connectors.sports_results import (
     SportsResultsConnector,
     games_to_signal_events,
     get_league_spec,
+    is_league_enabled,
+    parse_enabled_leagues,
     source_for_league,
 )
 from app.db.models import SignalEvent
@@ -82,16 +84,30 @@ class SportsIngestOut(BaseModel):
     )
 
 
-def _resolve_league(league: str | None) -> str:
-    """Validate league key; default nba. Unknown → 422 (additive API)."""
+def _resolve_league(league: str | None, *, require_enabled: bool = True) -> str:
+    """Validate league key; default nba. Unknown/disabled → 422 (additive API).
+
+    When ``require_enabled`` is True (default), the league must appear in
+    ``SPORTS_LEAGUES_ENABLED`` so the poll path only serves gated leagues.
+    """
     key = (league or DEFAULT_LEAGUE).strip().lower() or DEFAULT_LEAGUE
     try:
-        return get_league_spec(key).key
+        resolved = get_league_spec(key).key
     except ValueError as exc:
         raise HTTPException(
             status_code=422,
             detail=f"league must be one of: {', '.join(SUPPORTED_LEAGUES)}",
         ) from exc
+    if require_enabled and not is_league_enabled(resolved):
+        enabled = parse_enabled_leagues()
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"league {resolved!r} is not enabled; "
+                f"SPORTS_LEAGUES_ENABLED={','.join(enabled)}"
+            ),
+        )
+    return resolved
 
 
 @router.get("/results", response_model=SportsResultsOut)
