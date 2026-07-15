@@ -132,3 +132,8 @@ AutoLab: not applicable (no iterative measure — retention hygiene one-shot wit
 ## STOP
 
 R1–R3 **DONE**. No push/merge. Ready for orchestrator review.
+
+### ORCHESTRATOR REVIEW · R2+R3 · 07ca24b · verdict: PASS — LOOP V39 COMPLETE
+FK protection implemented exactly per R1 (protected-id set from
+prediction_logs), downsample-not-delete beyond the full-res window. Lane
+closed.
