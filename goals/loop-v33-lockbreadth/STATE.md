@@ -129,3 +129,69 @@ Instrument is read-only and additive; no app code touched.
 `ruff check app tests scripts` → PASS. Full pytest counts run under B3.
 
 AutoLab: baseline=funnel unmeasured | benchmark=scripts/autolock_funnel_snapshot.py stage counts | iterations=1 (stage-0 starvation identified + reproduced) | budget=1/3 | outcome=improved (root cause located; config path falsified)
+
+---
+
+### B2 — Config tuning · DONE (no config change is justified; findings FILED)
+
+**Verdict: I am shipping ZERO config changes, and that is the finding.**
+B1 measured every funnel stage at 0 because the input set is empty. Horizon,
+batch, and frequency are all multipliers on a candidate set of size 0
+(24h → 7d = 7 × 0 = 0). DIR-V33-001.2 requires real numbers; the real numbers
+justify no tune. Shipping one would be cosmetic — motion that looks like
+progress and moves `resolved_count` by exactly nothing.
+
+#### Every filter considered, individually
+
+| Filter (`forecast_autolock.py:108-112`) | Widen? | Why |
+|---|---|---|
+| `status == OPEN` | **No** | A locked/resolved market cannot take a pre-close forecast. Not a restriction, a definition. |
+| `close_at IS NOT NULL` | **Never** | Widening = locking a market whose close time is unknown, i.e. unprovable pre-close. This filter *is* the pre-close guarantee. SACRED. |
+| `close_at > now` | **Never** | Widening = locking at/after close. SACRED — automatic incident per DIR-V33-001.1. |
+| `close_at <= horizon` | **Tunable, but not justified** | The only genuinely tunable filter. Multiplies 0. See cost below. |
+| `~live_forecast_exists` | **No** | Widening = multiple locks per market, letting the track record cherry-pick its best entry. Directly corrupts the trust output. |
+| batch cap (`limit=25`) | **No** | Never reached: 0 candidates ≪ 25. Non-binding. |
+| pass frequency (900s) | **No** | The loop already runs and passes in prod (`system/loops` hb, B1). Running a query that selects 0 rows more often selects 0 rows more often. |
+
+So of the seven knobs, six are load-bearing for safety or non-binding, and the
+seventh multiplies zero.
+
+#### Why the horizon tune is not a free hedge
+
+Widening the horizon is *safe* (it cannot cause an at/after-close lock —
+`close_at > now` plus the in-flight re-check at `forecast_autolock.py:172-181`
+still bind). But it is not free: locking 7 days out instead of 24h out means
+forecasting with less information, which is a real accuracy cost on a track
+record whose whole value is trust. Paying an accuracy cost for a coverage gain
+of provably zero is a bad trade — and once F1 lands, the right horizon should be
+chosen against *measured* stage-3→4 drop, not guessed now.
+
+**Honest caveat (does not change the verdict):** stage 0 = 0 is measured
+*locally*. Prod's `external_markets` count is not directly observable (F2), so I
+cannot rule out that prod holds a handful of forecaster-submitted rows sitting
+just outside a 24h horizon. Prod evidence is strong but indirect
+(`backfill/markets=0`, `eval/evaluations=[]`, `eval/aggregates.market_count=0`,
+`clv-track-record` empty). If F2's prod snapshot shows real rows dropping at
+stage 3→4, a horizon tune becomes data-justified and should be its own ticket.
+Tuning now, on inference, is exactly what DIR-V33-001.2 forbids.
+
+#### Filed, not implemented → `goals/loop-v33-lockbreadth/FINDINGS.md`
+
+- **F1** — catalog→external supply bridge. The only change that can lift stage 0
+  above zero, therefore the only one that can move `resolved_count`. New ingest
+  code, not config → out of B2 scope by GOAL B2 + DIR-V33-001.3. Filed with its
+  safety constraints (venue-sourced `close_at` only; exact venue identity or the
+  resolver scores the wrong market; never write `winning_outcome`; idempotent;
+  bounded).
+- **F2** — prod autolock funnel unobservable; blocks data-justified tuning. Ask:
+  read-only prod snapshot, or surface the JobRun summary in `/api/v1/system/loops`.
+- **F3** — `resolved_count` silently falls back to paper orders
+  (`ab_harness.py:43-52`), so the A/B gate's "1 of 100" may measure a different
+  population than this loop accrues. Ask: label the source.
+
+#### Gate (B2)
+
+No runtime code touched (docs only). `ruff check app tests scripts` → PASS.
+Full pytest counts under B3.
+
+AutoLab: baseline=0 autolock candidates (B1) | benchmark=stage-0 candidate count | iterations=1 (evaluated all 7 knobs; 0 justified) | budget=2/3 | outcome=stalled-reorganized (config axis is provably a no-op; real fix reorganized into F1 for its own ticket)
