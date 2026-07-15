@@ -16,6 +16,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { type EquityPoint } from "@/lib/alphaedge-api";
+import { ChartAttribution } from "@/components/ChartAttribution";
 
 interface EquityCurveChartProps {
   equityCurve: EquityPoint[];
@@ -42,6 +43,7 @@ export function EquityCurveChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "rgba(168,172,179,0.9)",
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.04)" },
@@ -123,6 +125,7 @@ export function EquityCurveChart({
         role="img"
         aria-label={`Equity curve: from $${initialEquity.toLocaleString()} to $${finalEq.toLocaleString(undefined, { maximumFractionDigits: 0 })} (${isPositive ? "+" : ""}${pnlPct}%) over ${equityCurve.length} points`}
       />
+      <ChartAttribution className="mt-1" />
     </div>
   );
 }

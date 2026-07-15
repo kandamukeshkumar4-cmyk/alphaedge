@@ -10,6 +10,7 @@ import {
 } from "lightweight-charts";
 import { fetchMarketHistory, type HistoryPoint } from "@/lib/alphaedge-api";
 import { CHART_COLOR_FALLBACKS, chartRgb, chartRgba } from "@/lib/chart-colors";
+import { ChartAttribution } from "@/components/ChartAttribution";
 
 function directionArrow(history: HistoryPoint[]) {
   if (history.length < 2) return null;
@@ -50,6 +51,7 @@ export function ProbabilityHistoryChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "rgba(160,160,180,0.7)",
+        attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },
@@ -139,15 +141,18 @@ export function ProbabilityHistoryChart({
           style={{ height }}
         />
       ) : (
-        <div
-          ref={containerRef}
-          role="img"
-          aria-label={
-            lastPrice != null
-              ? `Probability history chart, currently ${(lastPrice * 100).toFixed(1)} percent`
-              : "Probability history chart"
-          }
-        />
+        <>
+          <div
+            ref={containerRef}
+            role="img"
+            aria-label={
+              lastPrice != null
+                ? `Probability history chart, currently ${(lastPrice * 100).toFixed(1)} percent`
+                : "Probability history chart"
+            }
+          />
+          <ChartAttribution className="mt-1" />
+        </>
       )}
     </div>
   );

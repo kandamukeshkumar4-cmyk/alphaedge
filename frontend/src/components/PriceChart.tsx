@@ -17,6 +17,7 @@ import { fetchMarketCandles } from "@/lib/alphaedge-api";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
+import { ChartAttribution } from "@/components/ChartAttribution";
 
 // QuestFlow Trade terminal chips: 5m · 15m · 1h · 6h · 1d · 1w · 1m · All
 type RangeKey = "5m" | "15m" | "1h" | "6h" | "1d" | "1w" | "1m" | "All";
@@ -436,6 +437,7 @@ export function PriceChart({
           typeof modelProb === "number" ? `, AI estimate ${cents(modelProb)}` : ""
         }`}
       />
+      <ChartAttribution className="mt-1 px-1" />
     </div>
   );
 }
