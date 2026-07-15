@@ -79,3 +79,6 @@ uv run --extra dev ruff check app tests
 - Full suite counts: **1693 passed, 28 skipped**; ruff clean.
 
 AutoLab: baseline=V20 PERF-BASELINE L2 (detail p99=330, candles p99=79) | benchmark=local run_all.py L2 p99+p50 for detail/candles | iterations=1 full P1-P3 pass (detail p99 120, candles p50 6) | budget=1/1 loop | outcome=improved (detail) / candles median-only under SQLite multi-VU
+
+### ORCHESTRATOR REVIEW · P1-P3 · 89bc0b3..3cc1d67 · verdict: PASS — LOOP V43 COMPLETE
+Isolation + invalidation verified; honest numbers. Lane closed.
