@@ -164,7 +164,7 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
                   type="button"
                   onClick={() => setParam("topic", t.id === "trending" ? null : t.id)}
                   className={cn(
-                    "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
+                    "min-h-8 shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold transition",
                     topic === t.id
                       ? "border-primary/60 bg-primary-dim text-primary"
                       : "border-border bg-surface text-muted hover:border-border-light hover:text-text",
