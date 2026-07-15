@@ -29,6 +29,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+          # post-step `uv cache prune --ci` exited 2 on hosted runners; skip it
+          prune-cache: false
           cache-dependency-glob: backend/pyproject.toml
       - uses: actions/setup-node@v6
         with:
