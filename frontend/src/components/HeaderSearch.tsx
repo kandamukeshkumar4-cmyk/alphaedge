@@ -115,7 +115,8 @@ export function HeaderSearch() {
         <input
           ref={inputRef}
           className="w-full bg-transparent text-sm font-medium text-text placeholder:text-muted-2 focus:outline-none"
-          placeholder="Search markets…  ( / )"
+          placeholder="Search markets…"
+          title="Press / to focus search"
           aria-label="Search markets"
           role="combobox"
           aria-expanded={showDropdown}
