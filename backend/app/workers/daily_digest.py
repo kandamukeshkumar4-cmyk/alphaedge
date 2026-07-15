@@ -36,22 +36,21 @@ DAILY_DIGEST_JOB_NAME = "daily_digest_task"
 DIGEST_TYPE = "digest"
 
 
-def _day_bounds(day: date) -> tuple[datetime, datetime]:
-    start = datetime(day.year, day.month, day.day, tzinfo=UTC)
-    end = start + timedelta(days=1)
-    return start, end
+def _digest_title(day: date) -> str:
+    return f"Daily digest — {day.isoformat()}"
 
 
 async def _already_digested(
     session: AsyncSession, user_id: UUID, day: date
 ) -> bool:
-    start, end = _day_bounds(day)
+    # Dedupe on the digest title (which embeds the target day) rather than a
+    # created_at window: the row's insert timestamp is "now", which breaks the
+    # window check for backfilled days and is racy around day boundaries.
     existing = await session.scalar(
         select(Notification.id).where(
             Notification.user_id == user_id,
             Notification.type == DIGEST_TYPE,
-            Notification.created_at >= start,
-            Notification.created_at < end,
+            Notification.title == _digest_title(day),
         ).limit(1)
     )
     return existing is not None
@@ -165,7 +164,7 @@ async def build_digest_for_user(
     resolved = await _resolved_line(session, user.id)
     moves = await _watchlist_moves_line(session, user.id)
     body = "\n".join([portfolio, resolved, moves])
-    title = f"Daily digest — {day.isoformat()}"
+    title = _digest_title(day)
     row = await create_notification(
         session,
         user_id=user.id,

@@ -68,6 +68,15 @@ def build_training_dataset(
     if max_date is not None:
         df = df[df["date_dt"] < pd.Timestamp(max_date, tz="UTC")]
 
+    # Prepare numpy views once — compute_team_stats is called per training
+    # match and would otherwise rescan the full frame each time (O(n^2)).
+    from app.data.fifa.features import prepare_results
+
+    try:
+        prepared = prepare_results(results)
+    except Exception:
+        prepared = None
+
     rows = []
     labels = []
     for _, row in df.iterrows():
@@ -80,7 +89,9 @@ def build_training_dataset(
         home, away = str(row["home_team"]), str(row["away_team"])
 
         try:
-            hs_stats, as_stats = compute_team_stats(results, home, away, match_date)
+            hs_stats, as_stats = compute_team_stats(
+                results, home, away, match_date, prepared=prepared
+            )
             feats = build_match_features(home, away, hs_stats, as_stats)
         except Exception:
             continue
@@ -226,11 +237,15 @@ def predict_match(
     results: pd.DataFrame,
     model: FifaMatchModel,
     as_of: date,
+    *,
+    prepared=None,
 ) -> FifaMatchPrediction:
     """Single match prediction combining ensemble W/D/L and Poisson rates."""
     from app.data.fifa.features import compute_team_stats, build_match_features
 
-    home_stats, away_stats = compute_team_stats(results, home_team, away_team, as_of)
+    home_stats, away_stats = compute_team_stats(
+        results, home_team, away_team, as_of, prepared=prepared
+    )
     feats = build_match_features(home_team, away_team, home_stats, away_stats)
     hw, dr, aw = model.predict_proba(feats)
     h_lam, a_lam = fit_poisson_rates(results, home_team, away_team, as_of)

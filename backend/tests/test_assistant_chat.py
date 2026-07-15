@@ -370,6 +370,9 @@ def test_assistant_chat_anon_rate_limited_beyond_limit(client: TestClient, monke
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "assistant_anon_rate_per_min", 2)
+    # Pin the limiter clock: each chat call takes seconds, so on a loaded CI
+    # machine three sequential calls can straddle the 60s fixed window.
+    monkeypatch.setattr("app.api.v1.assistant._anon_clock", lambda: 1000.0)
     _reset_anon_rate_limiter()
 
     payload = {"message": "Why did odds move today?"}

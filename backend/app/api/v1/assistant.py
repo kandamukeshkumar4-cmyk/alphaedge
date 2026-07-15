@@ -64,6 +64,10 @@ ANALYSIS_ONLY_BANNER = "Analysis only — this assistant cannot place trades."
 _ANON_WINDOW_SEC = 60.0
 _anon_window: dict[str, tuple[int, float]] = {}
 
+# Injectable clock so tests can pin the window (slow CI runs otherwise let
+# sequential requests straddle a window boundary).
+_anon_clock = time.monotonic
+
 
 _ANON_PRUNE_THRESHOLD = 100
 
@@ -88,7 +92,7 @@ def _client_ip(request: Request) -> str:
 
 def _anon_allowed(ip: str, limit: int) -> bool:
     """Fixed-window per-IP counter. Returns True when the request is allowed."""
-    now = time.monotonic()
+    now = _anon_clock()
     count, start = _anon_window.get(ip, (0, now))
     if now - start >= _ANON_WINDOW_SEC:
         count, start = 0, now

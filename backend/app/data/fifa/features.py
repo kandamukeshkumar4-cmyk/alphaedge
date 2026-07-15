@@ -10,6 +10,7 @@ import math
 from dataclasses import dataclass
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 # ── Feature column names ──────────────────────────────────────────────────────
@@ -118,6 +119,64 @@ class TeamStats:
     h2h_matches: int = 0
 
 
+_NS_PER_DAY = 86_400_000_000_000
+
+
+class PreparedResults:
+    """Numpy view of a results frame, computed once so per-match stat lookups
+    avoid pandas row/column overhead entirely."""
+
+    __slots__ = (
+        "hs", "as_", "parseable", "date_ns", "is_wc", "stage_depth",
+        "home_pos", "away_pos",
+    )
+
+    def __init__(self, results: pd.DataFrame) -> None:
+        # Mirrors the historical per-row float() conversion: values that raise
+        # on float() are unparseable (skipped); NaN converts fine and stays
+        # NaN, so NaN-score rows still count as matches.
+        hs = pd.to_numeric(results["home_score"], errors="coerce").to_numpy(dtype=float)
+        as_ = pd.to_numeric(results["away_score"], errors="coerce").to_numpy(dtype=float)
+        hs_na = results["home_score"].isna().to_numpy()
+        as_na = results["away_score"].isna().to_numpy()
+        self.hs = hs
+        self.as_ = as_
+        self.parseable = ~((np.isnan(hs) & ~hs_na) | (np.isnan(as_) & ~as_na))
+
+        # Dates as UTC int64 nanoseconds (naive values treated as UTC).
+        dates = results["date"]
+        if dates.dt.tz is None:
+            dates = dates.dt.tz_localize("UTC")
+        self.date_ns = dates.to_numpy(dtype="datetime64[ns]").view("int64")
+
+        tournament = results["tournament"].astype(str)
+        self.is_wc = tournament.str.contains("World Cup", regex=False).to_numpy()
+        stage_source = (
+            results["stage"].astype(str) if "stage" in results.columns else tournament
+        )
+        self.stage_depth = stage_source.map(
+            lambda s: _WC_STAGE_DEPTH.get(s, 0)
+        ).to_numpy(dtype=int)
+
+        # Row positions per team, ascending (original row order).
+        self.home_pos: dict[str, np.ndarray] = {
+            str(t): np.asarray(pos)
+            for t, pos in results.groupby("home_team", sort=False).indices.items()
+        }
+        self.away_pos: dict[str, np.ndarray] = {
+            str(t): np.asarray(pos)
+            for t, pos in results.groupby("away_team", sort=False).indices.items()
+        }
+
+
+_EMPTY_POS = np.array([], dtype=int)
+
+
+def prepare_results(results: pd.DataFrame) -> PreparedResults:
+    """Precompute numpy arrays for repeated compute_team_stats calls."""
+    return PreparedResults(results)
+
+
 def compute_team_stats(
     results: pd.DataFrame,
     home_team: str,
@@ -125,138 +184,117 @@ def compute_team_stats(
     as_of: date,
     *,
     recency_half_life_days: int = 365 * 3,
+    prepared: PreparedResults | None = None,
 ) -> tuple[TeamStats, TeamStats]:
     """Compute pre-match stats for home and away teams from historical results.
 
-    Only rows with date < as_of are used (no post-game leakage).
+    Only rows with date < as_of are used (no post-game leakage). Pass
+    ``prepared=prepare_results(results)`` when calling repeatedly on the same
+    frame to skip per-call dataframe conversion.
     """
+    prep = prepared if prepared is not None else PreparedResults(results)
     cutoff = pd.Timestamp(as_of, tz="UTC") if hasattr(as_of, "year") else pd.Timestamp(as_of)
-    # Ensure dates are timezone-aware for comparison
-    dates = results["date"]
-    if dates.dt.tz is None:
-        dates = dates.dt.tz_localize("UTC")
-    mask = dates < cutoff
-    hist = results[mask].copy()
+    if cutoff.tz is None:
+        cutoff = cutoff.tz_localize("UTC")
+    cutoff_ns = cutoff.value
 
-    home_stats = _team_stats(hist, home_team, as_of, recency_half_life_days)
-    away_stats = _team_stats(hist, away_team, as_of, recency_half_life_days)
+    home_stats = _team_stats(prep, home_team, cutoff_ns, recency_half_life_days)
+    away_stats = _team_stats(prep, away_team, cutoff_ns, recency_half_life_days)
 
     # Head-to-head (both directions)
-    h2h = hist[
-        ((hist["home_team"] == home_team) & (hist["away_team"] == away_team))
-        | ((hist["home_team"] == away_team) & (hist["away_team"] == home_team))
-    ]
-    h2h_home_wins = 0
-    h2h_draws = 0
-    for _, row in h2h.iterrows():
-        hs, as_ = _scores(row)
-        if hs is None:
-            continue
-        if row["home_team"] == home_team:
-            if hs > as_:
-                h2h_home_wins += 1
-            elif hs == as_:
-                h2h_draws += 1
-        else:
-            if as_ > hs:
-                h2h_home_wins += 1
-            elif hs == as_:
-                h2h_draws += 1
-
-    home_stats.h2h_wins = h2h_home_wins
-    home_stats.h2h_draws = h2h_draws
-    home_stats.h2h_matches = len([r for _, r in h2h.iterrows() if _scores(r)[0] is not None])
-    away_stats.h2h_wins = len([
-        r for _, r in h2h.iterrows()
-        if _scores(r)[0] is not None
-        and (
-            (r["home_team"] == away_team and _scores(r)[0] > _scores(r)[1])
-            or (r["away_team"] == away_team and _scores(r)[1] > _scores(r)[0])
+    fwd = np.intersect1d(
+        prep.home_pos.get(home_team, _EMPTY_POS),
+        prep.away_pos.get(away_team, _EMPTY_POS),
+        assume_unique=True,
+    )
+    rev = (
+        np.intersect1d(
+            prep.home_pos.get(away_team, _EMPTY_POS),
+            prep.away_pos.get(home_team, _EMPTY_POS),
+            assume_unique=True,
         )
-    ])
-    away_stats.h2h_draws = h2h_draws
+        if home_team != away_team
+        else _EMPTY_POS
+    )
+    idx = np.concatenate([fwd, rev])
+    keep = prep.parseable[idx] & (prep.date_ns[idx] < cutoff_ns)
+    idx = idx[keep]
+    is_fwd = np.zeros(len(keep), dtype=bool)
+    is_fwd[: len(fwd)] = True
+    is_fwd = is_fwd[keep]
+
+    home_goals = np.where(is_fwd, prep.hs[idx], prep.as_[idx])
+    away_goals = np.where(is_fwd, prep.as_[idx], prep.hs[idx])
+
+    home_stats.h2h_wins = int((home_goals > away_goals).sum())
+    home_stats.h2h_draws = int((home_goals == away_goals).sum())
+    home_stats.h2h_matches = int(len(idx))
+    away_stats.h2h_wins = int((away_goals > home_goals).sum())
+    away_stats.h2h_draws = home_stats.h2h_draws
     away_stats.h2h_matches = home_stats.h2h_matches
 
     return home_stats, away_stats
 
 
 def _team_stats(
-    hist: pd.DataFrame,
+    prep: PreparedResults,
     team: str,
-    as_of: date,
+    cutoff_ns: int,
     recency_half_life_days: int,
 ) -> TeamStats:
-    as_home = hist[hist["home_team"] == team]
-    as_away = hist[hist["away_team"] == team]
+    # Home rows first, then away rows — same order the historical per-row
+    # loop used (the "recent 20" window depends on it).
+    hp = prep.home_pos.get(team, _EMPTY_POS)
+    ap = prep.away_pos.get(team, _EMPTY_POS)
+    idx = np.concatenate([hp, ap])
 
     stats = TeamStats()
-    recency_sum = 0.0
-    recency_weight = 0.0
+    if len(idx) == 0:
+        return stats
 
-    as_of_ts = pd.Timestamp(as_of, tz="UTC")
+    keep = prep.parseable[idx] & (prep.date_ns[idx] < cutoff_ns)
+    is_home = np.zeros(len(idx), dtype=bool)
+    is_home[: len(hp)] = True
+    idx = idx[keep]
+    is_home = is_home[keep]
+    if len(idx) == 0:
+        return stats
 
-    for rows, is_home in [(as_home, True), (as_away, False)]:
-        for _, row in rows.iterrows():
-            hs, as_ = _scores(row)
-            if hs is None:
-                continue
-            stats.matches += 1
-            gf = hs if is_home else as_
-            ga = as_ if is_home else hs
-            stats.gf += gf
-            stats.ga += ga
+    gf = np.where(is_home, prep.hs[idx], prep.as_[idx])
+    ga = np.where(is_home, prep.as_[idx], prep.hs[idx])
+    won = gf > ga
+    drew = gf == ga
 
-            if gf > ga:
-                stats.wins += 1
-                outcome = 1.0
-            elif gf == ga:
-                stats.draws += 1
-                outcome = 0.5
-            else:
-                stats.losses += 1
-                outcome = 0.0
+    stats.matches = int(len(idx))
+    stats.wins = int(won.sum())
+    stats.draws = int(drew.sum())
+    stats.losses = stats.matches - stats.wins - stats.draws
+    stats.gf = float(gf.sum())
+    stats.ga = float(ga.sum())
 
-            # WC only
-            if "World Cup" in str(row.get("tournament", "")):
-                stats.wc_matches += 1
-                if gf > ga:
-                    stats.wc_wins += 1
-                stage = str(row.get("stage", row.get("tournament", "")))
-                depth = _WC_STAGE_DEPTH.get(stage, 0)
-                stats.max_stage_reached = max(stats.max_stage_reached, depth)
+    # WC only
+    is_wc = prep.is_wc[idx]
+    stats.wc_matches = int(is_wc.sum())
+    stats.wc_wins = int((is_wc & won).sum())
+    if stats.wc_matches:
+        stats.max_stage_reached = int(prep.stage_depth[idx][is_wc].max())
 
-            # Recent (last 20)
-            if stats.recent_matches < 20:
-                stats.recent_matches += 1
-                stats.recent_gd += (gf - ga)
-                if gf > ga:
-                    stats.recent_wins += 1
-                elif gf == ga:
-                    stats.recent_draws += 1
+    # Recent (first 20 rows in home-then-away order, as historically)
+    recent = slice(0, 20)
+    stats.recent_matches = int(min(len(idx), 20))
+    stats.recent_gd = float((gf[recent] - ga[recent]).sum())
+    stats.recent_wins = int(won[recent].sum())
+    stats.recent_draws = int(drew[recent].sum())
 
-            # Recency-weighted score
-            row_date = row["date"]
-            if hasattr(row_date, "tz_convert"):
-                if row_date.tz is None:
-                    row_date = row_date.tz_localize("UTC")
-                days_ago = (as_of_ts - row_date).days
-            else:
-                days_ago = 0
-            weight = math.exp(-days_ago * math.log(2) / recency_half_life_days)
-            recency_sum += outcome * weight
-            recency_weight += weight
-
-    stats.recency_score = recency_sum / recency_weight if recency_weight > 0 else 0.5
+    # Recency-weighted score (integer-floor day difference, like Timedelta.days)
+    days_ago = ((cutoff_ns - prep.date_ns[idx]) // _NS_PER_DAY).astype(float)
+    outcome = np.where(won, 1.0, np.where(drew, 0.5, 0.0))
+    weight = np.exp(-days_ago * math.log(2) / recency_half_life_days)
+    recency_weight = float(weight.sum())
+    stats.recency_score = (
+        float((outcome * weight).sum()) / recency_weight if recency_weight > 0 else 0.5
+    )
     return stats
-
-
-def _scores(row: pd.Series) -> tuple[float | None, float | None]:
-    try:
-        hs = float(row["home_score"])
-        as_ = float(row["away_score"])
-        return hs, as_
-    except (ValueError, TypeError):
-        return None, None
 
 
 def build_match_features(

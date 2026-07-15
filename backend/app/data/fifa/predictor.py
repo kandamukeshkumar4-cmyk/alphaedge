@@ -165,9 +165,18 @@ class FifaPredictor:
     def _run_monte_carlo(self, n_runs: int = 500) -> None:
         from app.data.fifa.monte_carlo import FifaTournamentSimulator
 
+        from app.data.fifa.features import prepare_results
+
+        prepared = prepare_results(self._results_df)
+
+        # predict_match is deterministic per (home, away, match_date) — memoize
+        # so 500 simulation runs don't recompute identical match-ups.
+        @lru_cache(maxsize=None)
         def predict_fn(home: str, away: str, match_date: date):
             from app.data.fifa.model import predict_match
-            pred = predict_match(home, away, self._results_df, self._model, match_date)
+            pred = predict_match(
+                home, away, self._results_df, self._model, match_date, prepared=prepared
+            )
             return pred.home_win, pred.draw, pred.away_win
 
         groups = self._build_groups()
