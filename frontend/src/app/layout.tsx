@@ -37,9 +37,15 @@ export const metadata: Metadata = {
   description: DISCLAIMER,
 };
 
+/** Dark-only paper terminal — no light chrome / theme toggle (PC08). */
+export const viewport = {
+  colorScheme: "dark" as const,
+  themeColor: "#070B0A",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`} style={{ colorScheme: "dark" }}>
       <body className="min-h-screen bg-bg font-sans text-text">
         <Providers>
           <AtlasPanelProvider>
