@@ -25,6 +25,7 @@ from app.workers.model_retrain import model_retrain_task
 from app.workers.forecast_autolock import forecast_autolock_task
 from app.workers.daily_digest import daily_digest_task
 from app.workers.jobrun_retention import jobrun_retention_task
+from app.workers.data_retention import data_retention_task
 
 
 logger = logging.getLogger(__name__)
@@ -1050,6 +1051,7 @@ class WorkerSettings:
         forecast_autolock_task,
         daily_digest_task,
         jobrun_retention_task,
+        data_retention_task,
     ]
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
@@ -1089,4 +1091,6 @@ class WorkerSettings:
         cron(daily_digest_task, hour={7}, minute={0}),
         # Loop V37 H3: JobRun retention (flag-gated JOBRUN_RETENTION_ENABLED)
         cron(jobrun_retention_task, hour={5}, minute={15}),
+        # Loop V39: data retention (odds downsample / signals / notifications)
+        cron(data_retention_task, hour={5}, minute={45}),
     ]
