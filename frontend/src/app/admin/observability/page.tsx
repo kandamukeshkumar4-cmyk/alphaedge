@@ -7,6 +7,7 @@
 import { TraceExplorer } from "@/components/admin/TraceExplorer";
 import { DriftChart } from "@/components/admin/DriftChart";
 import { LoopHealthBoard } from "@/components/admin/LoopHealthBoard";
+import { SourceHealthBoard } from "@/components/admin/SourceHealthBoard";
 import { SloTiles } from "@/components/admin/SloTiles";
 
 export default function ObservabilityPage() {
@@ -20,12 +21,13 @@ export default function ObservabilityPage() {
           System Observability
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Loop heartbeats, agent-run traces, calibration drift, and latency SLOs.
-          All metrics sourced live from the backend — no fabricated values.
+          Loop heartbeats, connector sources, agent-run traces, calibration drift,
+          and latency SLOs. All metrics sourced live — no fabricated values.
         </p>
       </header>
 
       <LoopHealthBoard />
+      <SourceHealthBoard />
       <SloTiles />
       <DriftChart />
       <TraceExplorer />
