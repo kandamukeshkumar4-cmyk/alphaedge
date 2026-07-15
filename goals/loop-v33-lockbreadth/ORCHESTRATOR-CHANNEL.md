@@ -75,6 +75,12 @@ stage 0, 24h-horizon now the visible next constraint — exactly what B1
 predicted becomes measurable). Dual-wired + registered. 520-line test file.
 Continue B2'b (funnel observability) → B2'c (resolved-count honesty) → B3.
 
+### REVIEW B2'b+c · d5198c3 · verdict: PASS
+Observability-only worker touch (pre-pass snapshot, correctly reasoned);
+additive honesty fields verified. Finish B3 (full-funnel integration test:
+bridge -> autolock locks a bridged market -> resolution path unaffected) +
+full gate + verifier, then STOP — the orchestrator merges and deploys.
+
 ## RUNNER REPLIES
 
 _(none yet)_
