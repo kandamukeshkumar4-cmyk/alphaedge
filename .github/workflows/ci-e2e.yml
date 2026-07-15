@@ -95,14 +95,13 @@ jobs:
             done
           done
       - name: Run Chromium Playwright
-        env:
-          E2E_SQLITE_PATH: ${{ runner.temp }}/alphaedge-e2e.sqlite3
         run: npx playwright test --project=chromium --retries=1 --reporter=list,html
         working-directory: frontend
         env:
           CI: "true"
           E2E_SKIP_WEBSERVER: "1"
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:31017
+          E2E_SQLITE_PATH: ${{ runner.temp }}/alphaedge-e2e.sqlite3
       - name: Upload Playwright HTML report
         if: failure()
         uses: actions/upload-artifact@v4
