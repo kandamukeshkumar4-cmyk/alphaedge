@@ -77,10 +77,30 @@ FAILED tests/test_daily_digest.py::test_run_daily_digest_batch
 ruff check app tests → All checks passed!
 ```
 
-### Adversarial verifier verdict
-- **Scope compliance:** PASS — only new files under `backend/tests/test_loop26_*.py` + `goals/loop-v26-authz/STATE.md`; no app/frontend/deploy edits; existing tests untouched.
-- **Auth matrix honesty:** PASS — table committed, snapshot coverage asserted (154/167), cookie cleared so anon is real; expected codes per class.
-- **No silent greenwash:** PASS — app defects captured as SEC-* with repro; xfail/skip references SEC ids.
-- **Order path / paper-only:** PASS — journeys use paper orders only; no live execution language.
-- **Gate:** Loop26 modules green; full suite has pre-existing digest date failures unrelated to this loop (documented).
-- **VERDICT: PASS for Z1–Z4 ticket goals (tests-only).** Residual SECs deferred to app-code owners.
+### Adversarial verifier verdict (fresh subagent, then rework)
+
+**First pass FAIL** (addressed):
+1. Z4 soft-swallowed 5xx into `sec_hits` without xfail/STATE → fixed: any 5xx/raise → `pytest.xfail("SEC-Z4-02 …")`
+2. Matrix dead assert `or True` → fixed: `assert len(sec_hits) == len(_XFAIL_PROBES)`
+3. Weak portfolio history IDOR → fixed: B history must be `[]`; A non-empty with traded slug
+
+**Re-run after fix (parent, evidence):**
+```
+ruff check tests/test_loop26_*.py → All checks passed!
+pytest loop26 modules → 14 passed, 2 xfailed in 60.62s
+```
+
+- **Scope compliance:** PASS — only `backend/tests/test_loop26_*.py` + `goals/loop-v26-authz/STATE.md`
+- **Auth matrix honesty:** PASS — 154 paths / 167 ops; AUTH_CLASS bi-directional; cookies cleared
+- **SEC reports:** PASS — Z1-01, Z2-01, Z2-02 with full repro; Z4-02 xfail path if 5xx appears
+- **No push/merge:** PASS
+- **VERDICT after rework: PASS for Z1–Z4 (tests-only).** Residual SECs deferred to app-code owners.
+
+### Commits
+```
+2ec48e1 test(loop26): Z4 Negative/abuse
+630d946 test(loop26): Z3 Admin journeys
+2558ffc test(loop26): Z2 Social+notify journeys
+b6c8855 test(loop26): Z1 AuthZ matrix
+(+ follow-up verifier-hardening commit on matrix/Z4)
+```

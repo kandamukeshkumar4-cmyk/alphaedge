@@ -127,16 +127,24 @@ async def test_z4_idor_portfolio_and_orders_history_are_self_scoped(db_session):
             "/api/v1/orders/history", headers=_auth(token_b)
         )
         assert hist_b.status_code == 200
-        assert hist_b.json() == [] or all(
-            item.get("slug") for item in hist_b.json()
+        # B has placed no orders — history must be empty (no cross-user leak of A's fill).
+        assert hist_b.json() == []
+
+        hist_a = await client.get(
+            "/api/v1/orders/history", headers=_auth(token_a)
         )
-        # Ensure A's fill is not visible in B's history.
-        if isinstance(hist_b.json(), list):
-            assert all(
-                item.get("user_id") != str(_a.id)
-                for item in hist_b.json()
-                if isinstance(item, dict)
-            )
+        assert hist_a.status_code == 200
+        a_items = hist_a.json()
+        assert isinstance(a_items, list) and len(a_items) >= 1
+        # A's history includes the market they traded; B's does not.
+        assert any(
+            isinstance(item, dict) and item.get("slug") == CANONICAL_SLUG
+            for item in a_items
+        )
+        assert all(
+            not (isinstance(item, dict) and item.get("slug") == CANONICAL_SLUG)
+            for item in hist_b.json()
+        )
 
         port_a = await client.get("/api/v1/portfolio", headers=_auth(token_a))
         assert port_a.status_code == 200
@@ -248,14 +256,15 @@ async def test_z4_garbage_and_oversize_payloads_never_5xx(db_session):
                         method, path, headers=headers, json=payload
                     )
             except Exception as exc:  # noqa: BLE001
-                # Uncaught exception ≈ 5xx in production.
+                # Uncaught exception ≈ 5xx in production → SEC, xfail suite green.
                 sec_hits.append(
-                    f"SEC-Z4-RAISE {method} {path}: {type(exc).__name__}: {exc}"
+                    f"SEC-Z4-02 {method} {path}: raised {type(exc).__name__}: {exc}"
                 )
                 continue
             if r.status_code >= 500:
                 sec_hits.append(
-                    f"SEC-Z4-5XX {method} {path}: {r.status_code} {r.text[:160]!r}"
+                    f"SEC-Z4-02 {method} {path}: got {r.status_code} "
+                    f"body={r.text[:160]!r}"
                 )
                 continue
             if r.status_code not in (
@@ -278,14 +287,10 @@ async def test_z4_garbage_and_oversize_payloads_never_5xx(db_session):
                     f"{method} {path}: unexpected {r.status_code} {r.text[:120]!r}"
                 )
 
-        # Soft-assert known app 5xx/raise defects so the suite stays green.
-        for hit in sec_hits:
-            # Recorded as SEC REPORT; must not fail the ticket gate.
-            assert hit.startswith("SEC-Z4-")
         assert not failures, "\n".join(failures)
-        # Always assert the main invariant for non-xfail paths: we collected hits
-        # or none occurred — either way probes completed without uncaught suite error.
-        assert isinstance(sec_hits, list)
+        if sec_hits:
+            # Documented app defect: mutating abuse must never 5xx/raise.
+            pytest.xfail("; ".join(sec_hits[:5]))
 
 
 @pytest.mark.asyncio

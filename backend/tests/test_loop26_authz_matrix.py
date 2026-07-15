@@ -499,5 +499,8 @@ async def test_authz_matrix_walks_openapi_snapshot(db_session):
             + "\n".join(failures[:80])
             + (f"\n... and {len(failures) - 80} more" if len(failures) > 80 else "")
         )
-        # sec_hits are expected documented defects — recorded but not failing the suite.
-        assert len(sec_hits) == len(_XFAIL_PROBES) or True
+        # Every soft-checked probe must actually fire (else the SEC id is stale).
+        assert len(sec_hits) == len(_XFAIL_PROBES), (
+            f"expected {len(_XFAIL_PROBES)} documented SEC hit(s), got {len(sec_hits)}: "
+            f"{sec_hits}"
+        )
