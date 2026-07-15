@@ -164,8 +164,10 @@ def test_admin_dashboard_uses_admin_api_for_wc2026_and_jobs():
 
     assert "WC2026AdminCard" in admin_page
     assert "AdminMarketsTable" in admin_page
-    assert "SystemHealthCard" in admin_page
-    assert "useAdminApiKey" in admin_page
+    # Loop V25 F4: stats/users cards replaced SystemHealthCard; key handling
+    # moved to memory-only AdminApiKey components.
+    assert "AdminStatsCard" in admin_page
+    assert "AdminUsersTable" in admin_page
     assert "/api/v1/admin/wc2026/status" in client
     assert "/api/v1/admin/wc2026/seed" in client
     assert "/api/v1/admin/wc2026/resolve" in client
@@ -173,7 +175,9 @@ def test_admin_dashboard_uses_admin_api_for_wc2026_and_jobs():
     assert "/api/v1/admin/jobs?limit=" in client
     assert "adminHeaders" in client
     assert "X-Admin-API-Key" in auth
-    assert "localStorage" in auth
+    # Loop V25 security rule: admin key is held in memory ONLY.
+    assert "localStorage" not in auth
+    assert "sessionStorage" not in auth
     assert "ADMIN_API_KEY" not in admin_page
 
 
