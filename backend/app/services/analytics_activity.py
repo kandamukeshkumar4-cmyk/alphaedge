@@ -15,8 +15,13 @@ from app.core.broadcast import hub
 from app.services.analytics_leaderboard import anonymized_username
 
 
-def public_trader_label(user_id: UUID) -> str:
-    return anonymized_username(user_id)
+def public_trader_label(
+    user_id: UUID,
+    *,
+    display_name: str | None = None,
+) -> str:
+    """Same rule as profiles/leaderboard: prefer display_name, else Trader-<hash>."""
+    return anonymized_username(user_id, display_name=display_name)
 
 
 def _as_utc(created_at: datetime) -> datetime:
@@ -36,12 +41,13 @@ def trade_activity_payload(
     price: float,
     action: str,
     created_at: datetime,
+    display_name: str | None = None,
 ) -> dict[str, Any]:
     created_at = _as_utc(created_at)
     return {
         "type": "paper_trade",
         "order_id": order_id,
-        "trader": public_trader_label(user_id),
+        "trader": public_trader_label(user_id, display_name=display_name),
         "slug": slug,
         "side": side.upper(),
         "outcome": outcome.lower(),

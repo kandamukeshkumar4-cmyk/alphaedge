@@ -107,13 +107,12 @@ test.describe("G1 social journeys", () => {
     const traderLink = followingFeed.getByRole("link").first();
     await expect(traderLink).toBeVisible();
     const traderLabel = (await traderLink.innerText()).trim();
-    // BUG-V28-01: feed currently emits Trader-<hash> even when display_name is set.
-    // Journey still proves "A sees B's trade" via slug + non-empty trader label.
-    expect(traderLabel.length, "followed-trade trader label").toBeGreaterThan(2);
-    if (!new RegExp(displayB, "i").test(traderLabel)) {
-      // Keep suite green; dedicated assertion below is fixme'd.
-      expect(traderLabel).toMatch(/^Trader-[0-9a-f]+$/i);
-    }
+    // BUG-V28-01 fixed: feed respects display_name (same rule as profiles/leaderboard).
+    expect(traderLabel, "followed-trade trader label").toMatch(new RegExp(displayB, "i"));
+    await expect(traderLink).toHaveAttribute(
+      "href",
+      new RegExp(`/traders/${encodeURIComponent(displayB)}`, "i"),
+    );
 
     // ── Unfollow works ──
     await pageA.goto(`/traders/${encodeURIComponent(displayB)}`, {
@@ -156,13 +155,5 @@ test.describe("G1 social journeys", () => {
     await pageA.context().close();
   });
 
-  test("BUG-V28-01: Following feed shows display_name (not only Trader-hash)", async () => {
-    // App bug: social_feed → trade_activity_payload uses public_trader_label(user_id)
-    // which ignores users.display_name. Profile page shows display_name; feed does not.
-    // Do not fix app code in loop28 — tracked in STATE.md BUG REPORTS.
-    test.fixme(
-      true,
-      "BUG-V28-01: social feed trader label ignores display_name (Trader-hash only)",
-    );
-  });
+  // BUG-V28-01 covered by the main journey assertion above (display_name on Following feed).
 });

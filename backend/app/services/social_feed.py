@@ -44,7 +44,7 @@ async def list_followed_trader_activity(
     offset = _offset_from_cursor(cursor)
     rows = (
         await db.execute(
-            select(PaperOrder)
+            select(PaperOrder, User.display_name)
             .join(Follow, Follow.followee_id == PaperOrder.user_id)
             .join(User, User.id == PaperOrder.user_id)
             .where(
@@ -55,7 +55,7 @@ async def list_followed_trader_activity(
             .offset(offset)
             .limit(limit + 1)
         )
-    ).scalars().all()
+    ).all()
 
     page = rows[:limit]
     items = [
@@ -69,8 +69,9 @@ async def list_followed_trader_activity(
             price=float(order.price),
             action=order.action,
             created_at=order.created_at or datetime.now(timezone.utc),
+            display_name=display_name,
         )
-        for order in page
+        for order, display_name in page
     ]
     return SocialFeedPage(
         items=items,
