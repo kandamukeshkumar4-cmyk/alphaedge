@@ -50,6 +50,22 @@ has input. Constraints (sacred):
 B3 stands (tests + full gate + verifier) but now covers the bridge.
 
 
+### REVIEW B2 · ad6f52e · verdict: PASS — convergent with DIR-V33-002
+Zero-config-change conclusion accepted (matches the orchestrator's own
+analysis; the directive redirecting B2 was written concurrently). F1-F3 all
+accepted. EXPANDED WORK ORDER for the remainder of this loop:
+- B2'a (F1): implement the catalog->external_markets bridge exactly per
+  DIR-V33-002 constraints.
+- B2'b (F2): expose read-only funnel observability — extend the autolock
+  JobRun/heartbeat detail (or an admin-gated GET) with the staged funnel
+  counts from your snapshot script, so starvation is visible in prod.
+- B2'c (F3): make /api/v1/system/resolved-count HONEST about its source —
+  additive field source: "forecast_scores" | "paper_orders_fallback" (and
+  forecast_scored_count as its own number). The frontend/eval consumers that
+  read ab_ready must not change behavior; this is disclosure, not semantics.
+- B3: tests through the whole funnel (bridge -> autolock locks a bridged
+  market -> resolve path unaffected) + full gate + verifier. Then STOP.
+
 ## RUNNER REPLIES
 
 _(none yet)_
