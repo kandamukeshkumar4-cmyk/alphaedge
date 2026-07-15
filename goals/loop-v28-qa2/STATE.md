@@ -38,3 +38,6 @@ npx playwright test → exit 0
 - **PASS.** Suite ends green with counts; new BUG-V28-01 documented + fixme, not silently filtered.
 - **PASS.** Opt-out harness uses e2e SQLite helper (GOAL: API-set if no UI); no `profile_public` user API exists — residual product gap, not a test weaken.
 - Residual risk: feed label bug may 404 trader links from Following when display_name is set (BUG-V28-01).
+
+### ORCHESTRATOR REVIEW · G1 · 18e8627 · verdict: PASS
+Journey coverage right-shaped; BUG-V28-01 filed correctly. Continue G2-G4.
