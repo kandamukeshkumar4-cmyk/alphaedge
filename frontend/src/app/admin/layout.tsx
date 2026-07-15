@@ -1,27 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useState, type ReactNode } from "react";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { AdminKeyProvider } from "@/lib/admin-context";
-import { readAdminApiKey, writeAdminApiKey } from "@/lib/admin-auth";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [apiKey, setApiKey] = useState("");
   const [draftKey, setDraftKey] = useState("");
-  const [ready, setReady] = useState(false);
-  const [needsPrompt, setNeedsPrompt] = useState(false);
-
-  useEffect(() => {
-    const stored = readAdminApiKey();
-    if (stored) {
-      setApiKey(stored);
-      setDraftKey(stored);
-      setNeedsPrompt(false);
-    } else {
-      setNeedsPrompt(true);
-    }
-    setReady(true);
-  }, []);
+  const [needsPrompt, setNeedsPrompt] = useState(true);
 
   function handleSaveKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,13 +15,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     if (!trimmed) {
       return;
     }
-    writeAdminApiKey(trimmed);
     setApiKey(trimmed);
     setNeedsPrompt(false);
-  }
-
-  if (!ready) {
-    return null;
   }
 
   return (
@@ -48,8 +29,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <section className="rounded-xl border border-border bg-surface p-5">
             <h1 className="text-xl font-semibold text-text">Admin API Key</h1>
             <p className="mt-2 text-sm text-muted">
-              Enter the admin API key to access dashboard controls. It is stored in
-              localStorage on this browser only.
+              Enter the admin API key to access dashboard controls. It stays in
+              memory only and is cleared when this page refreshes.
             </p>
             <form className="mt-4 flex flex-col gap-2 sm:flex-row" onSubmit={handleSaveKey}>
               <label className="sr-only" htmlFor="admin-api-key">
@@ -77,7 +58,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="flex justify-end">
             <button
               className="text-xs font-semibold text-muted-2 underline-offset-2 hover:text-primary hover:underline"
-              onClick={() => setNeedsPrompt(true)}
+              onClick={() => {
+                setApiKey("");
+                setDraftKey("");
+                setNeedsPrompt(true);
+              }}
               type="button"
             >
               Change API key

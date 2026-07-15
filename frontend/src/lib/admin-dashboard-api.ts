@@ -27,6 +27,37 @@ export type AdminMarketRow = {
   tournament_tag: string | null;
 };
 
+export type AdminStats = {
+  users: number;
+  markets_by_status: { open: number; locked: number; resolved: number; cancelled: number };
+  trades: { last_24h: number; last_7d: number };
+  forecasts: { locked: number; graded: number };
+  table_counts: Record<string, number>;
+  generated_at: string;
+  cached: boolean;
+  cache_ttl_sec: number;
+  paper_trading_only: boolean;
+};
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  paper_balance: number;
+  is_suspended: boolean;
+  onboarded: boolean;
+  created_at: string | null;
+  trade_count: number;
+};
+
+export type AdminUsersResponse = {
+  users: AdminUserRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  paper_trading_only: boolean;
+};
+
 export type AdminJobRun = {
   job_name: string;
   status: string;
@@ -104,4 +135,41 @@ export function fetchAdminJobs(apiKey: string, limit = 5) {
     apiKey,
     `/api/v1/admin/jobs?limit=${limit}`,
   );
+}
+
+export function fetchAdminStats(apiKey: string) {
+  return adminFetch<AdminStats>(apiKey, "/api/v1/admin/stats");
+}
+
+type AdminActionResponse = { slug: string; status: string; paper_trading_only: boolean };
+
+export function pauseAdminMarket(apiKey: string, slug: string) {
+  return adminFetch<AdminActionResponse>(apiKey, `/api/v1/admin/markets/${encodeURIComponent(slug)}/pause`, "POST");
+}
+
+export function unpauseAdminMarket(apiKey: string, slug: string) {
+  return adminFetch<AdminActionResponse>(apiKey, `/api/v1/admin/markets/${encodeURIComponent(slug)}/unpause`, "POST");
+}
+
+export function cancelAdminMarket(apiKey: string, slug: string) {
+  return adminFetch<AdminActionResponse>(apiKey, `/api/v1/admin/markets/${encodeURIComponent(slug)}/cancel`, "POST");
+}
+
+export function fetchAdminUsers(apiKey: string, params?: { q?: string; limit?: number; offset?: number }) {
+  const search = new URLSearchParams({
+    limit: String(params?.limit ?? 50),
+    offset: String(params?.offset ?? 0),
+  });
+  if (params?.q?.trim()) search.set("q", params.q.trim());
+  return adminFetch<AdminUsersResponse>(apiKey, `/api/v1/admin/users?${search}`);
+}
+
+type AdminUserActionResponse = { id: string; email: string; is_suspended: boolean; paper_trading_only: boolean };
+
+export function suspendAdminUser(apiKey: string, userId: string) {
+  return adminFetch<AdminUserActionResponse>(apiKey, `/api/v1/admin/users/${encodeURIComponent(userId)}/suspend`, "POST");
+}
+
+export function unsuspendAdminUser(apiKey: string, userId: string) {
+  return adminFetch<AdminUserActionResponse>(apiKey, `/api/v1/admin/users/${encodeURIComponent(userId)}/unsuspend`, "POST");
 }

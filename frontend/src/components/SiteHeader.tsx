@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
 import { ApiHealthChip } from "@/components/ApiHealthChip";
@@ -14,7 +14,6 @@ import { SignalAlertBadge } from "@/components/SignalAlertBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useSignalAlerts } from "@/hooks/useSignalAlerts";
 import { cn } from "@/lib/cn";
-import { MARKETS } from "@/lib/mock-data";
 
 /*
  * QuestFlow nav: Discover | Trade | Markets | Signals | Clones | Portfolio
@@ -65,7 +64,6 @@ export function SiteHeader() {
   const { token, email, paperBalance, logout, isReady } = useAuth();
   const [open, setOpen] = useState(false);
   const { alerts, unreadCount, markRead } = useSignalAlerts();
-  const catalogSlugs = useMemo(() => MARKETS.map((m) => m.slug), []);
   const isLoggedIn = isReady && !!token;
   const onSignalsNav = pathname === "/signals" || pathname.startsWith("/signals/");
 
@@ -162,7 +160,7 @@ export function SiteHeader() {
               </>
             )}
             <AlertsBell />
-            <NotificationBell slugs={catalogSlugs} />
+            <NotificationBell />
             <button
               className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
               aria-label="Menu"

@@ -3,8 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { API_BASE } from "@/lib/alphaedge-api";
+import { useAdminApiKey } from "@/lib/admin-context";
 const API = API_BASE;
-const ADMIN_API_KEY_STORAGE = "alphaedge.adminApiKey";
 
 const CATALOG_SLUGS = [
   "nba-2025-01-15-lal-bos",
@@ -68,21 +68,10 @@ export default function CalibrationAdminPage() {
   const [loading, setLoading] = useState(true);
   const [resolveSlug, setResolveSlug] = useState<string>(CATALOG_SLUGS[0]);
   const [resolveOutcome, setResolveOutcome] = useState<"YES" | "NO" | "VOID">("YES");
-  const [adminApiKey, setAdminApiKey] = useState("");
+  const adminApiKey = useAdminApiKey();
   const [resolveMessage, setResolveMessage] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [resolveLoading, setResolveLoading] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(ADMIN_API_KEY_STORAGE);
-      if (stored) {
-        setAdminApiKey(stored);
-      }
-    } catch {
-      // sessionStorage unavailable
-    }
-  }, []);
 
   useEffect(() => {
     if (!API) {
@@ -127,12 +116,6 @@ export default function CalibrationAdminPage() {
     if (!adminApiKey.trim()) {
       setResolveError("Admin API key is required.");
       return;
-    }
-
-    try {
-      sessionStorage.setItem(ADMIN_API_KEY_STORAGE, adminApiKey);
-    } catch {
-      // sessionStorage unavailable
     }
 
     setResolveLoading(true);
@@ -332,26 +315,6 @@ export default function CalibrationAdminPage() {
                 NO
               </label>
             </fieldset>
-
-            <label style={{ display: "block", marginTop: "1rem", fontSize: "0.75rem", color: "#64748b" }}>
-              Admin API key
-              <input
-                type="password"
-                value={adminApiKey}
-                onChange={(event) => setAdminApiKey(event.target.value)}
-                autoComplete="off"
-                style={{
-                  display: "block",
-                  marginTop: "0.35rem",
-                  width: "100%",
-                  borderRadius: "0.5rem",
-                  border: "1px solid #334155",
-                  background: "#0f172a",
-                  color: "#e2e8f0",
-                  padding: "0.5rem 0.75rem",
-                }}
-              />
-            </label>
 
             <button
               type="submit"

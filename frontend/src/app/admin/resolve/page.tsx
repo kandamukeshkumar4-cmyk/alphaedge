@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { API_BASE } from "@/lib/alphaedge-api";
+import { useAdminApiKey } from "@/lib/admin-context";
 const API = API_BASE;
-const ADMIN_API_KEY_STORAGE = "alphaedge.adminApiKey";
 
 const CATALOG_SLUGS = [
   "nba-2025-01-15-lal-bos",
@@ -39,22 +39,11 @@ type ResolveResponse = {
 export default function AdminResolvePage() {
   const [slug, setSlug] = useState<string>(CATALOG_SLUGS[0]);
   const [outcome, setOutcome] = useState<ResolveOutcome>("YES");
-  const [adminApiKey, setAdminApiKey] = useState("");
+  const adminApiKey = useAdminApiKey();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(ADMIN_API_KEY_STORAGE);
-      if (stored) {
-        setAdminApiKey(stored);
-      }
-    } catch {
-      // sessionStorage unavailable
-    }
-  }, []);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,12 +65,6 @@ export default function AdminResolvePage() {
     setLoading(true);
     setMessage(null);
     setError(null);
-
-    try {
-      sessionStorage.setItem(ADMIN_API_KEY_STORAGE, adminApiKey);
-    } catch {
-      // sessionStorage unavailable
-    }
 
     try {
       const response = await fetch(`${API}/api/v1/admin/markets/${slug}/resolve`, {
@@ -162,17 +145,6 @@ export default function AdminResolvePage() {
             ))}
           </div>
         </fieldset>
-
-        <label className="block text-sm">
-          <span className="font-semibold text-text">Admin API key</span>
-          <input
-            type="password"
-            value={adminApiKey}
-            onChange={(event) => setAdminApiKey(event.target.value)}
-            className="mt-1 w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm"
-            autoComplete="off"
-          />
-        </label>
 
         <button
           type="submit"

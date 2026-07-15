@@ -20,7 +20,9 @@ import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { PageHeader, PageShell } from "@/components/ui/kit";
+import { DriftSeriesPanel } from "@/components/DriftSeriesPanel";
 import { ModelAbCard } from "@/components/ModelAbCard";
+import { ModelRegistryPanel } from "@/components/ModelRegistryPanel";
 const API = API_BASE;
 
 type EvalAggregates = Record<string, number>;
@@ -173,6 +175,8 @@ export default function EvalDashboard() {
 
       {/* ── W03 LightGBM-vs-XGBoost walk-forward A/B readout ── */}
       <ModelAbCard />
+      <DriftSeriesPanel />
+      <ModelRegistryPanel />
     </PageShell>
   );
 }
