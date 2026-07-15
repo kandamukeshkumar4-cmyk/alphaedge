@@ -59,3 +59,6 @@ npx playwright test → exit 0
 - **PASS.** WS live bump not asserted (honest poll via remount fetch after navigation); noted in spec header.
 - **PASS.** Suite ends green with counts; zero console errors on A/B journeys.
 - Residual: mark-one uses link navigation (item has /markets/ link); relies on POST /read completing before remount fetch.
+
+### ORCHESTRATOR REVIEW · G2 · 4bffa06 · verdict: PASS
+Continue G3 → G4.
