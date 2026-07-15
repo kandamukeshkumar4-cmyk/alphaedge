@@ -1,6 +1,7 @@
 import MarketDetailClient from "./market-detail-client";
 import { getMarket, MARKETS } from "@/lib/mock-data";
 import { fetchMarketDetailApi } from "@/lib/alphaedge-api";
+import { formatMarketLabel } from "@/lib/signals-dashboard-view-model";
 
 // Live Kalshi/Polymarket slugs are discovered at runtime and can't be
 // enumerated ahead of time — they must render dynamically. The static list
@@ -25,7 +26,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const apiDetail = await fetchMarketDetailApi(slug);
   const localMarket = getMarket(slug);
-  const title = apiDetail?.title ?? localMarket?.title ?? slug;
+  const title = apiDetail?.title ?? localMarket?.title ?? formatMarketLabel(slug);
   return { title: `${title} | AlphaEdge` };
 }
 
