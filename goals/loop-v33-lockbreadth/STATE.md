@@ -295,3 +295,107 @@ uv run --extra dev ruff check app tests scripts
 ```
 
 AutoLab: baseline=0 autolock candidates / input_starved=true (B1) | benchmark=funnel stage counts via scripts/autolock_funnel_snapshot.py | iterations=1 (bridge -> 25 external markets, 14 candidates, input_starved=false) | budget=3/3 | outcome=improved (funnel off stage 0 on real venue data; horizon now binding -> F4)
+
+---
+
+### B3 — Whole-funnel tests + full gate + verifier · DONE (verifier: PASS)
+
+**The chain V33 set out to repair now runs end to end, in one test.**
+
+`backend/tests/test_external_market_bridge.py` proved the bridge in isolation;
+B3 adds `backend/tests/test_loop33_funnel_e2e.py`, which drives every stage
+through the **real registry seam** (`reset_venue_registry_for_tests` +
+`register_adapter`) rather than patching internals — so the actual bridge,
+autolock, resolver and scoring code paths execute:
+
+```
+ingested catalog market
+  -> bridge      registers it as an ExternalMarket (never resolves it)
+  -> autolock    locks a LIVE model forecast, strictly pre-close
+  -> resolve     the venue settles it after close (existing V14 path)
+  -> score       the forecast is graded
+  -> resolved_count == 1, source == "forecast_scores"
+```
+
+That last line is the loop's whole purpose: `resolved_count` accruing from a
+real scored pre-close forecast rather than the paper-orders fallback.
+
+Three tests:
+1. `test_ingested_market_flows_bridge_autolock_resolve_score` — the full chain
+   above, asserting real rows at every stage (not just worker summaries).
+2. `test_bridge_does_not_disturb_the_resolve_path_for_manual_markets` — the
+   pre-V33 forecaster-registered path resolves exactly as before. The bridge
+   adds supply; it does not change resolution (DIR-V33-002.3).
+3. `test_bridge_never_supplies_a_market_that_closes_before_it_could_lock` — the
+   one failure this loop can never ship. The catalog is stale and still claims
+   6h to close while the venue says it closed 1s ago; nothing is bridged and
+   autolock still has 0 candidates.
+
+#### Sacred invariant, asserted on product state
+
+The e2e test pins `locked_at < close`, and — per the verifier's finding — proves
+nothing peeked or backfilled by asserting **product** rows at lock time
+(`external.winning_outcome is None`, `resolved_at is None`, `status is OPEN`, and
+zero `ForecastScore` rows), not the test fixture's own state. The original
+assertion checked the stub the test itself controlled, which had no bite; the
+verifier caught it and it was replaced rather than shipped.
+
+#### Gate (B3) — counts, exit codes captured explicitly (pipes lie)
+
+```
+ADMIN_API_KEY=dev-admin-key uv run --extra dev pytest -q -p no:cacheprovider
+  -> PYTEST_EXIT=0 ; 1639 passed, 28 skipped
+uv run --extra dev ruff check app tests scripts
+  -> RUFF_EXIT=0 ; All checks passed!
+```
+
+Delta from B1's 1609 baseline is +30, fully accounted and independently
+confirmed by the verifier: 17 bridge + 7 funnel-observability + 3 resolved-count
++ 3 e2e. Skipped unchanged at 28. **No test deleted, skipped, or weakened.**
+
+#### Fresh-context verifier · PASS
+
+Independently re-ran the gate (1639/28/EXIT=0, ruff clean), confirmed B3 touches
+only a test file with no runtime changes, and adversarially checked that the
+tests bite: confirmed `test_bridge_never_supplies_a_market_that_closes_before_it_could_lock`
+really fails if the bridge trusts the catalog's stale `lock_at` instead of the
+venue's live `close_time`, and that a no-op/fabricated implementation fails on
+the DB-read assertions. Its one finding (the tautological fixture assertion) is
+fixed above.
+
+AutoLab: baseline=chain unproven end-to-end | benchmark=full-funnel e2e (bridge->autolock->resolve->score->resolved_count) + gate counts | iterations=1 (chain green; verifier's tautology finding fixed) | budget=3/3 | outcome=improved (resolved_count now provably accrues from a real scored pre-close forecast)
+
+---
+
+## LOOP V33 — COMPLETE (B1, B2/B2'a-c, B3 all DONE)
+
+**What changed:** `resolved_count` could never accrue, because the autolock
+funnel had no input at all — live ingest filled the `markets` catalog while
+`external_markets`, the table autolock reads, had only manual writers. B1
+measured it (99 real ingested markets → 0 candidates). B2' built the supply
+bridge. The chain now runs end to end.
+
+**Verified end state:** funnel 0 → 25 external markets / 14 autolock candidates
+on real Polymarket data, `input_starved=false`, 50 rows / 50 unique keys / 0
+duplicates across two bounded passes. Gate: 1639 passed, 28 skipped, EXIT=0;
+ruff clean.
+
+**Not pushed or merged** — the orchestrator integrates and deploys (DIR-V33-001.5).
+
+**Open items handed back (`FINDINGS.md`):**
+- **F4** — the 24h horizon now excludes **11 of 25** bridged markets and is the
+  binding filter, exactly as B2 predicted once stage 0 went non-zero. Deliberately
+  **not tuned**: widening it trades forecast accuracy for coverage on a track
+  record whose value is trust, and that trade should be made against measured
+  Brier impact, in its own reviewable ticket.
+- **F2** — prod funnel observability partially closed: the staged funnel is now on
+  the autolock JobRun **and** the public `/api/v1/system/loops` heartbeat, so
+  starvation self-reports without an admin key. The read-only prod DB snapshot ask
+  stands if the orchestrator wants stage-0 confirmed in prod directly.
+
+**Prod expectation after deploy:** `/api/v1/system/loops` →
+`external_market_bridge` alive, and `forecast_autolock.detail` carrying real
+funnel counts instead of silence. `/api/v1/system/resolved-count` will keep
+reporting `source: "paper_orders_fallback"` until the first bridged forecast is
+scored — at which point it flips to `forecast_scores`. That flip is the honest
+signal that V33 worked; `resolved_count` should then climb toward the 100 gate.
