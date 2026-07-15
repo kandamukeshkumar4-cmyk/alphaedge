@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
 from app.api.v1.portfolio import _latest_implied_yes_by_slug
+from app.core import market_detail_cache
 from app.db.models import Market, PredictionLog, User, Watchlist
 from app.db.session import get_db
 
@@ -102,6 +103,8 @@ async def add_to_watchlist(
     if existing is None:
         db.add(Watchlist(user_id=current_user.id, slug=slug))
         await db.flush()
+        # Detail payload includes aggregate watching_count; drop stale entries.
+        market_detail_cache.invalidate()
 
     return await _build_response(db, current_user)
 
@@ -120,6 +123,7 @@ async def remove_from_watchlist(
     if existing is not None:
         await db.delete(existing)
         await db.flush()
+        market_detail_cache.invalidate()
     return await _build_response(db, current_user)
 
 

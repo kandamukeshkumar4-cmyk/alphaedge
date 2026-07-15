@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy import String, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import markets_cache
+from app.core import market_detail_cache, markets_cache
 from app.data.connectors.catalog_map import CATALOG_MAP
 from app.db.models import (
     Account,
@@ -94,6 +94,7 @@ class MarketService:
         self.session.add(market)
         await self.session.flush()
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         await self.events.emit(
             "market_created",
             {"market_id": str(market.id), "slug": slug, "title": title},
@@ -107,6 +108,7 @@ class MarketService:
             raise ValueError("Market is not open")
         market.status = MarketStatus.LOCKED
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         await self.session.flush()
         await self.events.emit(
             "market_locked",
@@ -146,6 +148,7 @@ class MarketService:
                 changed[key] = value
 
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         await self.session.flush()
         await self.events.emit(
             "market_updated",
@@ -164,6 +167,7 @@ class MarketService:
             raise ValueError(f"Cannot pause market in status {market.status.value}")
         market.status = MarketStatus.LOCKED
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         await self.session.flush()
         await self.events.emit(
             "market_paused",
@@ -182,6 +186,7 @@ class MarketService:
             raise ValueError(f"Cannot unpause market in status {market.status.value}")
         market.status = MarketStatus.OPEN
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         await self.session.flush()
         await self.events.emit(
             "market_unpaused",
@@ -200,6 +205,7 @@ class MarketService:
             raise ValueError(f"Cannot cancel market in status {market.status.value}")
         market.status = MarketStatus.CANCELLED
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         await self.session.flush()
         await self.events.emit(
             "market_cancelled",
@@ -219,6 +225,7 @@ class MarketService:
             raise ValueError("Market already resolved")
         market.status = MarketStatus.RESOLVED
         markets_cache.invalidate()
+        market_detail_cache.invalidate()
         market.winning_outcome = winning_outcome
         market.resolved_at = datetime.now(timezone.utc)
         await self.session.flush()

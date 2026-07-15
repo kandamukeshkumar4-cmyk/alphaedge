@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "max_attempts": 800,
+  "attempts_until_stop": 578,
+  "first_429_at_attempt": 578,
+  "first_429_elapsed_s": 26.08240449999721,
+  "first_429_retry_after": "6",
+  "elapsed_s": 26.082406399997126,
+  "success_2xx": 576,
+  "five_xx": 1,
+  "status_counts": {
+    "201": 576,
+    "503": 1,
+    "429": 1
+  },
+  "notes": "Mutating limit default 600/minute per (token, POST, path); global RATE_LIMIT 600/minute per IP for all methods. Onset is first observed 429 under single-token hammer."
+}

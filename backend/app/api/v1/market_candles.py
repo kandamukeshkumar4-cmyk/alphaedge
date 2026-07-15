@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import market_candles_cache
+from app.core.market_candles_cache import MARKET_CANDLES_TTL_SEC
 from app.data.candle_seed import (
     SeedCandle,
     bucket_snapshots,
@@ -36,6 +38,25 @@ async def get_market_candles(
     points: int = Query(default=90, ge=10, le=500),
     db: AsyncSession = Depends(get_db),
 ):
+    """OHLCV candles with short per-(slug, points) TTL cache (Loop V43 P2).
+
+    Public path only — cache keys are ``(slug, points)`` (the range dimension).
+    Success-only puts; TTL <= 30s.
+    """
+    cache_key = ("market_candles", slug, int(points))
+    cached = market_candles_cache.get(cache_key, MARKET_CANDLES_TTL_SEC)
+    if cached is not None:
+        return {**cached, "cached": True}
+
+    body = await _build_market_candles(slug, points, db)
+    # Success-only: put after full successful build.
+    market_candles_cache.put(cache_key, {k: v for k, v in body.items() if k != "cached"})
+    return body
+
+
+async def _build_market_candles(
+    slug: str, points: int, db: AsyncSession
+) -> dict:
     market = await MarketService(db).get_market_by_slug(slug)
     if market is None or not _is_accessible_mirror_market(slug, market.source):
         raise HTTPException(status_code=404, detail="Market not found")
@@ -73,6 +94,7 @@ async def get_market_candles(
     return {
         "candles": [_candle_payload(candle) for candle in candles],
         "source": source,
+        "cached": False,
     }
 
 
