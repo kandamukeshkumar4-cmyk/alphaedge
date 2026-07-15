@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PC08 — pin dark color-scheme; app is dark-only (no theme toggle). */
+html {
+  color-scheme: dark;
+}
+
 /*
  * Pixel-pass QuestFlow palette (sampled from video frames):
  * canvas #070B0A, surface #0E1614/#132320, mint #00E8B0, danger #FF5A5F.

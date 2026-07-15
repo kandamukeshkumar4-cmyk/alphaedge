@@ -1,0 +1,75 @@
+{
+  "base": "http://127.0.0.1:31017",
+  "at": "2026-07-15T19:04:34.667Z",
+  "allOk": true,
+  "results": [
+    {
+      "id": "PC01",
+      "ok": true,
+      "detail": {
+        "placeholder": "Search markets…",
+        "w": 172,
+        "clipped": false
+      }
+    },
+    {
+      "id": "PC03",
+      "ok": true,
+      "detail": {
+        "h1": "Markets"
+      }
+    },
+    {
+      "id": "PC02",
+      "ok": true,
+      "detail": {
+        "alertSlugs": []
+      }
+    },
+    {
+      "id": "PC04",
+      "ok": true,
+      "detail": {
+        "harnessDump": false
+      }
+    },
+    {
+      "id": "PC05",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:31017/auth/login?next=/portfolio"
+      }
+    },
+    {
+      "id": "PC06",
+      "ok": true,
+      "detail": {
+        "title": "Will spain win the 2026 fifa world cup 963 | AlphaEdge"
+      }
+    },
+    {
+      "id": "PC07",
+      "ok": true,
+      "detail": {
+        "emptyCopy": []
+      }
+    },
+    {
+      "id": "PC08",
+      "ok": true,
+      "detail": {
+        "colorScheme": "dark",
+        "toggle": false
+      }
+    },
+    {
+      "id": "PC09",
+      "ok": true,
+      "detail": {
+        "honest": true,
+        "browse": true,
+        "invented": false
+      }
+    }
+  ]
+}

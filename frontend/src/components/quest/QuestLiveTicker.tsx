@@ -56,7 +56,7 @@ export function QuestLiveTicker() {
           ● Recent
         </span>
         <div className="flex min-w-0 flex-1 overflow-hidden">
-          <div className="flex min-w-0 items-center gap-8 overflow-x-auto whitespace-nowrap px-2">
+          <div className="flex min-w-0 items-center gap-8 overflow-hidden whitespace-nowrap px-2">
             {rows.map((r) => {
               const inner = (
                 <span className="inline-flex items-center gap-1.5 text-[11px]">

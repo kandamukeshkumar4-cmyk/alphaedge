@@ -1,0 +1,345 @@
+{
+  "base": "http://127.0.0.1:31017",
+  "generatedAt": "2026-07-15T18:55:58.182Z",
+  "routes": [
+    "/",
+    "/markets",
+    "/portfolio",
+    "/leaderboard",
+    "/signals",
+    "/eval",
+    "/alerts",
+    "/feed",
+    "/markets/crypto-btc-friday-5pm#intelligence"
+  ],
+  "marketHref": "/markets/crypto-btc-friday-5pm#intelligence",
+  "traderHref": null,
+  "findings": [
+    {
+      "id": "META-ROUTES",
+      "severity": "info",
+      "summary": "Resolved market=/markets/crypto-btc-friday-5pm#intelligence trader=null",
+      "evidence": []
+    },
+    {
+      "id": "PC-THEME-01",
+      "severity": "medium",
+      "summary": "No visible theme toggle in chrome; app is dark-only (html.light only flips chart tokens). Sweep used DOM class toggle for light residual.",
+      "routes": [
+        "/"
+      ],
+      "evidence": [
+        "evidence/00_theme_toggle_search_desktop_dark.png"
+      ],
+      "impact": "Users cannot switch themes; work-order expected both themes via toggle."
+    },
+    {
+      "id": "PC-OX-home-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on / (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/"
+      ],
+      "evidence": [
+        "evidence/home_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-CONTRAST-home",
+      "severity": "medium",
+      "summary": "Accent fill without text-bg on /: Trade to win$10,000Prize pool [mt-4 inline-flex items-center gap-2 rounded-lg border border-primary/35 bg-prima]",
+      "routes": [
+        "/"
+      ],
+      "evidence": [
+        "evidence/home_desktop_dark.png"
+      ],
+      "impact": "Possible low-contrast text on accent"
+    },
+    {
+      "id": "PC-OX-markets-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /markets (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/markets"
+      ],
+      "evidence": [
+        "evidence/markets_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-portfolio-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /portfolio (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/portfolio"
+      ],
+      "evidence": [
+        "evidence/portfolio_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-leaderboard-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /leaderboard (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/leaderboard"
+      ],
+      "evidence": [
+        "evidence/leaderboard_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-signals-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /signals (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/signals"
+      ],
+      "evidence": [
+        "evidence/signals_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-eval-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /eval (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/eval"
+      ],
+      "evidence": [
+        "evidence/eval_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-alerts-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /alerts (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/alerts"
+      ],
+      "evidence": [
+        "evidence/alerts_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-feed-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /feed (desktop/dark): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/feed"
+      ],
+      "evidence": [
+        "evidence/feed_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-markets_crypto-btc-friday-5pm-desktop-dark",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /markets/crypto-btc-friday-5pm#intelligence (desktop/dark): scrollWidth=1386 clientWidth=1280",
+      "routes": [
+        "/markets/crypto-btc-friday-5pm#intelligence"
+      ],
+      "evidence": [
+        "evidence/markets_crypto-btc-friday-5pm_desktop_dark.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-CONTRAST-markets_crypto-btc-friday-5pm",
+      "severity": "medium",
+      "summary": "Accent fill without text-bg on /markets/crypto-btc-friday-5pm#intelligence: AIAI forecastXGBoost · 2h agoModel43%Con [rounded-2xl border border-accent/30 bg-accent-dim p-4 shadow-glow] ; 🔴Below58% book3,550 [relative min-h-[58px] overflow-hidden rounded-xl border px-3 py-2 text-left tran] ; ATLASAnalysis only — open the AI rail fo [rounded-2xl border border-accent/30 bg-accent-dim/40 px-4 py-3 text-left transit]",
+      "routes": [
+        "/markets/crypto-btc-friday-5pm#intelligence"
+      ],
+      "evidence": [
+        "evidence/markets_crypto-btc-friday-5pm_desktop_dark.png"
+      ],
+      "impact": "Possible low-contrast text on accent"
+    },
+    {
+      "id": "PC-OX-home-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on / (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/"
+      ],
+      "evidence": [
+        "evidence/home_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-markets-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /markets (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/markets"
+      ],
+      "evidence": [
+        "evidence/markets_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-portfolio-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /portfolio (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/portfolio"
+      ],
+      "evidence": [
+        "evidence/portfolio_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-leaderboard-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /leaderboard (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/leaderboard"
+      ],
+      "evidence": [
+        "evidence/leaderboard_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-signals-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /signals (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/signals"
+      ],
+      "evidence": [
+        "evidence/signals_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-eval-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /eval (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/eval"
+      ],
+      "evidence": [
+        "evidence/eval_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-alerts-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /alerts (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/alerts"
+      ],
+      "evidence": [
+        "evidence/alerts_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-feed-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /feed (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/feed"
+      ],
+      "evidence": [
+        "evidence/feed_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    },
+    {
+      "id": "PC-OX-markets_crypto-btc-friday-5pm-desktop-light",
+      "severity": "medium",
+      "summary": "Horizontal overflow on /markets/crypto-btc-friday-5pm#intelligence (desktop/light): scrollWidth=1358 clientWidth=1280",
+      "routes": [
+        "/markets/crypto-btc-friday-5pm#intelligence"
+      ],
+      "evidence": [
+        "evidence/markets_crypto-btc-friday-5pm_desktop_light.png"
+      ],
+      "impact": "Content clipped / sideways scroll"
+    }
+  ],
+  "consoleErrors": [
+    {
+      "route": "/eval",
+      "vp": "desktop",
+      "theme": "dark",
+      "msg": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "route": "/portfolio",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/leaderboard",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/signals",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/eval",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/alerts",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/feed",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/markets/crypto-btc-friday-5pm#intelligence",
+      "vp": "desktop",
+      "theme": "light",
+      "msg": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "route": "/",
+      "vp": "mobile",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/markets",
+      "vp": "mobile",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    },
+    {
+      "route": "/markets/crypto-btc-friday-5pm#intelligence",
+      "vp": "mobile",
+      "theme": "light",
+      "msg": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client bran"
+    }
+  ]
+}

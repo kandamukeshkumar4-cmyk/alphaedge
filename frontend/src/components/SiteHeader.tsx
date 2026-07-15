@@ -72,7 +72,7 @@ export function SiteHeader() {
       <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
         {/* BUG-V18-01: gap-2/gap-1.5 below 640px — the logo + auth cluster
             otherwise overflows a 375px viewport by ~6px (scrollWidth 381). */}
-        <div className="mx-auto flex h-[56px] max-w-[1600px] items-center gap-2 px-3 sm:gap-3 sm:px-5">
+        <div className="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="AlphaEdge home">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-mono text-xs font-black text-bg shadow-glow">
               AE
@@ -85,15 +85,18 @@ export function SiteHeader() {
             </span>
           </Link>
 
-          <ApiHealthChip className="hidden shrink-0 sm:inline-flex" />
+          {/* sm–lg: in header; lg–xl: hidden (nav+auth tight at 1280); xl+: back. */}
+          <ApiHealthChip className="hidden shrink-0 sm:inline-flex lg:hidden xl:inline-flex" />
 
-          <nav className="hidden h-full items-stretch gap-0.5 self-stretch lg:flex">
+          <nav className="hidden h-full min-w-0 items-stretch gap-0.5 self-stretch lg:flex">
             {NAV.map((item) => {
               const base = item.href.split("?")[0];
               const active =
                 item.href === "/"
                   ? pathname === "/"
                   : pathname === base || pathname.startsWith(`${base}/`);
+              // PC10: at 1280, Home+Clones compete with search — keep them in More/xl.
+              const deferWide = item.label === "Home" || item.label === "Clones";
               return (
                 <Link
                   key={item.label}
@@ -101,7 +104,8 @@ export function SiteHeader() {
                   aria-current={active ? "page" : undefined}
                   onClick={item.label === "Signals" ? () => markRead() : undefined}
                   className={cn(
-                    "relative flex items-center px-2.5 text-[13px] font-semibold transition",
+                    "relative flex items-center px-2 text-[13px] font-semibold transition",
+                    deferWide && "hidden xl:flex",
                     active ? "text-text" : "text-muted hover:text-text",
                   )}
                 >
@@ -118,16 +122,15 @@ export function SiteHeader() {
             <HeaderMoreMenu />
           </nav>
 
-          {/* PC01: min-w so the search field is not crushed by the nav/auth
-              cluster at 1280 — placeholder was clipping to "Search markets… (". */}
-          <div className="ml-auto hidden min-w-[220px] flex-1 items-center md:flex lg:min-w-[280px] lg:max-w-[380px]">
+          {/* PC01 + PC10: readable search without pushing bells past 1280. */}
+          <div className="ml-auto hidden min-w-[200px] flex-1 items-center md:flex lg:min-w-[220px] lg:max-w-[320px]">
             <HeaderSearch />
           </div>
 
-          <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2 md:ml-0">
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2 md:ml-0">
             <Link
               href="/portfolio"
-              className="hidden h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"
+              className="hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"
               aria-label="View paper balance and portfolio"
               title="View your paper balance and positions"
             >
@@ -154,11 +157,13 @@ export function SiteHeader() {
             ) : (
               <>
                 <Button label="Log in" variant="ghost" onClick={() => router.push("/auth/login")} />
-                <Button
-                  label="Sign up"
-                  variant="primary"
-                  onClick={() => router.push("/auth/signup")}
-                />
+                <span className="hidden xl:inline-flex">
+                  <Button
+                    label="Sign up"
+                    variant="primary"
+                    onClick={() => router.push("/auth/signup")}
+                  />
+                </span>
               </>
             )}
             <AlertsBell />

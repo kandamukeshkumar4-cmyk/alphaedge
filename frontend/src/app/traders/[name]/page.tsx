@@ -98,14 +98,23 @@ export default function TraderProfilePage() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">Trader profile</p>
           <h1 className="mt-2 text-2xl font-black text-text">Profile not available</h1>
           <p className="mt-2 max-w-lg text-sm text-muted">
-            {error ?? "This profile is unknown or the trader has opted out of public stats."}
+            {error ??
+              "This profile is unknown, private, or not ranked yet. Profiles appear from the leaderboard after graded paper trades — we do not invent traders."}
           </p>
-          <Link
-            href="/leaderboard"
-            className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 py-2 text-sm font-black text-bg transition hover:brightness-110"
-          >
-            Back to leaderboard
-          </Link>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link
+              href="/leaderboard"
+              className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 py-2 text-sm font-black text-bg transition hover:brightness-110"
+            >
+              Back to leaderboard
+            </Link>
+            <Link
+              href="/markets"
+              className="inline-flex min-h-11 items-center rounded-xl border border-border bg-surface px-4 py-2 text-sm font-black text-text transition hover:border-accent hover:text-accent"
+            >
+              Browse markets
+            </Link>
+          </div>
         </Panel>
       </PageShell>
     );
