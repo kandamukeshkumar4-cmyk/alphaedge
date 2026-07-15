@@ -220,10 +220,25 @@ export default function LeaderboardPage() {
           ) : liveEmpty ? (
             <div className="py-10 text-center">
               <p className="text-sm font-bold text-text">No ranked traders yet</p>
-              <p className="mt-1 text-xs text-muted">
-                Rankings appear once paper traders place orders and markets resolve.
-                Place a paper trade to claim the first spot.
+              <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted">
+                Trader profiles open from these standings once paper traders place
+                orders and markets resolve. Nothing is invented here — the arena
+                stays empty until graded paper P&amp;L exists.
               </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  href="/markets"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 py-2 text-sm font-black text-bg shadow-glow transition hover:brightness-110"
+                >
+                  Browse markets
+                </Link>
+                <Link
+                  href="/feed"
+                  className="inline-flex min-h-11 items-center rounded-xl border border-border bg-surface px-4 py-2 text-sm font-black text-text transition hover:border-primary hover:text-primary"
+                >
+                  Open feed
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
