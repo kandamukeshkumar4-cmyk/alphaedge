@@ -40,7 +40,7 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     if (isReady && !token) {
-      router.replace("/auth/login");
+      router.replace("/auth/login?next=/portfolio");
     }
   }, [isReady, token, router]);
 
