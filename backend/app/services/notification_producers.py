@@ -151,12 +151,19 @@ async def notify_clob_order_cancelled(payload: dict[str, Any]) -> None:
 
 
 def social_follow_tables_present() -> bool:
-    """True when V22 (or later) trader-follow tables exist on the mapped metadata."""
+    """True when trader-follow tables exist on the mapped metadata.
+
+    The live social model maps to ``follows`` (V22). Older provisional names are
+    retained so alternate schemas still enable the fan-out path.
+    """
     try:
         from app.db.base import Base
 
         names = set(Base.metadata.tables.keys())
-        return bool(names & {"trader_follows", "user_follows", "social_follows"})
+        return bool(
+            names
+            & {"follows", "trader_follows", "user_follows", "social_follows"}
+        )
     except Exception:  # noqa: BLE001
         return False
 
@@ -169,10 +176,9 @@ async def notify_followed_trader_trade(
     side: str,
     shares: float,
     price: float,
+    session=None,
 ) -> None:
-    """Fan a followed trader's fill to a follower. No-ops if social tables absent."""
-    if not social_follow_tables_present():
-        return
+    """Fan a followed trader's fill to a follower. Never raises."""
     try:
         from app.services.notification_service import create_notification_best_effort
 
@@ -184,9 +190,73 @@ async def notify_followed_trader_trade(
                 f"{trader_label} {side.upper()} {shares:g} on {slug} @ {price:.4f}"
             ),
             link=f"/markets/{slug}",
+            session=session,
         )
     except Exception:  # noqa: BLE001
         logger.warning("notify_followed_trader_trade failed", exc_info=True)
+
+
+async def notify_followers_of_paper_trade(
+    *,
+    trader_user_id: UUID,
+    slug: str,
+    side: str,
+    shares: float,
+    price: float,
+    session=None,
+) -> None:
+    """Notify every follower of ``trader_user_id`` about a paper fill.
+
+    Additive observation hook — never raises into the producing transaction
+    (same contract as ``notify_order_filled``).
+    """
+    if not social_follow_tables_present():
+        return
+    try:
+        from sqlalchemy import select
+
+        from app.db.models import Follow, User
+        from app.services.analytics_leaderboard import anonymized_username
+
+        async def _fanout(db) -> None:
+            trader = await db.scalar(select(User).where(User.id == trader_user_id))
+            if trader is None:
+                return
+            # Opted-out profiles stay off the social surface (feed + notify).
+            if not getattr(trader, "profile_public", True):
+                return
+            trader_label = anonymized_username(
+                trader.id, display_name=trader.display_name
+            )
+            follower_ids = (
+                await db.scalars(
+                    select(Follow.follower_id).where(
+                        Follow.followee_id == trader_user_id
+                    )
+                )
+            ).all()
+            for follower_id in follower_ids:
+                await notify_followed_trader_trade(
+                    follower_user_id=follower_id,
+                    trader_label=trader_label,
+                    slug=slug,
+                    side=side,
+                    shares=shares,
+                    price=price,
+                    session=db,
+                )
+
+        if session is not None:
+            await _fanout(session)
+            return
+
+        from app.db.session import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as own:
+            await _fanout(own)
+            await own.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning("notify_followers_of_paper_trade failed", exc_info=True)
 
 
 async def mirror_alert_to_admin_notifications(

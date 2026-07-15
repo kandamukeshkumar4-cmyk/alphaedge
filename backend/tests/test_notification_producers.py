@@ -119,8 +119,9 @@ async def test_notify_cancelled_skips_without_user():
 
 
 @pytest.mark.asyncio
-async def test_social_follow_tables_absent():
-    assert social_follow_tables_present() is False
+async def test_social_follow_tables_present_detects_follows():
+    """Mapped social model uses ``follows`` (SEC-Z2-01 / Loop V27 X1)."""
+    assert social_follow_tables_present() is True
 
 
 @pytest.mark.asyncio

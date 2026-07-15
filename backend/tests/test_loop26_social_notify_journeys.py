@@ -97,12 +97,12 @@ async def test_z2_follow_trade_appears_in_social_feed(db_session):
 
 @pytest.mark.asyncio
 async def test_z2_followed_trade_notification_gap(db_session):
-    """A should get a followed_trade notification when B trades — currently broken.
+    """A gets a followed_trade notification when B (followed) paper-trades.
 
-    SEC-Z2-01: order path never calls notify_followed_trader_trade;
-    social_follow_tables_present() looks for trader_follows/user_follows/social_follows
-    but the mapped table is ``follows``.
+    Loop V27 X1 closes SEC-Z2-01: ``follows`` is detected and the paper fill
+    path fans ``notify_followed_trader_trade`` to followers.
     """
+    assert social_follow_tables_present() is True
     await MarketService(db_session).seed_catalog_markets()
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -141,13 +141,6 @@ async def test_z2_followed_trade_notification_gap(db_session):
         assert listed.status_code == 200
         types = [i["type"] for i in listed.json()["items"]]
 
-    # Document the wiring gap so the suite stays honest without failing green gate.
-    assert social_follow_tables_present() is False  # wrong table names vs ``follows``
-    if "followed_trade" not in types:
-        pytest.xfail(
-            "SEC-Z2-01: followed_trade notification not produced on paper fill "
-            f"(observer types={types}; social_follow_tables_present=False)"
-        )
     assert "followed_trade" in types
 
 

@@ -296,7 +296,10 @@ async def place_paper_order(
         )
     )
     # Loop V24 N2: per-user in-app notification (never raises into this txn).
-    from app.services.notification_producers import notify_order_filled
+    from app.services.notification_producers import (
+        notify_followers_of_paper_trade,
+        notify_order_filled,
+    )
 
     await notify_order_filled(
         user_id=order.user_id,
@@ -307,6 +310,15 @@ async def place_paper_order(
         shares=float(order.shares),
         price=float(order.price),
         action=order.action,
+        session=db,
+    )
+    # Loop V27 X1 / SEC-Z2-01: followers get followed_trade (never raises).
+    await notify_followers_of_paper_trade(
+        trader_user_id=order.user_id,
+        slug=order.slug,
+        side=order.side,
+        shares=float(order.shares),
+        price=float(order.price),
         session=db,
     )
     return _order_response(order, new_balance)
@@ -548,7 +560,10 @@ async def close_paper_position(
         )
     )
     # Loop V24 N2: per-user in-app notification (never raises into this txn).
-    from app.services.notification_producers import notify_order_filled
+    from app.services.notification_producers import (
+        notify_followers_of_paper_trade,
+        notify_order_filled,
+    )
 
     await notify_order_filled(
         user_id=order.user_id,
@@ -559,6 +574,15 @@ async def close_paper_position(
         shares=float(order.shares),
         price=float(order.price),
         action=order.action,
+        session=db,
+    )
+    # Loop V27 X1 / SEC-Z2-01: followers get followed_trade (never raises).
+    await notify_followers_of_paper_trade(
+        trader_user_id=order.user_id,
+        slug=order.slug,
+        side=order.side,
+        shares=float(order.shares),
+        price=float(order.price),
         session=db,
     )
     return PositionCloseResponse(
