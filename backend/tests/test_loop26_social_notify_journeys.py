@@ -3,7 +3,7 @@
 Covers: follow → trade → social/feed + notification; opt-out hides profile/feed;
 read / read-all; WS notifications frame (fake-WS pattern from test_ws_feed.py).
 
-App defects → SEC REPORT in STATE.md; suite stays green via xfail where needed.
+Loop V27 closed SEC-Z2-01 / SEC-Z2-02; these journeys assert the fixed behavior.
 """
 
 from __future__ import annotations
