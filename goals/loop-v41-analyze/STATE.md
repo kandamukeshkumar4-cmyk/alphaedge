@@ -31,10 +31,20 @@ Add an analyze-intent branch that returns a real deterministic analysis from
 existing read-only services (price/volume/24h move/drivers/brief/model vs
 market). Menu only for unrecognized intents.
 
+## A2 FIX
+- `_is_analyze_intent` matches analyze / deep-dive seed prompts.
+- `_enrich_analyze_context` pulls real figures via MarketService, OddsSnapshot
+  (24h move), AnalystBrief, alert-feed drivers, plus existing model/news
+  context — no OrderBookService / RiskService.
+- `_build_analyze_reply` composes analysis; omits absent fields honestly;
+  always includes uncertainty + paper-only disclaimer.
+- Capability menu (`I can help with:`) remains only for unrecognized intents.
+
 ## LOOP LOG
 | loop | date | result | proof |
 |------|------|--------|-------|
 | A1 | 2026-07-15 | DONE — both keyless + router miss | diagnosis above; no code change |
+| A2 | 2026-07-15 | DONE — keyless analyze returns real analysis | assistant.py analyze branch; smoke: menu=False for Analyze seed |
 
 ### ORCHESTRATOR REVIEW · A1 · 2871a97 · verdict: PASS
 Both-cause diagnosis confirmed (router lacks an analyze bucket; the button's

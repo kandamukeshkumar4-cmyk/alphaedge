@@ -23,12 +23,17 @@ import logging
 import time
 from typing import Any
 
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_optional_user
 from app.core.config import get_settings
-from app.db.models import User
+from app.db.models import AnalystBrief, OddsSnapshot, User
+from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +60,9 @@ assert "submit_order_intent" not in ASSISTANT_ALLOWED_TOOLS, (
 )
 
 ANALYSIS_ONLY_BANNER = "Analysis only — this assistant cannot place trades."
+PAPER_ONLY_DISCLAIMER = "Paper trading only — simulated funds, no execution."
+_MENU_MARKER = "I can help with:"
+_ANALYZE_KEYWORDS = ("analyze", "deep-dive", "deep dive")
 
 # ── Anonymous per-IP rate limiter ────────────────────────────────────────────
 # The chat endpoint keeps an anonymous public path (the demo works with no
@@ -192,6 +200,260 @@ def _gather_market_context(slug: str) -> dict[str, Any]:
     return ctx
 
 
+def _is_analyze_intent(message: str) -> bool:
+    """True for AI Analyze / deep-dive seed prompts from the market cards."""
+    msg = message.lower()
+    return any(kw in msg for kw in _ANALYZE_KEYWORDS)
+
+
+def _lean_label(model_p: float | None, market_p: float | None) -> str:
+    if model_p is None or market_p is None:
+        return "neutral"
+    diff = model_p - market_p
+    if abs(diff) < 0.02:
+        return "neutral"
+    return "favors YES" if diff > 0 else "favors NO"
+
+
+async def _enrich_analyze_context(
+    slug: str, ctx: dict[str, Any], db: AsyncSession
+) -> dict[str, Any]:
+    """Pull real price/volume/24h move/brief/drivers for analyze intent.
+
+    Every figure comes from an existing read-only store. Missing data is left
+    absent (never fabricated). Does NOT import OrderBookService / RiskService.
+    """
+    out = dict(ctx)
+
+    # Market row: title, volume, latest YES price (via MarketService subquery).
+    try:
+        from app.services.market_service import MarketService
+
+        market = await MarketService(db).get_public_market_by_slug(slug)
+        if market is not None:
+            out["title"] = market.title
+            out["volume"] = int(market.volume or 0)
+            if market.yes_price is not None:
+                out["market_price"] = round(float(market.yes_price), 4)
+    except Exception as exc:
+        logger.debug("analyze market lookup failed for %s: %s", slug, exc)
+
+    # Catalog implied as fallback market price when DB price absent.
+    if out.get("market_price") is None:
+        try:
+            from app.api.v1.market_prediction import _implied_prob_from_catalog
+            from app.services.market_service import CATALOG_SLUGS
+
+            if slug in CATALOG_SLUGS:
+                out["market_price"] = round(_implied_prob_from_catalog(slug), 4)
+        except Exception:
+            pass
+
+    # 24h move from OddsSnapshot (latest vs price at/before 24h cutoff).
+    try:
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(hours=24)
+        latest = await db.scalar(
+            select(OddsSnapshot.implied_yes)
+            .where(OddsSnapshot.market_slug == slug)
+            .order_by(OddsSnapshot.captured_at.desc())
+            .limit(1)
+        )
+        older = await db.scalar(
+            select(OddsSnapshot.implied_yes)
+            .where(
+                OddsSnapshot.market_slug == slug,
+                OddsSnapshot.captured_at <= cutoff,
+            )
+            .order_by(OddsSnapshot.captured_at.desc())
+            .limit(1)
+        )
+        if latest is not None:
+            latest_f = round(float(latest), 4)
+            out.setdefault("market_price", latest_f)
+            if older is not None:
+                older_f = round(float(older), 4)
+                out["price_24h_ago"] = older_f
+                out["move_24h"] = round(latest_f - older_f, 4)
+    except Exception as exc:
+        logger.debug("analyze 24h move failed for %s: %s", slug, exc)
+
+    # Latest analyst brief headline (omit if none).
+    try:
+        headline = await db.scalar(
+            select(AnalystBrief.headline)
+            .where(AnalystBrief.market_slug == slug, AnalystBrief.kind == "brief")
+            .order_by(AnalystBrief.created_at.desc())
+            .limit(1)
+        )
+        if headline:
+            out["brief_headline"] = str(headline)
+    except Exception as exc:
+        logger.debug("analyze brief lookup failed for %s: %s", slug, exc)
+
+    # Drivers: model-vs-market gap + recent alert-family signals (read-only).
+    drivers: list[dict[str, Any]] = []
+    model_p = out.get("model_prob")
+    market_p = out.get("market_price")
+    if model_p is not None and market_p is not None:
+        gap = round(float(model_p) - float(market_p), 4)
+        drivers.append(
+            {
+                "label": "Model vs market gap",
+                "direction": _lean_label(float(model_p), float(market_p)),
+                "note": (
+                    f"Model {float(model_p):.1%} vs market {float(market_p):.1%} "
+                    f"({gap:+.1%})."
+                ),
+            }
+        )
+    if out.get("news_headline"):
+        sentiment = out.get("news_sentiment")
+        direction = "neutral"
+        if isinstance(sentiment, (int, float)):
+            direction = (
+                "favors YES"
+                if sentiment > 0.1
+                else "favors NO"
+                if sentiment < -0.1
+                else "neutral"
+            )
+        drivers.append(
+            {
+                "label": out["news_headline"],
+                "direction": direction,
+                "note": "news signal",
+            }
+        )
+    try:
+        from app.api.v1.alerts_feed import _build_alert_feed
+
+        feed = await _build_alert_feed(
+            db, effective_slugs=[slug], scope="explicit", since=None, limit=3
+        )
+        for item in feed.items:
+            citation = item.citation.model_dump()
+            label = citation.get("headline") or item.signal_type
+            drivers.append(
+                {
+                    "label": label,
+                    "direction": _lean_label(
+                        citation.get("model_p"), citation.get("market_p")
+                    ),
+                    "note": f"{item.signal_type} signal",
+                }
+            )
+    except Exception as exc:
+        logger.debug("analyze signal drivers failed for %s: %s", slug, exc)
+
+    if drivers:
+        out["drivers"] = drivers[:5]
+
+    # Recompute edge from enriched market price when model_prob exists.
+    if out.get("model_prob") is not None and out.get("market_price") is not None:
+        out["edge"] = round(float(out["model_prob"]) - float(out["market_price"]), 4)
+
+    return out
+
+
+def _build_analyze_reply(
+    ctx: dict[str, Any],
+    market_slug: str | None,
+) -> tuple[str, list[CitationChip], list[str]]:
+    """Deterministic paper-trade analysis from real service figures only."""
+    citations: list[CitationChip] = []
+    tools_used: list[str] = ["get_features"]
+    parts: list[str] = []
+
+    title = ctx.get("title") or market_slug or "this market"
+    parts.append(f"Paper-trade analysis for {title}.")
+
+    # Price + volume
+    market_price = ctx.get("market_price")
+    volume = ctx.get("volume")
+    price_bits: list[str] = []
+    if market_price is not None:
+        tools_used.append("get_odds")
+        cents = round(float(market_price) * 100)
+        price_bits.append(f"YES ~{cents}¢ ({float(market_price):.1%})")
+        citations.append(CitationChip(source="odds", label="Market price"))
+    if volume is not None:
+        price_bits.append(f"volume ${int(volume):,}")
+    if price_bits:
+        parts.append("Market: " + ", ".join(price_bits) + ".")
+    else:
+        parts.append("Market price/volume: not available for this slug.")
+
+    # 24h move — only when both sides exist
+    move = ctx.get("move_24h")
+    price_24h = ctx.get("price_24h_ago")
+    if move is not None and market_price is not None and price_24h is not None:
+        parts.append(
+            f"24h move: {float(move):+.1%} "
+            f"(from {float(price_24h):.1%} → {float(market_price):.1%})."
+        )
+    else:
+        parts.append("24h move: no snapshot pair available — omitted.")
+
+    # Model vs market
+    model_prob = ctx.get("model_prob")
+    edge = ctx.get("edge")
+    if model_prob is not None and market_price is not None:
+        edge_s = f"{float(edge):+.1%}" if edge is not None else "n/a"
+        parts.append(
+            f"Model vs market: model {float(model_prob):.1%} vs market "
+            f"{float(market_price):.1%} (edge {edge_s})."
+        )
+        citations.append(CitationChip(source="features", label="Model features"))
+    elif model_prob is not None:
+        parts.append(f"Model probability: {float(model_prob):.1%} (market price absent).")
+        citations.append(CitationChip(source="features", label="Model features"))
+    else:
+        parts.append("Model probability: not available — omitted.")
+
+    reason = ctx.get("forecast_reason")
+    if reason:
+        parts.append(f"Model gate: {reason}.")
+
+    # Drivers
+    drivers = ctx.get("drivers") or []
+    if drivers:
+        driver_lines = []
+        for d in drivers[:5]:
+            driver_lines.append(
+                f"- {d.get('label', 'driver')} ({d.get('direction', 'neutral')}): "
+                f"{d.get('note', '')}".rstrip()
+            )
+        parts.append("Drivers:\n" + "\n".join(driver_lines))
+        citations.append(CitationChip(source="features", label="Forecast drivers"))
+    else:
+        parts.append("Drivers: none available for this market — omitted.")
+
+    # Analyst brief
+    brief = ctx.get("brief_headline")
+    if brief:
+        tools_used.append("get_briefs")
+        parts.append(f'Latest analyst brief: "{brief}".')
+        citations.append(CitationChip(source="briefs", label="Analyst brief"))
+
+    # Honest uncertainty + paper-only
+    parts.append(
+        "Uncertainty: forecasts are provisional; absent fields above were omitted, "
+        "not invented. Numbers come only from existing market/model/signal services."
+    )
+    parts.append(f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}")
+
+    # De-dupe tools while preserving order
+    seen: set[str] = set()
+    ordered_tools: list[str] = []
+    for t in tools_used:
+        if t not in seen:
+            seen.add(t)
+            ordered_tools.append(t)
+
+    return "\n".join(parts), citations, ordered_tools
+
+
 def _build_profile_snippet(profile: dict[str, Any] | None) -> str:
     """Return a short context snippet for the profile (used in deterministic fallback).
 
@@ -229,6 +491,10 @@ def _build_deterministic_reply(
     msg_lower = message.lower()
     citations: list[CitationChip] = []
     tools_used: list[str] = []
+
+    # ── AI Analyze / deep-dive (market-card seed prompts) ────────────────────
+    if _is_analyze_intent(message):
+        return _build_analyze_reply(ctx, market_slug)
 
     # ── odds / price movement ────────────────────────────────────────────────
     if any(kw in msg_lower for kw in ("odds", "price", "move", "why did")):
@@ -344,11 +610,11 @@ def _build_deterministic_reply(
         citations.append(CitationChip(source="agent_trace", label="Agent trace"))
         return reply, citations, tools_used
 
-    # ── fallback ─────────────────────────────────────────────────────────────
+    # ── fallback — unrecognized intent only ──────────────────────────────────
     tools_used.append("get_features")
     profile_snippet = _build_profile_snippet(trader_profile)
     base_fallback = (
-        "I can help with: odds movement analysis, portfolio exposure, bear-case "
+        f"{_MENU_MARKER} odds movement analysis, portfolio exposure, bear-case "
         "risk factors, analyst briefs, and agent-reasoning traces. "
         "Try asking: 'Why did odds move today?', 'What's my overall exposure?', "
         "or 'What's the bear case?'. "
@@ -442,6 +708,7 @@ async def assistant_chat(
     body: AssistantChatRequest,
     request: Request,
     current_user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
 ) -> AssistantChatResponse:
     """Analysis-only chat.  Cannot emit order intents.
 
@@ -475,6 +742,11 @@ async def assistant_chat(
         except Exception as exc:
             logger.warning("Context assembly failed for %s: %s", market_slug, exc)
             ctx = {}
+        if _is_analyze_intent(body.message):
+            try:
+                ctx = await _enrich_analyze_context(market_slug, ctx, db)
+            except Exception as exc:
+                logger.warning("Analyze enrich failed for %s: %s", market_slug, exc)
 
     reply, citations, tools_used = await _llm_reply(
         body.message, ctx, body.history, market_slug,
