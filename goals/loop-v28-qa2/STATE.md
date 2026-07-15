@@ -2,7 +2,7 @@
 | ID | Ticket | Status | Notes |
 |----|--------|--------|-------|
 | G1 | Social journeys | DONE | social.spec.ts: follow/Following/stats/unfollow/opt-out; BUG-V28-01 fixme |
-| G2 | Notification journeys | TODO | |
+| G2 | Notification journeys | DONE | notifications.spec.ts: unread after follow+trade; mark-all; mark-one; badge clears |
 | G3 | Admin + eval journeys | TODO | |
 | G4 | Watching-count flaky fix | TODO | |
 
@@ -21,6 +21,7 @@
 | loop | date | result | proof |
 |------|------|--------|-------|
 | G1 | 2026-07-14 | DONE | typecheck exit 0; playwright 25 passed / 2 skipped (3.9m) |
+| G2 | 2026-07-15 | DONE | typecheck exit 0; playwright 26 passed / 2 skipped (5.3m) |
 
 ## GATE EVIDENCE — G1
 ```
@@ -41,3 +42,20 @@ npx playwright test → exit 0
 
 ### ORCHESTRATOR REVIEW · G1 · 18e8627 · verdict: PASS
 Journey coverage right-shaped; BUG-V28-01 filed correctly. Continue G2-G4.
+
+## GATE EVIDENCE — G2
+```
+npm run typecheck → exit 0
+npx playwright test → exit 0
+  26 passed
+  2 skipped  (legacy app.spec + BUG-V28-01 fixme)
+  (5.3m)
+```
+
+## VERIFIER VERDICT — G2 (fresh adversarial)
+- **PASS.** Ownership: only `frontend/e2e/notifications.spec.ts` + STATE.md; no app code.
+- **PASS.** Journey: A follows B, B paper-trades → A's bell aria-label shows N unread; center lists followed_trade + canonical slug.
+- **PASS.** Mark all read → unread 0 and "Mark all read" control gone; second trade → mark-one via item click → badge clears to aria-label "Notifications".
+- **PASS.** WS live bump not asserted (honest poll via remount fetch after navigation); noted in spec header.
+- **PASS.** Suite ends green with counts; zero console errors on A/B journeys.
+- Residual: mark-one uses link navigation (item has /markets/ link); relies on POST /read completing before remount fetch.
