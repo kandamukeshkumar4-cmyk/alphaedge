@@ -90,3 +90,7 @@ npx playwright test → exit 0
 
 ### ORCHESTRATOR REVIEW · G2 · 4bffa06 · verdict: PASS
 Continue G3 → G4.
+
+### ORCHESTRATOR REVIEW · G3 · 09f2ba8 · verdict: PASS
+Admin key localStorage assertion present in-browser — the memory-only rule is
+now enforced at THREE layers (code, backend test, e2e). Finish G4, then STOP.
