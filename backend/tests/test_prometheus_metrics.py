@@ -137,6 +137,73 @@ def test_connector_health_gauge_settable():
     assert value == 0.0
 
 
+@pytest.mark.asyncio
+async def test_metrics_exposes_get_source_health_registry_as_gauge():
+    """H2: C1 get_source_health registry feeds alphaedge_connector_health{source}."""
+    import httpx
+
+    from app.data.connectors.http import JsonConnectorClient, reset_source_health
+
+    reset_source_health()
+    try:
+
+        def ok(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"ok": True})
+
+        def boom(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, json={"error": "down"})
+
+        good = JsonConnectorClient(
+            base_url="https://example.test",
+            client=httpx.Client(
+                transport=httpx.MockTransport(ok), base_url="https://example.test"
+            ),
+            source="h2_fred",
+            max_attempts=1,
+            sleep=lambda _d: None,
+        )
+        good.get_json("/ok")
+
+        bad = JsonConnectorClient(
+            base_url="https://example.test",
+            client=httpx.Client(
+                transport=httpx.MockTransport(boom), base_url="https://example.test"
+            ),
+            source="h2_onchain",
+            max_attempts=1,
+            failure_threshold=1,
+            cooldown_sec=60.0,
+            sleep=lambda _d: None,
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            bad.get_json("/fail")
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/metrics", headers=ADMIN_HEADERS)
+        assert response.status_code == 200
+        body = response.text
+        assert 'alphaedge_connector_health{source="h2_fred"} 1.0' in body
+        assert 'alphaedge_connector_health{source="h2_onchain"} 0.0' in body
+
+        # Registry samples must match gauge values after sync.
+        assert (
+            REGISTRY.get_sample_value(
+                "alphaedge_connector_health", labels={"source": "h2_fred"}
+            )
+            == 1.0
+        )
+        assert (
+            REGISTRY.get_sample_value(
+                "alphaedge_connector_health", labels={"source": "h2_onchain"}
+            )
+            == 0.0
+        )
+    finally:
+        reset_source_health()
+
+
 def test_record_helpers_increment_counters():
     before = REGISTRY.get_sample_value(
         "alphaedge_stream_events_total",

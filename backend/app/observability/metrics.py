@@ -136,6 +136,20 @@ def set_connector_health(*, source: str, healthy: bool) -> None:
     CONNECTOR_HEALTH.labels(source=source).set(1.0 if healthy else 0.0)
 
 
+def sync_connector_health_gauges() -> None:
+    """Push C1 ``get_source_health`` registry into the E2 Prometheus gauge.
+
+    Called on /metrics scrape so exposition reflects the live connector
+    resilience registry (healthy=1, open/degraded=0). Empty registry leaves
+    the series empty — never fabricated.
+    """
+    from app.data.connectors.http import refresh_source_health
+
+    registry = refresh_source_health()
+    for source, row in registry.items():
+        set_connector_health(source=source, healthy=(row.state == "healthy"))
+
+
 def _authorized(request: Request) -> bool:
     """E2 gate — admin key header, or the dedicated metrics bearer token.
 
@@ -169,4 +183,10 @@ def _authorized(request: Request) -> bool:
 async def metrics(request: Request) -> Response:
     if not _authorized(request):
         raise HTTPException(status_code=401, detail="Not authorized for /metrics")
+    # H2: materialize C1 source-health registry onto alphaedge_connector_health
+    # before Prometheus text exposition.
+    try:
+        sync_connector_health_gauges()
+    except Exception:  # noqa: BLE001 — metrics scrape must never 500 on registry
+        pass
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
