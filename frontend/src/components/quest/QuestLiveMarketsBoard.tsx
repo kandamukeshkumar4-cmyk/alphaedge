@@ -157,6 +157,7 @@ export function QuestLiveMarketsBoard({
       </aside>
 
       <div className="min-w-0 flex-1">
+        <h1 className="mb-3 text-[22px] font-black tracking-tight text-text">Markets</h1>
         <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto">
           {PLATFORMS.map((p) => (
             <button
@@ -203,11 +204,11 @@ export function QuestLiveMarketsBoard({
           </Link>
         </div>
 
-        <h2 className="mb-3 flex items-center gap-2 text-[22px] font-black tracking-tight text-text">
+        <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold uppercase tracking-[0.08em] text-muted">
           {cat === "Sports" ? (
             <>
               <span className="h-2 w-2 rounded-full bg-danger animate-pulse" />
-              LIVE
+              Live
             </>
           ) : (
             cat
@@ -221,7 +222,12 @@ export function QuestLiveMarketsBoard({
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="py-16 text-center text-sm text-muted-2">No markets in this filter.</p>
+          <div className="py-16 text-center">
+            <p className="text-sm text-muted">No markets match this filter right now.</p>
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted-2">
+              Try another category or platform, or clear filters to browse the full live catalog.
+            </p>
+          </div>
         ) : (
           <div className="space-y-6">
             {grouped.map(([group, rows]) => (

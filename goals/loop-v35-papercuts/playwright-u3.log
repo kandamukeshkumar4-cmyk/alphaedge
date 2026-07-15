@@ -1,0 +1,46 @@
+[WebServer] Using CPython [WebServer] 3.12.13
+[WebServer] Creating virtual environment at: .venv
+[WebServer]    Building alphaedge @ file:///E:/polymarket-worktrees/loop35-papercuts/backend[WebServer] 
+[WebServer]       Built alphaedge[WebServer]  @ file:///E:/polymarket-worktrees/loop35-papercuts/backend
+[WebServer] warning:[WebServer]  Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+[WebServer]          If the cache and target directories are on different filesystems, hardlinking may not be supported.
+[WebServer]          If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+[WebServer] Installed 92 packages [WebServer] in 28.83s
+
+Running 30 tests using 1 worker
+
+(node:25296) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium] › e2e\a11y.spec.ts:103:7 › Q8 a11y (@axe-core/playwright) › / discover has no serious/critical axe violations (21.4s)
+  ok  2 [chromium] › e2e\a11y.spec.ts:108:7 › Q8 a11y (@axe-core/playwright) › market detail has no serious/critical axe violations (12.7s)
+  ok  3 [chromium] › e2e\a11y.spec.ts:113:7 › Q8 a11y (@axe-core/playwright) › /portfolio (authed) has no serious/critical axe violations (13.0s)
+  ok  4 [chromium] › e2e\a11y.spec.ts:155:7 › Q8 a11y (@axe-core/playwright) › /leaderboard has no serious/critical axe violations (5.5s)
+  ok  5 [chromium] › e2e\a11y.spec.ts:160:7 › Q8 a11y (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo (6.0s)
+  ok  6 [chromium] › e2e\admin-eval.spec.ts:67:7 › G3 admin + eval journeys › admin key via UI not in storage; stats; pause/unpause; eval empty (10.4s)
+  -   7 [chromium] › e2e\app.spec.ts:13:7 › legacy mock-stub suite (retired by loop17) › placeholder
+  ok  8 [chromium] › e2e\auth-edges.spec.ts:40:7 › Q7 auth edge journeys › wrong password shows honest error, stays on login (9.1s)
+  ok  9 [chromium] › e2e\auth-edges.spec.ts:76:7 › Q7 auth edge journeys › duplicate signup shows honest error, stays on signup (7.3s)
+  ok 10 [chromium] › e2e\auth-edges.spec.ts:129:7 › Q7 auth edge journeys › invalid token mid-session yields honest state, not crash (7.1s)
+  ok 11 [chromium] › e2e\auth-edges.spec.ts:169:7 › Q7 auth edge journeys › protected /portfolio redirects unauthenticated users to login (3.4s)
+  ok 12 [chromium] › e2e\chart-theme.spec.ts:13:7 › P3 chart theme tokens › html.light flips --chart-text and --chart-grid on market page (3.7s)
+  ok 13 [chromium] › e2e\coverage.spec.ts:27:7 › Q4 coverage journeys › market detail renders chart (or chart region) (5.5s)
+  ok 14 [chromium] › e2e\coverage.spec.ts:53:7 › Q4 coverage journeys › leaderboard loads with data or honest empty state (2.7s)
+  ok 15 [chromium] › e2e\coverage.spec.ts:76:7 › Q4 coverage journeys › /signals loads with data or honest empty state (5.8s)
+  ok 16 [chromium] › e2e\coverage.spec.ts:100:7 › Q4 coverage journeys › /macro loads with data or honest empty state (5.2s)
+  ok 17 [chromium] › e2e\coverage.spec.ts:121:7 › Q4 coverage journeys › /alerts loads with data or honest empty state (7.6s)
+  ok 18 [chromium] › e2e\discover.spec.ts:30:7 › Q2 discover freshness › trending contains no decided markets (≤1¢ / ≥99¢) (2.1s)
+  ok 19 [chromium] › e2e\discover.spec.ts:56:7 › Q2 discover freshness › signals rail rows include market names (not bare delta:price_jump —) (2.0s)
+  ok 20 [chromium] › e2e\discover.spec.ts:74:7 › Q2 discover freshness › ticker items are unique (3.5s)
+  ok 21 [chromium] › e2e\discover.spec.ts:102:7 › Q2 discover freshness › discover page loads with zero console errors (always enforced) (3.5s)
+  ok 22 [chromium] › e2e\mobile.spec.ts:73:7 › Q6 mobile viewport (375×812) › smoke: / grid, no overflow, zero console errors (4.9s)
+  ok 23 [chromium] › e2e\mobile.spec.ts:95:7 › Q6 mobile viewport (375×812) › discover: loads, taps work, zero console errors (mobile) (3.4s)
+  ok 24 [chromium] › e2e\mobile.spec.ts:125:7 › Q6 mobile viewport (375×812) › discover / has no horizontal overflow (mobile) (2.9s)
+  ok 25 [chromium] › e2e\mobile.spec.ts:134:7 › Q6 mobile viewport (375×812) › trade: signup, buy, portfolio on mobile (8.3s)
+  ok 26 [chromium] › e2e\notifications.spec.ts:60:7 › G2 notification journeys › unread badge after followed-trade; mark-one/mark-all; badge clears (28.2s)
+  ok 27 [chromium] › e2e\smoke.spec.ts:9:7 › Q1 smoke › / renders with non-empty markets grid and zero console errors (3.5s)
+  ok 28 [chromium] › e2e\social.spec.ts:30:7 › G1 social journeys › A follows B, Following tab, profile stats, unfollow, opt-out hide (25.6s)
+  ok 29 [chromium] › e2e\trade.spec.ts:41:7 › Q3 trade journey › signup, buy open market, portfolio updates, cancel path (18.3s)
+  ok 30 [chromium] › e2e\trade.spec.ts:160:7 › Q3 trade journey › login path works for existing paper user (7.8s)
+
+  1 skipped
+  29 passed (6.4m)

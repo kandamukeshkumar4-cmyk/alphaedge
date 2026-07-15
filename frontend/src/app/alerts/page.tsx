@@ -27,7 +27,10 @@ import {
   type AlertEventItem,
 } from "@/lib/alerts-api";
 import { filterItemsByPrefs } from "@/lib/notify-prefs-api";
-import type { SignalCategory } from "@/lib/signals-dashboard-view-model";
+import {
+  formatMarketLabel,
+  type SignalCategory,
+} from "@/lib/signals-dashboard-view-model";
 
 type ScopeTab = "all" | "watchlist";
 
@@ -174,9 +177,10 @@ export default function AlertsPage() {
                   <div className="flex items-center gap-2">
                     <Link
                       href={marketHref(group.slug)}
-                      className="min-w-0 flex-1 truncate font-mono text-sm font-semibold text-text hover:text-accent-bright"
+                      title={group.slug}
+                      className="min-w-0 flex-1 truncate text-sm font-semibold text-text hover:text-accent-bright"
                     >
-                      {group.slug}
+                      {formatMarketLabel(group.slug)}
                     </Link>
                     <span className="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[10px] font-bold text-muted">
                       <AnimatedNumber value={group.count} format={(n) => String(Math.round(n))} /> alert

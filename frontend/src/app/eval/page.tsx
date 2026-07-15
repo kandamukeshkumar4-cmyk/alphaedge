@@ -68,7 +68,7 @@ export default function EvalDashboard() {
       baseline_brier: null,
       ensemble_brier: null,
       n_samples: 0,
-      notes: "AutoLab endpoint not yet available. ENSEMBLE_ENABLED=false (default).",
+      notes: "Ensemble comparison has not been run yet.",
     };
     fetch(`${API}/api/v1/ensemble/autolab`)
       .then((r) => (r.ok ? r.json() : null))
@@ -131,10 +131,10 @@ export default function EvalDashboard() {
                 ? "Not yet measured"
                 : `Insufficient data (${autolab.n_samples} resolved markets; need ≥30)`}
             </p>
-            <p className="mt-1 text-xs text-muted">{autolab.notes}</p>
-            <p className="mt-2 font-mono text-xs text-muted-2">
-              AutoLab line: baseline=single-model | benchmark=walk-forward Brier | iterations=0 |
-              budget=0/8 | outcome=stalled-iterations=0-honest
+            <p className="mt-1 text-xs text-muted">
+              {autolab.outcome === "not_run"
+                ? "Ensemble comparison stays off until a walk-forward Brier run beats the single-model baseline. No fabricated scores."
+                : autolab.notes}
             </p>
           </div>
         ) : (

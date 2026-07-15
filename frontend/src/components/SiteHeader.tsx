@@ -118,7 +118,9 @@ export function SiteHeader() {
             <HeaderMoreMenu />
           </nav>
 
-          <div className="ml-auto hidden min-w-0 flex-1 items-center md:flex lg:max-w-[380px]">
+          {/* PC01: min-w so the search field is not crushed by the nav/auth
+              cluster at 1280 — placeholder was clipping to "Search markets… (". */}
+          <div className="ml-auto hidden min-w-[220px] flex-1 items-center md:flex lg:min-w-[280px] lg:max-w-[380px]">
             <HeaderSearch />
           </div>
 
