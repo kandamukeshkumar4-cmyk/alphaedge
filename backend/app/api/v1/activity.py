@@ -121,6 +121,8 @@ async def list_signal_events(
     rows = (await db.execute(stmt)).all()
     if dedupe_window_minutes:
         rows = _dedupe_signal_rows(rows, timedelta(minutes=dedupe_window_minutes))
+    from app.data_quality.hygiene import signal_title_fallback
+
     return SignalEventListOut(
         items=[
             SignalEventOut(
@@ -128,7 +130,7 @@ async def list_signal_events(
                 signal_type=e.signal_type,
                 platform=e.platform,
                 market_id=e.market_id,
-                market_title=market_title,
+                market_title=signal_title_fallback(market_title, e.payload),
                 headline_eligible=e.headline_eligible,
                 payload=dict(e.payload or {}),
                 created_at=e.created_at,

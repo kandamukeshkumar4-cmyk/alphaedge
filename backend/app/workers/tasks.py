@@ -552,7 +552,12 @@ async def weather_scan_task(ctx: dict) -> dict:
 async def run_weather_scan(session, cities: list[dict]) -> int:
     """Core of weather_scan_task on a caller-provided session + pre-scanned
     cities (testable without network). Persists one delta:weather_edge
-    SignalEvent per city edge; returns the count emitted."""
+    SignalEvent per city edge; returns the count emitted.
+
+    V34: market_ids are canonical ``ks-…`` slugs. After emit, rekey any recent
+    raw-ticker orphans left by older code (idempotent).
+    """
+    from app.data_quality.hygiene import rekey_orphan_signal_market_ids
     from app.db.models import SignalEvent
     from app.services.weather_desk import weather_scan_to_events
 
@@ -560,6 +565,7 @@ async def run_weather_scan(session, cities: list[dict]) -> int:
     for event in events:
         session.add(SignalEvent(**event))
     await session.flush()
+    await rekey_orphan_signal_market_ids(session, limit=200)
     return len(events)
 
 

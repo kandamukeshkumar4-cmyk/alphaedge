@@ -96,6 +96,10 @@ class PolymarketGammaConnector:
         for event in payload:
             if not isinstance(event, dict):
                 continue
+            # Parent event context — needed so multi-fixture props (same question
+            # text across matches) can fold a distinguishing card title.
+            event_title = str(event.get("title") or event.get("slug") or "").strip()
+            event_slug = str(event.get("slug") or "").strip()
             for market in event.get("markets") or []:
                 if not isinstance(market, dict):
                     continue
@@ -106,7 +110,12 @@ class PolymarketGammaConnector:
                 )
                 if volume < min_volume:
                     continue
-                markets.append(market)
+                enriched = dict(market)
+                if event_title:
+                    enriched.setdefault("_event_title", event_title)
+                if event_slug:
+                    enriched.setdefault("_event_slug", event_slug)
+                markets.append(enriched)
         markets.sort(
             key=lambda m: _float_or_zero(
                 m.get("volume24hr") or m.get("volumeNum") or m.get("volume")

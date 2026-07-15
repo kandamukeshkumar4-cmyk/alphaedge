@@ -22,6 +22,7 @@ from app.data.connectors.polymarket import (
     implied_yes_from_gamma_payload,
     yes_clob_token_id,
 )
+from app.data_quality.hygiene import fold_display_title
 from app.db.models import Market, MarketStatus
 from app.services.live_snapshot_seed import seed_initial_snapshot_if_missing
 
@@ -44,10 +45,10 @@ CURATED_TAGS: dict[str, tuple[str, str]] = {
     "world": ("Politics", "🌍"),
 }
 
+# Order matters: more-specific topics first. Politics before world-cup sports so
+# "President … World Cup Final?" stays Politics, not Sports (V34 D1).
 _CATEGORY_KEYWORDS: list[tuple[re.Pattern[str], str, str]] = [
-    (re.compile(r"world cup|fifa|soccer|premier league|la liga", re.I), "Sports", "⚽"),
     (re.compile(r"\bnba\b|lakers|celtics|basketball", re.I), "NBA", "🏀"),
-    (re.compile(r"\bnfl\b|super bowl|\bmlb\b|\bnhl\b|tennis|ufc|f1\b", re.I), "Sports", "🏟️"),
     (
         re.compile(
             r"election|president|senate|congress|mayor|nominee|prime minister|"
@@ -57,7 +58,29 @@ _CATEGORY_KEYWORDS: list[tuple[re.Pattern[str], str, str]] = [
         "Politics",
         "🗳️",
     ),
-    (re.compile(r"bitcoin|\bbtc\b|ethereum|\beth\b|crypto|solana", re.I), "Crypto", "🪙"),
+    (
+        re.compile(r"world cup|\bfifa\b|\bfifwc\b", re.I),
+        "FIFA WC2026",
+        "⚽",
+    ),
+    (
+        re.compile(
+            r"soccer|premier league|la liga|\bnfl\b|super bowl|\bmlb\b|\bnhl\b|"
+            r"tennis|ufc|\bf1\b",
+            re.I,
+        ),
+        "Sports",
+        "🏟️",
+    ),
+    # Avoid bare "eth" (false-positives on place names); require crypto tokens.
+    (
+        re.compile(
+            r"bitcoin|\bbtc\b|ethereum|\bethereum\b|\bcrypto\b|solana|\bsol\b",
+            re.I,
+        ),
+        "Crypto",
+        "🪙",
+    ),
     (re.compile(r"\bfed\b|\bcpi\b|inflation|gdp|interest rate", re.I), "Economics", "📈"),
 ]
 
@@ -72,6 +95,17 @@ def categorize(
         if pattern.search(text):
             return category, icon
     return default
+
+
+def display_title_for_payload(payload: dict[str, Any]) -> str:
+    """Card title: fold parent event context into short prop questions."""
+    question = str(payload.get("question") or payload.get("title") or "").strip()
+    event_title = str(payload.get("_event_title") or "").strip()
+    group_item = str(payload.get("groupItemTitle") or payload.get("groupItemThreshold") or "").strip()
+    # Prefer explicit group item as distinguisher when the question is generic.
+    if group_item and group_item.lower() not in question.lower():
+        return fold_display_title(question or group_item, event_title or None)
+    return fold_display_title(question, event_title or None)
 
 
 def local_slug_for(external_slug: str) -> str:
@@ -177,6 +211,7 @@ class LiveMarketIngestService:
         external_slug = str(payload["slug"])
         slug = local_slug_for(external_slug)
         question = str(payload.get("question") or payload.get("title") or external_slug)
+        display_title = display_title_for_payload(payload) or question
         category, icon = categorize(question, payload.get("category"), default_category)
         end_date = parse_timestamp(payload.get("endDate") or payload.get("end_date"))
         volume = int(_float_or_zero(payload.get("volumeNum") or payload.get("volume")))
@@ -191,7 +226,8 @@ class LiveMarketIngestService:
         if existing is not None:
             if existing.status == MarketStatus.OPEN:
                 existing.volume = volume
-                existing.title = question
+                existing.title = display_title
+                existing.question = question
                 existing.category = category
                 existing.icon = icon
                 existing.lock_at = end_date
@@ -205,7 +241,7 @@ class LiveMarketIngestService:
         self.session.add(
             Market(
                 slug=slug,
-                title=question,
+                title=display_title,
                 question=question,
                 category=category,
                 icon=icon,

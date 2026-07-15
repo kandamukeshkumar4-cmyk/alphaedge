@@ -103,10 +103,15 @@ def test_is_importable_rejects_closed_and_non_binary():
 
 
 def test_categorize_maps_keywords():
-    assert categorize("Will France win the World Cup?", None) == ("Sports", "⚽")
+    assert categorize("Will France win the World Cup?", None) == ("FIFA WC2026", "⚽")
     assert categorize("Will the Lakers win the NBA finals?", None) == ("NBA", "🏀")
     assert categorize("Will BTC be above 100k?", None) == ("Crypto", "🪙")
     assert categorize("Who wins the presidential election?", None) == ("Politics", "🗳️")
+    # V34: politics wins over world-cup sports keyword
+    assert categorize("President Trump to Attend World Cup Final?", None) == (
+        "Politics",
+        "🗳️",
+    )
 
 
 def test_local_slug_prefix_and_length():
@@ -359,7 +364,12 @@ async def test_live_tick_kalshi_uses_one_batched_call(db_session, monkeypatch):
     assert len(fake.calls) == 1  # one batch, both tickers in it
     assert set(fake.calls[0]) == {"KXAAA-1-YES", "KXBBB-2-YES"}
     assert results["ks-kxaaa-1-yes"] == "ok"
-    assert results["ks-kxbbb-2-yes"] == "missing-upstream"
+    # V34: missing from open board ⇒ lock (lifecycle hygiene), not linger OPEN
+    assert results["ks-kxbbb-2-yes"] == "missing-upstream-locked"
+    missing = await db_session.scalar(
+        select(Market).where(Market.slug == "ks-kxbbb-2-yes")
+    )
+    assert missing is not None and missing.status == MarketStatus.LOCKED
     row = await db_session.scalar(
         select(OddsSnapshot).where(OddsSnapshot.market_slug == "ks-kxaaa-1-yes").limit(1)
     )

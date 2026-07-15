@@ -298,7 +298,8 @@ _KALSHI_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "financials": ("Economics", "💹"),
     "companies": ("Economics", "🏢"),
     "science and technology": ("Tech", "🔬"),
-    "climate and weather": ("Tech", "🌡️"),
+    "climate and weather": ("Weather", "🌡️"),
+    "weather": ("Weather", "🌡️"),
     "health": ("Tech", "🩺"),
 }
 

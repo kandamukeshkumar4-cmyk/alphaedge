@@ -218,7 +218,13 @@ class LivePriceTickService:
                     logger.warning("Live tick fetch failed for %s: %s", slug, error)
                     results[slug] = "error"
                 else:
-                    results[slug] = "missing-upstream"
+                    # Absent from the open board ⇒ closed/settled upstream.
+                    # Lock only (never resolve here — resolution needs a known
+                    # winner; V34 data-quality / V16 V5 lifecycle hygiene).
+                    await _apply_terminal_state(
+                        self.db, market_ids[slug], slug, outcome=None
+                    )
+                    results[slug] = "missing-upstream-locked"
                 continue
 
             moved = await persist_and_publish_tick(

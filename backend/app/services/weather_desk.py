@@ -192,8 +192,9 @@ def suggest_sigma_f(
 
 
 # O04 signal emission — turn scan reports into feed-visible SignalEvents.
-# Weather markets are Kalshi externals, so the events reference the Kalshi
-# bucket ticker as market_id. Signals only: nothing here reaches the order path.
+# Weather markets are Kalshi externals. market_id MUST use the local catalog
+# slug form (ks-{ticker.lower()}) so /signals/events can join Market.slug
+# (V34 D1: raw tickers like KXHIGHNY-… were 100% orphans).
 WEATHER_EDGE_SIGNAL_TYPE = "delta:weather_edge"  # 19 chars, fits SignalEvent(32)
 
 
@@ -206,6 +207,8 @@ def weather_scan_to_events(
     absolute edge clears ``min_abs_edge``. Returns SignalEvent-ready dicts
     (signal_type/platform/market_id/headline_eligible/payload). Deterministic
     and network-free so the emission logic is unit-testable."""
+    from app.data_quality.hygiene import canonical_kalshi_market_id
+
     events: list[dict[str, Any]] = []
     for report in cities:
         buckets = report.get("buckets") or []
@@ -223,11 +226,12 @@ def weather_scan_to_events(
         ticker = str(best.get("ticker") or "")
         if not ticker:
             continue
+        market_id = canonical_kalshi_market_id(ticker)
         events.append(
             {
                 "signal_type": WEATHER_EDGE_SIGNAL_TYPE,
                 "platform": "kalshi",
-                "market_id": ticker,
+                "market_id": market_id,
                 "headline_eligible": abs(best.get("edge") or 0.0) >= 0.15,
                 "payload": {
                     "paper_trading_only": True,
@@ -238,6 +242,7 @@ def weather_scan_to_events(
                     "city": report.get("city"),
                     "date": report.get("date"),
                     "ticker": ticker,
+                    "raw_market_id": ticker,
                     "bucket": best.get("bucket"),
                     "model_probability": best.get("model_probability"),
                     "market_yes": best.get("market_yes"),

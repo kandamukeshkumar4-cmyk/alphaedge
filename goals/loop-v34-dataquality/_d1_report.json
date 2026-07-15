@@ -1,0 +1,90 @@
+{
+  "audited_at": "2026-07-15T17:40:42.074398+00:00",
+  "market_count": 722,
+  "status_counts": {
+    "resolved": 146,
+    "open": 378,
+    "locked": 198
+  },
+  "category_counts": {
+    "Sports": 201,
+    "Culture": 83,
+    "Economics": 64,
+    "Politics": 103,
+    "Tech": 72,
+    "Elections": 2,
+    "NFL": 1,
+    "Crypto": 132,
+    "NBA": 56,
+    "Weather": 2,
+    "FIFA WC2026": 6
+  },
+  "open_count": 378,
+  "stale_open_count": 0,
+  "stale_open_examples": [],
+  "extreme_price_open_count": 186,
+  "duplicate_title_groups": 1,
+  "duplicate_title_markets": 2,
+  "open_identical_title_groups": 0,
+  "open_identical_title_examples": [],
+  "slug_family_multi_count": 49,
+  "sports_summary_market_count": 264,
+  "signal_sample_size": 200,
+  "orphan_signal_count_in_sample": 19,
+  "orphan_unique": 12,
+  "orphan_examples": [
+    [
+      "KXHIGHMIA-26JUL16-B96.5",
+      3
+    ],
+    [
+      "KXHIGHLAX-26JUL16-B85.5",
+      2
+    ],
+    [
+      "KXHIGHCHI-26JUL16-T92",
+      2
+    ],
+    [
+      "KXHIGHNY-26JUL16-B91.5",
+      2
+    ],
+    [
+      "KXHIGHPHIL-26JUL16-B96.5",
+      2
+    ],
+    [
+      "KXHIGHAUS-26JUL16-B88.5",
+      2
+    ],
+    [
+      "KXHIGHPHIL-26JUL16-T94",
+      1
+    ],
+    [
+      "KXHIGHDEN-26JUL16-B91.5",
+      1
+    ],
+    [
+      "KXHIGHNY-26JUL16-T89",
+      1
+    ],
+    [
+      "KXHIGHLAX-26JUL16-B81.5",
+      1
+    ],
+    [
+      "KXHIGHDEN-26JUL16-B95.5",
+      1
+    ],
+    [
+      "KXHIGHCHI-26JUL16-B94.5",
+      1
+    ]
+  ],
+  "sports_summary_recent_signals": 1205,
+  "politics_summary_market_count": 105,
+  "politics_summary_recent_signals": 116,
+  "crypto_summary_market_count": 132,
+  "crypto_summary_recent_signals": 688
+}

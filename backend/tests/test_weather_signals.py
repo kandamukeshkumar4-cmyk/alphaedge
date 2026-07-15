@@ -58,7 +58,9 @@ def test_weather_scan_to_events_takes_strongest_per_city_over_threshold():
     ev = events[0]
     assert ev["signal_type"] == "delta:weather_edge"
     assert ev["platform"] == "kalshi"
-    assert ev["market_id"] == "KXHIGHNY-26JUL06-T89"  # strongest edge, not the T85 bucket
+    # V34: canonical local slug (ks-…) so Market.slug join works
+    assert ev["market_id"] == "ks-kxhighny-26jul06-t89"
+    assert ev["payload"]["ticker"] == "KXHIGHNY-26JUL06-T89"  # strongest edge
     assert ev["headline_eligible"] is True  # |edge| 0.18 >= 0.15
     assert ev["payload"]["paper_trading_only"] is True
     assert ev["payload"]["edge"] == 0.18
@@ -93,7 +95,7 @@ async def test_run_weather_scan_persists_signal_events(db_session):
         )
     ).scalars().all()
     assert len(rows) == 1
-    assert rows[0].market_id == "KXHIGHNY-26JUL06-T89"
+    assert rows[0].market_id == "ks-kxhighny-26jul06-t89"
     assert rows[0].payload["city"] == "New York"
 
 
