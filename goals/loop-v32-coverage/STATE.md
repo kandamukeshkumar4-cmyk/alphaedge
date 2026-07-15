@@ -3,7 +3,7 @@
 |----|--------|--------|-------|
 | T1 | Coverage baseline | DONE | 1,572 passed, 28 skipped; 17,023/20,772 lines (82.0% line; 78.5% combined branch coverage). |
 | T2 | Money paths | DONE | Added 5 behavior cases for rejected order rollback, empty-book market failure, NO fills, and risk-boundary expiry. |
-| T3 | Auth + resolution paths | TODO | |
+| T3 | Auth + resolution paths | DONE | Added leakage-at-close, terminal-VOID, double-resolve, and staging-cookie behavior coverage. |
 | T4 | Re-measure + gate | TODO | |
 
 ## BUG REPORTS (app defects found — do not fix here)
@@ -50,7 +50,19 @@ Added `backend/tests/test_loop32_money_paths.py` with five behavior cases:
 
 Focused money-path proof: `40 passed in 22.72s` for the new suite plus order-book, settlement, risk, and idempotency regressions. No application defect was found.
 
+## T3 AUTH + RESOLUTION PATHS — 2026-07-15
+
+Added `backend/tests/test_loop32_resolution_security.py` with four behavior cases:
+
+- a LIVE forecast locked exactly at `resolved_at` is excluded from scoring (strictly pre-resolution only);
+- a terminal venue response without an unambiguous outcome (VOID) remains OPEN and creates no score;
+- a second direct external-market resolution is rejected and cannot overwrite the first outcome or timestamp; and
+- staging access-cookie creation and deletion both retain `Secure`, `HttpOnly`, and `SameSite=Lax` attributes.
+
+Focused auth/resolution proof: `53 passed in 15.68s` across the new suite plus external resolver/scoring, auto-lock, forecast mirror, and auth/cookie regressions. No application defect was found.
+
 ## LOOP LOG
 
 loop-v32 | 2026-07-15 | T1 DONE | baseline full suite: 1,572 passed, 28 skipped, 82.0% line / 78.5% combined; pytest-cov added to dev extra
 loop-v32 | 2026-07-15 | T2 DONE | 5 money-path behavior cases; focused regression set 40 passed
+loop-v32 | 2026-07-15 | T3 DONE | 4 auth/resolution behavior cases; focused regression set 53 passed
