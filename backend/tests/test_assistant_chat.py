@@ -361,6 +361,63 @@ async def test_llm_reply_falls_back_without_any_key(monkeypatch) -> None:
     assert tools, "deterministic fallback should report the tools it used"
 
 
+@pytest.mark.asyncio
+async def test_analyze_intent_routes_to_llm_when_key_present(monkeypatch) -> None:
+    """A3: Analyze seed prompt must hit the LLM when a chat key is configured —
+    not the deterministic menu and not a silent keyless shortcut."""
+    import app.api.v1.assistant as assistant_mod
+    import app.llm.provider as provider_mod
+    from app.api.v1.assistant import _MENU_MARKER
+    from app.core.config import Settings
+
+    settings = Settings(
+        _env_file=None,
+        PAPER_TRADING_ONLY=True,
+        LLM_PROVIDER="openai",
+        LLM_API_KEY="test-openai-key",
+    )
+    monkeypatch.setattr(assistant_mod, "get_settings", lambda: settings)
+
+    called: dict[str, bool] = {"llm": False}
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            called["llm"] = True
+            class _Msg:
+                content = "MOCK_LLM_ANALYZE: model 58% vs market 54%, edge +4%."
+
+            class _Choice:
+                message = _Msg()
+
+            class _Resp:
+                choices = [_Choice()]
+
+            return _Resp()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setattr(
+        provider_mod,
+        "resolve_routed_client",
+        lambda s, route, *, use_case_model="": (_FakeClient(), "test-model"),
+    )
+
+    seed = "Analyze Lakers vs Celtics for a paper trade. Current YES ~54¢."
+    reply, _citations, _tools = await assistant_mod._llm_reply(
+        seed,
+        {"slug": "nba-2025-01-15-lal-bos", "model_prob": 0.58, "market_price": 0.54},
+        [],
+        "nba-2025-01-15-lal-bos",
+    )
+    assert called["llm"] is True, "Analyze intent did not call the LLM client"
+    assert "MOCK_LLM_ANALYZE" in reply
+    assert _MENU_MARKER not in reply
+
+
 # ── 8. Auth + per-IP anonymous rate limit (security hardening) ────────────────
 
 

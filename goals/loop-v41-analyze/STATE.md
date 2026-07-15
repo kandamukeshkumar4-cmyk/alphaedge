@@ -40,11 +40,18 @@ market). Menu only for unrecognized intents.
   always includes uncertainty + paper-only disclaimer.
 - Capability menu (`I can help with:`) remains only for unrecognized intents.
 
+## A3 LLM-PRESENT ROUTING
+Routing was NOT broken: with a chat API key, `_llm_reply` calls the client
+before any keyword router. Verified with mocked client on the exact Analyze
+seed prompt (`test_analyze_intent_routes_to_llm_when_key_present`) — no real
+key. No code fix required beyond the A2 keyless path.
+
 ## LOOP LOG
 | loop | date | result | proof |
 |------|------|--------|-------|
 | A1 | 2026-07-15 | DONE — both keyless + router miss | diagnosis above; no code change |
 | A2 | 2026-07-15 | DONE — keyless analyze returns real analysis | assistant.py analyze branch; smoke: menu=False for Analyze seed |
+| A3 | 2026-07-15 | DONE — LLM routing OK (mocked) | pytest test_analyze_intent_routes_to_llm_when_key_present PASS |
 
 ### ORCHESTRATOR REVIEW · A1 · 2871a97 · verdict: PASS
 Both-cause diagnosis confirmed (router lacks an analyze bucket; the button's
