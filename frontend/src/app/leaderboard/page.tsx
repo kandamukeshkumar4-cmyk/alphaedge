@@ -94,7 +94,12 @@ function Podium({ entries }: { entries: LeaderboardEntry[] }) {
             <div className="mx-auto mt-2 grid h-12 w-12 place-items-center rounded-full border border-border-light bg-bg font-mono text-sm font-black text-text">
               {initials(entry.username)}
             </div>
-            <div className="mt-2 truncate text-sm font-black text-text">{entry.username}</div>
+            <Link
+              href={`/traders/${encodeURIComponent(entry.username)}`}
+              className="mt-2 block truncate text-sm font-black text-text hover:text-accent-bright hover:underline"
+            >
+              {entry.username}
+            </Link>
             <div className="mt-1 font-mono text-xl font-black tabular-nums text-primary">
               {formatUSD(entry.realized_pnl)}
             </div>
@@ -252,7 +257,12 @@ export default function LeaderboardPage() {
                           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border bg-surface-2 font-mono text-[11px] font-black text-text">
                             {initials(entry.username)}
                           </span>
-                          <span className="truncate font-semibold text-text">{entry.username}</span>
+                          <Link
+                            href={`/traders/${encodeURIComponent(entry.username)}`}
+                            className="truncate font-semibold text-text hover:text-accent-bright hover:underline"
+                          >
+                            {entry.username}
+                          </Link>
                         </span>
                       </td>
                       <td
