@@ -24,7 +24,31 @@
 
 ## TICKET REVIEWS (orchestrator appends)
 
-_(none yet)_
+### REVIEW B1 · 9bd088d · verdict: PASS — finding accepted, plan REDIRECTED
+Outstanding audit: staged funnel from stage 0, real ingest repro, prod
+corroboration with honest hedging, code-path receipts. Finding accepted:
+INPUT-STARVED — external_markets has only manual writers.
+
+### DIR-V33-002 · ACTIVE — B2 is REDEFINED (config tuning would be useless)
+B2' — implement the catalog->external_markets BRIDGE: a bounded, idempotent,
+flag-gated (default ON) task that registers eligible INGESTED venue markets
+as ExternalMarket rows so the existing autolock/resolve/score chain finally
+has input. Constraints (sacred):
+1. Eligible = catalog markets from real venues (polymarket/kalshi sources)
+   with a genuine future close_at AND resolvable by the existing
+   external_resolve venue adapters (same venue payload identity the V14
+   normalize() path reads) — NEVER seed/demo/synthetic markets.
+2. Idempotent (unique by venue identity), bounded batch, in-process loop +
+   ARQ registration (the dual-wiring rule), heartbeat name
+   external_market_bridge in _ALL_LOOPS/LOOP_INTERVALS.
+3. NO changes to locking/scoring/resolution semantics — you are feeding the
+   input, not touching the gates. Migration only if a column is genuinely
+   missing (claim 048+, id <=32 chars).
+4. Tests: eligible ingested market -> bridged exactly once -> appears in the
+   funnel stage 1+; ineligible (no close_at / non-venue / past-close) never
+   bridged; autolock then locks it (integration test through the funnel).
+B3 stands (tests + full gate + verifier) but now covers the bridge.
+
 
 ## RUNNER REPLIES
 
