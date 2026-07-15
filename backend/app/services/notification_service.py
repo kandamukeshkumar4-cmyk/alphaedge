@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Notification
@@ -187,16 +187,28 @@ async def mark_read(
 
 
 async def mark_all_read(session: AsyncSession, user_id: UUID) -> int:
-    """Mark all unread notifications read. Idempotent; returns rows updated."""
+    """Mark all unread notifications read. Idempotent; returns rows updated.
+
+    Updates ORM instances in the identity map (not a bulk UPDATE with
+    ``synchronize_session=False``) so a subsequent list in the same session
+    sees ``read_at`` / ``unread=False`` without a refresh race (SEC-Z2-02).
+    """
     now = datetime.now(UTC)
-    result = await session.execute(
-        update(Notification)
-        .where(Notification.user_id == user_id, Notification.read_at.is_(None))
-        .values(read_at=now)
-        .execution_options(synchronize_session=False)
+    rows = list(
+        (
+            await session.scalars(
+                select(Notification).where(
+                    Notification.user_id == user_id,
+                    Notification.read_at.is_(None),
+                )
+            )
+        ).all()
     )
-    await session.flush()
-    return int(result.rowcount or 0)
+    for row in rows:
+        row.read_at = now
+    if rows:
+        await session.flush()
+    return len(rows)
 
 
 def notification_to_dict(row: Notification) -> dict[str, Any]:

@@ -261,14 +261,7 @@ async def test_z2_notification_read_and_read_all(db_session):
 
         final = await client.get("/api/v1/notifications", headers=headers)
         assert final.json()["unread_count"] == 0
-        # Badge is authoritative (SQL count). Item-level ``unread`` can lag when
-        # mark_all_read uses synchronize_session=False (SEC-Z2-02) — soft-check.
-        if any(i["unread"] for i in final.json()["items"]):
-            pytest.xfail(
-                "SEC-Z2-02: mark_all_read UPDATE uses synchronize_session=False; "
-                "list still returns stale unread=True on identity-mapped rows "
-                "while unread_count (SQL) is 0"
-            )
+        # Loop V27 X2 / SEC-Z2-02: item-level unread matches badge after read-all.
         assert all(not i["unread"] for i in final.json()["items"])
 
 
