@@ -4,7 +4,7 @@
 | T1 | Coverage baseline | DONE | 1,572 passed, 28 skipped; 17,023/20,772 lines (82.0% line; 78.5% combined branch coverage). |
 | T2 | Money paths | DONE | Added 5 behavior cases for rejected order rollback, empty-book market failure, NO fills, and risk-boundary expiry. |
 | T3 | Auth + resolution paths | DONE | Added leakage-at-close, terminal-VOID, double-resolve, and staging-cookie behavior coverage. |
-| T4 | Re-measure + gate | TODO | |
+| T4 | Re-measure + gate | DONE | 1,581 passed / 28 skipped; 82.1% line coverage; ruff, fresh verifier, and deterministic gate PASS. |
 
 ## BUG REPORTS (app defects found — do not fix here)
 
@@ -61,8 +61,35 @@ Added `backend/tests/test_loop32_resolution_security.py` with four behavior case
 
 Focused auth/resolution proof: `53 passed in 15.68s` across the new suite plus external resolver/scoring, auto-lock, forecast mirror, and auth/cookie regressions. No application defect was found.
 
+## T4 RE-MEASURE + GATE — 2026-07-15
+
+| Coverage target | Before (T1) | After (T4) | Delta |
+|---|---:|---:|---:|
+| `backend/app` total line coverage | 17,023/20,772 (82.0%) | 17,034/20,772 (82.1%) | +11 lines / +0.1 pp |
+| `services/order_book_service.py` | 209/240 (87.1%) | 219/240 (91.3%) | +10 lines / +4.2 pp |
+| `services/external_market_service.py` | 70/96 (72.9%) | 71/96 (74.0%) | +1 line / +1.1 pp |
+| `services/ledger_service.py` | 32/34 (94.1%) | 32/34 (94.1%) | behavior/branch hardening |
+| `services/settlement_service.py` | 76/82 (92.7%) | 76/82 (92.7%) | behavior/branch hardening |
+| `risk/rules.py` | 93/100 (93.0%) | 93/100 (93.0%) | boundary hardening |
+| `services/external_market_resolver.py` | 32/43 (74.4%) | 32/43 (74.4%) | terminal-VOID proof |
+| `services/scoring_service.py` | 44/46 (95.7%) | 44/46 (95.7%) | exact-close leakage proof |
+| `services/forecast_service.py` | 81/88 (92.0%) | 81/88 (92.0%) | existing lock behavior retained |
+
+Final measurement: `$env:ADMIN_API_KEY='dev-admin-key'; uv run --extra dev pytest -q -p no:cacheprovider --cov=app --cov-branch` -> `1581 passed, 28 skipped`; terminal combined coverage rounded to `79%` (T1 JSON was 78.5%).
+
+Task gate: `$env:ADMIN_API_KEY='dev-admin-key'; uv run --extra dev pytest -q -p no:cacheprovider` -> `1581 passed, 28 skipped in 241.93s`; `uv run --extra dev ruff check app tests` -> `All checks passed!`.
+
+Fresh verifier: **PASS** — independently ran the same full backend test and ruff commands, inspected `42ea761..HEAD`, found only the five scoped files, and found no application or forbidden-test edits. The only test-process noise is the post-exit Windows temporary-directory cleanup warning; all test commands exited 0.
+
+Deterministic gate: `py -3.13 orchestration/gate.py` -> `PASS: all checks green` (backend 1,581/28, ruff, frontend typecheck, 381 frontend tests, and frontend build). The first invocation was environment-blocked by absent `frontend/node_modules`; `npm ci` from the existing lockfile restored dependencies without changing a manifest, and the rerun passed.
+
+Remaining gaps: low coverage remains in worker entrypoints, network/external-provider clients, and broad API routes outside this tests-only ticket. Order-book concurrent `IntegrityError` recovery and notification-failure paths remain difficult to force deterministically without mocking internal transaction boundaries; no production code was changed to make them testable.
+
+AutoLab: baseline=1,572 passed / 28 skipped, 82.0% line | benchmark=full backend coverage plus gates | iterations=2 behavior-test slices + best 82.1% line | budget=2/2 | outcome=improved
+
 ## LOOP LOG
 
 loop-v32 | 2026-07-15 | T1 DONE | baseline full suite: 1,572 passed, 28 skipped, 82.0% line / 78.5% combined; pytest-cov added to dev extra
 loop-v32 | 2026-07-15 | T2 DONE | 5 money-path behavior cases; focused regression set 40 passed
 loop-v32 | 2026-07-15 | T3 DONE | 4 auth/resolution behavior cases; focused regression set 53 passed
+loop-v32 | 2026-07-15 | T4 DONE | 1,581 passed / 28 skipped, 82.1% line; verifier PASS; deterministic gate PASS
