@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import market_detail_cache
 from app.core.config import get_settings
+from app.core.market_detail_cache import MARKET_DETAIL_TTL_SEC
 from app.db.models import MarketResolution, MarketStatus, Watchlist
 from app.db.session import get_db
 from app.schemas.market import (
@@ -22,9 +24,32 @@ settings = get_settings()
 
 @router.get("/markets/{slug}/detail", response_model=MarketDetailResponse)
 async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
+    """Public market detail with short in-process TTL cache (Loop V43 P1).
+
+    Cache is slug-keyed and success-only. No auth is accepted on this path —
+    nothing user-specific can enter the shared cache. Aggregate
+    ``watching_count`` may lag up to ``MARKET_DETAIL_TTL_SEC`` (10s) unless a
+    watchlist mutation invalidates the map.
+    """
     if slug not in CATALOG_SLUGS:
         raise HTTPException(status_code=404, detail="Market not found")
 
+    cache_key = ("market_detail", slug)
+    cached = market_detail_cache.get(cache_key, MARKET_DETAIL_TTL_SEC)
+    if cached is not None:
+        return MarketDetailResponse(**{**cached, "cached": True})
+
+    body = await _build_market_detail(slug, db)
+    # Success-only: put after a full successful build (exceptions never reach put).
+    # Store without the response-only `cached` flag so hits can set it True.
+    payload = body.model_dump(mode="json")
+    payload.pop("cached", None)
+    market_detail_cache.put(cache_key, payload)
+    return body
+
+
+async def _build_market_detail(slug: str, db: AsyncSession) -> MarketDetailResponse:
+    """Compose the public detail payload (no user identity)."""
     svc = MarketService(db)
     market = await svc.get_market_by_slug(slug)
     if market is None:
@@ -51,6 +76,7 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
             provisional=forecast_result.provisional,
         )
 
+    # Aggregate (not per-user). May lag TTL for concurrent readers; see module docs.
     watching_count = int(
         await db.scalar(
             select(func.count()).select_from(Watchlist).where(Watchlist.slug == slug)
@@ -77,6 +103,7 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
         winning_outcome=winning_outcome,
         resolved_at=resolved_at,
         watching_count=watching_count,
+        cached=False,
     )
 
 

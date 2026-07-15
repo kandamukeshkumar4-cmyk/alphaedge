@@ -403,7 +403,10 @@ class MarketDetailResponse(BaseModel):
     resolution_outcome: Optional[str] = None
     winning_outcome: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    # Aggregate watcher count — public, may lag up to market_detail_cache TTL (≤10s).
     watching_count: int = 0
+    # Additive (Loop V43 P1): true when served from in-process TTL cache.
+    cached: bool = False
 
 
 class HealthResponse(BaseModel):
