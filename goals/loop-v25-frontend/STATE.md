@@ -18,7 +18,7 @@
 
 ## REPOSITORY GATE
 
-`py -3.13 orchestration/gate.py` was run from this worktree after F5. Frontend typecheck, Vitest (`66 files / 381 tests`), build, and backend ruff passed. The overall gate is BLOCKED by the unrelated backend pytest failure `backend/tests/test_daily_digest.py::test_digest_idempotent_per_user_per_day` (`447 passed, 27 skipped, 1 failed`). This loop is forbidden from editing `backend/**`; repair and re-run that backend gate in an authorized backend lane before claiming the repository-wide gate is green.
+`py -3.13 orchestration/gate.py` was run from this worktree after F5 and again at `a956d27`. Frontend typecheck, Vitest (`66 files / 381 tests`), build, and backend ruff passed both times. The overall gate is BLOCKED by the unchanged backend pytest failure `backend/tests/test_daily_digest.py::test_digest_idempotent_per_user_per_day` (`447 passed, 27 skipped, 1 failed`): `build_digest_for_user` returns a second digest rather than `None`. This is the same external blocker across three consecutive goal turns. This loop is forbidden from editing `backend/**`; repair and re-run that backend gate in an authorized backend lane before claiming the repository-wide gate is green.
 
 ### ORCHESTRATOR REVIEW · F1-F4 · 1bb994a..4d45660 · verdict: PASS x4
 Evidence quality high throughout; admin-key memory-only rule independently
