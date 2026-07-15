@@ -222,12 +222,12 @@ export function QuestLiveMarketsBoard({
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="py-16 text-center text-sm text-muted">
-            No markets match this filter right now.
-          </p>
-          <p className="mx-auto -mt-12 max-w-sm pb-16 text-center text-xs leading-relaxed text-muted-2">
-            Try another category or platform, or clear filters to browse the full live catalog.
-          </p>
+          <div className="py-16 text-center">
+            <p className="text-sm text-muted">No markets match this filter right now.</p>
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted-2">
+              Try another category or platform, or clear filters to browse the full live catalog.
+            </p>
+          </div>
         ) : (
           <div className="space-y-6">
             {grouped.map(([group, rows]) => (
