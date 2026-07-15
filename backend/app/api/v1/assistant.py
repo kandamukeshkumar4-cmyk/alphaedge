@@ -20,6 +20,8 @@ shapes for the allowlist.
 from __future__ import annotations
 
 import logging
+import math
+import re
 import time
 from typing import Any
 
@@ -206,6 +208,72 @@ def _is_analyze_intent(message: str) -> bool:
     return any(kw in msg for kw in _ANALYZE_KEYWORDS)
 
 
+def _humanize_signal_type(signal_type: str) -> str:
+    """Mirror frontend signalLabel (signal-rail.ts): last ':' segment, title-cased."""
+    raw = signal_type.rsplit(":", 1)[-1] if ":" in signal_type else signal_type
+    words = re.sub(r"[_-]+", " ", raw).strip()
+    return " ".join(w[:1].upper() + w[1:] for w in words.split(" ")) or signal_type
+
+
+def _signal_payload_direction(payload: dict[str, Any]) -> str | None:
+    """Mirror frontend directionOf: payload.direction → UP/DOWN, else None."""
+    raw = payload.get("direction")
+    if not isinstance(raw, str):
+        return None
+    low = raw.lower()
+    if low in ("up", "buy", "long", "positive"):
+        return "UP"
+    if low in ("down", "sell", "short", "negative"):
+        return "DOWN"
+    return None
+
+
+def _finite(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    f = float(value)
+    return f if math.isfinite(f) else None
+
+
+def _signed_label(value: float, suffix: str) -> str:
+    """Mirror frontend signedLabel: +/- sign, 0 or 1 decimal place."""
+    rounded = (
+        f"{value:.0f}" if abs(value) >= 100 or float(value).is_integer() else f"{value:.1f}"
+    )
+    return f"{'+' if value > 0 else ''}{rounded}{suffix}"
+
+
+def _signal_magnitude_label(payload: dict[str, Any], direction: str | None) -> str | None:
+    """Mirror frontend magnitudeLabel; None (honest omission) when nothing present."""
+
+    def signed(value: float) -> float:
+        if direction == "UP":
+            return abs(value)
+        if direction == "DOWN":
+            return -abs(value)
+        return value
+
+    detail = payload.get("detail")
+    detail = detail if isinstance(detail, dict) else {}
+    bps = _finite(detail.get("bps"))
+    if bps is None:
+        bps = _finite(payload.get("move_bps"))
+    if bps is not None:
+        return _signed_label(signed(bps), " bps")
+
+    magnitude = _finite(payload.get("magnitude"))
+    if magnitude is not None:
+        if abs(magnitude) <= 1:
+            return _signed_label(signed(magnitude * 100), "¢")
+        return _signed_label(signed(magnitude), "")
+
+    for key in ("score", "confidence", "edge"):
+        value = _finite(payload.get(key))
+        if value is not None:
+            return f"{key} {value:.2f}"
+    return None
+
+
 def _lean_label(model_p: float | None, market_p: float | None) -> str:
     if model_p is None or market_p is None:
         return "neutral"
@@ -331,16 +399,35 @@ async def _enrich_analyze_context(
         feed = await _build_alert_feed(
             db, effective_slugs=[slug], scope="explicit", since=None, limit=3
         )
+        signal_counts: dict[tuple[str, str, str], int] = {}
+        signal_order: list[tuple[str, str, str]] = []
         for item in feed.items:
             citation = item.citation.model_dump()
-            label = citation.get("headline") or item.signal_type
+            payload = dict(item.payload or {})
+            human = _humanize_signal_type(item.signal_type)
+            label = citation.get("headline") or human
+            payload_dir = _signal_payload_direction(payload)
+            if payload_dir == "UP":
+                direction = "favors YES"
+            elif payload_dir == "DOWN":
+                direction = "favors NO"
+            else:
+                direction = _lean_label(
+                    citation.get("model_p"), citation.get("market_p")
+                )
+            magnitude = _signal_magnitude_label(payload, payload_dir)
+            note = f"{human} signal" + (f", {magnitude}" if magnitude else "")
+            key = (str(label), direction, note)
+            if key not in signal_counts:
+                signal_order.append(key)
+            signal_counts[key] = signal_counts.get(key, 0) + 1
+        for label, direction, note in signal_order:
+            count = signal_counts[(label, direction, note)]
             drivers.append(
                 {
-                    "label": label,
-                    "direction": _lean_label(
-                        citation.get("model_p"), citation.get("market_p")
-                    ),
-                    "note": f"{item.signal_type} signal",
+                    "label": f"{count}x {label}" if count > 1 else label,
+                    "direction": direction,
+                    "note": note,
                 }
             )
     except Exception as exc:

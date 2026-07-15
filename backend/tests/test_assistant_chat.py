@@ -256,6 +256,103 @@ def test_keyless_analyze_omits_absent_fields_honestly() -> None:
     assert "get_features" in tools
 
 
+def test_analyze_drivers_are_humanized_deduped_with_magnitude(monkeypatch) -> None:
+    """Signal drivers: humanized labels, dedupe with counts, payload direction/
+    magnitude when present — never raw 'delta:price_jump (neutral)' repeats."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from app.api.v1 import alerts_feed
+    from app.api.v1.assistant import _enrich_analyze_context
+
+    def _item(signal_type: str, payload: dict) -> SimpleNamespace:
+        citation = SimpleNamespace(
+            model_dump=lambda: {
+                "headline": None, "model_p": None, "market_p": None,
+            }
+        )
+        return SimpleNamespace(
+            signal_type=signal_type, payload=payload, citation=citation
+        )
+
+    jump = {"direction": "up", "magnitude": 0.04}
+    items = [
+        _item("delta:price_jump", jump),
+        _item("delta:price_jump", jump),
+        _item("delta:price_jump", jump),
+    ]
+
+    async def fake_feed(db, effective_slugs, scope, since, limit):
+        return SimpleNamespace(items=items[:limit])
+
+    monkeypatch.setattr(alerts_feed, "_build_alert_feed", fake_feed)
+
+    out = asyncio.run(
+        _enrich_analyze_context("nba-2025-01-15-lal-bos", {}, MagicMock())
+    )
+    drivers = out.get("drivers") or []
+    assert len(drivers) == 1, drivers
+    d = drivers[0]
+    assert d["label"] == "3x Price Jump"
+    assert d["direction"] == "favors YES"
+    assert "Price Jump signal" in d["note"]
+    assert "+4¢" in d["note"]
+    assert "delta:price_jump" not in (d["label"] + d["note"])
+
+
+def test_analyze_driver_magnitude_omitted_when_absent(monkeypatch) -> None:
+    """No magnitude fields in payload → note stays honest, nothing invented."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from app.api.v1 import alerts_feed
+    from app.api.v1.assistant import _enrich_analyze_context
+
+    citation = SimpleNamespace(
+        model_dump=lambda: {"headline": None, "model_p": None, "market_p": None}
+    )
+    item = SimpleNamespace(
+        signal_type="screener:momentum", payload={}, citation=citation
+    )
+
+    async def fake_feed(db, effective_slugs, scope, since, limit):
+        return SimpleNamespace(items=[item])
+
+    monkeypatch.setattr(alerts_feed, "_build_alert_feed", fake_feed)
+
+    out = asyncio.run(
+        _enrich_analyze_context("nba-2025-01-15-lal-bos", {}, MagicMock())
+    )
+    drivers = out.get("drivers") or []
+    assert len(drivers) == 1
+    d = drivers[0]
+    assert d["label"] == "Momentum"
+    assert d["note"] == "Momentum signal"
+    assert d["direction"] == "neutral"
+
+
+def test_signal_humanize_helpers_mirror_frontend() -> None:
+    """Server-side helpers follow signal-rail.ts conventions."""
+    from app.api.v1.assistant import (
+        _humanize_signal_type,
+        _signal_magnitude_label,
+        _signal_payload_direction,
+    )
+
+    assert _humanize_signal_type("delta:price_jump") == "Price Jump"
+    assert _humanize_signal_type("news:mispricing") == "Mispricing"
+    assert _humanize_signal_type("arb") == "Arb"
+    assert _signal_payload_direction({"direction": "sell"}) == "DOWN"
+    assert _signal_payload_direction({"direction": "positive"}) == "UP"
+    assert _signal_payload_direction({}) is None
+    assert _signal_magnitude_label({"detail": {"bps": 25}}, "DOWN") == "-25 bps"
+    assert _signal_magnitude_label({"magnitude": 0.031}, "UP") == "+3.1¢"
+    assert _signal_magnitude_label({"score": 0.42}, None) == "score 0.42"
+    assert _signal_magnitude_label({}, None) is None
+
+
 def test_unrecognized_intent_still_returns_menu() -> None:
     """A4: genuinely unrecognized prompts keep the capability menu."""
     from app.api.v1.assistant import _MENU_MARKER, _build_deterministic_reply
