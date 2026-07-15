@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, UTC
 from decimal import Decimal
 
 import pytest
@@ -45,7 +45,7 @@ async def test_digest_idempotent_per_user_per_day(db_session):
             select(User).where(User.email == "digest-idem@example.com")
         )
     ).scalar_one()
-    day = date(2026, 7, 14)
+    day = datetime.now(UTC).date()  # real today: dedupe window compares created_at=now()
     first = await build_digest_for_user(db_session, user, day=day)
     second = await build_digest_for_user(db_session, user, day=day)
     await db_session.commit()
@@ -90,7 +90,7 @@ async def test_run_daily_digest_batch(db_session):
             )
         )
     await db_session.flush()
-    day = date(2026, 7, 14)
+    day = datetime.now(UTC).date()  # real today: dedupe window compares created_at=now()
     summary = await run_daily_digest(db_session, day=day)
     await db_session.commit()
     assert summary["created"] >= 2
