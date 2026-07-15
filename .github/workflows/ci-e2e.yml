@@ -61,6 +61,7 @@ jobs:
           export JWT_SECRET_KEY=ci-e2e-jwt-secret
           export DATABASE_URL="sqlite+aiosqlite:///${db_path}"
           export DATABASE_URL_SYNC="sqlite:///${db_path}"
+          export E2E_SQLITE_PATH="${db_path}"
           export REDIS_URL=redis://disabled
           export APP_ENV=development
           export CORS_ORIGINS=http://127.0.0.1:31017
@@ -94,6 +95,8 @@ jobs:
             done
           done
       - name: Run Chromium Playwright
+        env:
+          E2E_SQLITE_PATH: ${{ runner.temp }}/alphaedge-e2e.sqlite3
         run: npx playwright test --project=chromium --retries=1 --reporter=list,html
         working-directory: frontend
         env:

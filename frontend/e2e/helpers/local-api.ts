@@ -7,7 +7,9 @@ import path from "node:path";
 import type { Page } from "@playwright/test";
 
 // Playwright cwd is frontend/; e2e stack SQLite lives under e2e/.data/.
-const SQLITE_PATH = path.join(process.cwd(), "e2e", ".data", "loop17.sqlite3");
+const SQLITE_PATH =
+  process.env.E2E_SQLITE_PATH ??
+  path.join(process.cwd(), "e2e", ".data", "loop17.sqlite3");
 
 export function localApiBase(): string {
   const port = process.env.E2E_API_PORT || "18017";
