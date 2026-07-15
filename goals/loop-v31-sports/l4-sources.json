@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "source": "espn-nba",
+      "state": "healthy",
+      "consecutive_failures": 0,
+      "total_successes": 5,
+      "total_failures": 0,
+      "last_error": null,
+      "last_success_age_sec": 0.172,
+      "circuit_open_remaining_sec": null
+    },
+    {
+      "source": "espn-nfl",
+      "state": "healthy",
+      "consecutive_failures": 0,
+      "total_successes": 5,
+      "total_failures": 0,
+      "last_error": null,
+      "last_success_age_sec": 0.016,
+      "circuit_open_remaining_sec": null
+    },
+    {
+      "source": "polymarket.clob",
+      "state": "healthy",
+      "consecutive_failures": 0,
+      "total_successes": 0,
+      "total_failures": 0,
+      "last_error": null,
+      "last_success_age_sec": null,
+      "circuit_open_remaining_sec": null
+    },
+    {
+      "source": "polymarket.gamma",
+      "state": "healthy",
+      "consecutive_failures": 0,
+      "total_successes": 0,
+      "total_failures": 0,
+      "last_error": null,
+      "last_success_age_sec": null,
+      "circuit_open_remaining_sec": null
+    }
+  ],
+  "count": 4,
+  "paper_trading_only": true
+}
