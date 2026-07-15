@@ -1,0 +1,59 @@
+name: CI Backend
+
+on:
+  push:
+    branches:
+      - loop3-agent-memory
+      - codex/alphaedge-base
+  pull_request:
+    branches:
+      - loop3-agent-memory
+      - codex/alphaedge-base
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PAPER_TRADING_ONLY: "true"
+  ADMIN_API_KEY: dev-admin-key
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/pyproject.toml
+      - name: Sync dependencies
+        run: uv sync --extra dev
+      - name: Run pytest and publish counts
+        shell: bash
+        run: |
+          set +e
+          uv run pytest -q 2>&1 | tee pytest-output.txt
+          pytest_status=${PIPESTATUS[0]}
+          set -e
+          pytest_summary=$(tail -n 1 pytest-output.txt)
+          {
+            echo "## Backend pytest"
+            echo
+            echo "\`\`\`text"
+            echo "${pytest_summary}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$pytest_status"
+      - name: Lint with Ruff
+        run: uv run ruff check app tests
+      - name: Verify exactly one Alembic head
+        shell: bash
+        run: |
+          head_count=$(uv run alembic heads | grep -c '^[[:alnum:]]' || true)
+          test "$head_count" -eq 1
