@@ -147,6 +147,23 @@ class Settings(BaseSettings):
     scheduler_jobrun_retention_enabled: bool = Field(
         default=True, alias="SCHEDULER_JOBRUN_RETENTION_ENABLED"
     )
+    # Loop V39: data retention (odds_snapshots downsample / signal_events /
+    # notifications). Flag-gated with generous defaults; see R1 audit.
+    data_retention_enabled: bool = Field(
+        default=True, alias="DATA_RETENTION_ENABLED"
+    )
+    odds_snapshot_full_res_days: int = Field(
+        default=90, alias="ODDS_SNAPSHOT_FULL_RES_DAYS"
+    )
+    signal_event_retention_days: int = Field(
+        default=30, alias="SIGNAL_EVENT_RETENTION_DAYS"
+    )
+    notification_retention_days: int = Field(
+        default=90, alias="NOTIFICATION_RETENTION_DAYS"
+    )
+    scheduler_data_retention_enabled: bool = Field(
+        default=True, alias="SCHEDULER_DATA_RETENTION_ENABLED"
+    )
     # Loop V24 N2: comma-separated user emails that receive ops/drift
     # notifications mirrored from AlertDispatchService (in-app only).
     notification_admin_emails: str = Field(
