@@ -61,10 +61,12 @@ export function setProfilePublicViaSqlite(
     "helpers",
     "set_profile_public.py",
   );
+  // Windows uses the py launcher; POSIX runners (CI ubuntu) use python3.
+  const isWin = process.platform === "win32";
   const out = execFileSync(
-    "py",
+    isWin ? "py" : "python3",
     [
-      "-3.13",
+      ...(isWin ? ["-3.13"] : []),
       helper,
       SQLITE_PATH,
       email,
