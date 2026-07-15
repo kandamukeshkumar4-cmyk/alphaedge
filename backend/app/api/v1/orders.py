@@ -293,6 +293,7 @@ async def place_paper_order(
             price=float(order.price),
             action=order.action,
             created_at=order.created_at or datetime.now(timezone.utc),
+            display_name=current_user.display_name,
         )
     )
     # Loop V24 N2: per-user in-app notification (never raises into this txn).
@@ -557,6 +558,7 @@ async def close_paper_position(
             price=float(order.price),
             action=order.action,
             created_at=order.created_at or datetime.now(timezone.utc),
+            display_name=current_user.display_name,
         )
     )
     # Loop V24 N2: per-user in-app notification (never raises into this txn).

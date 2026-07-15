@@ -11,7 +11,8 @@ import { dismissOnboardingIfPresent, signupPaperUser, skipOnboarding } from "./h
  * Known defects filtered from the fail set (still logged). Do not expand
  * without a matching BUG REPORT in goals/loop-v28-qa2/STATE.md (or prior).
  * - BUG-V18-02: accent contrast (fixed loop16 V9 — filter inert)
- * - BUG-V28-02: lightweight-charts TradingView #tv-attr-logo nested in role=img
+ * - BUG-V28-02: fixed loop30 — TradingView logo moved outside role=img;
+ *   filter removed 2026-07-15.
  */
 
 const CANONICAL_SLUG = "nba-2025-01-15-lal-bos";
@@ -27,7 +28,6 @@ type AxeViolation = {
     html?: string;
     any?: Array<{
       data?: { bgColor?: string; fgColor?: string; contrastRatio?: number };
-      relatedNodes?: Array<{ html?: string; target?: string[] }>;
     }>;
   }>;
 };
@@ -37,32 +37,8 @@ function isKnownAccentContrast(_v: AxeViolation): boolean {
   return false;
 }
 
-/**
- * BUG-V28-02: lightweight-charts injects TradingView attribution <a id="tv-attr-logo">
- * inside the chart container marked role="img" → axe nested-interactive (serious).
- * App chart wrapper owns the fix; e2e must not fail the whole suite on vendor chrome.
- */
-function isKnownTradingViewNestedInteractive(v: AxeViolation): boolean {
-  if (v.id !== "nested-interactive") return false;
-  return v.nodes.some((n) => {
-    const html = (n.html ?? "").toLowerCase();
-    const targets = n.target.join(" ").toLowerCase();
-    const related = (n.any ?? [])
-      .flatMap((a) => a.relatedNodes ?? [])
-      .map((r) => `${r.html ?? ""} ${(r.target ?? []).join(" ")}`)
-      .join(" ")
-      .toLowerCase();
-    const blob = `${html} ${targets} ${related}`;
-    return (
-      blob.includes("tv-attr-logo") ||
-      blob.includes("tradingview") ||
-      (blob.includes('role="img"') && blob.includes("chart"))
-    );
-  });
-}
-
 function isKnownA11yBug(v: AxeViolation): boolean {
-  return isKnownAccentContrast(v) || isKnownTradingViewNestedInteractive(v);
+  return isKnownAccentContrast(v);
 }
 
 function summarize(violations: AxeViolation[]): string {
@@ -181,12 +157,35 @@ test.describe("Q8 a11y (@axe-core/playwright)", () => {
     await runAxe(page, "/leaderboard");
   });
 
-  test("BUG-V28-02: market chart has no nested-interactive from TradingView logo", async () => {
-    // App/vendor: lightweight-charts #tv-attr-logo inside role=img chart shell.
-    // Filtered from fail set above; this fixme tracks the product fix.
-    test.fixme(
-      true,
-      "BUG-V28-02: TradingView attribution link nested in role=img chart (nested-interactive)",
+  test("BUG-V28-02: market chart has no nested-interactive from TradingView logo", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await skipOnboarding(page);
+    await page.goto(`/markets/${CANONICAL_SLUG}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await dismissOnboardingIfPresent(page);
+    // Wait for chart canvas + attribution sibling to mount.
+    await expect(
+      page.getByRole("img", { name: /Price history chart/i }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("link", { name: /^TradingView$/i }).first()).toBeVisible();
+    // Vendor #tv-attr-logo must not nest inside role=img.
+    await expect(page.locator('#tv-attr-logo')).toHaveCount(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    const nested = (results.violations as AxeViolation[]).filter(
+      (v) =>
+        v.id === "nested-interactive" &&
+        (v.impact === "serious" || v.impact === "critical"),
     );
+    expect(
+      nested,
+      `nested-interactive still present:\n${summarize(nested)}`,
+    ).toEqual([]);
   });
 });

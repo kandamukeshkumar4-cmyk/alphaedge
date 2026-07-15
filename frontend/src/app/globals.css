@@ -212,6 +212,25 @@
 
 :root {
   color-scheme: dark;
+  /* Canvas chart tokens (lightweight-charts can't resolve CSS var()). */
+  --color-primary: #00E8B0;
+  --color-danger: #FF5A5F;
+  --color-secondary: #4B9EFF;
+  --chart-text: 143, 168, 160;
+  --chart-grid: 28, 44, 40;
+  --chart-border: 28, 44, 40;
+}
+
+/*
+ * Chart chrome under light theme. Full-app light chrome was retired with the
+ * Quest dark-only redesign; these tokens still flip when `html.light` is set
+ * so LWC charts re-theme (E05 / loop30 P3) without inventing a new UI system.
+ */
+html.light {
+  color-scheme: light;
+  --chart-text: 55, 70, 64;
+  --chart-grid: 200, 210, 205;
+  --chart-border: 180, 192, 186;
 }
 
 /*

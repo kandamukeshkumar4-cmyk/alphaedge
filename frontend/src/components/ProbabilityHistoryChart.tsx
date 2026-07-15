@@ -9,7 +9,14 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { fetchMarketHistory, type HistoryPoint } from "@/lib/alphaedge-api";
-import { CHART_COLOR_FALLBACKS, chartRgb, chartRgba } from "@/lib/chart-colors";
+import {
+  CHART_COLOR_FALLBACKS,
+  chartRgb,
+  chartRgba,
+  observeChartTheme,
+  readLwcChartTheme,
+} from "@/lib/chart-colors";
+import { ChartAttribution } from "@/components/ChartAttribution";
 
 function directionArrow(history: HistoryPoint[]) {
   if (history.length < 2) return null;
@@ -46,14 +53,16 @@ export function ProbabilityHistoryChart({
   useEffect(() => {
     if (!containerRef.current || loading || history.length === 0) return;
 
+    const theme = readLwcChartTheme();
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(160,160,180,0.7)",
+        textColor: theme.text,
+        attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },
-        horzLines: { color: "rgba(255,255,255,0.05)" },
+        horzLines: { color: theme.grid },
       },
       crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
       rightPriceScale: {
@@ -93,14 +102,23 @@ export function ProbabilityHistoryChart({
     chart.timeScale().fitContent();
     chartRef.current = chart;
 
-    const observer = new ResizeObserver((entries) => {
+    const resize = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width;
       if (w) chart.applyOptions({ width: w });
     });
-    observer.observe(containerRef.current);
+    resize.observe(containerRef.current);
+
+    const themeObserver = observeChartTheme(() => {
+      const next = readLwcChartTheme();
+      chart.applyOptions({
+        layout: { textColor: next.text },
+        grid: { horzLines: { color: next.grid } },
+      });
+    });
 
     return () => {
-      observer.disconnect();
+      themeObserver?.disconnect();
+      resize.disconnect();
       chart.remove();
       chartRef.current = null;
     };
@@ -139,15 +157,18 @@ export function ProbabilityHistoryChart({
           style={{ height }}
         />
       ) : (
-        <div
-          ref={containerRef}
-          role="img"
-          aria-label={
-            lastPrice != null
-              ? `Probability history chart, currently ${(lastPrice * 100).toFixed(1)} percent`
-              : "Probability history chart"
-          }
-        />
+        <>
+          <div
+            ref={containerRef}
+            role="img"
+            aria-label={
+              lastPrice != null
+                ? `Probability history chart, currently ${(lastPrice * 100).toFixed(1)} percent`
+                : "Probability history chart"
+            }
+          />
+          <ChartAttribution className="mt-1" />
+        </>
       )}
     </div>
   );

@@ -259,7 +259,8 @@ async def test_followed_trader_feed_reuses_b4_shape_and_cursor(db_session):
     assert body1["next_cursor"]
     assert len(page2.json()["items"]) == 1
     assert page2.json()["next_cursor"] is None
-    assert all(item["trader"].startswith("Trader-") for item in body1["items"])
+    # display_name set above → leaderboard/profile rule (not Trader-hash)
+    assert all(item["trader"] == "Followed" for item in body1["items"])
     assert all("@" not in item["trader"] and "user_id" not in item for item in body1["items"])
     assert {item["shares"] for item in body1["items"] + page2.json()["items"]} == {2.0, 3.0, 4.0}
     assert invalid.status_code == 400

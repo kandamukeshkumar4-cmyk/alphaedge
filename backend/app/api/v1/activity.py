@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Alert, Market, PaperOrder, SignalEvent
+from app.db.models import Alert, Market, PaperOrder, SignalEvent, User
 from app.db.session import get_db
 from app.services.analytics_activity import trade_activity_payload
 
@@ -189,17 +189,18 @@ async def list_public_trades(
             raise HTTPException(status_code=400, detail="Invalid cursor") from exc
 
     stmt = (
-        select(PaperOrder)
+        select(PaperOrder, User.display_name)
+        .join(User, User.id == PaperOrder.user_id)
         .order_by(PaperOrder.created_at.desc(), PaperOrder.id.desc())
         .offset(offset)
         .limit(limit + 1)
     )
-    rows = (await db.execute(stmt)).scalars().all()
+    rows = (await db.execute(stmt)).all()
     page = rows[:limit]
     next_cursor = str(offset + limit) if len(rows) > limit else None
 
     items: list[TradeActivityItem] = []
-    for o in page:
+    for o, display_name in page:
         created = o.created_at or datetime.now(timezone.utc)
         payload = trade_activity_payload(
             order_id=str(o.id),
@@ -211,6 +212,7 @@ async def list_public_trades(
             price=float(o.price),
             action=o.action,
             created_at=created,
+            display_name=display_name,
         )
         items.append(
             TradeActivityItem(

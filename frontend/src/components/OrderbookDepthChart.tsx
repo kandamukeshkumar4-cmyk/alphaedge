@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchOrderBook, type OrderBookResponse } from "@/lib/alphaedge-api";
+import { CHART_COLOR_FALLBACKS, chartRgba } from "@/lib/chart-colors";
 
 const W = 480;
 const H = 80;
@@ -81,6 +82,9 @@ export function OrderbookDepthChart({ slug }: { slug: string }) {
   }
   const bw = barWidth();
 
+  const bidFill = chartRgba("--color-primary", CHART_COLOR_FALLBACKS.primary, 0.35);
+  const askFill = chartRgba("--color-danger", CHART_COLOR_FALLBACKS.danger, 0.35);
+
   return (
     <div className="rounded-xl border border-border bg-surface p-2">
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-2">
@@ -102,7 +106,7 @@ export function OrderbookDepthChart({ slug }: { slug: string }) {
               y={y}
               width={bw}
               height={INNER_H - (y - PAD.t)}
-              fill="rgb(var(--color-primary) / 0.35)"
+              fill={bidFill}
               rx={2}
             />
           );
@@ -119,7 +123,7 @@ export function OrderbookDepthChart({ slug }: { slug: string }) {
               y={y}
               width={bw}
               height={INNER_H - (y - PAD.t)}
-              fill="rgb(var(--color-danger) / 0.35)"
+              fill={askFill}
               rx={2}
             />
           );

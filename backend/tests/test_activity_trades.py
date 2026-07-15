@@ -140,3 +140,23 @@ def test_trade_activity_payload_shape():
     )
     assert p["trader"].startswith("Trader-")
     assert p["type"] == "paper_trade"
+
+
+def test_trade_activity_payload_prefers_display_name():
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    uid = uuid4()
+    p = trade_activity_payload(
+        order_id="oid",
+        user_id=uid,
+        slug="s",
+        side="YES",
+        outcome="yes",
+        shares=1.5,
+        price=0.4,
+        action="BUY",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        display_name="  AceTrader  ",
+    )
+    assert p["trader"] == "AceTrader"

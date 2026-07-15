@@ -16,6 +16,13 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { type EquityPoint } from "@/lib/alphaedge-api";
+import { ChartAttribution } from "@/components/ChartAttribution";
+import {
+  CHART_COLOR_FALLBACKS,
+  chartRgb,
+  observeChartTheme,
+  readLwcChartTheme,
+} from "@/lib/chart-colors";
 
 interface EquityCurveChartProps {
   equityCurve: EquityPoint[];
@@ -36,16 +43,18 @@ export function EquityCurveChart({
     const el = containerRef.current;
     if (!el) return;
 
+    const theme = readLwcChartTheme();
     chartRef.current = createChart(el, {
       width: el.clientWidth,
       height,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(168,172,179,0.9)",
+        textColor: theme.text,
+        attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(255,255,255,0.04)" },
-        horzLines: { color: "rgba(255,255,255,0.04)" },
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid },
       },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false, timeVisible: true },
@@ -53,7 +62,7 @@ export function EquityCurveChart({
     });
 
     seriesRef.current = chartRef.current.addSeries(LineSeries, {
-      color: "#05b169",
+      color: chartRgb("--color-primary", CHART_COLOR_FALLBACKS.primary),
       lineWidth: 2,
       priceLineVisible: false,
     });
@@ -65,7 +74,22 @@ export function EquityCurveChart({
     });
     obs.observe(el);
 
+    const themeObserver = observeChartTheme(() => {
+      const next = readLwcChartTheme();
+      chartRef.current?.applyOptions({
+        layout: { textColor: next.text },
+        grid: {
+          vertLines: { color: next.grid },
+          horzLines: { color: next.grid },
+        },
+      });
+      seriesRef.current?.applyOptions({
+        color: chartRgb("--color-primary", CHART_COLOR_FALLBACKS.primary),
+      });
+    });
+
     return () => {
+      themeObserver?.disconnect();
       obs.disconnect();
       chartRef.current?.remove();
     };
@@ -123,6 +147,7 @@ export function EquityCurveChart({
         role="img"
         aria-label={`Equity curve: from $${initialEquity.toLocaleString()} to $${finalEq.toLocaleString(undefined, { maximumFractionDigits: 0 })} (${isPositive ? "+" : ""}${pnlPct}%) over ${equityCurve.length} points`}
       />
+      <ChartAttribution className="mt-1" />
     </div>
   );
 }

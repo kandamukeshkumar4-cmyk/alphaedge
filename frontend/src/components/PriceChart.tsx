@@ -17,6 +17,12 @@ import { fetchMarketCandles } from "@/lib/alphaedge-api";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
+import { ChartAttribution } from "@/components/ChartAttribution";
+import {
+  observeChartTheme,
+  readLwcChartTheme,
+  type LwcChartTheme,
+} from "@/lib/chart-colors";
 
 // QuestFlow Trade terminal chips: 5m · 15m · 1h · 6h · 1d · 1w · 1m · All
 type RangeKey = "5m" | "15m" | "1h" | "6h" | "1d" | "1w" | "1m" | "All";
@@ -33,57 +39,14 @@ const RANGES: { key: RangeKey; points: number; stepSec: number }[] = [
 
 type Mode = "area" | "candle";
 
-// lightweight-charts needs concrete color strings (it can't resolve CSS vars),
-// so read the live theme tokens off <html> and re-apply on the .light toggle.
-// Every value is token-derived → the chart reskins with the rest of the app
-// instead of staying dark-mode-only (E-chart-theme debt).
-function _triplet(name: string, fallback: string): string {
-  if (typeof document === "undefined") return fallback;
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return raw ? raw.split(/\s+/).join(", ") : fallback;
-}
-
-type ChartTheme = {
-  text: string;
-  grid: string;
-  border: string;
-  accent: string;
-  accentSoft: string;
-  accentFade: string;
-  up: string;
-  down: string;
-  volUp: string;
-  volDown: string;
-  model: string;
-};
-
-function readChartTheme(): ChartTheme {
-  const text = _triplet("--c-muted", "159, 176, 169");
-  const border = _triplet("--c-border", "30, 41, 36");
-  const primary = _triplet("--c-primary", "32, 201, 151");
-  const danger = _triplet("--c-danger", "229, 72, 77");
-  const secondary = _triplet("--c-secondary", "244, 176, 0");
-  return {
-    text: `rgb(${text})`,
-    grid: `rgba(${border}, 0.6)`,
-    border: `rgb(${border})`,
-    accent: `rgb(${primary})`,
-    accentSoft: `rgba(${primary}, 0.28)`,
-    accentFade: `rgba(${primary}, 0.0)`,
-    up: `rgb(${primary})`,
-    down: `rgb(${danger})`,
-    volUp: `rgba(${primary}, 0.45)`,
-    volDown: `rgba(${danger}, 0.45)`,
-    model: `rgb(${secondary})`,
-  };
-}
+// Theme tokens: chart-colors resolves CSS vars off <html>; re-apply on .light.
 
 function applyChartTheme(
   chart: IChartApi,
   area: ISeriesApi<"Area"> | null,
   candle: ISeriesApi<"Candlestick"> | null,
   vol: ISeriesApi<"Histogram"> | null,
-  t: ChartTheme,
+  t: LwcChartTheme,
 ): void {
   chart.applyOptions({
     layout: { textColor: t.text },
@@ -155,7 +118,7 @@ export function PriceChart({
     const el = containerRef.current;
     if (!el) return;
 
-    const theme = readChartTheme();
+    const theme = readLwcChartTheme();
     const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
@@ -225,22 +188,15 @@ export function PriceChart({
       if (typeof price === "number") setHovered(price);
     });
 
-    // Re-theme when the user flips the .light class on <html> (E04 toggle).
-    const observer =
-      typeof MutationObserver !== "undefined"
-        ? new MutationObserver(() => {
-            applyChartTheme(
-              chart,
-              areaRef.current,
-              candleRef.current,
-              volRef.current,
-              readChartTheme(),
-            );
-          })
-        : null;
-    observer?.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
+    // Re-theme when the user flips the .light class on <html>.
+    const observer = observeChartTheme(() => {
+      applyChartTheme(
+        chart,
+        areaRef.current,
+        candleRef.current,
+        volRef.current,
+        readLwcChartTheme(),
+      );
     });
 
     return () => {
@@ -282,8 +238,7 @@ export function PriceChart({
     const volData = candles.map((c) => ({
       time: c.time as UTCTimestamp,
       value: Math.abs(c.close - c.open) * 90000 + 2000,
-      color:
-        c.close >= c.open ? "rgba(36,198,109,0.45)" : "rgba(255,77,79,0.45)",
+      color: c.close >= c.open ? readLwcChartTheme().volUp : readLwcChartTheme().volDown,
     }));
     areaRef.current?.setData(areaData);
     candleRef.current?.setData(candleData);
@@ -310,7 +265,7 @@ export function PriceChart({
     if (typeof modelProb === "number") {
       modelLineRef.current = area.createPriceLine({
         price: modelProb,
-        color: readChartTheme().model,
+        color: readLwcChartTheme().model,
         lineWidth: 2,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
@@ -436,6 +391,7 @@ export function PriceChart({
           typeof modelProb === "number" ? `, AI estimate ${cents(modelProb)}` : ""
         }`}
       />
+      <ChartAttribution className="mt-1 px-1" />
     </div>
   );
 }

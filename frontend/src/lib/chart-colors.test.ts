@@ -6,6 +6,7 @@ import {
   chartRgba,
   cssColorTriplet,
   hexToTriplet,
+  readLwcChartTheme,
 } from "./chart-colors";
 
 describe("chart-colors (canvas-safe color resolution)", () => {
@@ -30,5 +31,14 @@ describe("chart-colors (canvas-safe color resolution)", () => {
     expect(hexToTriplet("#00E8B0")).toBe("0, 232, 176");
     expect(hexToTriplet("#fff")).toBe("255, 255, 255");
     expect(hexToTriplet("not-a-color")).toBeNull();
+  });
+
+  it("readLwcChartTheme returns concrete rgb/rgba strings (SSR fallback)", () => {
+    const theme = readLwcChartTheme();
+    expect(theme.text).toBe(`rgb(${CHART_COLOR_FALLBACKS.text})`);
+    expect(theme.accent).toBe(`rgb(${CHART_COLOR_FALLBACKS.primary})`);
+    expect(theme.grid).toContain("rgba(");
+    expect(theme.text).not.toContain("var(");
+    expect(theme.grid).not.toContain("var(");
   });
 });
