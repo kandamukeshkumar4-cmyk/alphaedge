@@ -40,6 +40,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "ops_alerts": 900,
     "portfolio_equity": 21600,
     "daily_digest": 21600,
+    "jobrun_retention": 86400,
 }
 
 

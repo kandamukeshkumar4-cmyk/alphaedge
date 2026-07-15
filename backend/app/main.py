@@ -425,6 +425,25 @@ async def _daily_digest_loop() -> None:
             )
 
 
+async def _jobrun_retention_loop() -> None:
+    """Loop V37 H3: delete JobRun rows older than JOBRUN_RETENTION_DAYS.
+    In-process mirror of the ARQ cron (prod has no worker)."""
+    from app.workers.jobrun_retention import jobrun_retention_task
+
+    while True:
+        await _paced_sleep(86400, max(86400, settings.scheduler_idle_interval_sec))
+        try:
+            await jobrun_retention_task({})
+            record_heartbeat("jobrun_retention")
+        except Exception:
+            logger.error("JobRun retention loop failed", exc_info=True)
+            record_heartbeat(
+                "jobrun_retention",
+                status="error",
+                detail="jobrun retention pass failed",
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
@@ -475,6 +494,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_portfolio_equity_loop())
     if settings.scheduler_daily_digest_enabled:
         asyncio.create_task(_daily_digest_loop())
+    if settings.scheduler_jobrun_retention_enabled:
+        asyncio.create_task(_jobrun_retention_loop())
     if settings.live_feed_enabled:
         # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
         # must NOT block startup — a slow/429'd upstream would delay uvicorn from

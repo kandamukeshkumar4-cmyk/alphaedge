@@ -34,6 +34,7 @@ EXPECTED_NEW_LOOPS = {
     "_ops_alerts_loop",
     "_portfolio_equity_loop",
     "_daily_digest_loop",
+    "_jobrun_retention_loop",
 }
 
 

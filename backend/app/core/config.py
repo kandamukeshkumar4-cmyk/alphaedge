@@ -129,6 +129,14 @@ class Settings(BaseSettings):
     scheduler_daily_digest_enabled: bool = Field(
         default=True, alias="SCHEDULER_DAILY_DIGEST_ENABLED"
     )
+    # Loop V37 H3: JobRun retention sweep (flag-gated, default on).
+    jobrun_retention_enabled: bool = Field(
+        default=True, alias="JOBRUN_RETENTION_ENABLED"
+    )
+    jobrun_retention_days: int = Field(default=30, alias="JOBRUN_RETENTION_DAYS")
+    scheduler_jobrun_retention_enabled: bool = Field(
+        default=True, alias="SCHEDULER_JOBRUN_RETENTION_ENABLED"
+    )
     # Loop V24 N2: comma-separated user emails that receive ops/drift
     # notifications mirrored from AlertDispatchService (in-app only).
     notification_admin_emails: str = Field(
