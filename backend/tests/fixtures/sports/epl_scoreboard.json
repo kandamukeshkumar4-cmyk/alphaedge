@@ -1,0 +1,78 @@
+{
+  "day": { "date": "2026-01-15" },
+  "events": [
+    {
+      "id": "7012345",
+      "date": "2026-01-15T20:00:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_FULL_TIME",
+          "state": "post",
+          "completed": true,
+          "description": "Full-time"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2026-01-15T20:00:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "2",
+              "team": {
+                "abbreviation": "ARS",
+                "displayName": "Arsenal"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "1",
+              "team": {
+                "abbreviation": "CHE",
+                "displayName": "Chelsea"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401879301",
+      "date": "2026-08-21T19:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2026-08-21T19:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "abbreviation": "ARS",
+                "displayName": "Arsenal"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "abbreviation": "COV",
+                "displayName": "Coventry City"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "_league": "epl",
+  "_captured_from": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard",
+  "_note": "Compact real ESPN eng.1 shape; final scores for signal-path tests only."
+}

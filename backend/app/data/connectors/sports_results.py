@@ -1,32 +1,148 @@
-"""NBA sports results connector — READ-ONLY signal input.
+"""Multi-league sports results connector — READ-ONLY signal input.
 
-Uses the public ESPN NBA scoreboard (no API key). balldontlie now requires
+Uses public ESPN scoreboards (no API key). balldontlie requires
 ``BALLDONTLIE_API_KEY``; ESPN keeps this path keyless for paper simulation.
 
 Feeds the events pipeline as ``sports:result`` SignalEvents. NEVER resolves
 markets — resolution belongs to the external_resolve / loop-v14 path.
+
+League map is config-driven (nba / nfl / mlb / soccer incl. FIFA WC). Each
+league has its own health-registry source name (espn-nba, espn-nfl, …).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 
 from app.data.connectors.base import parse_timestamp, slugify
 from app.data.connectors.http import JsonConnectorClient
 
-SOURCE = "espn-nba"
 ESPN_BASE = "https://site.api.espn.com"
-ESPN_SCOREBOARD_PATH = "/apis/site/v2/sports/basketball/nba/scoreboard"
 SPORTS_RESULT_SIGNAL_TYPE = "sports:result"  # 13 chars, fits SignalEvent(32)
+
+# Backward-compatible aliases (NBA default from C2).
+SOURCE = "espn-nba"
+ESPN_SCOREBOARD_PATH = "/apis/site/v2/sports/basketball/nba/scoreboard"
+
+
+@dataclass(frozen=True)
+class LeagueSpec:
+    """ESPN scoreboard path + health-registry source for one league."""
+
+    key: str
+    source: str
+    scoreboard_path: str
+    slug_prefix: str
+
+
+# Config-driven league → ESPN scoreboard map (keyless public site API).
+LEAGUE_SPECS: Mapping[str, LeagueSpec] = {
+    "nba": LeagueSpec(
+        key="nba",
+        source="espn-nba",
+        scoreboard_path="/apis/site/v2/sports/basketball/nba/scoreboard",
+        slug_prefix="nba",
+    ),
+    "nfl": LeagueSpec(
+        key="nfl",
+        source="espn-nfl",
+        scoreboard_path="/apis/site/v2/sports/football/nfl/scoreboard",
+        slug_prefix="nfl",
+    ),
+    "mlb": LeagueSpec(
+        key="mlb",
+        source="espn-mlb",
+        scoreboard_path="/apis/site/v2/sports/baseball/mlb/scoreboard",
+        slug_prefix="mlb",
+    ),
+    # ESPN soccer — FIFA World Cup + common club leagues (signals only).
+    "fifa_wc": LeagueSpec(
+        key="fifa_wc",
+        source="espn-fifa-wc",
+        scoreboard_path="/apis/site/v2/sports/soccer/fifa.world/scoreboard",
+        slug_prefix="fifa-wc",
+    ),
+    "epl": LeagueSpec(
+        key="epl",
+        source="espn-epl",
+        scoreboard_path="/apis/site/v2/sports/soccer/eng.1/scoreboard",
+        slug_prefix="epl",
+    ),
+}
+
+DEFAULT_LEAGUE = "nba"
+SUPPORTED_LEAGUES: tuple[str, ...] = tuple(LEAGUE_SPECS.keys())
+
+
+def get_league_spec(league: str | None = None) -> LeagueSpec:
+    """Resolve a league key to its ESPN path / source name. Default: nba."""
+    key = (league or DEFAULT_LEAGUE).strip().lower()
+    try:
+        return LEAGUE_SPECS[key]
+    except KeyError as exc:
+        known = ", ".join(SUPPORTED_LEAGUES)
+        raise ValueError(f"unknown sports league {key!r}; expected one of: {known}") from exc
+
+
+def source_for_league(league: str | None = None) -> str:
+    return get_league_spec(league).source
+
+
+def parse_enabled_leagues(raw: str | list[str] | None = None) -> list[str]:
+    """Return known league keys from a CSV / list; empty/invalid → [nba].
+
+    Unknown tokens are skipped (never raise). Used by config gating so a typo
+    in SPORTS_LEAGUES_ENABLED cannot crash the poll path.
+    """
+    if raw is None:
+        from app.core.config import get_settings
+
+        tokens = get_settings().sports_leagues_enabled_list
+    elif isinstance(raw, str):
+        tokens = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    else:
+        tokens = [str(item).strip().lower() for item in raw if str(item).strip()]
+
+    out: list[str] = []
+    for token in tokens:
+        if token in LEAGUE_SPECS and token not in out:
+            out.append(token)
+    return out or [DEFAULT_LEAGUE]
+
+
+def is_league_enabled(league: str, *, enabled: list[str] | None = None) -> bool:
+    """True when league is in SPORTS_LEAGUES_ENABLED (or provided enabled list)."""
+    key = get_league_spec(league).key
+    allowed = enabled if enabled is not None else parse_enabled_leagues()
+    return key in allowed
+
+
+def fetch_enabled_league_games(
+    game_date: date | str | None = None,
+    *,
+    enabled: list[str] | None = None,
+    base_url: str = ESPN_BASE,
+    client: httpx.Client | None = None,
+) -> dict[str, list[GameResult]]:
+    """Poll scoreboards for every enabled league only (signals path).
+
+    Returns ``{league_key: [GameResult, ...]}``. Does not resolve markets.
+    """
+    leagues = enabled if enabled is not None else parse_enabled_leagues()
+    results: dict[str, list[GameResult]] = {}
+    for league in leagues:
+        connector = SportsResultsConnector(base_url=base_url, client=client, league=league)
+        results[league] = connector.fetch_games(game_date)
+    return results
 
 
 @dataclass(frozen=True)
 class GameResult:
-    """Normalized NBA game result (signal payload only — not a market truth)."""
+    """Normalized game result (signal payload only — not a market truth)."""
 
     event_id: str
     game_date: str  # YYYY-MM-DD
@@ -40,35 +156,49 @@ class GameResult:
     status_detail: str
     captured_at: datetime
     source: str = SOURCE
+    league: str = DEFAULT_LEAGUE
 
 
 class SportsResultsConnector:
-    """Fetch + normalize NBA scoreboard rows via resilient HTTP."""
+    """Fetch + normalize ESPN scoreboard rows via resilient HTTP (per league)."""
 
     def __init__(
         self,
         base_url: str = ESPN_BASE,
         client: httpx.Client | None = None,
         http: JsonConnectorClient | None = None,
+        *,
+        league: str = DEFAULT_LEAGUE,
     ) -> None:
+        self.league_spec = get_league_spec(league)
+        self.league = self.league_spec.key
         self.http = http or JsonConnectorClient(
             base_url=base_url,
             client=client,
-            source=SOURCE,
+            source=self.league_spec.source,
         )
 
     def fetch_games(self, game_date: date | str | None = None) -> list[GameResult]:
         params: dict[str, str] = {}
         if game_date is not None:
             params["dates"] = _espn_date_param(game_date)
-        payload = self.http.get_json(ESPN_SCOREBOARD_PATH, params=params or None)
-        return normalize_espn_scoreboard(payload)
+        payload = self.http.get_json(self.league_spec.scoreboard_path, params=params or None)
+        return normalize_espn_scoreboard(
+            payload,
+            source=self.league_spec.source,
+            league=self.league_spec.key,
+        )
 
     def fetch_final_games(self, game_date: date | str | None = None) -> list[GameResult]:
         return [g for g in self.fetch_games(game_date) if g.status == "final"]
 
 
-def normalize_espn_scoreboard(payload: Any) -> list[GameResult]:
+def normalize_espn_scoreboard(
+    payload: Any,
+    *,
+    source: str = SOURCE,
+    league: str = DEFAULT_LEAGUE,
+) -> list[GameResult]:
     """Pure map: ESPN scoreboard JSON → GameResult list (network-free)."""
     if not isinstance(payload, dict):
         raise ValueError("ESPN scoreboard payload must be an object")
@@ -84,7 +214,13 @@ def normalize_espn_scoreboard(payload: Any) -> list[GameResult]:
     for event in events:
         if not isinstance(event, dict):
             continue
-        normalized = _normalize_event(event, board_date=board_date, captured_at=captured_at)
+        normalized = _normalize_event(
+            event,
+            board_date=board_date,
+            captured_at=captured_at,
+            source=source,
+            league=league,
+        )
         if normalized is not None:
             results.append(normalized)
     return results
@@ -103,13 +239,14 @@ def games_to_signal_events(games: list[GameResult]) -> list[dict[str, Any]]:
             continue
         if game.home_score is None or game.away_score is None:
             continue
+        prefix = LEAGUE_SPECS.get(game.league, LEAGUE_SPECS[DEFAULT_LEAGUE]).slug_prefix
         market_id = (
-            f"nba-{game.game_date}-{slugify(game.away_abbr)}-{slugify(game.home_abbr)}"
+            f"{prefix}-{game.game_date}-{slugify(game.away_abbr)}-{slugify(game.home_abbr)}"
         )[:128]
         events.append(
             {
                 "signal_type": SPORTS_RESULT_SIGNAL_TYPE,
-                "platform": SOURCE[:64],
+                "platform": game.source[:64],
                 "market_id": market_id,
                 "headline_eligible": False,
                 "payload": {
@@ -121,6 +258,7 @@ def games_to_signal_events(games: list[GameResult]) -> list[dict[str, Any]]:
                         "markets. Resolution belongs to external_resolve. Simulated funds only."
                     ),
                     "event_id": game.event_id,
+                    "league": game.league,
                     "game_date": game.game_date,
                     "home_team": game.home_team,
                     "away_team": game.away_team,
@@ -143,6 +281,8 @@ def _normalize_event(
     *,
     board_date: str,
     captured_at: datetime,
+    source: str,
+    league: str,
 ) -> GameResult | None:
     event_id = str(event.get("id") or "").strip()
     if not event_id:
@@ -185,7 +325,8 @@ def _normalize_event(
         status=status,
         status_detail=status_detail,
         captured_at=captured_at,
-        source=SOURCE,
+        source=source,
+        league=league,
     )
 
 

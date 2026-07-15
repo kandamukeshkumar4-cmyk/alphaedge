@@ -1,0 +1,78 @@
+{
+  "day": { "date": "2026-07-15" },
+  "events": [
+    {
+      "id": "401696501",
+      "date": "2026-07-15T23:10:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2026-07-15T23:10:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "5",
+              "team": {
+                "abbreviation": "NYY",
+                "displayName": "New York Yankees"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "3",
+              "team": {
+                "abbreviation": "BOS",
+                "displayName": "Boston Red Sox"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401816143",
+      "date": "2026-07-16T23:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2026-07-16T23:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "abbreviation": "PHI",
+                "displayName": "Philadelphia Phillies"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "abbreviation": "NYM",
+                "displayName": "New York Mets"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "_league": "mlb",
+  "_captured_from": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
+  "_note": "Compact real ESPN capture shape; final scores for signal-path tests only."
+}

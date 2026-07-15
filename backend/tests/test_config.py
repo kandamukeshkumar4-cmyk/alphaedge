@@ -48,3 +48,17 @@ def test_market_adapter_settings_have_safe_defaults():
 def test_paper_trading_only_cannot_be_disabled():
     with pytest.raises(ValidationError, match="PAPER_TRADING_ONLY"):
         Settings(PAPER_TRADING_ONLY=False)
+
+
+def test_sports_leagues_enabled_defaults_to_nba():
+    settings = Settings(APP_ENV="development")
+    assert settings.sports_leagues_enabled == "nba"
+    assert settings.sports_leagues_enabled_list == ["nba"]
+
+
+def test_sports_leagues_enabled_csv_parses():
+    settings = Settings(
+        APP_ENV="development",
+        SPORTS_LEAGUES_ENABLED="nba, nfl, mlb",
+    )
+    assert settings.sports_leagues_enabled_list == ["nba", "nfl", "mlb"]

@@ -1,0 +1,77 @@
+{
+  "day": { "date": "2025-01-15" },
+  "events": [
+    {
+      "id": "401584903",
+      "date": "2025-01-15T00:30:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2025-01-15T00:30:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "112",
+              "team": {
+                "abbreviation": "BOS",
+                "displayName": "Boston Celtics"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "105",
+              "team": {
+                "abbreviation": "LAL",
+                "displayName": "Los Angeles Lakers"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401584904",
+      "date": "2025-01-15T03:00:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled"
+        }
+      },
+      "competitions": [
+        {
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "abbreviation": "NYK",
+                "displayName": "New York Knicks"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "abbreviation": "MIA",
+                "displayName": "Miami Heat"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "_league": "nba",
+  "_captured_from": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
+  "_note": "Real ESPN shape; Lakers/Celtics final is the canonical paper-market fixture (nba-2025-01-15-lal-bos)."
+}
