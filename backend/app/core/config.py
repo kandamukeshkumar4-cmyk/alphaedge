@@ -114,6 +114,16 @@ class Settings(BaseSettings):
     external_autolock_batch: int = Field(
         default=25, alias="EXTERNAL_AUTOLOCK_BATCH"
     )
+    # Loop V33 B2': register eligible INGESTED venue catalog markets as
+    # ExternalMarket rows. Without this the autolock funnel is input-starved —
+    # live ingest writes only `markets`, so `external_markets` had no automated
+    # supply and autolock had nothing to select (see goals/loop-v33-lockbreadth).
+    scheduler_external_market_bridge_enabled: bool = Field(
+        default=True, alias="SCHEDULER_EXTERNAL_MARKET_BRIDGE_ENABLED"
+    )
+    external_market_bridge_batch: int = Field(
+        default=25, alias="EXTERNAL_MARKET_BRIDGE_BATCH"
+    )
     # V4-fix: in-process mirrors for tasks that otherwise only run under an
     # ARQ worker (prod runs uvicorn only). Flag-gated, default on.
     scheduler_drift_detect_enabled: bool = Field(

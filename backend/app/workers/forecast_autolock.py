@@ -211,6 +211,8 @@ async def forecast_autolock_task(ctx: dict[str, Any]) -> dict[str, Any]:
             "reason": "SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED=false",
         }
 
+    from app.observability.autolock_funnel import funnel_snapshot
+
     started_at = datetime.now(UTC)
     session_factory = ctx.get("session_factory") or AsyncSessionLocal
     now = ctx.get("now")
@@ -220,12 +222,22 @@ async def forecast_autolock_task(ctx: dict[str, Any]) -> dict[str, Any]:
     )
     async with session_factory() as session:
         try:
+            # V33 B2'b: snapshot the funnel BEFORE the pass. Measured after, the
+            # markets this pass just locked would already be excluded by
+            # ~live_forecast_exists, so a healthy pass would misreport as starved.
+            funnel = await funnel_snapshot(
+                session,
+                now=now or datetime.now(UTC),
+                limit=min(max(limit, 1), MAX_AUTOLOCK_BATCH_SIZE),
+                window_sec=max(window_sec, 1),
+            )
             summary = await autolock_forecasts(
                 session,
                 now=now,
                 limit=limit,
                 window_sec=window_sec,
             )
+            summary = {**summary, "funnel": funnel}
             session.add(
                 JobRun(
                     job_name=FORECAST_AUTOLOCK_JOB_NAME,

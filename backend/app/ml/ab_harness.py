@@ -42,14 +42,39 @@ AB_MODEL_TYPES = ("xgboost", "lightgbm")
 
 async def count_resolved_outcomes(session) -> int:
     """Count real resolved outcomes — same definition as track-record's ``n``."""
+    return int((await resolved_outcomes_breakdown(session))["count"])
+
+
+async def resolved_outcomes_breakdown(session) -> dict[str, Any]:
+    """Which population ``count_resolved_outcomes`` actually counted (V33 B2'c).
+
+    Pure disclosure, no new semantics: the preference order and the resulting
+    ``count`` are exactly what ``count_resolved_outcomes`` has always returned,
+    so the A/B gate is unaffected. It just stops being silent about the source.
+
+    ``source`` is ``"forecast_scores"`` when the count comes from scored
+    pre-close forecasts (the population the forecast loops accrue), or
+    ``"paper_orders_fallback"`` when it falls back to resolved paper orders —
+    a *different* population, which the readout previously reported as if it
+    were the same number.
+    """
     from app.api.v1.calibration import _from_paper_orders
     from app.api.v1.track_record import _resolved_forecast_rows
 
     rows = await _resolved_forecast_rows(session)
+    forecast_scored_count = len(rows)
     if rows:
-        return len(rows)
+        return {
+            "count": forecast_scored_count,
+            "source": "forecast_scores",
+            "forecast_scored_count": forecast_scored_count,
+        }
     predictions, _, _ = await _from_paper_orders(session)
-    return len(predictions)
+    return {
+        "count": len(predictions),
+        "source": "paper_orders_fallback",
+        "forecast_scored_count": 0,
+    }
 
 
 async def resolved_count_readout(session) -> dict[str, Any]:

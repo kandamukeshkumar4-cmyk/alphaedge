@@ -340,18 +340,47 @@ async def _external_resolve_loop() -> None:
             )
 
 
+async def _external_market_bridge_loop() -> None:
+    """Loop V33 B2': register eligible INGESTED venue markets as ExternalMarket
+    rows so the autolock funnel has input at all (V33 B1 measured 99 ingested
+    markets -> 0 autolock candidates). Feeds the input; never touches the
+    locking/scoring/resolution gates. In-process mirror of the ARQ cron."""
+    from app.workers.external_market_bridge import external_market_bridge_task
+
+    while True:
+        await _paced_sleep(900, settings.scheduler_idle_interval_sec)
+        try:
+            await external_market_bridge_task({})
+            record_heartbeat("external_market_bridge")
+        except Exception:
+            logger.error("External market bridge loop failed", exc_info=True)
+            record_heartbeat(
+                "external_market_bridge",
+                status="error",
+                detail="external market bridge pass failed",
+            )
+
+
 async def _forecast_autolock_loop() -> None:
     """V14 F04 / loop16 V4: lock LIVE model forecasts on OPEN external markets
     nearing close that lack one, so a genuine pre-close prediction exists to
     score when external_resolve settles them. In-process mirror of the ARQ
     cron (prod has no worker)."""
+    from app.observability.autolock_funnel import funnel_detail
     from app.workers.forecast_autolock import forecast_autolock_task
 
     while True:
         await _paced_sleep(900, settings.scheduler_idle_interval_sec)
         try:
-            await forecast_autolock_task({})
-            record_heartbeat("forecast_autolock")
+            summary = await forecast_autolock_task({})
+            # V33 B2'b: surface the staged funnel on the public heartbeat so
+            # "alive but selecting nothing" is visible without an admin key —
+            # exactly the blind spot that hid V33 B1's starvation in prod.
+            funnel = summary.get("funnel") if isinstance(summary, dict) else None
+            record_heartbeat(
+                "forecast_autolock",
+                detail=funnel_detail(funnel) if funnel else None,
+            )
         except Exception:
             logger.error("Forecast autolock loop failed", exc_info=True)
             record_heartbeat(
@@ -484,6 +513,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.scheduler_external_resolve_enabled:
         asyncio.create_task(_external_resolve_loop())
+    if settings.scheduler_external_market_bridge_enabled:
+        asyncio.create_task(_external_market_bridge_loop())
     if settings.scheduler_external_autolock_enabled:
         asyncio.create_task(_forecast_autolock_loop())
     if settings.scheduler_drift_detect_enabled:

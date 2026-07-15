@@ -22,6 +22,7 @@ from app.workers.order_expiry import order_expiry_task
 from app.workers.portfolio_equity import portfolio_equity_snapshot_task
 from app.workers.drift_detect import drift_detect_task
 from app.workers.model_retrain import model_retrain_task
+from app.workers.external_market_bridge import external_market_bridge_task
 from app.workers.forecast_autolock import forecast_autolock_task
 from app.workers.daily_digest import daily_digest_task
 from app.workers.jobrun_retention import jobrun_retention_task
@@ -1047,6 +1048,7 @@ class WorkerSettings:
         ops_alerts_task,
         drift_detect_task,
         model_retrain_task,
+        external_market_bridge_task,
         forecast_autolock_task,
         daily_digest_task,
         jobrun_retention_task,
@@ -1062,6 +1064,10 @@ class WorkerSettings:
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # V14 F02/F03: resolve past-close external markets from venue data + score
         cron(resolve_external_markets_task, minute={10, 40}),
+        # V33 B2': supply the autolock funnel by registering eligible ingested
+        # venue markets. Runs 10 min ahead of autolock so a freshly bridged
+        # market is available to the very next lock pass.
+        cron(external_market_bridge_task, minute={20, 50}),
         # V16 V4: lock model forecasts pre-close so later venue resolution can grade them
         cron(forecast_autolock_task, minute={0, 30}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
