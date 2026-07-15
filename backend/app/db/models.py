@@ -86,6 +86,8 @@ class User(Base):
     # Loop V23 A2: admin suspend flag — enforced in RiskService + paper-order path.
     is_suspended: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+    # Loop V22 S1: public-profile opt-out.
     profile_public: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
