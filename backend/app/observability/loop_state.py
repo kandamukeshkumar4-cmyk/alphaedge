@@ -35,6 +35,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "whale_refresh": 604800,
     "wc2026_resolve": 600,
     "external_resolve": 900,
+    "external_market_bridge": 900,
     "forecast_autolock": 900,
     "drift_detect": 3600,
     "ops_alerts": 900,

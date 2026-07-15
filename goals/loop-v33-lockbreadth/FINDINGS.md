@@ -9,6 +9,11 @@ ticket with its own review.
 
 ## F1 — `external_markets` has no automated supply (root cause of zero breadth)
 
+> **STATUS: RESOLVED by B2' (commit on this branch).** The orchestrator
+> redirected B2 from config tuning to implementing this bridge (DIR-V33-002), so
+> F1 became the ticket rather than a filing. Kept here as the root-cause record;
+> the constraints below are what B2' implements and tests.
+
 **Severity: blocks the 100-resolution threshold entirely.** Evidence: B1 in
 `STATE.md`.
 
@@ -58,6 +63,38 @@ Non-negotiable constraints for whoever picks this up:
 
 Expected effect: this is the only change that can move stage 0 above zero, and
 therefore the only one that can move `resolved_count`.
+
+---
+
+## F4 — Horizon is now the binding filter (first data-justified tune) — NEW
+
+Filed by B2' (the bridge), which made F1 obsolete by implementing it.
+
+With supply finally flowing, the funnel has a real shape for the first time.
+Measured locally against real Polymarket data after one bridge pass (25 rows):
+
+```
+0_external_markets_total   25
+1_status_open              25
+2_has_close_at             25
+3_close_at_in_future       25
+4_within_horizon           14   <- 11 excluded by the 24h horizon
+5_lacks_live_forecast      14
+6_after_batch_cap          14
+biggest_exclusion: 3_close_at_in_future -> 4_within_horizon, excluded=11
+```
+
+So `EXTERNAL_AUTOLOCK_WINDOW_SEC=86400` now excludes **11 of 25** bridged
+markets — it is the binding filter, exactly as B2 predicted it would become once
+stage 0 was non-zero.
+
+**Not tuned here** — B2 was redefined to the bridge (DIR-V33-002) and a horizon
+change is a separate, reviewable decision with a real trade-off: locking earlier
+means forecasting with less information, which costs accuracy on a track record
+whose value is trust. Now that the drop is *measured* rather than inferred, that
+trade-off can be made on data. **Ask:** a follow-up ticket to pick the horizon
+against measured stage-3→4 drop vs. Brier impact, rather than widening it
+reflexively.
 
 ---
 

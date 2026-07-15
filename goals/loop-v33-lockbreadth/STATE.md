@@ -132,7 +132,15 @@ AutoLab: baseline=funnel unmeasured | benchmark=scripts/autolock_funnel_snapshot
 
 ---
 
-### B2 — Config tuning · DONE (no config change is justified; findings FILED)
+### B2 — Config tuning · SUPERSEDED by DIR-V33-002 (kept as the record)
+
+> The orchestrator reviewed B1 (`REVIEW B1 · 9bd088d · PASS`), accepted the
+> input-starved finding, and **redefined B2**: implement the catalog→
+> `external_markets` bridge instead of tuning config. My filed F1 became the
+> ticket. The config analysis below stands and still explains *why* tuning was
+> the wrong axis — see **B2'** for the implementation.
+
+
 
 **Verdict: I am shipping ZERO config changes, and that is the finding.**
 B1 measured every funnel stage at 0 because the input set is empty. Horizon,
@@ -195,3 +203,95 @@ No runtime code touched (docs only). `ruff check app tests scripts` → PASS.
 Full pytest counts under B3.
 
 AutoLab: baseline=0 autolock candidates (B1) | benchmark=stage-0 candidate count | iterations=1 (evaluated all 7 knobs; 0 justified) | budget=2/3 | outcome=stalled-reorganized (config axis is provably a no-op; real fix reorganized into F1 for its own ticket)
+
+---
+
+### B2' — catalog → external_markets supply bridge · DONE (per DIR-V33-002)
+
+**Result: the funnel is off stage 0. Measured against the REAL Polymarket API:
+0 → 25 external markets, 14 autolock candidates, `input_starved=false`.**
+
+#### What shipped
+
+`backend/app/workers/external_market_bridge.py` — bounded, idempotent,
+flag-gated (default ON) task that registers eligible *already-ingested* venue
+markets as `ExternalMarket` rows. It feeds the input; it does not touch the gates.
+
+| DIR-V33-002 constraint | How it's met |
+|---|---|
+| Real venues only, never seed/demo | `Market.source in {polymarket, kalshi}`; the `"seed"` default is excluded in SQL. Pinned by `test_seed_market_is_never_bridged`. |
+| Genuine future `close_at` | Uses the **venue's** `close_time` (re-read live), not the catalog's possibly-stale `lock_at`; requires `> now`. Pinned by `test_venue_close_time_overrides_a_stale_catalog_lock_at`. |
+| Resolvable by the existing resolver | Re-reads each market through `get_venue_adapter(...).fetch_market(...)` — the same adapter `external_resolve` uses. Unavailable → not bridged. |
+| Same identity as `normalize()` | Keys on `Market.external_slug`; round-trips the id through `parse_market_url` before insert. See the identity hazard below. |
+| Idempotent, unique by venue identity | SQL `NOT EXISTS` pre-filter + exact `(platform, external_id)` re-check before insert. |
+| Bounded batch | `EXTERNAL_MARKET_BRIDGE_BATCH=25`, hard cap 250. |
+| Dual-wired (in-process + ARQ) | `_external_market_bridge_loop` in `main.py` (900s) **and** `cron(external_market_bridge_task, minute={20, 50})` — 10 min ahead of autolock's `{0,30}`. Pinned by `test_bridge_is_dual_wired`. |
+| Heartbeat `external_market_bridge` | Added to `_ALL_LOOPS` + `LOOP_INTERVALS` (900). |
+| No locking/scoring/resolution changes | Those files are untouched. The bridge never writes `winning_outcome`/`resolved_at`. |
+| Migration | **None needed** — `external_markets` already has every column used. No schema change. |
+
+#### The identity hazard (the sharpest edge, worth flagging)
+
+`Market.external_id` is **not** the venue identity. Live ingest stores
+Polymarket's `conditionId` and Kalshi's *event* ticker there
+(`live_market_ingest.py:224`, `kalshi_live_ingest.py:262`), while both venue
+adapters' `normalize()` key on the Gamma **slug** / market **ticker** — which
+ingest puts in `external_slug` (`venues/polymarket.py:107`, `venues/kalshi.py:111`).
+
+Bridging on the field *named* `external_id` would have registered rows the
+resolver could never settle — or settled them against the **wrong market**, i.e.
+scored a forecast against another market's outcome. That is precisely the
+trust-corrupting failure DIR-V33-001.1 exists to prevent, and it would have
+looked fine in any test that stubbed the adapter loosely. The bridge keys on
+`external_slug` and proves the round-trip; `test_bridge_keys_on_external_slug_not_external_id`
+asserts the venue is queried with the slug and never the conditionId.
+
+Related: `parse_market_url` lowercases ids, so the bridge stores the lowercase
+canonical form — a human forecast on the same URL maps to the **same** row
+instead of creating a duplicate. Both Kalshi adapters upper-case their input
+(`venues/kalshi.py:52`, `market_source.py:357`), so lowercase ids still resolve
+on the autolock and resolver paths. Pinned by
+`test_bridged_market_url_round_trips_to_the_same_identity`.
+
+#### Real-data evidence (`evidence/local_bridge_run.py`, real Gamma API)
+
+```
+REAL INGEST: imported=99, updated=0, skipped=4
+
+FUNNEL BEFORE BRIDGE: all stages 0            input_starved=true
+REAL BRIDGE PASS:     candidates=25 bridged=25 skipped=0 errors=0
+FUNNEL AFTER BRIDGE:  0_total=25  1_open=25  2_has_close=25
+                      3_future=25 4_within_horizon=14
+                      5_lacks_live=14  6_after_cap=14
+                      input_starved=false
+                      biggest_exclusion: 3->4 (horizon), excluded=11
+
+SECOND PASS (bounded progress): candidates=25 bridged=25   <- the NEXT 25 of 99
+IDEMPOTENCY: total_rows=50  unique_keys=50  duplicates=[]
+```
+
+The second pass bridging 25 more is correct, not duplication: 99 markets were
+ingested and the batch is 25, so it advances onto the next tranche. Verified by
+the duplicate check (50 rows / 50 unique keys / 0 duplicates) and by
+`test_bridge_is_idempotent_across_passes`, which re-runs the *same* market and
+gets `candidates=0, bridged=0` with exactly one row.
+
+#### New measured finding → F4
+
+Now that supply exists, the 24h horizon excludes **11 of 25** bridged markets and
+is the binding filter — exactly what B2 predicted would happen once stage 0 was
+non-zero. **Not tuned here** (out of B2' scope, and it trades accuracy for
+coverage). Filed as **F4** for a follow-up ticket that picks the horizon against
+measured drop vs. Brier impact.
+
+#### Gate (B2')
+
+```
+ADMIN_API_KEY=dev-admin-key uv run --extra dev pytest -q -p no:cacheprovider
+  -> PYTEST_EXIT=0 ; 1626 passed, 28 skipped in 286.57s
+     (1609 -> 1626 = the 17 new bridge tests; nothing lost)
+uv run --extra dev ruff check app tests scripts
+  -> RUFF_EXIT=0 ; All checks passed!
+```
+
+AutoLab: baseline=0 autolock candidates / input_starved=true (B1) | benchmark=funnel stage counts via scripts/autolock_funnel_snapshot.py | iterations=1 (bridge -> 25 external markets, 14 candidates, input_starved=false) | budget=3/3 | outcome=improved (funnel off stage 0 on real venue data; horizon now binding -> F4)

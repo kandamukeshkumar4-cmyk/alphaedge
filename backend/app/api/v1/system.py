@@ -52,6 +52,7 @@ _ALL_LOOPS: tuple[str, ...] = (
     "whale_refresh",
     "wc2026_resolve",
     "external_resolve",
+    "external_market_bridge",
     "forecast_autolock",
     "drift_detect",
     "ops_alerts",
