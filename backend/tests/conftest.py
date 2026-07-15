@@ -88,3 +88,22 @@ def _clear_desk_cache():
     desk_cache.invalidate()
     yield
     desk_cache.invalidate()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    """slowapi + mutating limiter counters must not leak across tests.
+
+    Signup-heavy modules (loop26) share the process-wide MemoryStorage with
+    later modules; without a per-test reset, later signups can inherit a
+    near-exhausted window and flake with 429. Limits remain enforced within
+    each individual test.
+    """
+    from app.core import ratelimit
+    from app.main import limiter
+
+    limiter.reset()
+    ratelimit.reset()
+    yield
+    limiter.reset()
+    ratelimit.reset()
