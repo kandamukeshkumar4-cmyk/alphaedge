@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
+  cancelAdminMarket,
   fetchAdminMarkets,
+  pauseAdminMarket,
+  unpauseAdminMarket,
   type AdminMarketRow,
 } from "@/lib/admin-dashboard-api";
 
@@ -17,6 +20,7 @@ const STATUS_ORDER: Record<string, number> = {
   open: 0,
   locked: 1,
   resolved: 2,
+  cancelled: 3,
 };
 
 export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
@@ -25,6 +29,7 @@ export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
   const [sortAsc, setSortAsc] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionSlug, setActionSlug] = useState<string | null>(null);
 
   const loadMarkets = useCallback(async () => {
     if (!apiKey.trim()) {
@@ -61,6 +66,30 @@ export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
     });
   }, [markets, filter, sortAsc]);
 
+  async function handleAction(slug: string, action: "pause" | "unpause" | "cancel") {
+    if (action === "cancel" && !window.confirm(`Cancel ${slug}? This does not settle paper positions.`)) {
+      return;
+    }
+    setActionSlug(slug);
+    setError(null);
+    const result =
+      action === "pause"
+        ? await pauseAdminMarket(apiKey, slug)
+        : action === "unpause"
+          ? await unpauseAdminMarket(apiKey, slug)
+          : await cancelAdminMarket(apiKey, slug);
+    setActionSlug(null);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setMarkets((current) =>
+      current.map((market) =>
+        market.slug === slug ? { ...market, status: result.data.status } : market,
+      ),
+    );
+  }
+
   return (
     <section className="rounded-xl border border-border bg-surface" id="markets">
       <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -88,7 +117,7 @@ export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
         <p className="p-4 text-sm text-danger">{error}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b border-border bg-surface-2 text-xs uppercase text-muted-2">
               <tr>
                 <th className="px-4 py-3 font-semibold">Slug</th>
@@ -104,12 +133,13 @@ export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
                 </th>
                 <th className="px-4 py-3 font-semibold">Category</th>
                 <th className="px-4 py-3 font-semibold">Tournament</th>
+                <th className="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                     Loading markets…
                   </td>
                 </tr>
@@ -127,11 +157,23 @@ export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
                     <td className="px-4 py-3 font-mono text-xs text-muted-2">
                       {market.tournament_tag ?? "—"}
                     </td>
+                    <td className="px-4 py-3">
+                      {market.status === "open" || market.status === "locked" ? (
+                        <span className="flex flex-wrap gap-1.5">
+                          {market.status === "open" ? (
+                            <button type="button" disabled={actionSlug === market.slug} onClick={() => void handleAction(market.slug, "pause")} className="min-h-9 rounded-lg border border-accent/40 px-2.5 text-xs font-bold text-accent transition hover:border-accent disabled:opacity-50">Pause</button>
+                          ) : (
+                            <button type="button" disabled={actionSlug === market.slug} onClick={() => void handleAction(market.slug, "unpause")} className="min-h-9 rounded-lg border border-primary/40 px-2.5 text-xs font-bold text-primary transition hover:border-primary disabled:opacity-50">Unpause</button>
+                          )}
+                          <button type="button" disabled={actionSlug === market.slug} onClick={() => void handleAction(market.slug, "cancel")} className="min-h-9 rounded-lg border border-danger/40 px-2.5 text-xs font-bold text-danger transition hover:border-danger disabled:opacity-50">Cancel</button>
+                        </span>
+                      ) : <span className="text-xs text-muted-2">Terminal</span>}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                     No markets found.
                   </td>
                 </tr>
@@ -146,7 +188,7 @@ export function AdminMarketsTable({ apiKey }: AdminMarketsTableProps) {
 
 function StatusBadge({ status }: { status: string }) {
   const classes =
-    status === "resolved"
+    status === "resolved" || status === "cancelled"
       ? "border-muted/45 bg-surface-2 text-muted"
       : status === "locked"
         ? "border-accent/45 bg-accent/10 text-accent"
