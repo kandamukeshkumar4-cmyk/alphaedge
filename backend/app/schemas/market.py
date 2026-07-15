@@ -206,6 +206,20 @@ class MarketSnapshotCaptureRunListResponse(BaseModel):
     runs: list[MarketSnapshotCaptureRunResponse]
 
 
+class Phase3SnapshotStoreBacktestRequest(BaseModel):
+    """Body for POST /admin/phase3-snapshot-store-backtests (SEC-Z1-01).
+
+    Requires an explicit source so empty ``{}`` fails validation with 422
+    instead of reaching the empty-store KeyError path.
+    """
+
+    source: str = Field(
+        ...,
+        description="Must be 'snapshot_store' (resolved odds feature matrix).",
+        min_length=1,
+    )
+
+
 class Phase3SnapshotStoreBacktestRunResponse(BaseModel):
     run_id: UUID
     status: str

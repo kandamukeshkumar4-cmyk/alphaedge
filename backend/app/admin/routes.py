@@ -26,6 +26,7 @@ from app.schemas.market import (
     MarketSnapshotCaptureRunListResponse,
     MarketSnapshotCaptureRunResponse,
     PaperAccountResponse,
+    Phase3SnapshotStoreBacktestRequest,
     Phase3SnapshotStoreBacktestRunListResponse,
     Phase3SnapshotStoreBacktestRunResponse,
 )
@@ -132,9 +133,19 @@ async def list_historical_closing_snapshot_captures(
     response_model=Phase3SnapshotStoreBacktestRunResponse,
 )
 async def run_phase3_snapshot_store_backtest(
+    body: Phase3SnapshotStoreBacktestRequest,
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ):
+    """Run phase3 snapshot-store walk-forward. Body must include ``source``.
+
+    SEC-Z1-01: empty ``{}`` → 422 (never uncaught KeyError on empty matrix).
+    """
+    if body.source != "snapshot_store":
+        raise HTTPException(
+            status_code=422,
+            detail="source must be 'snapshot_store'",
+        )
     started_at = datetime.now(UTC)
     matrix = await load_resolved_snapshot_feature_matrix(db)
     result = run_phase3_snapshot_matrix_backtest(matrix, PHASE3_ADMIN_ARTIFACT_DIR)

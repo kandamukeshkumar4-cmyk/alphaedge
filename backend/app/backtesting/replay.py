@@ -75,6 +75,17 @@ def run_phase3_snapshot_matrix_backtest(
     artifact_dir: Path | None = None,
 ) -> dict[str, Any]:
     artifact_dir = artifact_dir or Path("backend/ml_artifacts")
+    # Empty / missing-column matrices used to raise KeyError('captured_at')
+    # (SEC-Z1-01). Return a blocked empty-result gate instead.
+    if (
+        feature_matrix is None
+        or getattr(feature_matrix, "empty", True)
+        or "captured_at" not in getattr(feature_matrix, "columns", [])
+    ):
+        return {
+            "market_count": 0 if feature_matrix is None else int(len(feature_matrix)),
+            "phase3_forecast_gate": _empty_phase3_forecast_gate(),
+        }
     phase3_gate = _phase3_feature_matrix_forecast_gate(
         feature_matrix,
         artifact_dir / "phase3_snapshot_walk_forward",
@@ -82,6 +93,45 @@ def run_phase3_snapshot_matrix_backtest(
     return {
         "market_count": len(feature_matrix),
         "phase3_forecast_gate": phase3_gate,
+    }
+
+
+def _empty_phase3_forecast_gate() -> dict[str, Any]:
+    """Blocked gate payload when the resolved snapshot matrix is empty."""
+    from app.backtesting.significance import DEFAULT_MIN_SAMPLE
+
+    min_sample = int(DEFAULT_MIN_SAMPLE)
+    walk_forward = {
+        "count": 0,
+        "model_brier": 0.0,
+        "closing_brier": 0.0,
+        "model_log_loss": 0.0,
+        "closing_log_loss": 0.0,
+        "mean_clv": 0.0,
+        "clv_positive": False,
+        "model_beats_closing": False,
+    }
+    edge_gate = {
+        "count": 0,
+        "min_sample": min_sample,
+        "sample_met": False,
+        "mean_brier_delta": 0.0,
+        "ci_lower": 0.0,
+        "alpha": 0.05,
+        "significant_beats_closing": False,
+    }
+    return {
+        "gate": "blocked",
+        "is_edge": False,
+        "blocked_reasons": ["insufficient_resolved_sample"],
+        "sample_shortfall": min_sample,
+        "walk_forward": walk_forward,
+        "edge_gate": edge_gate,
+        "calibration": {
+            "method": "none",
+            "raw_expected_calibration_error": 0.0,
+            "calibrated_expected_calibration_error": 0.0,
+        },
     }
 
 

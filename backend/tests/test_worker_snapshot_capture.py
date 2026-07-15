@@ -534,6 +534,7 @@ async def test_admin_phase3_snapshot_store_backtest_runs_and_lists_latest_proof(
             run_response = await client.post(
                 "/admin/phase3-snapshot-store-backtests",
                 headers={"X-Admin-API-Key": "dev-admin-key"},
+                json={"source": "snapshot_store"},
             )
             list_response = await client.get(
                 "/admin/phase3-snapshot-store-backtests",

@@ -418,13 +418,9 @@ def test_auth_class_table_covers_snapshot_surface():
     assert counts["public"] == 88
 
 
-# Known app-side defects observed by the matrix (do NOT fix here). Documented in
-# goals/loop-v26-authz/STATE.md SEC REPORTS. Keys: (method, path, actor).
-# Values: SEC id. These probes are soft-checked (must still not be uncaught).
-_XFAIL_PROBES: dict[tuple[str, str, str], str] = {
-    # Uncaught KeyError on empty snapshot store when admin key is valid.
-    ("post", "/admin/phase3-snapshot-store-backtests", "admin"): "SEC-Z1-01",
-}
+# Soft-checked app defects (must still not be uncaught). Loop V27 cleared
+# SEC-Z1-01 (phase3 body validation + empty-matrix blocked result).
+_XFAIL_PROBES: dict[tuple[str, str, str], str] = {}
 
 
 @pytest.mark.asyncio
