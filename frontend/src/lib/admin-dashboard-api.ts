@@ -141,6 +141,28 @@ export function fetchAdminStats(apiKey: string) {
   return adminFetch<AdminStats>(apiKey, "/api/v1/admin/stats");
 }
 
+/** Per-connector health from admin-gated GET /api/v1/system/sources. */
+export type SourceHealthRow = {
+  source: string;
+  state: string;
+  consecutive_failures: number;
+  total_successes: number;
+  total_failures: number;
+  last_error: string | null;
+  last_success_age_sec: number | null;
+  circuit_open_remaining_sec: number | null;
+};
+
+export type SourcesHealthResponse = {
+  sources: SourceHealthRow[];
+  count: number;
+  paper_trading_only: boolean;
+};
+
+export function fetchSystemSources(apiKey: string) {
+  return adminFetch<SourcesHealthResponse>(apiKey, "/api/v1/system/sources");
+}
+
 type AdminActionResponse = { slug: string; status: string; paper_trading_only: boolean };
 
 export function pauseAdminMarket(apiKey: string, slug: string) {
