@@ -1,0 +1,43 @@
+name: CI Frontend
+
+on:
+  push:
+    branches:
+      - loop3-agent-memory
+      - codex/alphaedge-base
+  pull_request:
+    branches:
+      - loop3-agent-memory
+      - codex/alphaedge-base
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint with zero warnings
+        run: npm run lint -- --max-warnings=0
+      - name: Run Vitest
+        run: npm run test
+      - name: Build
+        run: npm run build
