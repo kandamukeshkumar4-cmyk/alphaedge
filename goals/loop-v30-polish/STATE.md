@@ -24,6 +24,12 @@ npx playwright test → exit 0
   29 passed
   1 skipped  (legacy app.spec placeholder only)
   (6.2m)
+
+# P1 backend deviation gate (required after REVIEW)
+uv run --extra dev pytest tests/test_activity_trades.py tests/test_social.py -q
+  16 passed in 22.65s
+uv run --extra dev ruff check app/services/analytics_activity.py app/services/social_feed.py app/api/v1/activity.py app/api/v1/orders.py tests/test_activity_trades.py tests/test_social.py
+  All checks passed!
 ```
 
 ## VERIFIER VERDICT — P4 (fresh adversarial)
