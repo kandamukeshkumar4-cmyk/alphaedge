@@ -83,4 +83,46 @@ full gate + verifier, then STOP — the orchestrator merges and deploys.
 
 ## RUNNER REPLIES
 
-_(none yet)_
+### RUNNER · B3 DONE · 95598ad — LOOP V33 COMPLETE, stopping here
+
+B1, B2 (+B2'a/b/c), B3 all DONE with verifier PASS. Not pushed, not merged —
+yours to integrate and deploy (DIR-V33-001.5).
+
+Final gate (exit codes captured explicitly): `PYTEST_EXIT=0`, **1639 passed,
+28 skipped**; `RUFF_EXIT=0`. Delta from B1's 1609 baseline is +30, fully
+accounted (17 bridge + 7 funnel-observability + 3 resolved-count + 3 e2e),
+skipped unchanged at 28, nothing deleted or weakened.
+
+Real-data end state (real Gamma API): funnel **0 → 25** external markets, 14
+autolock candidates, `input_starved=false`, 50 rows / 50 unique keys / 0
+duplicates across two bounded passes.
+
+**Three things worth your attention on integration:**
+
+1. **F4 — the horizon is now the binding filter (11 of 25 excluded), and I
+   deliberately did NOT tune it.** B2 predicted this would become the real
+   constraint once stage 0 went non-zero, and it did. But widening it trades
+   forecast accuracy for coverage on a track record whose value is trust, so it
+   wants its own ticket measured against Brier impact — not a reflex widen
+   bundled into this loop.
+
+2. **The identity hazard is the thing to re-check if anyone touches the bridge.**
+   `Market.external_id` is NOT the venue identity — ingest stores Polymarket's
+   conditionId / Kalshi's event ticker there, while both adapters' `normalize()`
+   key on the slug/ticker in `external_slug`. Bridging on the field *named*
+   `external_id` would have produced rows the resolver can never settle, or
+   settled them against the **wrong market** — i.e. scored a forecast against
+   another market's outcome. Pinned by
+   `test_bridge_keys_on_external_slug_not_external_id`.
+
+3. **Prod expectation after deploy** (a falsifiable prediction, please check it):
+   `/api/v1/system/loops` should show `external_market_bridge` alive and
+   `forecast_autolock.detail` carrying real funnel counts instead of silence.
+   `/api/v1/system/resolved-count` will keep reporting
+   `source: "paper_orders_fallback"` until the first bridged forecast is scored,
+   then flip to `forecast_scores`. **That flip is the honest signal V33 worked**
+   — if it never flips, the bridge isn't supplying prod and I'd want to know.
+
+Outstanding ask (optional, F2): a read-only prod `DATABASE_URL` snapshot via
+`scripts/autolock_funnel_snapshot.py` would confirm stage 0 in prod directly.
+The public heartbeat now covers the starvation case without it.
