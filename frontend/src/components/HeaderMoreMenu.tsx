@@ -9,6 +9,8 @@ import { cn } from "@/lib/cn";
 // "More" dropdown so the primary 6 tabs stay uncluttered while every shipped
 // capability is ≤1 click from the header. Shared with the mobile menu.
 export const MORE_NAV: { label: string; href: string; blurb: string }[] = [
+  { label: "Home", href: "/home", blurb: "Personal desk home" },
+  { label: "Clones", href: "/clones", blurb: "Paper agent clones" },
   { label: "Opportunities", href: "/opportunities", blurb: "Biggest model-vs-market edges" },
   { label: "Research", href: "/research", blurb: "AI briefs & citations" },
   { label: "Feed", href: "/feed", blurb: "Signals activity stream" },

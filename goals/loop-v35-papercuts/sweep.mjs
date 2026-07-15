@@ -11,8 +11,13 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(__dirname, "../../frontend/package.json"));
 const { chromium } = require("@playwright/test");
-const EVIDENCE = path.join(__dirname, "evidence");
-const BASE = "https://alphaedge-frontend-three.vercel.app";
+const EVIDENCE = process.env.SWEEP_EVIDENCE
+  ? path.resolve(process.env.SWEEP_EVIDENCE)
+  : path.join(__dirname, "evidence");
+// Default prod; set SWEEP_BASE=http://127.0.0.1:31017 for local re-sweep (V36 Q2).
+const BASE =
+  process.env.SWEEP_BASE?.trim() ||
+  "https://alphaedge-frontend-three.vercel.app";
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800 },
