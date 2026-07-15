@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import markets_cache
+from app.core import market_detail_cache, markets_cache
 from app.core.broadcast import hub
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
@@ -353,6 +353,7 @@ async def resolve_market(
     await db.flush()
 
     markets_cache.invalidate()  # B01: resolution must be visible on /markets now
+    market_detail_cache.invalidate()  # V43 P1: detail must not serve stale resolved flags
 
     ts = datetime.now(timezone.utc).isoformat()
     await hub.publish(
