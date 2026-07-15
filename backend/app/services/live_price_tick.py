@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from dataclasses import dataclass
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +31,58 @@ logger = logging.getLogger(__name__)
 
 _LIVE_FETCH_CONCURRENCY = 4
 _KALSHI_EVENT_CONCURRENCY = 2
+
+# Loop V37 H1 — per-slug 404 backoff for delisted venue slugs. After N
+# consecutive 404s, demote via V34 lifecycle lock (or skip with one structured
+# warning per hour if lock is unavailable). Non-404 errors always log.
+_LIVE_TICK_404_THRESHOLD = 3
+_LIVE_TICK_404_WARN_INTERVAL_SEC = 3600.0
+
+
+@dataclass
+class _Slug404State:
+    consecutive: int = 0
+    demoted: bool = False
+    last_warn_mono: float = 0.0
+
+
+_slug_404_states: dict[str, _Slug404State] = {}
+
+
+def reset_live_tick_404_backoff() -> None:
+    """Test helper — clear per-slug 404 demotion state."""
+    _slug_404_states.clear()
+
+
+def _http_status(error: BaseException) -> int | None:
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code
+    return None
+
+
+def _warn_throttled(state: _Slug404State, msg: str, *args: object, **extra: object) -> None:
+    """Emit at most one structured warning per hour for a demoted slug."""
+    now = time.monotonic()
+    if now - state.last_warn_mono < _LIVE_TICK_404_WARN_INTERVAL_SEC:
+        return
+    state.last_warn_mono = now
+    logger.warning(msg, *args, extra={"event": "live_tick_404_backoff", **extra})
+
+
+def _clear_slug_404(slug: str) -> None:
+    _slug_404_states.pop(slug, None)
+
+
+def _note_slug_success(slug: str) -> None:
+    """Successful tick clears 404 demotion bookkeeping."""
+    _clear_slug_404(slug)
+
+
+def _note_slug_non_404_error(slug: str) -> None:
+    """Non-404 failures must not accumulate toward delist demotion."""
+    state = _slug_404_states.get(slug)
+    if state is not None and not state.demoted:
+        state.consecutive = 0
 
 
 async def latest_implied_yes_by_slug(
@@ -110,6 +165,75 @@ class LivePriceTickService:
         self._poly_cls = poly_connector_cls
         self._kalshi_cls = kalshi_connector_cls
 
+    async def _handle_fetch_error(
+        self,
+        *,
+        slug: str,
+        market_id,
+        error: BaseException,
+        results: dict[str, str],
+    ) -> None:
+        """Classify per-slug fetch failures; 404s demote after N consecutive hits."""
+        status = _http_status(error)
+        if status != 404:
+            # Never swallow non-404 errors — always surface them.
+            _note_slug_non_404_error(slug)
+            logger.warning("Live tick fetch failed for %s: %s", slug, error)
+            results[slug] = "error"
+            return
+
+        state = _slug_404_states.setdefault(slug, _Slug404State())
+        if state.demoted:
+            _warn_throttled(
+                state,
+                "Live tick 404 demoted skip for %s (delisted venue slug)",
+                slug,
+                slug=slug,
+                consecutive_404s=state.consecutive,
+            )
+            results[slug] = "404-demoted-skip"
+            return
+
+        state.consecutive += 1
+        if state.consecutive < _LIVE_TICK_404_THRESHOLD:
+            logger.warning(
+                "Live tick fetch failed for %s: %s",
+                slug,
+                error,
+                extra={
+                    "event": "live_tick_404",
+                    "slug": slug,
+                    "consecutive_404s": state.consecutive,
+                    "threshold": _LIVE_TICK_404_THRESHOLD,
+                },
+            )
+            results[slug] = "error"
+            return
+
+        # N consecutive 404s → V34 lifecycle lock (delisted/missing upstream).
+        state.demoted = True
+        try:
+            await _apply_terminal_state(self.db, market_id, slug, outcome=None)
+            _warn_throttled(
+                state,
+                "Live tick 404 demoted to lifecycle-lock for %s after %d consecutive 404s",
+                slug,
+                state.consecutive,
+                slug=slug,
+                consecutive_404s=state.consecutive,
+            )
+            results[slug] = "404-lifecycle-locked"
+        except Exception as lock_error:  # noqa: BLE001 — still demote in-memory
+            _warn_throttled(
+                state,
+                "Live tick 404 demoted-skip for %s (lock failed: %s)",
+                slug,
+                lock_error,
+                slug=slug,
+                consecutive_404s=state.consecutive,
+            )
+            results[slug] = "404-demoted-skip"
+
     async def run_once(self) -> dict[str, str]:
         from app.workers.price_feed_worker import persist_and_publish_tick
 
@@ -136,6 +260,24 @@ class LivePriceTickService:
         settings = get_settings()
         poly_rows = [row for row in rows if row[3] == "polymarket"]
         kalshi_rows = [row for row in rows if row[3] == "kalshi"]
+
+        # H1: skip in-memory-demoted slugs so we don't re-hit delisted venues
+        # every tick when lock failed or the row is still OPEN for a race.
+        poly_fetch_rows: list = []
+        for row in poly_rows:
+            slug = row[1]
+            state = _slug_404_states.get(slug)
+            if state is not None and state.demoted:
+                _warn_throttled(
+                    state,
+                    "Live tick 404 demoted skip for %s (delisted venue slug)",
+                    slug,
+                    slug=slug,
+                    consecutive_404s=state.consecutive,
+                )
+                results[slug] = "404-demoted-skip"
+                continue
+            poly_fetch_rows.append(row)
 
         poly_connector = self._poly_cls()
         semaphore = asyncio.Semaphore(_LIVE_FETCH_CONCURRENCY)
@@ -194,7 +336,10 @@ class LivePriceTickService:
         fetched: list[tuple[str, object | None, Exception | None]] = []
         fetched.extend(
             await asyncio.gather(
-                *(fetch_poly(slug, external) for _, slug, external, _, _ in poly_rows)
+                *(
+                    fetch_poly(slug, external)
+                    for _, slug, external, _, _ in poly_fetch_rows
+                )
             )
         )
         if kalshi_rows:
@@ -215,8 +360,12 @@ class LivePriceTickService:
         for slug, snapshot, error in fetched:
             if snapshot is None:
                 if error is not None:
-                    logger.warning("Live tick fetch failed for %s: %s", slug, error)
-                    results[slug] = "error"
+                    await self._handle_fetch_error(
+                        slug=slug,
+                        market_id=market_ids[slug],
+                        error=error,
+                        results=results,
+                    )
                 else:
                     # Absent from the open board ⇒ closed/settled upstream.
                     # Lock only (never resolve here — resolution needs a known
@@ -224,9 +373,11 @@ class LivePriceTickService:
                     await _apply_terminal_state(
                         self.db, market_ids[slug], slug, outcome=None
                     )
+                    _note_slug_success(slug)
                     results[slug] = "missing-upstream-locked"
                 continue
 
+            _note_slug_success(slug)
             moved = await persist_and_publish_tick(
                 self.db,
                 slug=slug,
