@@ -35,3 +35,9 @@ market). Menu only for unrecognized intents.
 | loop | date | result | proof |
 |------|------|--------|-------|
 | A1 | 2026-07-15 | DONE — both keyless + router miss | diagnosis above; no code change |
+
+### ORCHESTRATOR REVIEW · A1 · 2871a97 · verdict: PASS
+Both-cause diagnosis confirmed (router lacks an analyze bucket; the button's
+own prompt falls through). A2: the analyze bucket must catch the exact seeded
+prompts (Analyze/Deep-dive variants) and compose the full deterministic
+analysis. Continue.
