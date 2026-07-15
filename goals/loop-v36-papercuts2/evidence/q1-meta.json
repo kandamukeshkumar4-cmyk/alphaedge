@@ -1,0 +1,9 @@
+{
+  "base": "http://127.0.0.1:31017",
+  "scheme": {
+    "colorScheme": "dark",
+    "bodyBg": "rgb(7, 11, 10)",
+    "themeToggle": false
+  },
+  "at": "2026-07-15T18:51:49.513Z"
+}
