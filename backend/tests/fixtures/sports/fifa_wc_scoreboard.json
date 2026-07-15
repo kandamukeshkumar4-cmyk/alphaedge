@@ -1,0 +1,78 @@
+{
+  "day": { "date": "2022-12-18" },
+  "events": [
+    {
+      "id": "633853",
+      "date": "2022-12-18T15:00:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_FULL_TIME",
+          "state": "post",
+          "completed": true,
+          "description": "Full-time"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2022-12-18T15:00:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "3",
+              "team": {
+                "abbreviation": "ARG",
+                "displayName": "Argentina"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "3",
+              "team": {
+                "abbreviation": "FRA",
+                "displayName": "France"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "760515",
+      "date": "2026-07-15T19:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2026-07-15T19:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "abbreviation": "ENG",
+                "displayName": "England"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "abbreviation": "ARG",
+                "displayName": "Argentina"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "_league": "fifa_wc",
+  "_captured_from": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
+  "_note": "Real ESPN soccer/fifa.world shape; 2022 final structure for final-only path tests."
+}

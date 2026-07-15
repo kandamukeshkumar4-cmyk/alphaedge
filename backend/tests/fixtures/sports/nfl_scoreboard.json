@@ -1,0 +1,78 @@
+{
+  "day": { "date": "2025-01-12" },
+  "events": [
+    {
+      "id": "401671789",
+      "date": "2025-01-12T18:00:00Z",
+      "status": {
+        "type": {
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2025-01-12T18:00:00Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "23",
+              "team": {
+                "abbreviation": "BUF",
+                "displayName": "Buffalo Bills"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "20",
+              "team": {
+                "abbreviation": "DEN",
+                "displayName": "Denver Broncos"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872656",
+      "date": "2026-09-10T00:20Z",
+      "status": {
+        "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled"
+        }
+      },
+      "competitions": [
+        {
+          "date": "2026-09-10T00:20Z",
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "abbreviation": "SEA",
+                "displayName": "Seattle Seahawks"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "abbreviation": "NE",
+                "displayName": "New England Patriots"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "_league": "nfl",
+  "_captured_from": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+  "_note": "Compact real ESPN capture shape; final scores for signal-path tests only."
+}
