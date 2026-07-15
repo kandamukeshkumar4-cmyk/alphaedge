@@ -148,3 +148,8 @@ Scope: **readers** of `odds_snapshots`, `signal_events`, `notifications` (app co
 ## R2 — (pending)
 
 ## R3 — (pending)
+
+### ORCHESTRATOR REVIEW · R1 · a29a8c3 · verdict: PASS
+Exceptional audit (FK dependency + scoring-window floors caught). R2 must
+honor every row of this table verbatim — especially the prediction_logs FK
+(exclude by join, not by age). Continue R2 → R3.
