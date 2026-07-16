@@ -110,6 +110,23 @@ class ScoringService:
                 "forecasts_scored",
                 {"external_market_id": str(external_market.id), "count": scored},
             )
+            # Loop V49 E1: never-raises observation hook (WS forecasts channel).
+            try:
+                from app.services.forecast_events import publish_forecast_scored
+
+                await publish_forecast_scored(
+                    external_market_id=external_market.id,
+                    platform=(
+                        external_market.platform.value
+                        if hasattr(external_market.platform, "value")
+                        else str(external_market.platform)
+                    ),
+                    external_id=external_market.external_id,
+                    title=external_market.title,
+                    count=scored,
+                )
+            except Exception:  # noqa: BLE001 — observation must not break scoring
+                pass
         return scored
 
 

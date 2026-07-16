@@ -180,6 +180,36 @@ async def autolock_forecasts(
                 ):
                     raise _AutolockEligibilityLost
             locked += 1
+            # Loop V49 E1: observation hook AFTER the savepoint commits so a
+            # rolled-back eligibility loss never fans a phantom lock frame.
+            try:
+                from app.services.forecast_events import publish_forecast_locked
+
+                await publish_forecast_locked(
+                    forecast_id=persisted.id,
+                    external_market_id=market.id,
+                    platform=(
+                        market.platform.value
+                        if hasattr(market.platform, "value")
+                        else str(market.platform)
+                    ),
+                    external_id=market.external_id,
+                    title=market.title,
+                    user_probability=persisted.user_probability,
+                    market_implied_probability=persisted.market_implied_probability,
+                    mode=(
+                        persisted.mode.value
+                        if hasattr(persisted.mode, "value")
+                        else str(persisted.mode)
+                    ),
+                    locked_at=persisted.locked_at,
+                )
+            except Exception:  # noqa: BLE001 — never-raises isolation
+                logger.warning(
+                    "forecast.locked publish hook failed for %s",
+                    market.external_id,
+                    exc_info=True,
+                )
         except _AutolockEligibilityLost:
             skipped += 1
         except Exception as exc:  # noqa: BLE001 - isolate each external market

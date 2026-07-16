@@ -18,8 +18,16 @@ router = APIRouter(prefix="/api/v1/ws", tags=["websocket"])
 _QUEUE_TIMEOUT_SEC = 29.0
 
 # Hub topics multiplexed onto the /feed socket (briefs + alerts + unified feed
-# + public paper-trade activity from Loop V15 B4 + per-user notifications Loop V24 N4).
-_FEED_TOPICS = ("briefs", "alerts", "feed", "activity", "notifications")
+# + public paper-trade activity from Loop V15 B4 + per-user notifications Loop V24 N4
+# + forecast lifecycle events Loop V49 E1).
+_FEED_TOPICS = (
+    "briefs",
+    "alerts",
+    "feed",
+    "activity",
+    "notifications",
+    "forecasts",
+)
 
 # In-process event-bus topics fanned onto the same socket (Redis-free push path).
 _BUS_TOPICS = (

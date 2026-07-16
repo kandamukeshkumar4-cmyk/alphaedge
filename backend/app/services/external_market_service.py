@@ -127,6 +127,24 @@ class ExternalMarketService:
                 "winning_outcome": winning_outcome,
             },
         )
+        # Loop V49 E1: never-raises observation hook (WS forecasts channel).
+        try:
+            from app.services.forecast_events import publish_market_resolved
+
+            await publish_market_resolved(
+                external_market_id=market.id,
+                platform=(
+                    market.platform.value
+                    if hasattr(market.platform, "value")
+                    else str(market.platform)
+                ),
+                external_id=market.external_id,
+                title=market.title,
+                winning_outcome=int(winning_outcome),
+                resolved_at=market.resolved_at,
+            )
+        except Exception:  # noqa: BLE001 — observation must not break resolve
+            pass
         return market
 
     async def _get_by_external_id(
