@@ -67,6 +67,7 @@ PAPER_ONLY_DISCLAIMER = "Paper trading only — simulated funds, no execution."
 _MENU_MARKER = "I can help with:"
 _ANALYZE_KEYWORDS = ("analyze", "deep-dive", "deep dive")
 _BEAR_KEYWORDS = ("bear", "downside", "against")
+_EXPOSURE_KEYWORDS = ("exposure", "position", "portfolio", "risk")
 _ASSISTANT_PREDICTION_CACHE_TTL_SEC = 60.0
 
 # ── Anonymous per-IP rate limiter ────────────────────────────────────────────
@@ -196,6 +197,10 @@ def _is_analyze_intent(message: str) -> bool:
 
 def _is_bear_intent(message: str) -> bool:
     return any(kw in message.lower() for kw in _BEAR_KEYWORDS)
+
+
+def _is_exposure_intent(message: str) -> bool:
+    return any(kw in message.lower() for kw in _EXPOSURE_KEYWORDS)
 
 
 def _humanize_signal_type(signal_type: str) -> str:
@@ -372,6 +377,41 @@ async def _enrich_bear_case_context(
                 )
     except Exception as exc:
         logger.debug("bear-case market depth lookup failed for %s: %s", slug, exc)
+    return out
+
+
+async def _enrich_exposure_context(
+    slug: str, ctx: dict[str, Any], user: User, db: AsyncSession
+) -> dict[str, Any]:
+    """Attach deterministic, authenticated paper-position math for one market."""
+    out = dict(ctx)
+    try:
+        from app.api.v1.portfolio import _load_paper_orders
+
+        open_positions = [
+            position
+            for position in await _load_paper_orders(db, user.id.hex)
+            if not position.settled and position.shares > 0 and position.cost > 0
+        ]
+        market_positions = [position for position in open_positions if position.market_slug == slug]
+        total_open_notional = sum(position.cost for position in open_positions)
+        market_notional = sum(position.cost for position in market_positions)
+        out["exposure_authenticated"] = True
+        out["market_positions"] = [
+            {
+                "outcome": position.outcome.upper(),
+                "shares": round(position.shares, 4),
+                "avg_cost": round(position.avg_cost, 4),
+                "cost": round(position.cost, 4),
+            }
+            for position in market_positions
+        ]
+        out["market_concentration_pct"] = round(
+            market_notional / total_open_notional * 100 if total_open_notional > 0 else 0.0,
+            2,
+        )
+    except Exception as exc:
+        logger.debug("assistant exposure lookup failed for %s: %s", slug, exc)
     return out
 
 
@@ -696,6 +736,48 @@ def _build_bear_case_reply(
     return "\n".join(parts), citations, list(dict.fromkeys(tools_used))
 
 
+def _build_market_exposure_reply(
+    ctx: dict[str, Any], market_slug: str | None
+) -> tuple[str, list[CitationChip], list[str]]:
+    """Describe authenticated, cost-basis exposure math without advice language."""
+    if not ctx.get("exposure_authenticated"):
+        return (
+            "Sign in to view this market's paper position and portfolio concentration. "
+            f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}",
+            [CitationChip(source="exposure", label="Portfolio exposure")],
+            ["get_exposure"],
+        )
+
+    title = ctx.get("title") or market_slug or "this market"
+    positions = ctx.get("market_positions") or []
+    parts = [f"Paper exposure for {title}."]
+    if positions:
+        for position in positions:
+            outcome = str(position.get("outcome", "")).upper()
+            shares = _finite(position.get("shares")) or 0.0
+            avg_cost = _finite(position.get("avg_cost")) or 0.0
+            cost = _finite(position.get("cost")) or 0.0
+            opposite = "NO" if outcome == "YES" else "YES"
+            parts.append(
+                f"Current {outcome} position: {shares:g} shares at ${avg_cost:.2f} average "
+                f"cost (cost basis ${cost:.2f}); a {opposite} resolution changes paper "
+                f"balance by −${cost:.2f} for this position."
+            )
+    else:
+        parts.append("Current position in this market: none among open paper positions.")
+
+    concentration = _finite(ctx.get("market_concentration_pct"))
+    if concentration is not None:
+        parts.append(
+            f"Portfolio concentration: this market is {concentration:.1f}% of open "
+            "cost-basis notional."
+        )
+    else:
+        parts.append("Portfolio concentration: unavailable — omitted.")
+    parts.append(f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}")
+    return "\n".join(parts), [CitationChip(source="exposure", label="Paper positions")], ["get_exposure"]
+
+
 def _build_profile_snippet(profile: dict[str, Any] | None) -> str:
     """Return a short context snippet for the profile (used in deterministic fallback).
 
@@ -785,7 +867,9 @@ def _build_deterministic_reply(
         return reply, citations, tools_used
 
     # ── exposure / portfolio ─────────────────────────────────────────────────
-    if any(kw in msg_lower for kw in ("exposure", "position", "portfolio", "risk")):
+    if _is_exposure_intent(message):
+        if market_slug:
+            return _build_market_exposure_reply(ctx, market_slug)
         tools_used.append("get_exposure")
         profile_snippet = _build_profile_snippet(trader_profile)
         base_reply = (
@@ -978,6 +1062,11 @@ async def assistant_chat(
                 ctx = await _enrich_bear_case_context(market_slug, ctx, db)
             except Exception as exc:
                 logger.warning("Bear-case enrich failed for %s: %s", market_slug, exc)
+        if _is_exposure_intent(body.message) and current_user is not None:
+            try:
+                ctx = await _enrich_exposure_context(market_slug, ctx, current_user, db)
+            except Exception as exc:
+                logger.warning("Exposure enrich failed for %s: %s", market_slug, exc)
 
     reply, citations, tools_used = await _llm_reply(
         body.message, ctx, body.history, market_slug,
