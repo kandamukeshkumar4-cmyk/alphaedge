@@ -182,6 +182,82 @@ Route: **`/leaderboard`**.
 
 - JWT: `GET/POST /api/v1/watchlist`, `DELETE /api/v1/watchlist/{slug}`.
 
+### Notification bell (header)
+
+Component: `frontend/src/components/NotificationBell.tsx` (mounted from
+`SiteHeader`). API client: `frontend/src/lib/notifications-api.ts`.
+
+| Behavior | Detail |
+|----------|--------|
+| Who sees data | **Signed-in users only** (JWT). Logged-out: bell opens a “log in to see notifications” prompt. |
+| List | `GET /api/v1/notifications` → items + **`unread_count`** badge |
+| Mark one / all | `POST /api/v1/notifications/{id}/read`, `POST /api/v1/notifications/read-all` (idempotent) |
+| Live updates | Optional WS subscribe helper in the client (in-app channel only) |
+| Delivery | **In-app only** — no email, SMS, or push. Backend disclaimer on list responses. |
+
+These are distinct from the public **Alerts** page (`/alerts`), which is a
+research/signal feed, not a private inbox.
+
+---
+
+## 7b. Trader profiles & following
+
+| Surface | Route / API | Auth |
+|---------|-------------|------|
+| Public profile | `/traders/[name]` → `GET /api/v1/social/traders/{trader}` | Public |
+| Follow / unfollow | `POST` / `DELETE /api/v1/social/follow/{trader}` | JWT (login redirect if needed) |
+| Following list | `GET /api/v1/social/following` | JWT |
+| Following activity | `/feed?view=following` → `GET /api/v1/social/feed` | JWT |
+| Leaderboard entry points | `/leaderboard` links into `/traders/{username}` | Public |
+
+**Rules (code-verified):**
+
+- Profiles show **anonymized** paper stats (username/label, win rate, ROI,
+  followers) — **no email or user id** (`backend/app/api/v1/social.py`).
+- Self-follow is rejected (`400`).
+- Follow is **social only** — it does **not** auto-copy trades or place orders.
+- UI: `frontend/src/app/traders/[name]/page.tsx`, `frontend/src/lib/social-api.ts`,
+  feed toggle in `frontend/src/app/feed/page.tsx`.
+
+---
+
+## 7c. Eval / proof page (`/eval`)
+
+Route: **`/eval`** (`frontend/src/app/eval/page.tsx`). Also linked from Home and
+the header “More” menu (`HeaderMoreMenu`).
+
+| Panel | Data source | Notes |
+|-------|-------------|-------|
+| Mean Brier / calibration error / market count | `GET /api/v1/eval/aggregates` | Public; “Start the API…” empty state if offline |
+| ForecastScore drift series | `GET /api/v1/eval/drift` via `DriftSeriesPanel` / `eval-api.ts` | Public read-only snapshots |
+| LightGBM vs XGBoost A/B | `ModelAbCard` → `GET /api/v1/system/model-ab` + `GET /api/v1/system/resolved-count` | **Analysis only** — `applied` never true |
+| Model registry list (read) | admin-gated models API when key present in admin tools | Activate/rollback are **admin**, not this page |
+| Ensemble vs single (U08) | optional `GET /api/v1/ensemble/autolab` | Honest “not yet measured” / not_run when missing or flag off |
+
+**Honesty rules shown in UI copy:** never fabricates Brier numbers; ensemble
+comparison stays “not measured” until a real walk-forward run; A/B does not
+change the deployed default model.
+
+### Resolved-count `source` field (honest population)
+
+Public readout: **`GET /api/v1/system/resolved-count`**
+(`backend/app/api/v1/system.py` → `resolved_outcomes_breakdown` in
+`backend/app/ml/ab_harness.py`).
+
+| Field | Meaning |
+|-------|---------|
+| `resolved_count` | Count used for the A/B **eligibility** gate (same definition as before) |
+| `ab_threshold` / `ab_ready` | Whether walk-forward A/B may run; **never flips** `model_default` |
+| `source` | **`forecast_scores`** if count comes from scored pre-close LIVE forecasts; **`paper_orders_fallback`** if no scored forecasts exist and the API fell back to resolved paper-order markets |
+| `forecast_scored_count` | Size of the forecast-scored population (0 under fallback) |
+
+**Why it matters:** the forecast autolock / bridge loops accrue the
+`forecast_scores` population. A high `resolved_count` under
+`paper_orders_fallback` is a **different** population — useful for progress UI,
+but not proof that model forecasts have been locked and graded. The `/eval`
+A/B card uses `resolved_count` for the progress bar; treat `source` as the
+disclosure of *which* sample filled that bar.
+
 ---
 
 ## 8. How numbers accrue (honest lifecycle)
@@ -244,11 +320,15 @@ panel is a correct outcome, not a bug.
 2. Sign up at `/auth/signup` — confirm ~$100k paper balance on `/portfolio`.
 3. Open a market (canonical demo: `nba-2025-01-15-lal-bos`) and place a small
    paper trade with YES/NO + share size.
-4. Check `/portfolio` positions and risk panels.
+4. Check `/portfolio` positions and risk panels; notice the **notification bell**
+   once signed in (order / digest messages stay in-app only).
 5. Browse `/signals` and `/research` for context (read-only).
-6. Peek `/resolved` (Longshots / Decided) and `/track-record` to see how sparse
-   graded history looks early on.
-7. After more resolved activity, re-check `/leaderboard`.
+6. Open `/eval` for Brier aggregates + A/B progress (and note `source` honesty
+   on resolved-count when inspecting the API).
+7. Peek `/resolved` (Longshots / Decided), `/track-record`, and a
+   `/traders/{name}` profile from the leaderboard; optionally **Follow** and
+   switch `/feed?view=following`.
+8. After more resolved activity, re-check `/leaderboard`.
 
 ---
 

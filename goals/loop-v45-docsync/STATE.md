@@ -4,8 +4,8 @@
 
 | Ticket | Status | Commit | Notes |
 |--------|--------|--------|-------|
-| W1 Diff + document missing OpenAPI surfaces | DONE | (this commit) | Snapshot = 154 path keys; priority surfaces tabled |
-| W2 User-guide additions | PENDING | — | bell, profiles, /eval, resolved-count source |
+| W1 Diff + document missing OpenAPI surfaces | DONE | `53ed5f7` | Snapshot = 154 path keys; priority surfaces tabled |
+| W2 User-guide additions | DONE | (this commit) | bell, profiles, /eval, resolved-count source |
 | W3 Ops runbook additions | PENDING | — | loops, autolock funnel, visreg, CI |
 
 ## W1 — OpenAPI vs `docs/api.md` gap list
@@ -46,6 +46,18 @@ W1 documents **priority** surfaces with auth + file citations; forecast/clones/b
 | system/sources | Admin (router deps) | `backend/app/api/v1/sports.py` `sources_router` |
 | system/resolved-count | Public; returns `source` + `forecast_scored_count` | `backend/app/api/v1/system.py` |
 
+## W2 grep-verification (paste)
+
+```
+DOC=True  NotificationBell, /api/v1/notifications, notifications-api.ts
+DOC=True  /traders/[name], social traders/follow/following/feed, /feed?view=following
+DOC=True  /eval, /api/v1/eval/aggregates, /api/v1/eval/drift, ModelAbCard
+DOC=True  /api/v1/system/resolved-count, forecast_scores, paper_orders_fallback,
+          forecast_scored_count, resolved_outcomes_breakdown
+FILE=True NotificationBell.tsx traders/[name]/page.tsx eval/page.tsx ModelAbCard.tsx
+          ab_harness.py system.py
+```
+
 ## W1 grep-verification (paste)
 
 ```
@@ -82,3 +94,4 @@ non-priority still summary-only: backtest runs/summary, clones subpaths, forecas
 |------|--------|--------|
 | start | — | branch `loop45/docsync` clean; GOAL binding read |
 | W1 | DONE | docs/api.md + STATE gap list; 22 priority paths SNAP+DOC |
+| W2 | DONE | user-guide: NotificationBell, social follow, /eval, resolved-count source |
