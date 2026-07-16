@@ -152,3 +152,8 @@ Runner re-exec after verifier: ruff All checks passed; test_kalshi_live_ingest 9
 3. Board `max_pages=8` still wasteful when join is empty; left in place as cheap no-op join attempt + future-proof if Kalshi reorders the feed.
 
 AutoLab: baseline=kalshi_open_events imported=0 skipped=200 | benchmark=local real-ingest catalog kalshi count + filter unit tests | iterations=1 (fallback+caps) best=imported=266 catalog=266 | budget=1/3 | outcome=improved
+
+### ORCHESTRATOR REVIEW · K1-K3 · bea27a5..9df0880 · verdict: PASS — LOOP V46 COMPLETE
+Audit-first exemplary; 0->266 with skipped=0; honest 429 note logged for ops.
+Foreign V37 test failure confirmed pre-existing — orchestrator handles at
+merge. Lane closed.
