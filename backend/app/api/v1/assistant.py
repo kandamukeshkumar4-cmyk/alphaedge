@@ -502,16 +502,17 @@ async def _enrich_analyze_context(
     market_p = out.get("market_price")
     if model_p is not None and market_p is not None:
         gap = round(float(model_p) - float(market_p), 4)
-        drivers.append(
-            {
-                "label": "Model vs market gap",
-                "direction": _lean_label(float(model_p), float(market_p)),
-                "note": (
-                    f"Model {float(model_p):.1%} vs market {float(market_p):.1%} "
-                    f"({gap:+.1%})."
-                ),
-            }
-        )
+        if gap != 0:
+            drivers.append(
+                {
+                    "label": "Model vs market gap",
+                    "direction": _lean_label(float(model_p), float(market_p)),
+                    "note": (
+                        f"Model {float(model_p):.1%} vs market {float(market_p):.1%} "
+                        f"({gap:+.1%})."
+                    ),
+                }
+            )
     if out.get("news_headline"):
         sentiment = out.get("news_sentiment")
         direction = "neutral"
@@ -820,6 +821,27 @@ def _build_deterministic_reply(
     if _is_analyze_intent(message):
         return _build_analyze_reply(ctx, market_slug)
 
+    # ── exposure / portfolio ─────────────────────────────────────────────────
+    if _is_exposure_intent(message):
+        if market_slug:
+            return _build_market_exposure_reply(ctx, market_slug)
+        tools_used.append("get_exposure")
+        profile_snippet = _build_profile_snippet(trader_profile)
+        base_reply = (
+            "Your portfolio exposure is summarised in the Exposure panel above. "
+            "Concentration risk appears when >40 % of your open notional is in "
+            "one correlated underlier (e.g. the same team across multiple markets). "
+            "This is a paper-trading simulation — no real funds are at risk."
+        )
+        if profile_snippet:
+            tools_used.append("get_trader_profile")
+            reply = base_reply + " " + profile_snippet
+            citations.append(CitationChip(source="trader_profile", label="Your trading profile"))
+        else:
+            reply = base_reply
+        citations.append(CitationChip(source="exposure", label="Portfolio exposure"))
+        return reply, citations, tools_used
+
     # ── bear case ────────────────────────────────────────────────────────────
     if _is_bear_intent(message):
         return _build_bear_case_reply(ctx, market_slug)
@@ -864,27 +886,6 @@ def _build_deterministic_reply(
                 "(3) news sentiment shifts, or (4) instability signals. "
                 "Select a specific market to see its current signals."
             )
-        return reply, citations, tools_used
-
-    # ── exposure / portfolio ─────────────────────────────────────────────────
-    if _is_exposure_intent(message):
-        if market_slug:
-            return _build_market_exposure_reply(ctx, market_slug)
-        tools_used.append("get_exposure")
-        profile_snippet = _build_profile_snippet(trader_profile)
-        base_reply = (
-            "Your portfolio exposure is summarised in the Exposure panel above. "
-            "Concentration risk appears when >40 % of your open notional is in "
-            "one correlated underlier (e.g. the same team across multiple markets). "
-            "This is a paper-trading simulation — no real funds are at risk."
-        )
-        if profile_snippet:
-            tools_used.append("get_trader_profile")
-            reply = base_reply + " " + profile_snippet
-            citations.append(CitationChip(source="trader_profile", label="Your trading profile"))
-        else:
-            reply = base_reply
-        citations.append(CitationChip(source="exposure", label="Portfolio exposure"))
         return reply, citations, tools_used
 
     # ── briefs / analyst notes ───────────────────────────────────────────────
