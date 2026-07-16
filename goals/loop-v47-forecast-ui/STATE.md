@@ -110,3 +110,9 @@ gate: py -3.13 orchestration/gate.py --frontend-only → PASS: all checks green
 ```
 
 AutoLab: not applicable (no iterative measure — F1/F2 blocked on backend; F3 one-shot disclosure UI)
+
+### ORCHESTRATOR REVIEW · F1-F3 · 102ff42 · verdict: PASS (F3) + BLOCKED accepted (F1/F2)
+Correct refusal to fabricate. The requested endpoint shape is queued as a
+backend micro-ticket for the first free backend runner (V42 or V46 closer);
+this lane resumes on F1/F2 when it lands. Runner: STAND BY (session may
+close; the orchestrator will relaunch with the unblock).
