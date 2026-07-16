@@ -259,6 +259,216 @@ async def notify_followers_of_paper_trade(
         logger.warning("notify_followers_of_paper_trade failed", exc_info=True)
 
 
+# ---------------------------------------------------------------------------
+# Loop V49 E2 — watchlist fans for forecast lock / market resolve
+# ---------------------------------------------------------------------------
+
+_FORECAST_LOCKED_TYPE = "forecast_locked"
+_MARKET_RESOLVED_TYPE = "market_resolved"
+
+
+async def catalog_slug_for_external_market(session, external_market) -> str | None:
+    """Map an ExternalMarket to a catalog Market.slug used by watchlists.
+
+    Bridged rows key on venue identity stored as ``Market.external_slug`` (and
+    sometimes ``Market.external_id`` / ``Market.slug``). Returns None when no
+    catalog row matches — no watchers can exist without a catalog slug.
+    Never raises.
+    """
+    try:
+        from sqlalchemy import func, or_, select
+
+        from app.db.models import Market
+
+        external_id = str(getattr(external_market, "external_id", "") or "").strip()
+        if not external_id:
+            return None
+        lowered = external_id.lower()
+        return await session.scalar(
+            select(Market.slug)
+            .where(
+                or_(
+                    Market.external_slug == external_id,
+                    func.lower(Market.external_slug) == lowered,
+                    Market.external_id == external_id,
+                    func.lower(Market.external_id) == lowered,
+                    Market.slug == external_id,
+                    func.lower(Market.slug) == lowered,
+                )
+            )
+            .limit(1)
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("catalog_slug_for_external_market failed", exc_info=True)
+        return None
+
+
+async def _watchers_for_slug(session, slug: str) -> list[UUID]:
+    from sqlalchemy import select
+
+    from app.db.models import Watchlist
+
+    rows = (
+        await session.scalars(select(Watchlist.user_id).where(Watchlist.slug == slug))
+    ).all()
+    return list(rows)
+
+
+async def _already_notified(
+    session,
+    *,
+    user_id: UUID,
+    ntype: str,
+    link: str,
+) -> bool:
+    """Dedupe per user + market + event via type+link (no new tables)."""
+    from sqlalchemy import select
+
+    from app.db.models import Notification
+
+    existing = await session.scalar(
+        select(Notification.id)
+        .where(
+            Notification.user_id == user_id,
+            Notification.type == ntype,
+            Notification.link == link,
+        )
+        .limit(1)
+    )
+    return existing is not None
+
+
+async def notify_watchers_forecast_locked(
+    *,
+    external_market,
+    forecast=None,
+    session=None,
+) -> int:
+    """Notify users watching this market that a forecast locked. Never raises.
+
+    Returns the number of notifications created (0 on miss/dedupe/error).
+    """
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.services.notification_service import create_notification_best_effort
+
+        async def _run(db) -> int:
+            slug = await catalog_slug_for_external_market(db, external_market)
+            if not slug:
+                return 0
+            watchers = await _watchers_for_slug(db, slug)
+            if not watchers:
+                return 0
+            link = f"/markets/{slug}"
+            title_label = (
+                getattr(external_market, "title", None) or slug
+            )
+            prob = None
+            if forecast is not None and getattr(forecast, "user_probability", None) is not None:
+                try:
+                    prob = float(forecast.user_probability)
+                except (TypeError, ValueError):
+                    prob = None
+            body = f"Model forecast locked on {title_label}"
+            if prob is not None:
+                body = f"{body} (p={prob:.3f})"
+            created = 0
+            for user_id in watchers:
+                if await _already_notified(
+                    db,
+                    user_id=user_id,
+                    ntype=_FORECAST_LOCKED_TYPE,
+                    link=link,
+                ):
+                    continue
+                row = await create_notification_best_effort(
+                    user_id=user_id,
+                    type=_FORECAST_LOCKED_TYPE,
+                    title=f"Forecast locked: {title_label}"[:256],
+                    body=body,
+                    link=link,
+                    session=db,
+                )
+                if row is not None:
+                    created += 1
+            return created
+
+        if session is not None:
+            return await _run(session)
+
+        async with AsyncSessionLocal() as own:
+            n = await _run(own)
+            if n:
+                await own.commit()
+            return n
+    except Exception:  # noqa: BLE001
+        logger.warning("notify_watchers_forecast_locked failed", exc_info=True)
+        return 0
+
+
+async def notify_watchers_market_resolved(
+    *,
+    external_market,
+    session=None,
+) -> int:
+    """Notify users watching this market that it resolved. Never raises.
+
+    Returns the number of notifications created (0 on miss/dedupe/error).
+    """
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.services.notification_service import create_notification_best_effort
+
+        async def _run(db) -> int:
+            slug = await catalog_slug_for_external_market(db, external_market)
+            if not slug:
+                return 0
+            watchers = await _watchers_for_slug(db, slug)
+            if not watchers:
+                return 0
+            link = f"/markets/{slug}"
+            title_label = (
+                getattr(external_market, "title", None) or slug
+            )
+            outcome = getattr(external_market, "winning_outcome", None)
+            outcome_label = (
+                "YES" if outcome == 1 else "NO" if outcome == 0 else str(outcome)
+            )
+            body = f"Market resolved {outcome_label}: {title_label}"
+            created = 0
+            for user_id in watchers:
+                if await _already_notified(
+                    db,
+                    user_id=user_id,
+                    ntype=_MARKET_RESOLVED_TYPE,
+                    link=link,
+                ):
+                    continue
+                row = await create_notification_best_effort(
+                    user_id=user_id,
+                    type=_MARKET_RESOLVED_TYPE,
+                    title=f"Market resolved: {title_label}"[:256],
+                    body=body,
+                    link=link,
+                    session=db,
+                )
+                if row is not None:
+                    created += 1
+            return created
+
+        if session is not None:
+            return await _run(session)
+
+        async with AsyncSessionLocal() as own:
+            n = await _run(own)
+            if n:
+                await own.commit()
+            return n
+    except Exception:  # noqa: BLE001
+        logger.warning("notify_watchers_market_resolved failed", exc_info=True)
+        return 0
+
+
 async def mirror_alert_to_admin_notifications(
     *,
     alert_type: str,

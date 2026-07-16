@@ -229,6 +229,31 @@ async def bridge_external_markets(
     }
 
 
+def bridge_detail(summary: dict[str, Any] | None) -> str | None:
+    """One-line public heartbeat detail for a bridge pass (Loop V49 E4).
+
+    Symmetric to autolock's ``funnel_detail``: exposes per-pass
+    candidates/bridged/skipped/errors without an admin key so
+    "bridge is alive but bridging nothing" is visible on
+    ``GET /api/v1/system/loops``.
+    """
+    if summary is None or not isinstance(summary, dict):
+        return None
+    # Disabled-pass shape from the ARQ entrypoint (no counters).
+    if summary.get("skipped") is True and "candidates" not in summary:
+        reason = summary.get("reason") or "bridge disabled"
+        return f"disabled: {reason}"
+    try:
+        return (
+            f"candidates={int(summary.get('candidates', 0))} "
+            f"bridged={int(summary.get('bridged', 0))} "
+            f"skipped={int(summary.get('skipped', 0))} "
+            f"errors={int(summary.get('errors', 0))}"
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 async def external_market_bridge_task(ctx: dict[str, Any]) -> dict[str, Any]:
     """ARQ entrypoint with a durable JobRun heartbeat for every enabled pass."""
     from app.core.config import get_settings

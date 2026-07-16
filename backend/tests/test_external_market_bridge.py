@@ -518,3 +518,58 @@ def test_bridge_is_dual_wired():
     )
     assert "external_market_bridge" in _ALL_LOOPS
     assert LOOP_INTERVALS["external_market_bridge"] == 900
+
+
+def test_bridge_detail_formats_per_pass_counts():
+    """Loop V49 E4 — public heartbeat detail parity with autolock funnel_detail."""
+    from app.workers.external_market_bridge import bridge_detail
+
+    detail = bridge_detail(
+        {"candidates": 12, "bridged": 3, "skipped": 8, "errors": 1}
+    )
+    assert detail == "candidates=12 bridged=3 skipped=8 errors=1"
+    assert bridge_detail(None) is None
+    assert bridge_detail({}) == "candidates=0 bridged=0 skipped=0 errors=0"
+    disabled = bridge_detail(
+        {
+            "skipped": True,
+            "reason": "SCHEDULER_EXTERNAL_MARKET_BRIDGE_ENABLED=false",
+        }
+    )
+    assert disabled is not None
+    assert "disabled" in disabled
+    assert "SCHEDULER_EXTERNAL_MARKET_BRIDGE_ENABLED=false" in disabled
+
+
+@pytest.mark.asyncio
+async def test_bridge_heartbeat_detail_surfaces_on_system_loops(db_session):
+    """GET /system/loops exposes bridge detail without an admin key."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.db.session import get_db
+    from app.main import app
+    from app.observability import loop_state
+    from app.workers.external_market_bridge import bridge_detail
+
+    detail = bridge_detail(
+        {"candidates": 5, "bridged": 2, "skipped": 3, "errors": 0}
+    )
+    loop_state.reset()
+    loop_state.record_heartbeat("external_market_bridge", detail=detail)
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/system/loops")
+        assert response.status_code == 200
+        by_name = {row["name"]: row for row in response.json()["loops"]}
+        assert by_name["external_market_bridge"]["detail"] == detail
+        assert "bridged=2" in by_name["external_market_bridge"]["detail"]
+    finally:
+        app.dependency_overrides.clear()
+        loop_state.reset()
