@@ -23,13 +23,75 @@ export type ModelAbResponse = {
   model_default?: string | null;
 };
 
+/** Population that produced ``resolved_count`` (V33 B2'c disclosure). */
+export type ResolvedCountSource = "forecast_scores" | "paper_orders_fallback" | string;
+
 export type ResolvedCountResponse = {
   resolved_count: number;
   ab_threshold: number;
   ab_ready: boolean;
   model_default: string;
   paper_trading_only: boolean;
+  /** Which population ``resolved_count`` came from. Absent on older backends. */
+  source?: ResolvedCountSource | null;
+  /** Scored LIVE ForecastLog rows — may be 0 while resolved_count > 0 via fallback. */
+  forecast_scored_count?: number | null;
 };
+
+/** Honest, user-facing labels for the resolved-count disclosure fields. */
+export type ResolvedCountDisclosure = {
+  resolvedCount: number;
+  forecastScoredCount: number | null;
+  source: ResolvedCountSource | null;
+  sourceLabel: string;
+  sourceDetail: string;
+  /** True when resolved_count is backed by paper orders, not scored forecasts. */
+  isPaperOrdersFallback: boolean;
+};
+
+export function buildResolvedCountDisclosure(
+  resolved: ResolvedCountResponse | null,
+): ResolvedCountDisclosure | null {
+  if (!resolved) return null;
+  const resolvedCount = num(resolved.resolved_count) ?? 0;
+  const forecastScored =
+    resolved.forecast_scored_count === undefined || resolved.forecast_scored_count === null
+      ? null
+      : num(resolved.forecast_scored_count);
+  const source =
+    typeof resolved.source === "string" && resolved.source.trim()
+      ? resolved.source.trim()
+      : null;
+  const isPaperOrdersFallback = source === "paper_orders_fallback";
+
+  let sourceLabel: string;
+  let sourceDetail: string;
+  if (source === "forecast_scores") {
+    sourceLabel = "Scored LIVE forecasts";
+    sourceDetail =
+      "resolved_count counts scored LIVE ForecastLog rows on resolved external markets.";
+  } else if (source === "paper_orders_fallback") {
+    sourceLabel = "Paper-order fallback";
+    sourceDetail =
+      "No scored forecasts yet — resolved_count falls back to resolved paper-order markets (a different population).";
+  } else if (source) {
+    sourceLabel = source;
+    sourceDetail = `Population source reported as "${source}".`;
+  } else {
+    sourceLabel = "Source undisclosed";
+    sourceDetail =
+      "This API build did not return source / forecast_scored_count — showing resolved_count only.";
+  }
+
+  return {
+    resolvedCount,
+    forecastScoredCount: forecastScored,
+    source,
+    sourceLabel,
+    sourceDetail,
+    isPaperOrdersFallback,
+  };
+}
 
 export type ModelAbState = "loading" | "not-ready" | "lgbm-unavailable" | "ready";
 

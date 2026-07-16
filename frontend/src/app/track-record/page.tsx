@@ -12,6 +12,7 @@ import {
   type TrackRecordRow,
 } from "@/lib/polyscout-api";
 import { ClaimBadge } from "@/components/ClaimBadge";
+import { ResolvedCountDisclosure } from "@/components/ResolvedCountDisclosure";
 import { TrackRecordReliability } from "@/components/TrackRecordReliability";
 import { cn } from "@/lib/cn";
 
@@ -117,6 +118,9 @@ export default function TrackRecordPage() {
           >
             See backtest methodology →
           </Link>
+        </div>
+        <div className="mb-4">
+          <ResolvedCountDisclosure />
         </div>
         <TrackRecordReliability />
       </section>

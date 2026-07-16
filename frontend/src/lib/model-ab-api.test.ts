@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildModelAbView,
+  buildResolvedCountDisclosure,
   type ModelAbResponse,
   type ResolvedCountResponse,
 } from "./model-ab-api";
@@ -11,13 +12,53 @@ const RESOLVED_LOW: ResolvedCountResponse = {
   ab_ready: false,
   model_default: "xgboost",
   paper_trading_only: true,
+  source: "paper_orders_fallback",
+  forecast_scored_count: 0,
 };
 
 const RESOLVED_READY: ResolvedCountResponse = {
   ...RESOLVED_LOW,
   resolved_count: 120,
   ab_ready: true,
+  source: "forecast_scores",
+  forecast_scored_count: 120,
 };
+
+describe("buildResolvedCountDisclosure", () => {
+  it("returns null when resolved-count is missing", () => {
+    expect(buildResolvedCountDisclosure(null)).toBeNull();
+  });
+
+  it("labels scored LIVE forecasts honestly", () => {
+    const view = buildResolvedCountDisclosure(RESOLVED_READY);
+    expect(view?.source).toBe("forecast_scores");
+    expect(view?.forecastScoredCount).toBe(120);
+    expect(view?.resolvedCount).toBe(120);
+    expect(view?.isPaperOrdersFallback).toBe(false);
+    expect(view?.sourceLabel).toContain("Scored LIVE");
+  });
+
+  it("discloses paper-order fallback when scored count is zero", () => {
+    const view = buildResolvedCountDisclosure(RESOLVED_LOW);
+    expect(view?.source).toBe("paper_orders_fallback");
+    expect(view?.forecastScoredCount).toBe(0);
+    expect(view?.isPaperOrdersFallback).toBe(true);
+    expect(view?.sourceDetail).toContain("different population");
+  });
+
+  it("does not fabricate source or scored count when absent", () => {
+    const view = buildResolvedCountDisclosure({
+      resolved_count: 3,
+      ab_threshold: 100,
+      ab_ready: false,
+      model_default: "xgboost",
+      paper_trading_only: true,
+    });
+    expect(view?.source).toBeNull();
+    expect(view?.forecastScoredCount).toBeNull();
+    expect(view?.sourceLabel).toBe("Source undisclosed");
+  });
+});
 
 describe("buildModelAbView — not ready", () => {
   it("shows progress toward the threshold and never claims a winner", () => {
