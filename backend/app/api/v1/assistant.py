@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_optional_user
 from app.core.config import get_settings
-from app.db.models import AnalystBrief, OddsSnapshot, PredictionLog, User
+from app.db.models import AnalystBrief, Market, OddsSnapshot, PredictionLog, User
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,7 @@ ANALYSIS_ONLY_BANNER = "Analysis only — this assistant cannot place trades."
 PAPER_ONLY_DISCLAIMER = "Paper trading only — simulated funds, no execution."
 _MENU_MARKER = "I can help with:"
 _ANALYZE_KEYWORDS = ("analyze", "deep-dive", "deep dive")
+_BEAR_KEYWORDS = ("bear", "downside", "against")
 _ASSISTANT_PREDICTION_CACHE_TTL_SEC = 60.0
 
 # ── Anonymous per-IP rate limiter ────────────────────────────────────────────
@@ -191,6 +192,10 @@ def _is_analyze_intent(message: str) -> bool:
     """True for AI Analyze / deep-dive seed prompts from the market cards."""
     msg = message.lower()
     return any(kw in msg for kw in _ANALYZE_KEYWORDS)
+
+
+def _is_bear_intent(message: str) -> bool:
+    return any(kw in message.lower() for kw in _BEAR_KEYWORDS)
 
 
 def _humanize_signal_type(signal_type: str) -> str:
@@ -332,6 +337,42 @@ async def _prediction_context_for_analyze(
         return {
             "unscorable_reason": "the prediction pipeline could not score its available features",
         }
+
+
+async def _enrich_bear_case_context(
+    slug: str, ctx: dict[str, Any], db: AsyncSession
+) -> dict[str, Any]:
+    """Add bear-case facts solely from existing market and signal stores."""
+    out = dict(ctx)
+    negative_drivers = [
+        driver for driver in out.get("drivers", []) if driver.get("direction") == "favors NO"
+    ]
+    if negative_drivers:
+        out["negative_drivers"] = negative_drivers[:3]
+
+    try:
+        market = await db.scalar(select(Market).where(Market.slug == slug).limit(1))
+        if market is not None:
+            if market.lock_at is not None:
+                lock_at = market.lock_at
+                if lock_at.tzinfo is None:
+                    lock_at = lock_at.replace(tzinfo=UTC)
+                out["hours_to_close"] = round(
+                    (lock_at - datetime.now(UTC)).total_seconds() / 3600, 2
+                )
+            target_volume = float(market.volume or 0)
+            volumes = [
+                float(value) for value in (await db.scalars(select(Market.volume))).all()
+                if value is not None
+            ]
+            if len(volumes) > 1:
+                out["volume_percentile"] = round(
+                    sum(value <= target_volume for value in volumes) / len(volumes) * 100,
+                    1,
+                )
+    except Exception as exc:
+        logger.debug("bear-case market depth lookup failed for %s: %s", slug, exc)
+    return out
 
 
 async def _enrich_analyze_context(
@@ -601,6 +642,60 @@ def _build_analyze_reply(
     return "\n".join(parts), citations, ordered_tools
 
 
+def _build_bear_case_reply(
+    ctx: dict[str, Any], market_slug: str | None
+) -> tuple[str, list[CitationChip], list[str]]:
+    """Format bear-case facts only when the source data supplied them."""
+    title = ctx.get("title") or market_slug or "this market"
+    parts = [f"Bear-case data for {title}."]
+    citations = [CitationChip(source="features", label="Model and signal data")]
+    tools_used = ["get_features"]
+
+    drivers = ctx.get("negative_drivers") or []
+    if drivers:
+        parts.append(
+            "Top negative drivers:\n"
+            + "\n".join(
+                f"- {driver.get('label', 'driver')}: {driver.get('note', '')}".rstrip()
+                for driver in drivers[:3]
+            )
+        )
+    else:
+        parts.append("Top negative drivers: none in the available signal data — omitted.")
+
+    move = _finite(ctx.get("move_24h"))
+    if move is not None and move < 0:
+        parts.append(f"Recent adverse YES move: {move:+.1%} over the stored 24h comparison.")
+        tools_used.append("get_odds")
+        citations.append(CitationChip(source="odds", label="24h odds snapshots"))
+    elif move is not None:
+        parts.append("Recent adverse YES move: none in the stored 24h comparison.")
+    else:
+        parts.append("Recent adverse YES move: no snapshot pair available — omitted.")
+
+    percentile = _finite(ctx.get("volume_percentile"))
+    volume = _finite(ctx.get("volume"))
+    if percentile is not None and volume is not None:
+        parts.append(
+            f"Liquidity proxy: ${volume:,.0f} catalog volume, percentile {percentile:.0f}. "
+            "Lower percentiles indicate less catalog volume."
+        )
+        citations.append(CitationChip(source="odds", label="Market catalog volume"))
+    else:
+        parts.append("Liquidity proxy: catalog percentile unavailable — omitted.")
+
+    hours_to_close = _finite(ctx.get("hours_to_close"))
+    if hours_to_close is None:
+        parts.append("Time to close: no lock time is stored — omitted.")
+    elif hours_to_close >= 0:
+        parts.append(f"Time to close: {hours_to_close:.1f} hours until the stored lock time.")
+    else:
+        parts.append(f"Time to close: stored lock time passed {abs(hours_to_close):.1f} hours ago.")
+
+    parts.append(f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}")
+    return "\n".join(parts), citations, list(dict.fromkeys(tools_used))
+
+
 def _build_profile_snippet(profile: dict[str, Any] | None) -> str:
     """Return a short context snippet for the profile (used in deterministic fallback).
 
@@ -642,6 +737,10 @@ def _build_deterministic_reply(
     # ── AI Analyze / deep-dive (market-card seed prompts) ────────────────────
     if _is_analyze_intent(message):
         return _build_analyze_reply(ctx, market_slug)
+
+    # ── bear case ────────────────────────────────────────────────────────────
+    if _is_bear_intent(message):
+        return _build_bear_case_reply(ctx, market_slug)
 
     # ── odds / price movement ────────────────────────────────────────────────
     if any(kw in msg_lower for kw in ("odds", "price", "move", "why did")):
@@ -702,26 +801,6 @@ def _build_deterministic_reply(
         else:
             reply = base_reply
         citations.append(CitationChip(source="exposure", label="Portfolio exposure"))
-        return reply, citations, tools_used
-
-    # ── bear case ────────────────────────────────────────────────────────────
-    if any(kw in msg_lower for kw in ("bear", "downside", "risk", "against")):
-        tools_used.append("get_features")
-        if market_slug and ctx.get("is_edge") is False:
-            reason = ctx.get("forecast_reason", "model gate not met")
-            reply = (
-                f"Bear case: the model currently does not see a positive edge here ({reason}). "
-                "Key risk factors include model uncertainty (check CLV-gate status), "
-                "adverse news sentiment, and whale selling pressure."
-            )
-        else:
-            reply = (
-                "Bear case factors to consider: model under-confidence, negative news "
-                "sentiment, concentrated whale exits, and instability in the underlying "
-                "event category (e.g. political or geopolitical shock). "
-                "All positions are paper-trading only."
-            )
-        citations.append(CitationChip(source="features", label="Model features"))
         return reply, citations, tools_used
 
     # ── briefs / analyst notes ───────────────────────────────────────────────
@@ -889,11 +968,16 @@ async def assistant_chat(
         except Exception as exc:
             logger.warning("Context assembly failed for %s: %s", market_slug, exc)
             ctx = {}
-        if _is_analyze_intent(body.message):
+        if _is_analyze_intent(body.message) or _is_bear_intent(body.message):
             try:
                 ctx = await _enrich_analyze_context(market_slug, ctx, db)
             except Exception as exc:
-                logger.warning("Analyze enrich failed for %s: %s", market_slug, exc)
+                logger.warning("Assistant market enrich failed for %s: %s", market_slug, exc)
+        if _is_bear_intent(body.message):
+            try:
+                ctx = await _enrich_bear_case_context(market_slug, ctx, db)
+            except Exception as exc:
+                logger.warning("Bear-case enrich failed for %s: %s", market_slug, exc)
 
     reply, citations, tools_used = await _llm_reply(
         body.message, ctx, body.history, market_slug,
