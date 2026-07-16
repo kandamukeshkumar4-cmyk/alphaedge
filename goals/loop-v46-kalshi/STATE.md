@@ -157,3 +157,58 @@ AutoLab: baseline=kalshi_open_events imported=0 skipped=200 | benchmark=local re
 Audit-first exemplary; 0->266 with skipped=0; honest 429 note logged for ops.
 Foreign V37 test failure confirmed pre-existing — orchestrator handles at
 merge. Lane closed.
+
+---
+
+## STATE-V48 — loop48/unblock (U1 + U2)
+
+| Ticket | Status | Notes |
+|--------|--------|-------|
+| U1 | **DONE** | `GET /api/v1/markets/{slug}/locked-forecast` — LIVE ForecastLog public read |
+| U2 | **DONE** | Frozen/injectable mono clock for 1h demoted-skip warn throttle test |
+
+### U1 — locked-forecast
+
+- Route: `backend/app/api/v1/market_locked_forecast.py`
+- Schema: `LockedForecastResponse` in `app/schemas/market.py`
+- Registered on main app (public GET, no auth, no order path)
+- Shape matches loop47 `BLOCKED-ON-BACKEND` (locked + empty `pre_lock`)
+- Identity: `pm-`/`ks-` strip + `Market.external_slug` → `ExternalMarket.external_id`
+- `user_probability` from LIVE `ForecastLog` only (prefer `AUTOLOCK_FORECASTER_ID`); never XGBoost
+- Tests: `tests/test_market_locked_forecast.py` (no-lock, pm locked, ks locked, unknown, practice ignored)
+
+### U2 — live_tick demoted-skip throttle
+
+- Root cause: `last_warn_mono=0.0` + `time.monotonic()` uptime **&lt; 1h** suppressed the first warn (`now - 0 < 3600`)
+- Fix: injectable `_monotonic` in `live_price_tick.py`; test freezes clock at `1_000_000.0`
+- Assertion unchanged: exactly **1** demoted-skip warning across two ticks
+
+### Full gate (U1+U2)
+
+```text
+ADMIN_API_KEY=dev-admin-key uv run --extra dev pytest -q -p no:cacheprovider
+→ 1708 passed, 28 skipped in 258.35s
+ZERO failures
+
+uv run --extra dev ruff check app tests
+→ All checks passed!
+```
+
+Delta vs loop46 tip (1702p / 1 foreign fail): +5 locked-forecast tests; foreign fail fixed → 1708p / 0 fail.
+
+### Fresh adversarial verifier (STATE-V48 · 2026-07-16)
+
+```text
+VERDICT: PASS | Ship: YES (local; no push/merge)
+
+1. Fabrication? No — empty shape uses null user_probability + empty_reason=pre_lock;
+   locked path reads ForecastLog.user_probability only (not ForecastService.predict).
+2. Identity? pm-/ks- strip + Market.external_slug matches bridge/autolock external_id.
+3. Auth/order path? Public GET only; no RiskService/OrderBookService/OrderIntent.
+4. PAPER_TRADING_ONLY? Response field from settings; no weakening.
+5. U2 assertion strength? Still asserts len(demoted_warns)==1; only clock injected.
+6. Scope? Backend micro-tickets only; no frontend/deploy/push.
+7. Suite counts? 1708 passed, 28 skipped, 0 failed — verified this run.
+```
+
+AutoLab: not applicable (no iterative measure — one-shot endpoint + flaky test fix)

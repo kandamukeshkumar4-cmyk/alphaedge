@@ -38,6 +38,9 @@ _KALSHI_EVENT_CONCURRENCY = 2
 _LIVE_TICK_404_THRESHOLD = 3
 _LIVE_TICK_404_WARN_INTERVAL_SEC = 3600.0
 
+# Injectable clock for tests (wall-clock independence of the 1h warn throttle).
+_monotonic = time.monotonic
+
 
 @dataclass
 class _Slug404State:
@@ -62,7 +65,7 @@ def _http_status(error: BaseException) -> int | None:
 
 def _warn_throttled(state: _Slug404State, msg: str, *args: object, **extra: object) -> None:
     """Emit at most one structured warning per hour for a demoted slug."""
-    now = time.monotonic()
+    now = _monotonic()
     if now - state.last_warn_mono < _LIVE_TICK_404_WARN_INTERVAL_SEC:
         return
     state.last_warn_mono = now

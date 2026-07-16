@@ -409,6 +409,27 @@ class MarketDetailResponse(BaseModel):
     cached: bool = False
 
 
+class LockedForecastResponse(BaseModel):
+    """Public read of a market's LIVE ForecastLog lock (Loop V48 U1).
+
+    Shape pinned to goals/loop-v47-forecast-ui STATE BLOCKED-ON-BACKEND.
+    ``user_probability`` is the locked ledger value — never a fresh XGBoost call.
+    """
+
+    slug: str
+    locked: bool
+    user_probability: Optional[float] = None
+    locked_at: Optional[datetime] = None
+    market_implied_at_lock: Optional[float] = None
+    current_market_probability: Optional[float] = None
+    mode: Optional[str] = None
+    provisional: bool = True
+    paper_trading_only: bool = True
+    forecast_id: Optional[UUID] = None
+    external_market_id: Optional[UUID] = None
+    empty_reason: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
     status: str
     paper_trading_only: bool

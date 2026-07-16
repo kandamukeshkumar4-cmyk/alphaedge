@@ -29,6 +29,7 @@ from app.api.v1.health import router as health_router
 from app.api.v1.market_candles import router as market_candles_router
 from app.api.v1.market_detail import router as market_detail_router
 from app.api.v1.market_explainer import router as market_explainer_router
+from app.api.v1.market_locked_forecast import router as market_locked_forecast_router
 from app.api.v1.market_prediction import router as market_prediction_router
 from app.api.v1.routes import router as v1_router
 from app.api.v1.wc2026 import admin_router as wc2026_admin_router
@@ -752,6 +753,7 @@ app.include_router(portfolio_router)
 app.include_router(portfolio_clv_router)
 app.include_router(v1_router)
 app.include_router(market_detail_router)
+app.include_router(market_locked_forecast_router)
 app.include_router(market_candles_router)
 app.include_router(market_explainer_router)
 app.include_router(health_router)
