@@ -115,13 +115,18 @@ export async function prepareStableShot(
   await applyTheme(page, theme);
   // Re-freeze ages after theme paint (no DOM rebuild expected, but cheap).
   await freezeRelativeAges(page);
+  // Scroll to top so viewport shots are deterministic.
+  await page.evaluate(() => window.scrollTo(0, 0));
   return dynamicMaskLocators(page);
 }
 
 export const SHOT_OPTIONS = {
   animations: "disabled" as const,
   caret: "hide" as const,
-  fullPage: true,
+  // Viewport-only: fullPage heights drift when lazy sections (similar markets,
+  // briefs, atlas) settle differently — especially after chromium mutates the
+  // shared e2e SQLite. First-screen chrome is what guards theme/spacing/overflow.
+  fullPage: false,
   // Windows ClearType / AA variance; still fails on real layout breakage.
   maxDiffPixelRatio: 0.02,
 };

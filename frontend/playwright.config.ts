@@ -39,21 +39,20 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
+    // Visreg FIRST so shared e2e SQLite is still pristine (chromium journeys
+    // pause markets / place trades and would otherwise poison shot height).
+    // Local-only: CI uses --project=chromium and never loads these shots.
+    {
+      name: "visreg",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: /visreg\.spec\.ts/,
+    },
     // Existing suite (CI: --project=chromium). Visreg excluded so missing
     // ubuntu baseline PNGs cannot break the green CI job.
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       testIgnore: /visreg\.spec\.ts/,
-    },
-    // Local-only visual regression. Generate/update:
-    //   npx playwright test --project=visreg --update-snapshots
-    // Documented in goals/loop-v44-visreg/STATE.md — not wired into ci-e2e
-    // (ubuntu baselines would require a non-trivial workflow change).
-    {
-      name: "visreg",
-      use: { ...devices["Desktop Chrome"] },
-      testMatch: /visreg\.spec\.ts/,
     },
   ],
   ...(SKIP_WEBSERVER
