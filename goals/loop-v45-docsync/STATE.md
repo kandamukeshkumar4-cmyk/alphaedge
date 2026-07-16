@@ -5,8 +5,8 @@
 | Ticket | Status | Commit | Notes |
 |--------|--------|--------|-------|
 | W1 Diff + document missing OpenAPI surfaces | DONE | `53ed5f7` | Snapshot = 154 path keys; priority surfaces tabled |
-| W2 User-guide additions | DONE | (this commit) | bell, profiles, /eval, resolved-count source |
-| W3 Ops runbook additions | PENDING | — | loops, autolock funnel, visreg, CI |
+| W2 User-guide additions | DONE | `78563ea` | bell, profiles, /eval, resolved-count source |
+| W3 Ops runbook additions | DONE | (this commit) | loops, autolock funnel, visreg, CI |
 
 ## W1 — OpenAPI vs `docs/api.md` gap list
 
@@ -45,6 +45,23 @@ W1 documents **priority** surfaces with auth + file citations; forecast/clones/b
 | eval/* including `/drift` | Public (no admin) | `backend/app/api/v1/eval_routes.py` |
 | system/sources | Admin (router deps) | `backend/app/api/v1/sports.py` `sources_router` |
 | system/resolved-count | Public; returns `source` + `forecast_scored_count` | `backend/app/api/v1/system.py` |
+
+## W3 grep-verification (paste)
+
+```
+code _ALL_LOOPS count 20; missing []
+DOC=True all 20 loop names (price_feed … data_retention)
+DOC=True bridge/autolock/digest/ops_alerts/jobrun_retention/data_retention workers/*
+DOC=True paper_orders_fallback, forecast_scores funnel honesty
+DOC=True visreg.spec.ts, stable-shot.ts, --project=visreg, --update-snapshots, testIgnore
+DOC=True ci-backend.yml, ci-frontend.yml, ci-e2e.yml, demo-uptime.yml
+FILE=True all six worker modules + visreg + three CI ymls
+```
+
+## LOOP VERDICT
+
+**W1–W3 DONE.** Docs only (`docs/**`, `goals/loop-v45-docsync/**`). No app code,
+no secrets, no push/merge.
 
 ## W2 grep-verification (paste)
 
@@ -95,3 +112,4 @@ non-priority still summary-only: backtest runs/summary, clones subpaths, forecas
 | start | — | branch `loop45/docsync` clean; GOAL binding read |
 | W1 | DONE | docs/api.md + STATE gap list; 22 priority paths SNAP+DOC |
 | W2 | DONE | user-guide: NotificationBell, social follow, /eval, resolved-count source |
+| W3 | DONE | operations: _ALL_LOOPS, funnel, visreg, CI workflows |

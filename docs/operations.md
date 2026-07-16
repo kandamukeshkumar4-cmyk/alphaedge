@@ -347,9 +347,158 @@ npm run test:e2e   # Playwright suite when configured
 | Uptime workflow red | Curl `/health`; confirm `paper_trading_only`; cold-start wait; Neon/Railway DB awake |
 | 5xx on public GETs | `GET /api/v1/system/loops` + admin observability; connector sources |
 | Empty markets UI | `verify_prod` markets check; live ingest loops planned/running |
+| Autolock funnel starved | See §10 — bridge → autolock → external_resolve → scores |
 | Migration deploy fail | `alembic heads` multi-head? pre-deploy logs |
 | Metrics scrape 401 | Admin key or `METRICS_TOKEN` |
 | JWT/admin boot fail in prod | Default secrets rejected when `APP_ENV` is production/staging |
+
+---
+
+## 9. Background loops (`GET /api/v1/system/loops`)
+
+Canonical name list is `_ALL_LOOPS` in `backend/app/api/v1/system.py`. The
+endpoint returns `planned` (settings / data-stream plan), heartbeat `status`
+(`never` if never beat), and `detail`. **No secrets.** Heartbeats are recorded
+from in-process lifespan loops in `backend/app/main.py` and/or ARQ crons in
+`backend/app/workers/tasks.py` (free tier often has **no** separate worker —
+schedulers run inside the API process).
+
+### Full catalog (must match `_ALL_LOOPS`)
+
+| Loop name | Role (ops) | Primary code |
+|-----------|------------|--------------|
+| `price_feed` | Seed/catalog price ticks | `main.py` price-feed loop |
+| `live_ingest` | Venue catalog ingest | live ingest loop |
+| `live_tick` | Live tick pacing | live tick loop |
+| `eval` | Evaluation scoring pass | eval loop |
+| `kalshi_ws` / `polymarket_ws` | Venue WebSocket streams | data streams plan |
+| `news_scan` / `weather_scan` / `morning_research` / `whale_refresh` | Research schedulers | flag-gated in-process loops |
+| `wc2026_resolve` | WC2026 resolution helper | scheduler |
+| `external_resolve` | Venue resolve + grade locked forecasts | external resolve loop |
+| **`external_market_bridge`** | Register **ingested** venue markets as `ExternalMarket` rows so autolock has input | `workers/external_market_bridge.py` |
+| **`forecast_autolock`** | Bounded pre-close **model** LIVE forecast locks (no orders, no resolve) | `workers/forecast_autolock.py` |
+| `drift_detect` | Persist ForecastScore drift snapshots (feeds public `/eval/drift`) | drift worker |
+| **`ops_alerts`** | Threshold evaluator → in-app `Alert` rows (error rate, p99, stale predictions) | `workers/ops_alerts.py` |
+| `portfolio_equity` | Equity snapshot writer for portfolio curves | equity scheduler |
+| **`daily_digest`** | Per-user daily **in-app** Notification digest (no email) | `workers/daily_digest.py` |
+| **`jobrun_retention`** | Delete old `job_runs` (default 30d, flag-gated) | `workers/jobrun_retention.py` |
+| **`data_retention`** | Odds downsample + signal/notification prune (flag-gated) | `workers/data_retention.py` |
+
+Verify names in a running API:
+
+```text
+# Public
+curl -sS "$BASE_URL/api/v1/system/loops" | python -c "import sys,json; d=json.load(sys.stdin); print([x['name'] for x in d['loops']])"
+# Expect exactly the _ALL_LOOPS order/names above.
+```
+
+### Newer loops operators care about (waves 4–8)
+
+| Loop | What “healthy” looks like | Failure modes |
+|------|---------------------------|---------------|
+| `external_market_bridge` | Heartbeat `ok`; JobRun summaries show bridged > 0 when open venue markets exist | Bridging **seed** markets is forbidden; wrong identity key starves resolver |
+| `forecast_autolock` | Locks only OPEN external markets with future `close_at` in window; `SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED` | Zero candidates when bridge never ran or all already have LIVE forecasts |
+| `daily_digest` | One digest Notification per user/day (`type=digest`) | Missing equity snapshots → thinner copy; still in-app only |
+| `ops_alerts` | Alerts via existing `AlertDispatchService` / WS `alerts` channel | Needs min request volume before error-rate fires; empty PredictionLog does **not** raise stale alert |
+| `jobrun_retention` / `data_retention` | `deleted=0` on second pass (idempotent) | Never touches order path; unread notifications kept forever by data retention |
+
+Related env flags (names only): `SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED`,
+`SCHEDULER_OPS_ALERTS_ENABLED`, `SCHEDULER_DAILY_DIGEST_ENABLED`,
+`JOBRUN_RETENTION_ENABLED` / `JOBRUN_RETENTION_DAYS`,
+`DATA_RETENTION_ENABLED`, odds/signal/notification retention day settings in
+`backend/app/core/config.py`.
+
+---
+
+## 10. Autolock funnel observability
+
+The graded-forecast pipeline is a **funnel**. Each stage is a separate loop;
+starvation at any stage yields thin track records and
+`resolved-count.source = paper_orders_fallback`.
+
+```text
+live_ingest (markets catalog)
+    → external_market_bridge  (ExternalMarket rows; open venue only)
+    → forecast_autolock       (LIVE ForecastLog locks pre-close)
+    → external_resolve        (venue outcome + ForecastScore)
+    → eval / track-record / system/resolved-count (source=forecast_scores)
+```
+
+| Check | How |
+|-------|-----|
+| Loop heartbeats | `GET /api/v1/system/loops` — `external_market_bridge`, `forecast_autolock`, `external_resolve` |
+| Population honesty | `GET /api/v1/system/resolved-count` → `source`, `forecast_scored_count` |
+| Admin aggregates | `GET /api/v1/admin/stats` (forecasts locked/graded counts) — **admin key** |
+| Drift series | `GET /api/v1/eval/drift` (public) after `drift_detect` has written rows |
+
+**Do not** treat a rising `resolved_count` under `paper_orders_fallback` as proof
+the forecast funnel is working — that count is the paper-order fallback
+population (`ab_harness.resolved_outcomes_breakdown`).
+
+Bridge invariants (from worker docstring): does **not** lock, score, resolve, or
+write winning outcomes; keys venue identity via `external_slug` round-trip, not
+catalog `external_id` alone.
+
+---
+
+## 11. Visual regression (local visreg)
+
+Loop V44 — **local-only** Playwright visual baselines. CI must not require
+ubuntu PNGs.
+
+| Item | Location / command |
+|------|--------------------|
+| Spec | `frontend/e2e/visreg.spec.ts` |
+| Masking / freeze helpers | `frontend/e2e/helpers/stable-shot.ts` |
+| Project | Playwright project **`visreg`** in `frontend/playwright.config.ts` |
+| Snapshots | `e2e/visreg.spec.ts-snapshots/*-{project}-{platform}.png` (`snapshotPathTemplate` includes `{platform}`) |
+| Committed baselines | win32 only (see `goals/loop-v44-visreg/STATE.md`) |
+| Run (local) | `cd frontend && npx playwright test --project=visreg` |
+| Update baselines | `npx playwright test --project=visreg --update-snapshots` |
+| CI functional e2e | `npx playwright test --project=chromium` — **`testIgnore`s visreg** |
+
+Routes covered (both themes × desktop + 375px): `/`, market detail, empty
+`/portfolio`, `/leaderboard`, `/eval`, `/admin/observability`. Visreg project
+runs **first** locally so shared e2e SQLite is still pristine before chromium
+journeys mutate it.
+
+---
+
+## 12. CI workflows
+
+Workflows live under `.github/workflows/`. Branch filters in-tree currently
+target historical integration branches (`loop3-agent-memory`,
+`codex/alphaedge-base`) — operators adding new default branches must extend
+`on.push` / `on.pull_request` lists deliberately.
+
+| Workflow file | Purpose |
+|---------------|---------|
+| `ci-backend.yml` | `uv sync --extra dev`, pytest (backend), `PAPER_TRADING_ONLY=true` |
+| `ci-frontend.yml` | `npm ci`, typecheck, lint (`--max-warnings=0`), Vitest |
+| `ci-e2e.yml` | Local-stack Playwright **chromium** project only (visreg excluded); isolated SQLite; schedulers mostly disabled for speed |
+| `demo-uptime.yml` | 15m prod wake + `verify_prod.py` (see §5A) |
+| `calibration-autolab.yml` | Calibration / AutoLab job (when enabled) |
+| `deploy-railway-backend.yml` | Railway deploy path |
+| `deploy-hf-space.yml` / `deploy-koyeb-backend.yml` | Alternate/historical hosts |
+| `azure-static-web-apps-*.yml` | Retired Azure SWA path — do not use as live frontend |
+
+**CI e2e env posture (names only):** `PAPER_TRADING_ONLY=true`, temporary
+`ADMIN_API_KEY` / `JWT_SECRET_KEY` for the job, SQLite URLs, Redis disabled
+sentinel, most `SCHEDULER_*` and live feed flags **false** so the suite stays
+deterministic.
+
+Local full frontend gates (operator):
+
+```text
+cd frontend
+npm run lint
+npm run typecheck
+npm run build
+npm run test:e2e   # playwright; use --project=chromium to match CI
+```
+
+Orchestration gate for agents: `py -3.13 orchestration/gate.py` (exit 0 required
+for “done”).
 
 ---
 
@@ -358,6 +507,7 @@ npm run test:e2e   # Playwright suite when configured
 - [API reference](./api.md)
 - [User guide](./user-guide.md)
 - [Model methodology](./methodology.md)
+- Visreg loop state: `goals/loop-v44-visreg/STATE.md`
 - Deploy recipes: `docs/deploy/HUGGINGFACE_NEON.md`, `docs/deploy/KOYEB_NEON.md`,
   `docs/deploy/AZURE_VERCEL.md` (alternates / historical — not all are the live
   monitor target)
