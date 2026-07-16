@@ -10,9 +10,11 @@
 
 ## TL;DR — three things to know before the accuracy loop starts
 
-1. **V33 is confirmed working in prod.** `[measured]` `external_markets` went
-   `1 → 26` on the bridge's first pass (25 bridged, exactly one batch). The
-   funnel is off stage 0 in production, not just locally.
+1. **V33 is confirmed working in prod, through locking.** `[measured]`
+   `external_markets` went `1 → 26` on the bridge's first pass, and at T+15h sits
+   at **415** with **every market inside the lock window already locked**
+   (`in_horizon=5, eligible=0`). Bridge → autolock is proven in production;
+   resolve → score → flip is the remaining unproven step (§A-0b, §A-1.4).
 2. **The A/B is NOT ready, and `resolved_count >= 100` will not make it ready.**
    Two independent blockers, both structural, both invisible from the gate:
    `lightgbm_available: false` in prod, and **the gate counts a different
@@ -36,6 +38,43 @@
 | `/api/v1/system/resolved-count` | `resolved_count=1, source=paper_orders_fallback, forecast_scored_count=0` | V33 B2'c live; no forecast scored **yet** |
 | catalog `/api/v1/markets?limit=500` | 740 rows; 361 bridge-eligible (open + polymarket + future `lock_at`) | supply pool for the bridge |
 | `/api/v1/system/model-ab` | `ready=false, lightgbm_available=false` | **A/B blocked — see §C-1** |
+
+## A-0b. T+15h checkpoint — the runbook's own thresholds, tested `[measured]`
+
+Measured 2026-07-16 ~14:47Z (`uptime_seconds=53665` ≈ 14.9h since the restart in
+§A-0). This section exists so the thresholds below are **validated, not asserted**:
+
+```
+forecast_autolock.detail:
+  external=415 open=415 pre_close=413 in_horizon=5 eligible=0 selectable=0
+  biggest_drop=3_close_at_in_future->4_within_horizon:408
+resolved-count: {"resolved_count": 1, "source": "paper_orders_fallback", "forecast_scored_count": 0}
+loops: live_ingest=ok  external_market_bridge=ok  forecast_autolock=ok  external_resolve=ok
+```
+
+| Runbook prediction | Measured at T+15h | Verdict |
+|---|---|---|
+| §A-1.1 `external` ≈ **350–450**, plateaued | **415** | ✅ **HEALTHY** — pool saturated as projected |
+| §A-1.2 `eligible` 0–40 is normal, not stuck | `in_horizon=5, eligible=0` | ✅ as specified |
+| §A-1.3 locking observable via `eligible` falling while `pre_close` holds | `pre_close=413`, `eligible=0` | ✅ **LOCKING CONFIRMED** |
+| §A-1.4 source flip within 18–48h | still `paper_orders_fallback` at 15h | ⏳ **on track** (inside window; STUCK only at T+48h) |
+| §A-2.5 `live_ingest` was erroring | now `status=ok` | ✅ self-recovered — the 21:57Z error was transient |
+
+**`eligible=0` with `in_horizon=5` is the key reading**: all 5 markets inside the
+lock window already carry a LIVE forecast, i.e. **autolock has locked everything
+available to it**. The bridge → autolock half of the chain is confirmed working
+in production. What remains unproven is resolve → score → flip (§A-1.4).
+
+**This also settles §C-4 with prod data.** The horizon excludes **408 of 413**
+(98.8%) — and yet there is **no backlog** (`eligible=0`). A filter that excludes
+98.8% while starving nothing is not a coverage constraint; it is a timing choice,
+exactly as §C-4 argues. Widening it would only pull future markets into earlier,
+less-informed locks. **F4: rejected on evidence.**
+
+`[projected]` the 5 locked markets are the daily crypto/economics set closing
+`2026-07-16T16:00:00Z` `[measured yesterday]`. `external_resolve` runs every 900s,
+so the **source flip is expected ~16:00–16:30Z today**. If it has not flipped by
+T+48h (2026-07-17 ~22:00Z), work §A-2.
 
 ## A-1. The signals to inspect tomorrow, in order
 
