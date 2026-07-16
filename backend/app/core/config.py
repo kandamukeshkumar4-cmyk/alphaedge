@@ -302,6 +302,25 @@ class Settings(BaseSettings):
         alias="KALSHI_API_BASE_URL",
     )
     live_kalshi_series: str = Field(default="KXWCGAME", alias="LIVE_KALSHI_SERIES")
+    # Loop V46 — open-events board ingest (kalshi_live_ingest.sync_open_events).
+    # K1 audit: global /markets board is flooded by multigame parlays and never
+    # intersects the open-events list (skipped=200). These knobs gate the fix
+    # and honest widen without importing board junk.
+    live_kalshi_per_category_limit: int = Field(
+        default=10, alias="LIVE_KALSHI_PER_CATEGORY_LIMIT"
+    )
+    live_kalshi_max_markets_per_event: int = Field(
+        default=8, alias="LIVE_KALSHI_MAX_MARKETS_PER_EVENT"
+    )
+    live_kalshi_event_market_fallback: bool = Field(
+        default=True, alias="LIVE_KALSHI_EVENT_MARKET_FALLBACK"
+    )
+    live_kalshi_min_event_volume: int = Field(
+        default=0, alias="LIVE_KALSHI_MIN_EVENT_VOLUME"
+    )
+    live_kalshi_open_events_limit: int = Field(
+        default=200, alias="LIVE_KALSHI_OPEN_EVENTS_LIMIT"
+    )
     kalshi_ws_enabled: bool = Field(default=True, alias="KALSHI_WS_ENABLED")
     kalshi_ws_url: str = Field(
         default="wss://api.elections.kalshi.com/trade-api/ws/v2",

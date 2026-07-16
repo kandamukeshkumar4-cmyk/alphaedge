@@ -56,33 +56,72 @@ class KalshiLiveIngestService:
         # tests can inject a fetcher that wraps a fake connector.
         self._fetcher = fetcher or SharedKalshiFetcher(self.connector)
         self.series = settings.live_kalshi_series
+        self._per_category_limit = settings.live_kalshi_per_category_limit
+        self._max_markets_per_event = settings.live_kalshi_max_markets_per_event
+        self._event_market_fallback = settings.live_kalshi_event_market_fallback
+        self._min_event_volume = settings.live_kalshi_min_event_volume
+        self._open_events_limit = settings.live_kalshi_open_events_limit
 
     async def sync_open_events(
         self,
         *,
-        per_category_limit: int = 6,
-        max_markets_per_event: int = 6,
+        per_category_limit: int | None = None,
+        max_markets_per_event: int | None = None,
+        event_market_fallback: bool | None = None,
+        min_event_volume: int | None = None,
     ) -> dict[str, int]:
         """Mirror top open Kalshi events across ALL categories (the full board,
-        not just the World Cup series)."""
+        not just the World Cup series).
+
+        Loop V46: the global ``list_open_markets`` board is dominated by multigame
+        parlays and routinely has **zero** intersection with ``list_open_events``.
+        When board join misses, optionally fall back to per-event market fetch
+        (config ``LIVE_KALSHI_EVENT_MARKET_FALLBACK``) so genuine open contracts
+        still land in the paper catalog. Board multigame junk is never imported
+        by walking the board alone.
+        """
         imported = updated = skipped = 0
+        per_category_limit = (
+            self._per_category_limit if per_category_limit is None else per_category_limit
+        )
+        max_markets_per_event = (
+            self._max_markets_per_event
+            if max_markets_per_event is None
+            else max_markets_per_event
+        )
+        event_market_fallback = (
+            self._event_market_fallback
+            if event_market_fallback is None
+            else event_market_fallback
+        )
+        min_event_volume = (
+            self._min_event_volume if min_event_volume is None else min_event_volume
+        )
+
         try:
-            events = await asyncio.to_thread(self._fetcher.list_open_events, limit=200)
+            events = await asyncio.to_thread(
+                self._fetcher.list_open_events, limit=self._open_events_limit
+            )
         except Exception as error:
             logger.warning("Kalshi open-events list failed: %s", error)
             return {"imported": 0, "updated": 0, "skipped": 0}
 
-        # ONE paginated board sweep instead of one /markets call per event —
-        # the per-event fan-out (~100 calls/cycle) tripped Kalshi's rate limit
-        # and left most catalog syncs half-finished behind 429s.
+        # Prefer a single board sweep for join hits (cheap when it works).
+        # K1 audit: under current Kalshi product mix this join is often empty —
+        # fallback below recovers those events without N=200 uncached fan-out
+        # because we only fetch for category-eligible events until buckets fill.
+        markets_by_event: dict[str, list[dict[str, Any]]] = {}
         try:
             board = await asyncio.to_thread(self._fetcher.list_open_markets)
+            for market in board:
+                markets_by_event.setdefault(
+                    str(market.get("event_ticker") or ""), []
+                ).append(market)
         except Exception as error:
+            # Board failure is non-fatal when fallback can still recover markets.
             logger.warning("Kalshi open-markets board failed: %s", error)
-            return {"imported": 0, "updated": 0, "skipped": 0}
-        markets_by_event: dict[str, list[dict[str, Any]]] = {}
-        for market in board:
-            markets_by_event.setdefault(str(market.get("event_ticker") or ""), []).append(market)
+            if not event_market_fallback:
+                return {"imported": 0, "updated": 0, "skipped": 0}
 
         picked: dict[str, int] = {}
         n_categories = len({c for c, _ in _KALSHI_CATEGORY_MAP.values()})
@@ -101,16 +140,38 @@ class KalshiLiveIngestService:
             event_title = str(event.get("title") or event_ticker)
 
             markets = markets_by_event.get(event_ticker)
-            if markets is None:
+            if markets is None and event_market_fallback:
+                try:
+                    markets = await asyncio.to_thread(
+                        self._fetcher.list_event_markets, event_ticker
+                    )
+                except Exception as error:
+                    logger.warning(
+                        "Kalshi event-markets fallback failed for %s: %s",
+                        event_ticker,
+                        error,
+                    )
+                    markets = None
+                if markets:
+                    markets_by_event[event_ticker] = markets
+            if not markets:
                 skipped += 1
                 continue
             markets = markets[:max_markets_per_event]
             if not markets:
                 skipped += 1
                 continue
-            picked[category] = picked.get(category, 0) + 1
 
             event_volume = sum(_volume_usd(m) for m in markets)
+            # Optional floor (default 0). Applied AFTER market resolve so we never
+            # import empty shells; kept off by default — long-horizon open events
+            # can be thin but still genuine tradeable contracts.
+            if min_event_volume > 0 and event_volume < min_event_volume:
+                skipped += 1
+                continue
+
+            picked[category] = picked.get(category, 0) + 1
+
             for market in markets:
                 if not str(market.get("ticker") or ""):
                     continue

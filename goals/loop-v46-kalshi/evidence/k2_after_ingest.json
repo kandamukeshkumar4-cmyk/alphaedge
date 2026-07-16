@@ -1,0 +1,95 @@
+{
+  "before_baseline_k1": {
+    "imported": 0,
+    "updated": 0,
+    "skipped": 200
+  },
+  "after_sync_open_events": {
+    "imported": 266,
+    "updated": 0,
+    "skipped": 0
+  },
+  "catalog_kalshi_markets": 266,
+  "sample": [
+    {
+      "slug": "ks-kxelonmars-99",
+      "title": "Will Elon Musk visit Mars in his lifetime?: Mars",
+      "category": "Politics",
+      "volume": 112572
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-uley",
+      "title": "Who will be the next Secretary General of NATO?: Ursula von der Leyen",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-ppav",
+      "title": "Who will be the next Secretary General of NATO?: Petr Pavel",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-mfre",
+      "title": "Who will be the next Secretary General of NATO?: Mette Frederiksen",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-ksta",
+      "title": "Who will be the next Secretary General of NATO?: Keir Starmer",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-kkal",
+      "title": "Who will be the next Secretary General of NATO?: Kaja Kallas",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-kioh",
+      "title": "Who will be the next Secretary General of NATO?: Klaus Iohannis",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-bwal",
+      "title": "Who will be the next Secretary General of NATO?: Ben Wallace",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnextnatosecgen-99-astu",
+      "title": "Who will be the next Secretary General of NATO?: Alexander Stubb",
+      "category": "Politics",
+      "volume": 2165
+    },
+    {
+      "slug": "ks-kxnewpope-70-ppar",
+      "title": "Who will the next Pope be?: Pietro Parolin",
+      "category": "Politics",
+      "volume": 133817
+    },
+    {
+      "slug": "ks-kxnewpope-70-perd",
+      "title": "Who will the next Pope be?: Peter Erdo",
+      "category": "Politics",
+      "volume": 133817
+    },
+    {
+      "slug": "ks-kxnewpope-70-mzup",
+      "title": "Who will the next Pope be?: Matteo Zuppi",
+      "category": "Politics",
+      "volume": 133817
+    }
+  ],
+  "by_category": {
+    "Culture": 46,
+    "Economics": 58,
+    "Politics": 57,
+    "Sports": 59,
+    "Tech": 26,
+    "Weather": 20
+  }
+}
