@@ -13,6 +13,7 @@ import {
 import { PriceChart } from "@/components/PriceChartLazy";
 import { OrderBook } from "@/components/OrderBook";
 import { AIForecastPanel } from "@/components/AIForecastPanel";
+import { LockedForecastPanel } from "@/components/LockedForecastPanel";
 import { MarketTabs } from "@/components/MarketTabs";
 import { DecisionSignalPanel } from "@/components/DecisionSignalPanel";
 import { DecisionCard } from "@/components/DecisionCard";
@@ -296,6 +297,7 @@ export default function MarketDetailClient({
                   {PROVISIONAL_LABEL}
                 </p>
               ) : null}
+              <LockedForecastPanel slug={slug} />
               <AIForecastPanel market={market} />
               <SimilarPastMarkets category={market.category} currentSlug={slug} />
             </div>
