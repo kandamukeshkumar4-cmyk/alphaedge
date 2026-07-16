@@ -1,0 +1,214 @@
+{
+  "ts": "2026-07-16T15:14:52.394623+00:00",
+  "paper_trading_only": true,
+  "kalshi_api_base_url": "https://api.elections.kalshi.com/trade-api/v2",
+  "live_kalshi_series": "KXWCGAME",
+  "code_refs": {
+    "sync_open_events": "backend/app/services/kalshi_live_ingest.py:60-133",
+    "list_open_events": "backend/app/data/connectors/kalshi.py:39-48",
+    "list_open_markets": "backend/app/data/connectors/kalshi.py:68-93",
+    "category_map": "backend/app/services/kalshi_live_ingest.py:287-308",
+    "per_category_limit_default": "backend/app/services/kalshi_live_ingest.py:63",
+    "max_markets_per_event_default": "backend/app/services/kalshi_live_ingest.py:64",
+    "hard_cap_break": "backend/app/services/kalshi_live_ingest.py:90-91",
+    "wc_series_skip": "backend/app/services/kalshi_live_ingest.py:95-96",
+    "category_bucket_continue": "backend/app/services/kalshi_live_ingest.py:99-100",
+    "skipped_no_markets": "backend/app/services/kalshi_live_ingest.py:104-110",
+    "skipped_counter_return": "backend/app/services/kalshi_live_ingest.py:133",
+    "note": "Production `skipped` ONLY increments on missing/empty board join (L104-110). Category caps and WC deferral use bare `continue` and are invisible in the returned skipped count."
+  },
+  "fetch_events": {
+    "ok": true,
+    "count": 200
+  },
+  "fetch_board": {
+    "ok": true,
+    "count": 8000
+  },
+  "filter_audit": {
+    "n_events_fetched": 200,
+    "n_board_markets": 8000,
+    "n_board_event_tickers": 6362,
+    "n_mapped_category_buckets": 7,
+    "hard_cap": 42,
+    "per_category_limit": 6,
+    "max_markets_per_event": 6,
+    "series_prefix_deferred": "KXWCGAME",
+    "reason_counts": {
+      "no_markets_on_board": 200
+    },
+    "production_skipped_equivalent": 200,
+    "would_import_events": 0,
+    "would_import_markets": 0,
+    "category_picked": {},
+    "join": {
+      "event_tickers_in_list": 200,
+      "hit_board": 0,
+      "miss_board": 200,
+      "board_only_events_not_in_top200": 6362,
+      "case_mismatch_only": 0
+    },
+    "raw_categories_top": [
+      [
+        "Sports",
+        47
+      ],
+      [
+        "Politics",
+        44
+      ],
+      [
+        "Elections",
+        34
+      ],
+      [
+        "Entertainment",
+        27
+      ],
+      [
+        "Economics",
+        11
+      ],
+      [
+        "Science and Technology",
+        10
+      ],
+      [
+        "Climate and Weather",
+        9
+      ],
+      [
+        "Financials",
+        6
+      ],
+      [
+        "Companies",
+        5
+      ],
+      [
+        "World",
+        3
+      ],
+      [
+        "Health",
+        2
+      ],
+      [
+        "Social",
+        1
+      ],
+      [
+        "Transportation",
+        1
+      ]
+    ],
+    "mapped_categories": {
+      "Politics": 81,
+      "Weather": 9,
+      "Tech": 12,
+      "Sports": 47,
+      "Economics": 22,
+      "Culture": 29
+    },
+    "unmapped_raw_categories": [
+      [
+        "Social",
+        1
+      ],
+      [
+        "Transportation",
+        1
+      ]
+    ],
+    "volume_probe_on_picked": {
+      "zero_or_missing": 0,
+      "between_1_and_999": 0,
+      "gte_1000": 0,
+      "min": null,
+      "max": null,
+      "median": null
+    },
+    "sample_missing_board": [
+      "KXELONMARS-99",
+      "KXNEXTNATOSECGEN-99",
+      "KXNEWPOPE-70",
+      "KXWARMING-50",
+      "KXMARSVRAIL-50",
+      "KXERUPTSUPER-0",
+      "KXCOLONIZEMARS-50",
+      "KXPERSONPRESMAM-45",
+      "KXNEXTDNCCHAIR-45",
+      "KXXISUCCESSOR-45JAN01",
+      "KXPERSONPRESFUENTES-45",
+      "KXNEXTROMANIAPM-45JAN01"
+    ],
+    "sample_would_import": [],
+    "counterfactual_no_caps": {
+      "wc_deferred": 0,
+      "no_markets_on_board": 200,
+      "events_importable": 0,
+      "markets_importable": 0
+    }
+  },
+  "production_sync_open_events": {
+    "imported": 0,
+    "updated": 0,
+    "skipped": 200
+  },
+  "catalog_kalshi_markets_after": 0,
+  "per_event_fetch_probe_on_join_misses": {
+    "KXELONMARS-99": {
+      "count": 1,
+      "sample_tickers": [
+        "KXELONMARS-99"
+      ],
+      "sample_statuses": [
+        "active"
+      ]
+    },
+    "KXNEXTNATOSECGEN-99": {
+      "count": 8,
+      "sample_tickers": [
+        "KXNEXTNATOSECGEN-99-ULEY",
+        "KXNEXTNATOSECGEN-99-PPAV",
+        "KXNEXTNATOSECGEN-99-MFRE"
+      ],
+      "sample_statuses": [
+        "active",
+        "active",
+        "active"
+      ]
+    },
+    "KXNEWPOPE-70": {
+      "count": 7,
+      "sample_tickers": [
+        "KXNEWPOPE-70-PPAR",
+        "KXNEWPOPE-70-PERD",
+        "KXNEWPOPE-70-MZUP"
+      ],
+      "sample_statuses": [
+        "active",
+        "active",
+        "active"
+      ]
+    },
+    "KXWARMING-50": {
+      "count": 1,
+      "sample_tickers": [
+        "KXWARMING-50"
+      ],
+      "sample_statuses": [
+        "active"
+      ]
+    },
+    "KXMARSVRAIL-50": {
+      "count": 1,
+      "sample_tickers": [
+        "KXMARSVRAIL-50"
+      ],
+      "sample_statuses": [
+        "active"
+      ]
+    }
+  }
+}
