@@ -7,8 +7,9 @@
 
 This document describes the **public and admin HTTP/WebSocket surface as
 implemented in code**, derived from `backend/app/**` and
-`backend/tests/fixtures/openapi_snapshot.json` (131 path keys). It is not a
-marketing surface: if an endpoint is not listed here, do not assume it exists.
+`backend/tests/fixtures/openapi_snapshot.json` (**154** path keys; flat
+path→methods map). It is not a marketing surface: if an endpoint is not listed
+here, do not assume it exists.
 
 Interactive OpenAPI UI (when the API is running): `GET /docs` (Swagger) and
 `GET /redoc`. Machine-readable schema: `GET /openapi.json`.
@@ -49,9 +50,9 @@ Source: module docstring in `backend/app/api/v1/orders.py`.
 | `GET` | `/api/v1/health/detailed` | Public | Detailed health. |
 | `GET` | `/metrics` | **Admin or `METRICS_TOKEN`** | Prometheus text exposition. Requires `X-Admin-API-Key` **or** `Authorization: Bearer <METRICS_TOKEN>`. |
 | `GET` | `/api/v1/system/metrics` | Public | In-process HTTP/cache counters (not Prometheus format). |
-| `GET` | `/api/v1/system/loops` | Public | Background loop plan + heartbeats (`price_feed`, `live_ingest`, `eval`, venue WS, schedulers, …). |
-| `GET` | `/api/v1/system/sources` | **Admin** | Per-connector health registry (`sources_router` dependencies). |
-| `GET` | `/api/v1/system/resolved-count` | Public | Resolved outcome count vs A/B threshold; never flips the default model. |
+| `GET` | `/api/v1/system/loops` | Public | Background loop plan + heartbeats for every name in `_ALL_LOOPS` (`backend/app/api/v1/system.py`). |
+| `GET` | `/api/v1/system/sources` | **Admin** (`X-Admin-API-Key`) | Per-connector health registry. Router-level `Depends(verify_admin_api_key)` on `sources_router` in `backend/app/api/v1/sports.py`. |
+| `GET` | `/api/v1/system/resolved-count` | Public | Resolved outcome count vs A/B threshold; **never flips** the default model. Additive honesty fields: `source` (`forecast_scores` \| `paper_orders_fallback`), `forecast_scored_count`. See `get_resolved_count` + `resolved_outcomes_breakdown` (`system.py`, `ml/ab_harness.py`). |
 | `GET` | `/api/v1/system/model-ab` | Public | Walk-forward LightGBM vs XGBoost readout; `applied` is always false. |
 
 ---
@@ -167,6 +168,41 @@ All require `get_current_user`. Transient DB failures return **503** (not empty 
 
 ---
 
+## In-app notifications (JWT)
+
+In-app only — **no** email/SMS/push/webhook delivery. Source:
+`backend/app/api/v1/notifications.py`. All routes require `get_current_user`.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/v1/notifications` | JWT | Cursor page + `unread_count`. Query: `limit` 1–100, `cursor` (opaque offset string), `unread_only`. Response includes disclaimer string. |
+| `POST` | `/api/v1/notifications/read-all` | JWT | Mark all read (idempotent). Returns `marked` = rows newly marked. |
+| `POST` | `/api/v1/notifications/{notification_id}/read` | JWT | Mark one read (idempotent). `404` if not found / not owned. |
+
+Frontend bell: `frontend/src/components/NotificationBell.tsx` →
+`frontend/src/lib/notifications-api.ts`.
+
+---
+
+## Social / trader profiles
+
+Source: `backend/app/api/v1/social.py`. Public stats are **anonymized** (no
+email / user id). Follow edges require JWT. All responses set
+`paper_trading_only: true` where modeled.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/v1/social/traders/{trader}` | Public | Public profile by anonymized label/display name. `404` if unknown. Fields: `username`, `member_since`, trade/win/ROI counts, follower counts. |
+| `POST` | `/api/v1/social/follow/{trader}` | JWT | Follow (idempotent). `400` self-follow; `404` missing target. |
+| `DELETE` | `/api/v1/social/follow/{trader}` | JWT | Unfollow (idempotent). |
+| `GET` | `/api/v1/social/following` | JWT | List traders the caller follows. |
+| `GET` | `/api/v1/social/feed` | JWT | Recent paper trades from followed traders (cursor page, `limit` 1–100). `400` invalid cursor. |
+
+UI: `/traders/[name]` (`frontend/src/app/traders/[name]/page.tsx`); following
+activity via `/feed?view=following`.
+
+---
+
 ## Signals & analyst
 
 | Method | Path | Auth | Notes |
@@ -200,18 +236,36 @@ All require `get_current_user`. Transient DB failures return **503** (not empty 
 
 ## Evaluation, calibration, drift
 
+Public eval routes: `backend/app/api/v1/eval_routes.py` (no admin dependency).
+Admin observability: `backend/app/api/v1/observability.py` (admin key).
+
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
 | `GET` | `/api/v1/eval/evaluations` | Public | Recent evaluations (Brier, predicted_prob, actual_outcome). |
 | `GET` | `/api/v1/eval/aggregates` | Public | Mean Brier, calibration error, market count. |
 | `GET` | `/api/v1/eval/calibration` | Public | Calibration bins. |
+| `GET` | `/api/v1/eval/drift` | Public | Rolling ForecastScore drift series from D2 worker snapshots (`list_drift_snapshots`). Newest first; **read-only**, does not recompute. Returns `series`, `count`, `latest_degraded`, `paper_trading_only`. |
 | `GET` | `/api/v1/calibration/latest` | Public | Latest calibration payload. |
-| `GET` | `/api/v1/admin/observability/drift` | **Admin** | Calibration drift vs baseline; may fire alert only if `DRIFT_ALARM_ENABLED=true`. |
+| `GET` | `/api/v1/admin/observability/drift` | **Admin** | Separate admin calibration-drift vs baseline; may fire alert only if `DRIFT_ALARM_ENABLED=true`. |
 | `GET` | `/api/v1/admin/observability/traces` | **Admin** | Agent run traces. |
 | `GET` | `/api/v1/admin/observability/slo` | **Admin** | Latency SLO tiles. |
 | `GET` | `/api/v1/admin/observability/summary` | **Admin** | Combined observability. |
 
-There is **no** public `GET /api/v1/eval/drift`. Drift lives under **admin observability**.
+**Two drift surfaces:** public `GET /api/v1/eval/drift` (ForecastScore series for
+the `/eval` UI) vs admin `GET /api/v1/admin/observability/drift` (ops board +
+optional alarm). Do not conflate them.
+
+### Model registry (admin)
+
+Source: `backend/app/api/v1/models.py`. All routes require
+`verify_admin_api_key`. Mutates **active-model pointer only** — never the order
+path.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/api/v1/models` | **Admin** | List versions + `active_model_id` (training hash, Brier/calibration metrics). |
+| `POST` | `/api/v1/models/{version_id}/activate` | **Admin** | Human-only activate; stashes prior for one-step rollback. `404` if unknown. |
+| `POST` | `/api/v1/models/rollback` | **Admin** | Restore previous active version. `409` if nothing to roll back. |
 
 ---
 
@@ -267,27 +321,60 @@ All require `X-Admin-API-Key` unless noted.
 
 ### `/api/v1/admin/*`
 
+All require `X-Admin-API-Key` via `verify_admin_api_key` unless noted.
+
+#### Markets & jobs (`backend/app/api/v1/admin_markets.py`)
+
 | Method | Path | Notes |
 |--------|------|-------|
-| `GET` | `/api/v1/admin/markets` | Admin market list. |
-| `GET` | `/api/v1/admin/jobs` | Job runs. |
-| `POST` | `/api/v1/admin/markets/{slug}/resolve` | Resolve + settle paper orders. |
+| `GET` | `/api/v1/admin/markets` | Admin market list (`limit` ≤ 500, optional `tournament_tag`). |
+| `POST` | `/api/v1/admin/markets` | Create OPEN paper market (`201`); emits domain audit event. `409` slug exists. |
+| `PATCH` | `/api/v1/admin/markets/{slug}` | Edit mutable metadata; rejects resolved/cancelled (`409`). |
+| `POST` | `/api/v1/admin/markets/{slug}/pause` | OPEN → LOCKED. |
+| `POST` | `/api/v1/admin/markets/{slug}/unpause` | LOCKED → OPEN. |
+| `POST` | `/api/v1/admin/markets/{slug}/cancel` | OPEN/LOCKED → CANCELLED; **does not** settle positions. |
+| `POST` | `/api/v1/admin/markets/{slug}/resolve` | Catalog resolve + CLOB settle + JWT paper-order settle. |
+| `GET` | `/api/v1/admin/jobs` | Recent worker `JobRun` rows (`limit` ≤ 50). |
+
+#### Users (`backend/app/api/v1/admin_users.py`)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/api/v1/admin/users` | Paginated list; optional `q` email/display_name search. |
+| `GET` | `/api/v1/admin/users/{user_id}` | Detail: balance, trade_count, volume, flags. |
+| `POST` | `/api/v1/admin/users/{user_id}/suspend` | Blocks paper trading; `409` if already suspended. |
+| `POST` | `/api/v1/admin/users/{user_id}/unsuspend` | Clears suspension; `409` if not suspended. |
+
+#### Stats (`backend/app/api/v1/admin_stats.py`)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/api/v1/admin/stats` | Cheap aggregate (users, markets by status, trades 24h/7d, forecast locks/grades, table counts). **30s in-process cache**. |
+
+#### WC2026 / observability / mirror
+
+| Method | Path | Notes |
+|--------|------|-------|
 | `POST` | `/api/v1/admin/wc2026/seed` | Seed WC2026. |
 | `POST` | `/api/v1/admin/wc2026/resolve` | Resolve WC2026. |
 | `GET` | `/api/v1/admin/wc2026/status` | WC2026 status. |
 | Observability suite | see Evaluation section | traces / drift / slo / summary. |
-| Forecast-mirror admin | `/api/v1/admin/dogfood/mirror-report`, external resolve | Mirror ops. |
+| `GET` | `/api/v1/admin/dogfood/mirror-report` | Mirror dogfood aggregates (`forecast_routes.py`). |
+| `POST` | `/api/v1/admin/external-markets/{external_market_id}/resolve` | Admin resolve external market + scoring path (`forecast_routes.py`). |
 
 ---
 
 ## Other public / product surfaces (verified in OpenAPI)
 
-| Area | Paths |
-|------|-------|
-| Backtest | `POST/GET /api/v1/backtest/run`, `GET .../runs`, `.../runs/{run_id}`, `.../summary` |
-| Clones | CRUD under `/api/v1/clones`, leaderboard, nodes, scorecard, run |
+Still present in the snapshot; not fully expanded here after W1 priority
+surfaces (social / notifications / admin suite / eval drift / models / system).
+
+| Area | Paths (auth in code) |
+|------|----------------------|
+| Backtest | `POST/GET /api/v1/backtest/run`, `GET /api/v1/backtest/runs`, `…/runs/{run_id}`, `…/summary` (`backend/app/api/v1/backtest.py`) |
+| Clones | CRUD under `/api/v1/clones`, `leaderboard`, `nodes`, `{id}/run|runs|scorecard|versions` (`clones.py`) |
 | Assistant | `POST /api/v1/assistant/chat` |
-| Forecast mirror | forecasters anonymous/recover, forecasts create, dashboard, lifecycle, telemetry, backfill |
+| Forecast mirror | `POST /api/v1/forecasters/anonymous`, recover/dashboard/lifecycle, `POST /api/v1/forecasts`, `POST /api/v1/markets/external/resolve-url`, `GET /api/v1/backfill/markets`, `POST /api/v1/telemetry/mirror/events` (`forecast_routes.py`; forecaster token header where required) |
 | Calibration | `GET /api/v1/calibration/latest` |
 
 ---
