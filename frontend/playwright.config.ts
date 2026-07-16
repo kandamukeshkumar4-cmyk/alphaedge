@@ -29,12 +29,32 @@ export default defineConfig({
   reporter: "list",
   timeout: 90_000,
   expect: { timeout: 20_000 },
+  // S3: platform-tag baselines so ubuntu CI and Windows-local never collide.
+  // Visreg shots live under e2e/visreg.spec.ts-snapshots/…-{platform}.png
+  snapshotPathTemplate:
+    "{testDir}/{testFilePath}-snapshots/{arg}-{projectName}-{platform}{ext}",
   use: {
     baseURL: PLAYWRIGHT_BASE_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    // Visreg FIRST so shared e2e SQLite is still pristine (chromium journeys
+    // pause markets / place trades and would otherwise poison shot height).
+    // Local-only: CI uses --project=chromium and never loads these shots.
+    {
+      name: "visreg",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: /visreg\.spec\.ts/,
+    },
+    // Existing suite (CI: --project=chromium). Visreg excluded so missing
+    // ubuntu baseline PNGs cannot break the green CI job.
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /visreg\.spec\.ts/,
+    },
+  ],
   ...(SKIP_WEBSERVER
     ? {}
     : {
