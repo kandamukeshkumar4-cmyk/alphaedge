@@ -19,6 +19,7 @@ shapes for the allowlist.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import re
@@ -34,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_optional_user
 from app.core.config import get_settings
-from app.db.models import AnalystBrief, OddsSnapshot, User
+from app.db.models import AnalystBrief, OddsSnapshot, PredictionLog, User
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ ANALYSIS_ONLY_BANNER = "Analysis only — this assistant cannot place trades."
 PAPER_ONLY_DISCLAIMER = "Paper trading only — simulated funds, no execution."
 _MENU_MARKER = "I can help with:"
 _ANALYZE_KEYWORDS = ("analyze", "deep-dive", "deep dive")
+_ASSISTANT_PREDICTION_CACHE_TTL_SEC = 60.0
 
 # ── Anonymous per-IP rate limiter ────────────────────────────────────────────
 # The chat endpoint keeps an anonymous public path (the demo works with no
@@ -182,23 +184,6 @@ def _gather_market_context(slug: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    # Prediction / edge
-    try:
-        from app.forecasting.predictor import predict_market
-        from app.services.market_service import CATALOG_SLUGS
-
-        if slug in CATALOG_SLUGS:
-            from app.api.v1.market_prediction import _implied_prob_from_catalog
-
-            implied = _implied_prob_from_catalog(slug)
-            prediction = predict_market({"implied_yes": implied, "market_slug": slug})
-            ctx["model_prob"] = round(prediction.predicted_prob, 4)
-            ctx["edge"] = round(prediction.edge, 4)
-            ctx["is_edge"] = prediction.is_edge
-            ctx["forecast_reason"] = prediction.reason
-    except Exception:
-        pass
-
     return ctx
 
 
@@ -283,6 +268,72 @@ def _lean_label(model_p: float | None, market_p: float | None) -> str:
     return "favors YES" if diff > 0 else "favors NO"
 
 
+async def _prediction_context_for_analyze(
+    slug: str, db: AsyncSession
+) -> dict[str, Any]:
+    """Return a stored forecast or run the existing prediction pipeline once.
+
+    The public market-prediction endpoint runs this same pipeline for catalog
+    markets.  Assistant Analyze first prefers an already-persisted forecast,
+    then uses a short in-process cache around that pipeline so repeated chat
+    prompts cannot repeatedly trigger feature/model work.
+    """
+    try:
+        stored = await db.scalar(
+            select(PredictionLog)
+            .where(PredictionLog.market_slug == slug)
+            .order_by(PredictionLog.predicted_at.desc())
+            .limit(1)
+        )
+    except Exception as exc:
+        logger.debug("assistant stored prediction lookup failed for %s: %s", slug, exc)
+        stored = None
+
+    if stored is not None:
+        return {
+            "model_prob": round(float(stored.predicted_prob), 4),
+            "confidence": round(float(stored.confidence), 4),
+            "forecast_reason": "latest stored prediction",
+            "prediction_source": "stored",
+        }
+
+    from app.core import leaderboard_cache
+
+    cache_key = ("assistant-on-demand-prediction", slug)
+    cached = leaderboard_cache.get(cache_key, _ASSISTANT_PREDICTION_CACHE_TTL_SEC)
+    if isinstance(cached, dict):
+        return dict(cached)
+
+    try:
+        from app.api.v1.market_prediction import _implied_prob_from_catalog
+        from app.forecasting.predictor import predict_market
+        from app.services.market_service import CATALOG_SLUGS
+
+        if slug not in CATALOG_SLUGS:
+            return {
+                "unscorable_reason": "this market is outside the prediction catalog",
+            }
+        prediction = await asyncio.to_thread(
+            predict_market,
+            {"market_slug": slug, "implied_yes": _implied_prob_from_catalog(slug)},
+        )
+        result = {
+            "model_prob": round(float(prediction.predicted_prob), 4),
+            "confidence": round(float(prediction.confidence), 4),
+            "is_edge": prediction.is_edge,
+            "forecast_reason": prediction.reason,
+            "prediction_source": "on-demand",
+        }
+        # Match leaderboard_cache semantics: cache only a successful pipeline result.
+        leaderboard_cache.put(cache_key, result)
+        return result
+    except Exception as exc:
+        logger.debug("assistant on-demand prediction failed for %s: %s", slug, exc)
+        return {
+            "unscorable_reason": "the prediction pipeline could not score its available features",
+        }
+
+
 async def _enrich_analyze_context(
     slug: str, ctx: dict[str, Any], db: AsyncSession
 ) -> dict[str, Any]:
@@ -292,6 +343,11 @@ async def _enrich_analyze_context(
     absent (never fabricated). Does NOT import OrderBookService / RiskService.
     """
     out = dict(ctx)
+
+    # M1: use persisted predictions when present; otherwise invoke the exact
+    # prediction path used by /markets/{slug}/prediction behind a <=60s cache.
+    # An unscorable result has an explicit reason instead of a fabricated value.
+    out.update(await _prediction_context_for_analyze(slug, db))
 
     # Market row: title, volume, latest YES price (via MarketService subquery).
     try:
@@ -496,7 +552,11 @@ def _build_analyze_reply(
         parts.append(f"Model probability: {float(model_prob):.1%} (market price absent).")
         citations.append(CitationChip(source="features", label="Model features"))
     else:
-        parts.append("Model probability: not available — omitted.")
+        reason = ctx.get("unscorable_reason")
+        if reason:
+            parts.append(f"Model probability: not available — {reason}.")
+        else:
+            parts.append("Model probability: not available — omitted.")
 
     reason = ctx.get("forecast_reason")
     if reason:
