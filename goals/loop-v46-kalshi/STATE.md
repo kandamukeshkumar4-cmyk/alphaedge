@@ -5,8 +5,8 @@
 | ts (UTC) | ticket | status | notes |
 |---|---|---|---|
 | 2026-07-16T15:15Z | K1 | DONE | Real-ingest audit: skipped=200 is 100% board-join miss; commit `bea27a5` |
-| 2026-07-16T15:20Z | K2 | DONE | Config-gated event-market fallback + raised caps; see K2 JUSTIFICATIONS |
-| 2026-07-16T15:30Z | K3 | DONE | Tests + before/after + ruff green; full suite 1702 pass / 1 pre-existing foreign fail (not V46) |
+| 2026-07-16T15:20Z | K2 | DONE | Config-gated event-market fallback + raised caps; commit `2fa7c7d` |
+| 2026-07-16T15:30Z | K3 | DONE | Tests + before/after + ruff; suite 1702p/1 foreign fail; verifier PASS; `2fa7c7d` |
 
 ## SHARED FILE CLAIMS
 (none)
