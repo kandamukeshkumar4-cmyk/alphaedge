@@ -37,3 +37,4 @@ It records no Briers, delta, or winner in that state.
 | date | status | evidence |
 | --- | --- | --- |
 | 2026-07-16 | PARTIAL / Q2 BLOCKED | Focused V51 tests passed (8); Ruff passed; `uv --extra ml-extra` imported LightGBM 4.6.0; Bumblebee project scan completed with 0 findings / 881 package records. Final `py -3.13 orchestration/gate.py` passed: backend 1704 passed / 28 skipped; frontend typecheck, 398 tests, and build passed. |
+| 2026-07-16 | PROD BASELINE / EXTERNAL DRIFT | `verify_prod.py --api <Railway>` was 5/6: health, markets, candles, signals, and memories passed; its frontend-live check found ten stale homepage slugs outside V51 scope. Direct Railway A/B probes remained healthy but are pre-deploy baseline only: forecast_scores=7, `ab_ready=false`, `lightgbm_available=false`, paper-only=true. No push/deploy was authorized. |
