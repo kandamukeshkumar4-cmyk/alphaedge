@@ -127,9 +127,12 @@ class ExternalMarketService:
                 "winning_outcome": winning_outcome,
             },
         )
-        # Loop V49 E1: never-raises observation hook (WS forecasts channel).
+        # Loop V49 E1/E2: never-raises observation hooks (WS + watcher notify).
         try:
             from app.services.forecast_events import publish_market_resolved
+            from app.services.notification_producers import (
+                notify_watchers_market_resolved,
+            )
 
             await publish_market_resolved(
                 external_market_id=market.id,
@@ -142,6 +145,10 @@ class ExternalMarketService:
                 title=market.title,
                 winning_outcome=int(winning_outcome),
                 resolved_at=market.resolved_at,
+            )
+            await notify_watchers_market_resolved(
+                external_market=market,
+                session=self.session,
             )
         except Exception:  # noqa: BLE001 — observation must not break resolve
             pass
