@@ -40,6 +40,10 @@ vitest:     Test Files 67 passed (67) | Tests 385 passed (385)
 build:      exit 0
 visreg×2:   24 passed (2.1m) ; 24 passed (2.0m)
 playwright: 53 passed, 1 skipped (4.9m)  PW_EXIT=0
+gate.py --frontend-only:
+  PASS frontend typecheck / test / build
+  === GATE VERDICT ===
+  PASS: all checks green
 ```
 
 ## Adversarial self-review (fresh)
