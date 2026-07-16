@@ -18,3 +18,8 @@ so watchers of a market SEE the model act.
 + goals/loop-v49-forecast-events/**; claims for shared files. SACRED: zero
 behavior change to lock/resolve/score semantics; PAPER_TRADING_ONLY; never
 push/merge.
+- E4 (added per V40 review): bridge heartbeat detail parity — the bridge's
+  JobRun/heartbeat detail is silent (autolock got funnel counts in V33 B2'b;
+  the bridge did not). Add symmetric per-pass counts (candidates/bridged/
+  skipped/errors) to the bridge heartbeat detail so "bridge bridging" is
+  visible without an admin key. Tests.
