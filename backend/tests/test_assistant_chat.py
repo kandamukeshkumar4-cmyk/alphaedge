@@ -256,6 +256,184 @@ def test_keyless_analyze_omits_absent_fields_honestly() -> None:
     assert "get_features" in tools
 
 
+@pytest.mark.asyncio
+async def test_analyze_prediction_prefers_stored_prediction(monkeypatch) -> None:
+    """M1: a persisted forecast wins; the pipeline is not invoked."""
+    from types import SimpleNamespace
+
+    import app.api.v1.assistant as assistant_mod
+
+    class StoredPredictionDb:
+        async def scalar(self, statement):
+            return SimpleNamespace(predicted_prob=0.6123, confidence=0.8)
+
+    async def unexpected_pipeline(*args, **kwargs):
+        raise AssertionError("stored prediction must avoid pipeline work")
+
+    monkeypatch.setattr(assistant_mod.asyncio, "to_thread", unexpected_pipeline)
+    result = await assistant_mod._prediction_context_for_analyze(
+        "nba-2025-01-15-lal-bos", StoredPredictionDb()
+    )
+    assert result == {
+        "model_prob": 0.6123,
+        "confidence": 0.8,
+        "forecast_reason": "latest stored prediction",
+        "prediction_source": "stored",
+    }
+
+
+@pytest.mark.asyncio
+async def test_analyze_prediction_pipeline_is_cached_for_sixty_seconds(monkeypatch) -> None:
+    """M1: repeated no-log Analyze requests reuse the in-process cache."""
+    from types import SimpleNamespace
+
+    import app.api.v1.assistant as assistant_mod
+    from app.core import leaderboard_cache
+
+    class NoStoredPredictionDb:
+        async def scalar(self, statement):
+            return None
+
+    calls = 0
+
+    async def fake_pipeline(func, features):
+        nonlocal calls
+        calls += 1
+        return SimpleNamespace(
+            predicted_prob=0.58,
+            confidence=0.64,
+            is_edge=False,
+            reason="closing-line edge gate not met",
+        )
+
+    leaderboard_cache.invalidate()
+    monkeypatch.setattr(assistant_mod.asyncio, "to_thread", fake_pipeline)
+    try:
+        first = await assistant_mod._prediction_context_for_analyze(
+            "nba-2025-01-15-lal-bos", NoStoredPredictionDb()
+        )
+        second = await assistant_mod._prediction_context_for_analyze(
+            "nba-2025-01-15-lal-bos", NoStoredPredictionDb()
+        )
+    finally:
+        leaderboard_cache.invalidate()
+    assert calls == 1
+    assert first == second
+    assert first["prediction_source"] == "on-demand"
+
+
+@pytest.mark.asyncio
+async def test_analyze_prediction_unscorable_clause_is_honest() -> None:
+    """M1: a market outside the existing pipeline is named, not assigned a number."""
+    import app.api.v1.assistant as assistant_mod
+
+    class NoStoredPredictionDb:
+        async def scalar(self, statement):
+            return None
+
+    context = await assistant_mod._prediction_context_for_analyze(
+        "not-in-the-prediction-catalog", NoStoredPredictionDb()
+    )
+    reply, _citations, _tools = assistant_mod._build_analyze_reply(
+        {"slug": "not-in-the-prediction-catalog", **context},
+        "not-in-the-prediction-catalog",
+    )
+    assert "outside the prediction catalog" in reply
+    assert "50.0%" not in reply
+
+
+def test_bear_case_depth_uses_real_context_only() -> None:
+    """M2: source-backed adverse move, liquidity, and close facts are narrated."""
+    from app.api.v1.assistant import _build_deterministic_reply
+
+    reply, citations, tools = _build_deterministic_reply(
+        "What is the bear case?",
+        {
+            "title": "Lakers vs Celtics",
+            "volume": 2_000_000,
+            "move_24h": -0.035,
+            "volume_percentile": 12.5,
+            "hours_to_close": 18.0,
+            "negative_drivers": [
+                {"label": "Price Jump", "note": "Price Jump signal, -3.5¢"}
+            ],
+        },
+        "nba-2025-01-15-lal-bos",
+    )
+    assert "Top negative drivers" in reply
+    assert "-3.5%" in reply
+    assert "percentile 12" in reply
+    assert "18.0 hours" in reply
+    assert "get_features" in tools
+    assert any(citation.source == "odds" for citation in citations)
+
+
+def test_bear_case_depth_omits_missing_data() -> None:
+    """M2: missing stores remain explicit omissions rather than generic claims."""
+    from app.api.v1.assistant import _build_deterministic_reply
+
+    reply, _citations, _tools = _build_deterministic_reply(
+        "What is the bear case?", {}, "nba-2025-01-15-lal-bos"
+    )
+    assert "omitted" in reply.lower()
+    assert "whale selling pressure" not in reply.lower()
+
+
+def test_authenticated_market_exposure_is_descriptive_math() -> None:
+    """M3: position, concentration, and adverse-resolution amount are exact math."""
+    from app.api.v1.assistant import _build_deterministic_reply
+
+    reply, citations, tools = _build_deterministic_reply(
+        "What is my exposure in this market?",
+        {
+            "exposure_authenticated": True,
+            "market_positions": [
+                {"outcome": "YES", "shares": 10, "avg_cost": 0.6, "cost": 6.0}
+            ],
+            "market_concentration_pct": 30.0,
+        },
+        "nba-2025-01-15-lal-bos",
+    )
+    assert "10 shares" in reply
+    assert "−$6.00" in reply
+    assert "30.0%" in reply
+    assert "should" not in reply.lower()
+    assert tools == ["get_exposure"]
+    assert citations[0].source == "exposure"
+
+
+def test_exposure_beats_bear_case_when_resolution_is_against_position() -> None:
+    """M3: the natural adverse-resolution prompt must not be routed to M2."""
+    from app.api.v1.assistant import _build_deterministic_reply
+
+    reply, _citations, tools = _build_deterministic_reply(
+        "What would a resolution against my position do to my balance?",
+        {
+            "exposure_authenticated": True,
+            "market_positions": [
+                {"outcome": "YES", "shares": 10, "avg_cost": 0.6, "cost": 6.0}
+            ],
+            "market_concentration_pct": 30.0,
+        },
+        "nba-2025-01-15-lal-bos",
+    )
+    assert tools == ["get_exposure"]
+    assert "−$6.00" in reply
+    assert "Bear-case data" not in reply
+
+
+def test_anonymous_market_exposure_is_honest_about_missing_user_data() -> None:
+    """M3: unauthenticated users never receive a fabricated portfolio position."""
+    from app.api.v1.assistant import _build_deterministic_reply
+
+    reply, _citations, tools = _build_deterministic_reply(
+        "What is my exposure in this market?", {}, "nba-2025-01-15-lal-bos"
+    )
+    assert "Sign in" in reply
+    assert "position and portfolio concentration" in reply
+    assert tools == ["get_exposure"]
+
+
 def test_analyze_drivers_are_humanized_deduped_with_magnitude(monkeypatch) -> None:
     """Signal drivers: humanized labels, dedupe with counts, payload direction/
     magnitude when present — never raw 'delta:price_jump (neutral)' repeats."""

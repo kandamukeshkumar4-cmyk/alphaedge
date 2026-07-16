@@ -19,6 +19,7 @@ shapes for the allowlist.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import re
@@ -34,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_optional_user
 from app.core.config import get_settings
-from app.db.models import AnalystBrief, OddsSnapshot, User
+from app.db.models import AnalystBrief, Market, OddsSnapshot, PredictionLog, User
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,9 @@ ANALYSIS_ONLY_BANNER = "Analysis only — this assistant cannot place trades."
 PAPER_ONLY_DISCLAIMER = "Paper trading only — simulated funds, no execution."
 _MENU_MARKER = "I can help with:"
 _ANALYZE_KEYWORDS = ("analyze", "deep-dive", "deep dive")
+_BEAR_KEYWORDS = ("bear", "downside", "against")
+_EXPOSURE_KEYWORDS = ("exposure", "position", "portfolio", "risk")
+_ASSISTANT_PREDICTION_CACHE_TTL_SEC = 60.0
 
 # ── Anonymous per-IP rate limiter ────────────────────────────────────────────
 # The chat endpoint keeps an anonymous public path (the demo works with no
@@ -182,23 +186,6 @@ def _gather_market_context(slug: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    # Prediction / edge
-    try:
-        from app.forecasting.predictor import predict_market
-        from app.services.market_service import CATALOG_SLUGS
-
-        if slug in CATALOG_SLUGS:
-            from app.api.v1.market_prediction import _implied_prob_from_catalog
-
-            implied = _implied_prob_from_catalog(slug)
-            prediction = predict_market({"implied_yes": implied, "market_slug": slug})
-            ctx["model_prob"] = round(prediction.predicted_prob, 4)
-            ctx["edge"] = round(prediction.edge, 4)
-            ctx["is_edge"] = prediction.is_edge
-            ctx["forecast_reason"] = prediction.reason
-    except Exception:
-        pass
-
     return ctx
 
 
@@ -206,6 +193,14 @@ def _is_analyze_intent(message: str) -> bool:
     """True for AI Analyze / deep-dive seed prompts from the market cards."""
     msg = message.lower()
     return any(kw in msg for kw in _ANALYZE_KEYWORDS)
+
+
+def _is_bear_intent(message: str) -> bool:
+    return any(kw in message.lower() for kw in _BEAR_KEYWORDS)
+
+
+def _is_exposure_intent(message: str) -> bool:
+    return any(kw in message.lower() for kw in _EXPOSURE_KEYWORDS)
 
 
 def _humanize_signal_type(signal_type: str) -> str:
@@ -283,6 +278,143 @@ def _lean_label(model_p: float | None, market_p: float | None) -> str:
     return "favors YES" if diff > 0 else "favors NO"
 
 
+async def _prediction_context_for_analyze(
+    slug: str, db: AsyncSession
+) -> dict[str, Any]:
+    """Return a stored forecast or run the existing prediction pipeline once.
+
+    The public market-prediction endpoint runs this same pipeline for catalog
+    markets.  Assistant Analyze first prefers an already-persisted forecast,
+    then uses a short in-process cache around that pipeline so repeated chat
+    prompts cannot repeatedly trigger feature/model work.
+    """
+    try:
+        stored = await db.scalar(
+            select(PredictionLog)
+            .where(PredictionLog.market_slug == slug)
+            .order_by(PredictionLog.predicted_at.desc())
+            .limit(1)
+        )
+    except Exception as exc:
+        logger.debug("assistant stored prediction lookup failed for %s: %s", slug, exc)
+        stored = None
+
+    if stored is not None:
+        return {
+            "model_prob": round(float(stored.predicted_prob), 4),
+            "confidence": round(float(stored.confidence), 4),
+            "forecast_reason": "latest stored prediction",
+            "prediction_source": "stored",
+        }
+
+    from app.core import leaderboard_cache
+
+    cache_key = ("assistant-on-demand-prediction", slug)
+    cached = leaderboard_cache.get(cache_key, _ASSISTANT_PREDICTION_CACHE_TTL_SEC)
+    if isinstance(cached, dict):
+        return dict(cached)
+
+    try:
+        from app.api.v1.market_prediction import _implied_prob_from_catalog
+        from app.forecasting.predictor import predict_market
+        from app.services.market_service import CATALOG_SLUGS
+
+        if slug not in CATALOG_SLUGS:
+            return {
+                "unscorable_reason": "this market is outside the prediction catalog",
+            }
+        prediction = await asyncio.to_thread(
+            predict_market,
+            {"market_slug": slug, "implied_yes": _implied_prob_from_catalog(slug)},
+        )
+        result = {
+            "model_prob": round(float(prediction.predicted_prob), 4),
+            "confidence": round(float(prediction.confidence), 4),
+            "is_edge": prediction.is_edge,
+            "forecast_reason": prediction.reason,
+            "prediction_source": "on-demand",
+        }
+        # Match leaderboard_cache semantics: cache only a successful pipeline result.
+        leaderboard_cache.put(cache_key, result)
+        return result
+    except Exception as exc:
+        logger.debug("assistant on-demand prediction failed for %s: %s", slug, exc)
+        return {
+            "unscorable_reason": "the prediction pipeline could not score its available features",
+        }
+
+
+async def _enrich_bear_case_context(
+    slug: str, ctx: dict[str, Any], db: AsyncSession
+) -> dict[str, Any]:
+    """Add bear-case facts solely from existing market and signal stores."""
+    out = dict(ctx)
+    negative_drivers = [
+        driver for driver in out.get("drivers", []) if driver.get("direction") == "favors NO"
+    ]
+    if negative_drivers:
+        out["negative_drivers"] = negative_drivers[:3]
+
+    try:
+        market = await db.scalar(select(Market).where(Market.slug == slug).limit(1))
+        if market is not None:
+            if market.lock_at is not None:
+                lock_at = market.lock_at
+                if lock_at.tzinfo is None:
+                    lock_at = lock_at.replace(tzinfo=UTC)
+                out["hours_to_close"] = round(
+                    (lock_at - datetime.now(UTC)).total_seconds() / 3600, 2
+                )
+            target_volume = float(market.volume or 0)
+            volumes = [
+                float(value) for value in (await db.scalars(select(Market.volume))).all()
+                if value is not None
+            ]
+            if len(volumes) > 1:
+                out["volume_percentile"] = round(
+                    sum(value <= target_volume for value in volumes) / len(volumes) * 100,
+                    1,
+                )
+    except Exception as exc:
+        logger.debug("bear-case market depth lookup failed for %s: %s", slug, exc)
+    return out
+
+
+async def _enrich_exposure_context(
+    slug: str, ctx: dict[str, Any], user: User, db: AsyncSession
+) -> dict[str, Any]:
+    """Attach deterministic, authenticated paper-position math for one market."""
+    out = dict(ctx)
+    try:
+        from app.api.v1.portfolio import _load_paper_orders
+
+        open_positions = [
+            position
+            for position in await _load_paper_orders(db, user.id.hex)
+            if not position.settled and position.shares > 0 and position.cost > 0
+        ]
+        market_positions = [position for position in open_positions if position.market_slug == slug]
+        total_open_notional = sum(position.cost for position in open_positions)
+        market_notional = sum(position.cost for position in market_positions)
+        out["exposure_authenticated"] = True
+        out["market_positions"] = [
+            {
+                "outcome": position.outcome.upper(),
+                "shares": round(position.shares, 4),
+                "avg_cost": round(position.avg_cost, 4),
+                "cost": round(position.cost, 4),
+            }
+            for position in market_positions
+        ]
+        out["market_concentration_pct"] = round(
+            market_notional / total_open_notional * 100 if total_open_notional > 0 else 0.0,
+            2,
+        )
+    except Exception as exc:
+        logger.debug("assistant exposure lookup failed for %s: %s", slug, exc)
+    return out
+
+
 async def _enrich_analyze_context(
     slug: str, ctx: dict[str, Any], db: AsyncSession
 ) -> dict[str, Any]:
@@ -292,6 +424,11 @@ async def _enrich_analyze_context(
     absent (never fabricated). Does NOT import OrderBookService / RiskService.
     """
     out = dict(ctx)
+
+    # M1: use persisted predictions when present; otherwise invoke the exact
+    # prediction path used by /markets/{slug}/prediction behind a <=60s cache.
+    # An unscorable result has an explicit reason instead of a fabricated value.
+    out.update(await _prediction_context_for_analyze(slug, db))
 
     # Market row: title, volume, latest YES price (via MarketService subquery).
     try:
@@ -365,16 +502,17 @@ async def _enrich_analyze_context(
     market_p = out.get("market_price")
     if model_p is not None and market_p is not None:
         gap = round(float(model_p) - float(market_p), 4)
-        drivers.append(
-            {
-                "label": "Model vs market gap",
-                "direction": _lean_label(float(model_p), float(market_p)),
-                "note": (
-                    f"Model {float(model_p):.1%} vs market {float(market_p):.1%} "
-                    f"({gap:+.1%})."
-                ),
-            }
-        )
+        if gap != 0:
+            drivers.append(
+                {
+                    "label": "Model vs market gap",
+                    "direction": _lean_label(float(model_p), float(market_p)),
+                    "note": (
+                        f"Model {float(model_p):.1%} vs market {float(market_p):.1%} "
+                        f"({gap:+.1%})."
+                    ),
+                }
+            )
     if out.get("news_headline"):
         sentiment = out.get("news_sentiment")
         direction = "neutral"
@@ -496,7 +634,11 @@ def _build_analyze_reply(
         parts.append(f"Model probability: {float(model_prob):.1%} (market price absent).")
         citations.append(CitationChip(source="features", label="Model features"))
     else:
-        parts.append("Model probability: not available — omitted.")
+        reason = ctx.get("unscorable_reason")
+        if reason:
+            parts.append(f"Model probability: not available — {reason}.")
+        else:
+            parts.append("Model probability: not available — omitted.")
 
     reason = ctx.get("forecast_reason")
     if reason:
@@ -541,6 +683,102 @@ def _build_analyze_reply(
     return "\n".join(parts), citations, ordered_tools
 
 
+def _build_bear_case_reply(
+    ctx: dict[str, Any], market_slug: str | None
+) -> tuple[str, list[CitationChip], list[str]]:
+    """Format bear-case facts only when the source data supplied them."""
+    title = ctx.get("title") or market_slug or "this market"
+    parts = [f"Bear-case data for {title}."]
+    citations = [CitationChip(source="features", label="Model and signal data")]
+    tools_used = ["get_features"]
+
+    drivers = ctx.get("negative_drivers") or []
+    if drivers:
+        parts.append(
+            "Top negative drivers:\n"
+            + "\n".join(
+                f"- {driver.get('label', 'driver')}: {driver.get('note', '')}".rstrip()
+                for driver in drivers[:3]
+            )
+        )
+    else:
+        parts.append("Top negative drivers: none in the available signal data — omitted.")
+
+    move = _finite(ctx.get("move_24h"))
+    if move is not None and move < 0:
+        parts.append(f"Recent adverse YES move: {move:+.1%} over the stored 24h comparison.")
+        tools_used.append("get_odds")
+        citations.append(CitationChip(source="odds", label="24h odds snapshots"))
+    elif move is not None:
+        parts.append("Recent adverse YES move: none in the stored 24h comparison.")
+    else:
+        parts.append("Recent adverse YES move: no snapshot pair available — omitted.")
+
+    percentile = _finite(ctx.get("volume_percentile"))
+    volume = _finite(ctx.get("volume"))
+    if percentile is not None and volume is not None:
+        parts.append(
+            f"Liquidity proxy: ${volume:,.0f} catalog volume, percentile {percentile:.0f}. "
+            "Lower percentiles indicate less catalog volume."
+        )
+        citations.append(CitationChip(source="odds", label="Market catalog volume"))
+    else:
+        parts.append("Liquidity proxy: catalog percentile unavailable — omitted.")
+
+    hours_to_close = _finite(ctx.get("hours_to_close"))
+    if hours_to_close is None:
+        parts.append("Time to close: no lock time is stored — omitted.")
+    elif hours_to_close >= 0:
+        parts.append(f"Time to close: {hours_to_close:.1f} hours until the stored lock time.")
+    else:
+        parts.append(f"Time to close: stored lock time passed {abs(hours_to_close):.1f} hours ago.")
+
+    parts.append(f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}")
+    return "\n".join(parts), citations, list(dict.fromkeys(tools_used))
+
+
+def _build_market_exposure_reply(
+    ctx: dict[str, Any], market_slug: str | None
+) -> tuple[str, list[CitationChip], list[str]]:
+    """Describe authenticated, cost-basis exposure math without advice language."""
+    if not ctx.get("exposure_authenticated"):
+        return (
+            "Sign in to view this market's paper position and portfolio concentration. "
+            f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}",
+            [CitationChip(source="exposure", label="Portfolio exposure")],
+            ["get_exposure"],
+        )
+
+    title = ctx.get("title") or market_slug or "this market"
+    positions = ctx.get("market_positions") or []
+    parts = [f"Paper exposure for {title}."]
+    if positions:
+        for position in positions:
+            outcome = str(position.get("outcome", "")).upper()
+            shares = _finite(position.get("shares")) or 0.0
+            avg_cost = _finite(position.get("avg_cost")) or 0.0
+            cost = _finite(position.get("cost")) or 0.0
+            opposite = "NO" if outcome == "YES" else "YES"
+            parts.append(
+                f"Current {outcome} position: {shares:g} shares at ${avg_cost:.2f} average "
+                f"cost (cost basis ${cost:.2f}); a {opposite} resolution changes paper "
+                f"balance by −${cost:.2f} for this position."
+            )
+    else:
+        parts.append("Current position in this market: none among open paper positions.")
+
+    concentration = _finite(ctx.get("market_concentration_pct"))
+    if concentration is not None:
+        parts.append(
+            f"Portfolio concentration: this market is {concentration:.1f}% of open "
+            "cost-basis notional."
+        )
+    else:
+        parts.append("Portfolio concentration: unavailable — omitted.")
+    parts.append(f"{ANALYSIS_ONLY_BANNER} {PAPER_ONLY_DISCLAIMER}")
+    return "\n".join(parts), [CitationChip(source="exposure", label="Paper positions")], ["get_exposure"]
+
+
 def _build_profile_snippet(profile: dict[str, Any] | None) -> str:
     """Return a short context snippet for the profile (used in deterministic fallback).
 
@@ -583,6 +821,31 @@ def _build_deterministic_reply(
     if _is_analyze_intent(message):
         return _build_analyze_reply(ctx, market_slug)
 
+    # ── exposure / portfolio ─────────────────────────────────────────────────
+    if _is_exposure_intent(message):
+        if market_slug:
+            return _build_market_exposure_reply(ctx, market_slug)
+        tools_used.append("get_exposure")
+        profile_snippet = _build_profile_snippet(trader_profile)
+        base_reply = (
+            "Your portfolio exposure is summarised in the Exposure panel above. "
+            "Concentration risk appears when >40 % of your open notional is in "
+            "one correlated underlier (e.g. the same team across multiple markets). "
+            "This is a paper-trading simulation — no real funds are at risk."
+        )
+        if profile_snippet:
+            tools_used.append("get_trader_profile")
+            reply = base_reply + " " + profile_snippet
+            citations.append(CitationChip(source="trader_profile", label="Your trading profile"))
+        else:
+            reply = base_reply
+        citations.append(CitationChip(source="exposure", label="Portfolio exposure"))
+        return reply, citations, tools_used
+
+    # ── bear case ────────────────────────────────────────────────────────────
+    if _is_bear_intent(message):
+        return _build_bear_case_reply(ctx, market_slug)
+
     # ── odds / price movement ────────────────────────────────────────────────
     if any(kw in msg_lower for kw in ("odds", "price", "move", "why did")):
         tools_used.append("get_odds")
@@ -623,45 +886,6 @@ def _build_deterministic_reply(
                 "(3) news sentiment shifts, or (4) instability signals. "
                 "Select a specific market to see its current signals."
             )
-        return reply, citations, tools_used
-
-    # ── exposure / portfolio ─────────────────────────────────────────────────
-    if any(kw in msg_lower for kw in ("exposure", "position", "portfolio", "risk")):
-        tools_used.append("get_exposure")
-        profile_snippet = _build_profile_snippet(trader_profile)
-        base_reply = (
-            "Your portfolio exposure is summarised in the Exposure panel above. "
-            "Concentration risk appears when >40 % of your open notional is in "
-            "one correlated underlier (e.g. the same team across multiple markets). "
-            "This is a paper-trading simulation — no real funds are at risk."
-        )
-        if profile_snippet:
-            tools_used.append("get_trader_profile")
-            reply = base_reply + " " + profile_snippet
-            citations.append(CitationChip(source="trader_profile", label="Your trading profile"))
-        else:
-            reply = base_reply
-        citations.append(CitationChip(source="exposure", label="Portfolio exposure"))
-        return reply, citations, tools_used
-
-    # ── bear case ────────────────────────────────────────────────────────────
-    if any(kw in msg_lower for kw in ("bear", "downside", "risk", "against")):
-        tools_used.append("get_features")
-        if market_slug and ctx.get("is_edge") is False:
-            reason = ctx.get("forecast_reason", "model gate not met")
-            reply = (
-                f"Bear case: the model currently does not see a positive edge here ({reason}). "
-                "Key risk factors include model uncertainty (check CLV-gate status), "
-                "adverse news sentiment, and whale selling pressure."
-            )
-        else:
-            reply = (
-                "Bear case factors to consider: model under-confidence, negative news "
-                "sentiment, concentrated whale exits, and instability in the underlying "
-                "event category (e.g. political or geopolitical shock). "
-                "All positions are paper-trading only."
-            )
-        citations.append(CitationChip(source="features", label="Model features"))
         return reply, citations, tools_used
 
     # ── briefs / analyst notes ───────────────────────────────────────────────
@@ -829,11 +1053,21 @@ async def assistant_chat(
         except Exception as exc:
             logger.warning("Context assembly failed for %s: %s", market_slug, exc)
             ctx = {}
-        if _is_analyze_intent(body.message):
+        if _is_analyze_intent(body.message) or _is_bear_intent(body.message):
             try:
                 ctx = await _enrich_analyze_context(market_slug, ctx, db)
             except Exception as exc:
-                logger.warning("Analyze enrich failed for %s: %s", market_slug, exc)
+                logger.warning("Assistant market enrich failed for %s: %s", market_slug, exc)
+        if _is_bear_intent(body.message):
+            try:
+                ctx = await _enrich_bear_case_context(market_slug, ctx, db)
+            except Exception as exc:
+                logger.warning("Bear-case enrich failed for %s: %s", market_slug, exc)
+        if _is_exposure_intent(body.message) and current_user is not None:
+            try:
+                ctx = await _enrich_exposure_context(market_slug, ctx, current_user, db)
+            except Exception as exc:
+                logger.warning("Exposure enrich failed for %s: %s", market_slug, exc)
 
     reply, citations, tools_used = await _llm_reply(
         body.message, ctx, body.history, market_slug,
