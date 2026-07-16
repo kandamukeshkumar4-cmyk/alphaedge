@@ -224,13 +224,23 @@ async def test_live_tick_success_clears_404_counter(db_session, monkeypatch):
 async def test_live_tick_demoted_skip_throttles_warn_when_still_open(
     db_session, monkeypatch, caplog
 ):
-    """If demoted in memory while still OPEN, skip fetch + one warn/hour."""
+    """If demoted in memory while still OPEN, skip fetch + one warn/hour.
+
+    Freeze the throttle clock so the first warn is allowed and the second
+    (same mono time) is suppressed — independent of process uptime. The old
+    last_warn_mono=0.0 setup failed when uptime < 1h (first warn throttled).
+    """
     market = await _import_live_market(db_session)
 
     from app.services import live_price_tick as lpt
 
+    frozen = {"t": 1_000_000.0}
+    monkeypatch.setattr(lpt, "_monotonic", lambda: frozen["t"])
+
     state = lpt._Slug404State(
-        consecutive=_LIVE_TICK_404_THRESHOLD, demoted=True, last_warn_mono=0.0
+        consecutive=_LIVE_TICK_404_THRESHOLD,
+        demoted=True,
+        last_warn_mono=0.0,  # far enough behind frozen.t that first warn fires
     )
     lpt._slug_404_states[market.slug] = state
 

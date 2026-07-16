@@ -58,6 +58,7 @@ class SharedKalshiFetcher:
         self._series_markets_cache: dict[
             tuple[str, int], tuple[float, list[dict[str, Any]]]
         ] = {}
+        self._event_markets_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     # ── backoff ──────────────────────────────────────────────────────────────
 
@@ -140,6 +141,24 @@ class SharedKalshiFetcher:
         (the ticker set changes every tick and stale prices defeat the loop)."""
         return self._call_with_backoff(self.connector.list_markets_by_tickers, tickers)
 
+    def list_event_markets(
+        self, event_ticker: str, *, use_cache: bool = True
+    ) -> list[dict[str, Any]]:
+        """Open markets for one event — used as board-join fallback (loop V46).
+
+        The global ``list_open_markets`` cursor stream is dominated by multigame
+        parlays and routinely misses the open-events list entirely; per-event
+        fetch recovers genuine open contracts. Cached briefly to coalesce
+        ingest re-entries; 429-backed like the other list methods.
+        """
+        key = event_ticker.upper()
+        cached = self._event_markets_cache.get(key)
+        if use_cache and cached is not None and not self._is_expired(cached[0]):
+            return cached[1]
+        markets = self._call_with_backoff(self.connector.list_event_markets, key)
+        self._event_markets_cache[key] = (time.monotonic(), markets)
+        return markets
+
     # ── maintenance ──────────────────────────────────────────────────────────
 
     def invalidate(self) -> None:
@@ -148,3 +167,4 @@ class SharedKalshiFetcher:
         self._open_markets_cache.clear()
         self._series_events_cache.clear()
         self._series_markets_cache.clear()
+        self._event_markets_cache.clear()
