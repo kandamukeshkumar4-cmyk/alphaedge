@@ -27,11 +27,10 @@ from app.core.config import get_settings
 from app.data.streams.runner import background_loop_plan
 from app.db.session import get_db
 from app.ml.ab_harness import (
-    LIGHTGBM_AVAILABLE,
-    MIN_RESOLVED_FOR_AB,
-    count_resolved_outcomes,
-    resolved_outcomes_breakdown,
-    run_walk_forward_ab,
+    forecast_score_population_readout,
+    lightgbm_available,
+    latest_controlled_ab_readout,
+    resolved_count_readout,
 )
 from app.observability import http_metrics
 from app.observability.loop_state import LOOP_INTERVALS, snapshot
@@ -127,100 +126,34 @@ async def get_metrics() -> dict[str, Any]:
 
 @router.get("/resolved-count")
 async def get_resolved_count(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """G06 watcher readout: real resolved outcomes vs the A/B gate.
-
-    ``ab_ready`` merely reports whether the walk-forward A/B harness is
-    eligible to run — the deployed default model is NEVER flipped here (or
-    anywhere else in the harness); ``model_default`` is what's deployed.
-
-    V33 B2'c — ``source`` and ``forecast_scored_count`` are additive disclosure:
-    ``resolved_count`` silently falls back to resolved paper orders when no
-    scored forecast rows exist, which is a *different* population from the one
-    the forecast loops accrue. ``resolved_count`` / ``ab_ready`` are unchanged.
-    """
-    settings = get_settings()
-    breakdown = await resolved_outcomes_breakdown(db)
-    resolved_count = int(breakdown["count"])
-    return {
-        "resolved_count": resolved_count,
-        "ab_threshold": MIN_RESOLVED_FOR_AB,
-        "ab_ready": resolved_count >= MIN_RESOLVED_FOR_AB,
-        "model_default": settings.ml_model_type,
-        "paper_trading_only": settings.paper_trading_only,
-        # Which population resolved_count came from. "paper_orders_fallback"
-        # means no pre-close forecast has been scored yet.
-        "source": breakdown["source"],
-        "forecast_scored_count": breakdown["forecast_scored_count"],
-    }
+    """V51 watcher: legacy count disclosed, readiness uses 100 clusters."""
+    return await resolved_count_readout(db)
 
 
 @router.get("/model-ab")
 async def get_model_ab(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """J03 — walk-forward LightGBM-vs-XGBoost A/B readout (analysis only).
-
-    Below the resolve gate this returns ``ready: false`` with the progress
-    numbers. At/above the gate it trains both model types walk-forward on the
-    SAME resolved-snapshot folds and reports both Briers plus the delta and a
-    non-binding ``which_would_win`` — the deployed default model is NEVER
-    changed (``applied`` is always false). If lightgbm is missing from the
-    image, ``lightgbm_available`` is false and the harness reports its honest
-    xgboost-fallback arm. Any compute failure degrades to ``ready: false`` with
-    an honest note rather than a 5xx (public GET; must never 500).
-    """
+    """Return a controlled cached A/B result; a public GET never trains models."""
     settings = get_settings()
-    resolved_count = await count_resolved_outcomes(db)
+    population = await forecast_score_population_readout(db)
     base: dict[str, Any] = {
         "ready": False,
-        "resolved_count": resolved_count,
-        "threshold": MIN_RESOLVED_FOR_AB,
-        "lightgbm_available": LIGHTGBM_AVAILABLE,
+        "dataset_source": "forecast_scores",
+        "resolved_count": population["forecast_scored_count"],
+        "threshold": population["ab_cluster_threshold"],
+        "forecast_scored_count": population["forecast_scored_count"],
+        "correlation_clusters": population["correlation_clusters"],
+        "ab_ready": population["ab_ready"],
+        "lightgbm_available": lightgbm_available(),
         "model_default": settings.ml_model_type,
         "applied": False,
         "paper_trading_only": settings.paper_trading_only,
+        "population": population,
     }
-    if resolved_count < MIN_RESOLVED_FOR_AB:
+    cached = await latest_controlled_ab_readout(db)
+    if cached is None:
+        base["note"] = "controlled_readout_not_refreshed"
         return base
-
-    # Gate met — attempt the walk-forward A/B. Kept defensive so a data/compute
-    # hiccup never turns a public GET into a 500.
-    try:
-        import tempfile
-        from pathlib import Path
-
-        from app.ml.snapshot_dataset import load_resolved_snapshot_feature_matrix
-
-        df = await load_resolved_snapshot_feature_matrix(db)
-        with tempfile.TemporaryDirectory(prefix="model_ab_") as tmp:
-            result = run_walk_forward_ab(
-                df,
-                Path(tmp),
-                resolved_count=resolved_count,
-                # Canonical feature-matrix walk-forward windows (see
-                # backtesting.replay._phase3_feature_matrix_forecast_gate).
-                train_window_size=4,
-                eval_window_size=2,
-            )
-    except Exception as exc:  # noqa: BLE001 - honest degrade, never 5xx
-        base["note"] = f"ab_compute_unavailable: {type(exc).__name__}"
-        return base
-
-    if not result.get("ran"):
-        base["note"] = result.get("reason", "not_ran")
-        return base
-
-    arms = result.get("arms", {})
-    xgb_brier = arms.get("xgboost", {}).get("model_brier")
-    lgbm_brier = arms.get("lightgbm", {}).get("model_brier")
-    which = None
-    if isinstance(xgb_brier, (int, float)) and isinstance(lgbm_brier, (int, float)):
-        which = "lightgbm" if lgbm_brier < xgb_brier else "xgboost"
-    base.update(
-        {
-            "ready": True,
-            "xgb_brier": xgb_brier,
-            "lgbm_brier": lgbm_brier,
-            "delta": result.get("brier_delta_lightgbm_minus_xgboost"),
-            "which_would_win": which,
-        }
-    )
+    base.update(cached)
+    base["ready"] = bool(cached.get("ran"))
+    base["applied"] = False
     return base

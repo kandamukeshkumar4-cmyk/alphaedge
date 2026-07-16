@@ -42,9 +42,7 @@ from app.core.http_etag import etag_json_response
 from app.db.models import User
 from app.db.session import get_db
 from app.ml.ab_harness import (
-    LIGHTGBM_AVAILABLE,
-    MIN_RESOLVED_FOR_AB,
-    count_resolved_outcomes,
+    resolved_count_readout,
 )
 from app.services.market_service import MarketService
 
@@ -79,13 +77,15 @@ async def _model_ab_status(db: AsyncSession) -> dict[str, Any]:
     """I02/J03 readiness numbers only — cheap, and NEVER runs the heavy A/B
     training on a home render. Reports whether the harness is eligible; the
     deployed default model is never flipped here."""
-    resolved_count = await count_resolved_outcomes(db)
+    readout = await resolved_count_readout(db)
     return {
-        "resolved_count": resolved_count,
-        "ab_threshold": MIN_RESOLVED_FOR_AB,
-        "ab_ready": resolved_count >= MIN_RESOLVED_FOR_AB,
-        "model_default": settings.ml_model_type,
-        "lightgbm_available": LIGHTGBM_AVAILABLE,
+        "resolved_count": readout["resolved_count"],
+        "forecast_scored_count": readout["forecast_scored_count"],
+        "correlation_clusters": readout["correlation_clusters"],
+        "ab_threshold": readout["ab_threshold"],
+        "ab_ready": readout["ab_ready"],
+        "model_default": readout["default_model"],
+        "lightgbm_available": readout["lightgbm_available"],
         "applied": False,
     }
 

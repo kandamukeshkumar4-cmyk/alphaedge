@@ -29,7 +29,7 @@ Related: [API reference](./api.md) · [User guide](./user-guide.md) ·
 | Significance | Bootstrap / sample gates | `app/backtesting/significance.py` |
 | Phase-3 gate helpers | Block “edge” unless walk-forward proof | `app/backtesting/replay.py` |
 | Drift | Rolling Brier vs baseline | `app/observability/drift.py` |
-| A/B harness | LightGBM vs XGBoost readout only | `app/ml/ab_harness.py` |
+| A/B harness | Controlled forecast-score LightGBM vs XGBoost readout only | `app/ml/ab_harness.py` |
 | Version registry | Store model/feature version rows | `app/ml/versioning.py` |
 
 Default deployed model type: **`ML_MODEL_TYPE=xgboost`**
@@ -195,8 +195,8 @@ public `/api/v1/eval/drift`.
 |-----------|--------------|-------------------------|
 | Manual / scripted walk-forward train | Writes artifacts + metrics | Flip production default without config change |
 | `BACKTEST_NIGHTLY_ENABLED` | Optional nightly replay job into `backtest_runs` (default **off**) | Change `ML_MODEL_TYPE` |
-| `run_walk_forward_ab` / `GET /api/v1/system/model-ab` | Compares LightGBM vs XGBoost OOS Briers when `resolved_count ≥ 100` | Set `applied: true` or rewrite settings |
-| `GET /api/v1/system/resolved-count` | Reports count vs threshold + `model_default` | Flip the default model |
+| Controlled V40 A/B refresh / `GET /api/v1/system/model-ab` | Compares forecast-score XGBoost and LightGBM only after a controlled refresh; public GET never fits models | Set `applied: true` or rewrite settings |
+| `GET /api/v1/system/resolved-count` | Discloses nominal counts, but gates A/B readiness on `forecast_scores` correlation clusters `>= 100` | Flip the default model |
 | `register_model_version` | Stores lineage row | Auto-swap active serving artifact |
 
 Hard guardrail (from `ab_harness` module docstring):
