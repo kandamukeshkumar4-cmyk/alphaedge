@@ -346,13 +346,22 @@ async def _external_market_bridge_loop() -> None:
     rows so the autolock funnel has input at all (V33 B1 measured 99 ingested
     markets -> 0 autolock candidates). Feeds the input; never touches the
     locking/scoring/resolution gates. In-process mirror of the ARQ cron."""
-    from app.workers.external_market_bridge import external_market_bridge_task
+    from app.workers.external_market_bridge import (
+        bridge_detail,
+        external_market_bridge_task,
+    )
 
     while True:
         await _paced_sleep(900, settings.scheduler_idle_interval_sec)
         try:
-            await external_market_bridge_task({})
-            record_heartbeat("external_market_bridge")
+            summary = await external_market_bridge_task({})
+            # Loop V49 E4: surface per-pass counts on the public heartbeat so
+            # "alive but bridging nothing" is visible without an admin key
+            # (parity with forecast_autolock funnel_detail from V33 B2'b).
+            record_heartbeat(
+                "external_market_bridge",
+                detail=bridge_detail(summary if isinstance(summary, dict) else None),
+            )
         except Exception:
             logger.error("External market bridge loop failed", exc_info=True)
             record_heartbeat(
