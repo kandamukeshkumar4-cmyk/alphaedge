@@ -23,6 +23,7 @@ import { PageHeader, PageShell } from "@/components/ui/kit";
 import { DriftSeriesPanel } from "@/components/DriftSeriesPanel";
 import { ModelAbCard } from "@/components/ModelAbCard";
 import { ModelRegistryPanel } from "@/components/ModelRegistryPanel";
+import { PopulationCompositionPanel } from "@/components/PopulationCompositionPanel";
 const API = API_BASE;
 
 type EvalAggregates = Record<string, number>;
@@ -175,6 +176,7 @@ export default function EvalDashboard() {
 
       {/* ── W03 LightGBM-vs-XGBoost walk-forward A/B readout ── */}
       <ModelAbCard />
+      <PopulationCompositionPanel />
       <DriftSeriesPanel />
       <ModelRegistryPanel />
     </PageShell>
