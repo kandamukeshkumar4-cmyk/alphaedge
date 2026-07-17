@@ -35,3 +35,26 @@
 
 For loops that touch market_detail.py: merge LAST.
 For loops that only add new files: merge in any order.
+
+## Token-budget law (binding, 2026-07-17)
+
+Token budget is the TOP orchestration priority. Every loop, review, or runner
+prompt MUST contain, in this order of importance:
+
+1. **Exit condition** — "stop when <tickets> DONE or BLOCKED in STATE.md" /
+   "report, end, wait for confirmation". No prompt ships without one.
+2. **Caps** — findings capped (e.g. max 5, zero is fine), review rounds
+   capped (one round, max 3 parallel reviewers, one synthesis; never start
+   another round without an explicit new order).
+3. **One statement per instruction** — no "deep/profound/comprehensive"
+   adjectives; they buy tokens, not quality.
+4. **Unresolved channel** — what can't be confirmed gets PARKED with "basis +
+   what to check next", not investigated forever.
+5. **Encode-once** — the second time a review rejects the same class of
+   mistake, STOP re-reviewing it: encode it as a test, ruff/eslint rule, CI
+   check, or a CLAUDE.md/AGENTS.md line. Reviewers must never give the same
+   feedback twice; that's paying for the same review in tokens.
+6. **Commit per ticket** — a dead runner must never re-spend tokens on
+   finished work.
+7. **Model tiering** — cheap/fast models for mechanical stages; strong
+   models only for the hardest design/verify steps.
