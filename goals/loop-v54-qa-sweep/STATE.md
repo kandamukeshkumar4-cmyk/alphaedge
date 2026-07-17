@@ -47,3 +47,33 @@ _(none)_
 **Q1–Q4 DONE.** Ownership respected (e2e + goals only). No app source edits, no push/merge.
 
 AutoLab: not applicable (no iterative measure — QA coverage extension)
+
+## Integration QA 2026-07-17
+
+Command (once, from `frontend/` after cleaning `e2e/.data` + `test-results`):
+`npx playwright test --reporter=line`
+
+| metric | count |
+|--------|------:|
+| total | 60 |
+| passed | 52 |
+| failed | 1 |
+| skipped | 1 |
+| did-not-run | 6 |
+
+### Failures
+1. `[visreg] e2e/visreg.spec.ts › V44 visual regression › mobile375 / dark › admin-observability` — Save Key stayed disabled; click timed out at 180s in `readyObservability`.
+
+### Did not run
+Serial `V44 visual regression` suite aborted after the failure above; remaining 6 never executed:
+1. `mobile375 / light › home`
+2. `mobile375 / light › market`
+3. `mobile375 / light › portfolio-empty`
+4. `mobile375 / light › leaderboard`
+5. `mobile375 / light › eval`
+6. `mobile375 / light › admin-observability`
+
+### Skipped
+1. `[chromium] e2e/app.spec.ts › legacy mock-stub suite (retired by loop17) › placeholder` — intentional skip.
+
+Duration: 9.6m. Webserver booted (no retry). No app fixes. No push/merge.
