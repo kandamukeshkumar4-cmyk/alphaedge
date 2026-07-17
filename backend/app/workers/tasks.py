@@ -243,6 +243,7 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
 
     from app.core.config import get_settings as _get_settings
     from app.db.models import Market as _Market
+    from app.db.models import MarketSentimentSnapshot as _MarketSentimentSnapshot
     from app.db.models import MarketStatus as _MarketStatus
     from app.db.models import OddsSnapshot as _OddsSnapshot
     from app.signals.news_lag import NewsLagService
@@ -308,8 +309,20 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
         slug = candidate.slug
         try:
             signal = await fetch_news_signal(titles[slug])
-            if signal is None or signal.sentiment_score == 0.0:
+            if signal is None:
                 results[slug] = "no-news"
+                record_refresh_success(slug)
+                continue
+            session.add(_MarketSentimentSnapshot(
+                market_slug=slug,
+                sentiment_score=max(-1.0, min(1.0, float(signal.sentiment_score))),
+                volume_score=max(0.0, min(1.0, float(signal.volume_score))),
+                sources_count=max(0, int(signal.sources_count)),
+                source="public-news",
+                captured_at=now,
+            ))
+            if signal.sentiment_score == 0.0:
+                results[slug] = "neutral-news"
                 record_refresh_success(slug)
                 continue
             outcome = await service.detect(
