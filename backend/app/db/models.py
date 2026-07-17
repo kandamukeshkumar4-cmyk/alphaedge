@@ -247,6 +247,62 @@ class Account(Base):
     ledger_entries: Mapped[list["LedgerEntry"]] = relationship(back_populates="account")
 
 
+class Pod(Base):
+    """An isolated paper strategy and its dedicated CLOB account."""
+
+    __tablename__ = "pods"
+    __table_args__ = (Index("ix_pods_enabled", "enabled"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id"), unique=True, nullable=False)
+    config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PodTrade(Base):
+    """Append-only per-pod decision/ledger row, including rejected decisions."""
+
+    __tablename__ = "pod_trades"
+    __table_args__ = (
+        Index("ix_pod_trades_pod_created", "pod_id", "created_at"),
+        Index("ix_pod_trades_market", "market_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pod_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pods.id"), nullable=False)
+    market_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("markets.id"), nullable=False)
+    order_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("orders.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    outcome: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    price: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4), nullable=True)
+    quantity: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
+    fee: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"), nullable=False)
+    slippage: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"), nullable=False)
+    score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    score_components: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    decision: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PodEquitySnapshot(Base):
+    __tablename__ = "pod_equity_snapshots"
+    __table_args__ = (
+        UniqueConstraint("pod_id", "captured_at", name="uq_pod_equity_snapshot"),
+        Index("ix_pod_equity_pod_captured", "pod_id", "captured_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pod_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pods.id"), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    cash_balance: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    positions_mtm: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    equity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+
+
 class Market(Base):
     __tablename__ = "markets"
 
