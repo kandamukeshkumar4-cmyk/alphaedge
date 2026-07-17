@@ -8,11 +8,14 @@ import { PageHeader, PageShell } from "@/components/ui/kit";
 import { FEATURE_GROUPS, type FeatureEntry } from "@/lib/feature-registry";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = {
-  title: "Features — AlphaEdge",
+import { pageMetadata } from "@/lib/site-metadata";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Features",
   description:
     "The full map of everything AlphaEdge does: markets, AI analysis, proof dashboards, pods, social and more — every capability with a one-line description and a direct link.",
-};
+  path: "/features",
+});
 
 const SURFACE_LABEL: Record<NonNullable<FeatureEntry["surface"]>, string> = {
   page: "Page",

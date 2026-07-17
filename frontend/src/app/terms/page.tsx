@@ -3,12 +3,14 @@ import Link from "next/link";
 
 import { PageHeader, PageShell, Panel } from "@/components/ui/kit";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
+import { pageMetadata } from "@/lib/site-metadata";
 
-export const metadata: Metadata = {
-  title: "Terms & disclaimer — AlphaEdge",
+export const metadata: Metadata = pageMetadata({
+  title: "Terms & disclaimer",
   description:
     "Paper-trading terms and disclaimer for AlphaEdge. Simulated funds only; not financial advice; no real-money execution.",
-};
+  path: "/terms",
+});
 
 /**
  * Loop V67 (L1) — public Terms / disclaimer page. Carries the exact

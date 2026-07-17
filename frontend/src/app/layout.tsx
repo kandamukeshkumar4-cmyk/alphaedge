@@ -17,6 +17,12 @@ import { PortfolioBanner } from "@/components/PortfolioBanner";
 import { AtlasPanel } from "@/components/quest/AtlasPanel";
 import { AtlasPanelProvider } from "@/context/atlas-panel";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/site-metadata";
 
 // QuestFlow uses a rounded geometric sans; Figtree is the closest match.
 const inter = Figtree({
@@ -33,8 +39,45 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AlphaEdge — AI Prediction Markets",
-  description: PAPER_TRADING_DISCLAIMER,
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: DEFAULT_TITLE,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "paper trading",
+    "prediction markets",
+    "sports",
+    "elections",
+    "Brier score",
+    "calibration",
+    "AlphaEdge",
+  ],
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  // Exact paper-trading disclaimer also appears in the footer body.
+  other: {
+    "paper-trading-disclaimer": PAPER_TRADING_DISCLAIMER,
+  },
 };
 
 /** Dark-only paper terminal — no light chrome / theme toggle (PC08). */

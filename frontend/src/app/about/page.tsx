@@ -3,12 +3,14 @@ import Link from "next/link";
 
 import { PageHeader, PageShell, Panel } from "@/components/ui/kit";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
+import { pageMetadata } from "@/lib/site-metadata";
 
-export const metadata: Metadata = {
-  title: "About — AlphaEdge",
+export const metadata: Metadata = pageMetadata({
+  title: "About",
   description:
     "What AlphaEdge is: a paper-trading prediction research platform with simulated funds, locked forecasts, and public proof — not financial advice.",
-};
+  path: "/about",
+});
 
 /**
  * Loop V67 (L1) — public About page. Honest product story for a stranger
