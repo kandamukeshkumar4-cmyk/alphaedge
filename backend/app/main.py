@@ -68,6 +68,7 @@ from app.api.v1.edge_history import router as edge_history_router
 from app.api.v1.resolved import router as resolved_router
 from app.api.v1.categories import router as categories_router
 from app.api.v1.compare import router as compare_router
+from app.api.v1.venue_gaps import router as venue_gaps_router
 from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -331,6 +332,29 @@ async def _whale_flow_loop() -> None:
             record_heartbeat("whale_flow", status="error", detail="whale flow pass failed")
 
 
+async def _venue_gap_loop() -> None:
+    """Loop V58 D2: recompute cross-venue implied gaps (~every minute)."""
+    from app.workers.tasks import venue_gap_task
+
+    while True:
+        await asyncio.sleep(max(30, int(settings.venue_gap_interval_sec or 60)))
+        try:
+            summary = await venue_gap_task({})
+            detail = None
+            if isinstance(summary, dict):
+                if summary.get("skipped"):
+                    detail = f"skipped:{summary.get('reason')}"
+                else:
+                    detail = (
+                        f"upserted={summary.get('upserted', 0)} "
+                        f"skipped_odds={summary.get('skipped_missing_odds', 0)}"
+                    )
+            record_heartbeat("venue_gap", detail=detail)
+        except Exception:
+            logger.error("Venue gap loop failed", exc_info=True)
+            record_heartbeat("venue_gap", status="error", detail="venue gap pass failed")
+
+
 async def _wc2026_resolve_loop() -> None:
     """Every 10 min WC2026 resolution sweep (mirrors
     ``cron(wc2026_resolve_task, minute={5,15,25,35,45,55})``)."""
@@ -567,6 +591,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_whale_refresh_loop())
     if settings.scheduler_whale_flow_enabled:
         asyncio.create_task(_whale_flow_loop())
+    if settings.scheduler_venue_gap_enabled:
+        asyncio.create_task(_venue_gap_loop())
     if settings.scheduler_wc2026_resolve_enabled:
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.scheduler_external_resolve_enabled:
@@ -828,6 +854,7 @@ app.include_router(edge_history_router)
 app.include_router(resolved_router)
 app.include_router(categories_router)
 app.include_router(compare_router)
+app.include_router(venue_gaps_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
