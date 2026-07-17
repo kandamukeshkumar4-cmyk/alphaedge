@@ -221,7 +221,64 @@ research/signal feed, not a private inbox.
 
 ---
 
-## 7c. Eval / proof page (`/eval`)
+## 7c. Pods command center (`/pods`)
+
+Route: **`/pods`** (`frontend/src/app/pods/page.tsx`). Header **More → Pods**
+(`HeaderMoreMenu` — blurb “Paper pod fleet telemetry”). Shipped in Wave 10 /
+Loop V60 merge `8ae25a4` (`merge(loop60): pods command center UI — fleet
+dashboard, decision terminal, context panels`). Backend fleet engine:
+`40aeeec` (Loop V57). Full release notes: [wave-10.md](./releases/wave-10.md).
+
+> **Paper only.** Banner on the page: simulated funds — no execution. Pod
+> balances, equity curves, and decisions are **telemetry**. Nothing on this
+> page places a human paper order or bypasses
+> RiskService → OrderIntent → OrderBookService.
+
+### What you see
+
+| Panel | Source | Behavior |
+|-------|--------|----------|
+| Fleet cards (status, bankroll/equity-style fields, sparklines) | `GET /api/v1/pods` via `frontend/src/lib/pods-api.ts` | Grid of pod cards when the API returns pods |
+| Decision-log terminal | `GET /api/v1/heartbeat/decisions` (poll ~5s; blink on new row) | Rule badge + action colors; independent of fleet load state |
+| Market context (whale / venue gap / news tone) | `GET /api/v1/markets/{slug}/context` embedded on market detail (`MarketContextPanel`) | Descriptive only — no advice language, no trade button |
+
+### Honest empty / failure states (no fabricated fleet)
+
+| API result | UI copy intent |
+|------------|----------------|
+| Loading | Skeleton cards |
+| 404 | “Pods API not yet deployed” — nothing mocked |
+| Unreachable | “Pods telemetry unavailable” — no synthetic cache |
+| 200 with zero pods | “No pods registered yet” |
+
+Refresh is a manual button on the page header (re-fetches the fleet endpoint).
+
+### How this relates to the three paper pods
+
+Backend Loop V57 (`40aeeec`) runs three **isolated paper strategies** (keys
+seen on live `GET /api/v1/pods` during Wave 10 docs drafting):
+
+| Key | Role (from engine design) |
+|-----|---------------------------|
+| `crypto_5m_momentum_fade` | Crypto external BTC/ETH momentum-fade style |
+| `longshot_fade` | Deep-favorite / longshot-fade style |
+| `sports_value` | Sports (FIFA/MLS) value vs model edge |
+
+Operators enable the runner with `PODS_ENABLED` (code default **false** —
+see [operations.md](./operations.md) §9c). Users only **watch** via `/pods`.
+
+### Related read-only APIs
+
+| Endpoint | Use |
+|----------|-----|
+| `GET /api/v1/pods` | Fleet list + curves / last decisions payload |
+| `GET /api/v1/heartbeat/decisions` | Heartbeat rule audit log (Loop V59) |
+| `GET /api/v1/markets/{slug}/context` | Master context (whale pressure, venue gap, news — Loop V58 `4f9cb97`) |
+| `GET /api/v1/system/loops` | Whether `pod_runner` / `heartbeat_manager` / `whale_flow` / `venue_gap` are heartbeating |
+
+---
+
+## 7d. Eval / proof page (`/eval`)
 
 Route: **`/eval`** (`frontend/src/app/eval/page.tsx`). Also linked from Home and
 the header “More” menu (`HeaderMoreMenu`).
@@ -323,12 +380,14 @@ panel is a correct outcome, not a bug.
 4. Check `/portfolio` positions and risk panels; notice the **notification bell**
    once signed in (order / digest messages stay in-app only).
 5. Browse `/signals` and `/research` for context (read-only).
-6. Open `/eval` for Brier aggregates + A/B progress (and note `source` honesty
+6. Open **`/pods`** (More → Pods) for paper fleet telemetry + the decision-log
+   terminal — remember the simulated-funds banner; it never places your orders.
+7. Open `/eval` for Brier aggregates + A/B progress (and note `source` honesty
    on resolved-count when inspecting the API).
-7. Peek `/resolved` (Longshots / Decided), `/track-record`, and a
+8. Peek `/resolved` (Longshots / Decided), `/track-record`, and a
    `/traders/{name}` profile from the leaderboard; optionally **Follow** and
    switch `/feed?view=following`.
-8. After more resolved activity, re-check `/leaderboard`.
+9. After more resolved activity, re-check `/leaderboard`.
 
 ---
 
@@ -338,5 +397,8 @@ panel is a correct outcome, not a bug.
 - Not a guarantee of edge; provisional signals stay provisional until CLV-validated.
 - Not auto-trading from alerts, assistant chat, or LLM text — agent CLOB path
   still goes through **RiskService → OrderIntent → OrderBookService** only.
+- Not a promise that `/pods` decisions are your trades — pods are **isolated
+  paper strategies**; the UI is read-only telemetry (`8ae25a4`).
 
 For endpoint-level detail see [docs/api.md](./api.md).
+Wave 10 product narrative: [docs/releases/wave-10.md](./releases/wave-10.md).
