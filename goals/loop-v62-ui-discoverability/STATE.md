@@ -12,7 +12,7 @@ Scope: frontend only. Binding: `GOAL.md` (the 15-second rule) +
 | R2 Home hero (15s comprehension, three loops) | **DONE** | see R2 notes + gate below |
 | R3 Feature spotlight (coach marks, NEW badges, empty states) | **DONE** | see R3 notes + gate below |
 | R4 Motion pass (easing tokens, tickers, chart reveals) | **DONE** | see R4 notes + gate below |
-| R5 Discoverability audit table (feature→route→clicks≤2→label) | TODO | scaffold below; fill after R2/R3 |
+| R5 Discoverability audit table (feature→route→clicks≤2→label) | **DONE** | table below; 0 misses |
 | R6 Gate (typecheck, lint, vitest, build) | PARTIAL | full gate already green as of R1 |
 
 ## R1 — DONE (commit `feat(loop62): R1 …`)
@@ -176,15 +176,59 @@ full server restart + cache clear + `console.clear()`. They are false positives
 — current `CoachMarks.tsx` has no `motion.aside`, and typecheck/lint/build all
 pass and the page renders. Trust the CLI gate, not the replayed console buffer.
 
-## R5 discoverability audit (scaffold — to complete with R5)
+## R5 — DONE · discoverability audit (commit `feat(loop62): R5 …`)
 
-Clicks-from-home rule: every feature must be ≤2 clicks from `/`. With the
-`/features` map (1 click from home via nav/footer) + every card being 1 click,
-all features are structurally ≤2 clicks. Fill the exact table during R5:
+**Rule**: every feature ≤2 clicks from home (`/`). A "click" counts a link
+navigation or a menu-open. Two universal paths make every feature ≤2:
+(a) **Feature map** — `/features` is 1 click from home (visible **Features** nav
+item on xl; **All features** row in the More menu; **Feature map** in the
+footer, present on every page), then the feature card is the 2nd click; and
+(b) many features are 1 click directly via the primary nav, the home hero's
+Predict/Track/Prove cards, the header bells, or the footer.
 
-| Feature | Route | Clicks from home | Visible label | OK? |
+Verified against the shipped nav/registry (`SiteHeader`, `HeaderMoreMenu`,
+`HomeHero`, footer in `layout.tsx`, `feature-registry.ts`). **0 misses** — no
+feature exceeds 2 clicks.
+
+| Feature | Route | Clicks | Best visible label / surface | ≤2 |
 |---|---|---|---|---|
-| _(populate in R5 from feature-registry + real nav paths)_ | | | | |
+| Discover (home) | `/` | 0 | Nav "Discover" (active on home) | ✅ |
+| Markets | `/markets` | 1 | Nav "Markets"; hero "Explore markets"; footer "Markets" | ✅ |
+| Trade | `/trade` | 1 | Nav "Trade" | ✅ |
+| Signals | `/signals` | 1 | Nav "Signals" (unread badge) | ✅ |
+| Portfolio | `/portfolio` | 1 | Nav "Portfolio" + header Portfolio button | ✅ |
+| Eval (proof) | `/eval` | 1 | Home hero "Prove" card; footer "Proof" | ✅ |
+| Pods | `/pods` | 1 | Home hero "Track" card; footer "Pods"; `NEW` | ✅ |
+| Heartbeat decisions | `/pods` (embedded) | 1 | Inside Pods (hero "Track" card); `NEW` | ✅ |
+| Alerts | `/alerts` | 1 | Header AlertsBell → `/alerts` | ✅ |
+| Notifications | `/alerts` (bell overlay) | 1 | Header NotificationBell | ✅ |
+| Home (desk) | `/home` | 1 (xl) / 2 | Nav "Home" (xl); else More/Features | ✅ |
+| Clones | `/clones` | 1 (xl) / 2 | Nav "Clones" (xl); else More/Features | ✅ |
+| Features map | `/features` | 1 | Nav "Features" (xl); More "All features"; footer | ✅ |
+| Market context panel | `/markets` (embedded) | 2 | Open a market (Markets→market) | ✅ |
+| AI Analyze | `/markets` (overlay) | 2 | ✦ AI Analyze button on a market | ✅ |
+| Opportunities | `/opportunities` | 2 | Features card / More "Opportunities" | ✅ |
+| Compare | `/compare` | 2 | Features card / More "Compare" | ✅ |
+| Arb | `/arb` | 2 | Features card / More "Arb" | ✅ |
+| Research | `/research` | 2 | Features card / More "Research" | ✅ |
+| Forecast | `/forecast` | 2 | Features card / More "Forecast" | ✅ |
+| Smart money | `/smart-money` | 2 | Features card / More "Smart money" | ✅ |
+| Backtest | `/backtest` | 2 | Features card / More "Backtest" | ✅ |
+| Weather | `/weather` | 2 | Features card / More "Weather" | ✅ |
+| Macro | `/macro` | 2 | Features card / More "Macro" | ✅ |
+| Track record | `/track-record` | 2 | Features card / More "Track record" | ✅ |
+| Resolved | `/resolved` | 2 | Features card / More "Resolved" | ✅ |
+| Feed | `/feed` | 2 | Features card / More "Feed" | ✅ |
+| Traders & leaderboard | `/leaderboard` | 2 | Features card / More "Traders & leaderboard" | ✅ |
+| Watchlist | `/watchlist` | 2 | Features card / More "Watchlist" | ✅ |
+| System status | `/admin/observability` | 2 | Features card (auth); header health chip | ✅ |
+| Admin | `/admin` | 2 | Features card (auth-gated) | ✅ |
+
+Notes: "1 (xl) / 2" items (Home, Clones, Features) collapse into the More menu
+below the xl breakpoint but stay ≤2 there (More-open + item, or the always-
+present footer "Feature map"). Auth-gated surfaces (System status, Admin) are
+discoverable at ≤2 clicks; the pages themselves still require sign-in — that is
+honest gating, not a discoverability miss.
 
 ## Guardrails honored
 No new UI libraries (icons are hand-written SVG). No order/trade mutation logic
@@ -215,3 +259,7 @@ tickers/blink/reveals reduced-motion gated) | iterations=2 (CountUp stuck at 0
 under rAF throttle + framer useReducedMotion re-run bug → matchMedia + in-view
 immediate-run + guaranteed settle timeout) | budget=4/6 tickets |
 outcome=improved (vitest 465→467)
+
+AutoLab: not applicable (R5 is a discoverability audit doc — no iterative
+measure). Result: 31 rows audited, every feature ≤2 clicks from home, 0 misses,
+so no code fix required.
