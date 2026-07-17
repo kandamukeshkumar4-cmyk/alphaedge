@@ -17,6 +17,23 @@ from typing import Any
 
 DEFAULT_STALE_AFTER_SEC = 300.0  # 5 minutes — same order as arb TTL
 
+# Process-local gap cache for the sync prediction graph node (D4).
+# Keyed by both pm_slug and ks_slug so either market can look up.
+_GAP_CACHE: dict[str, "VenueGapResult"] = {}
+
+
+def cache_venue_gap(result: "VenueGapResult") -> None:
+    _GAP_CACHE[result.pm_slug] = result
+    _GAP_CACHE[result.ks_slug] = result
+
+
+def get_cached_venue_gap(market_slug: str) -> "VenueGapResult | None":
+    return _GAP_CACHE.get(market_slug)
+
+
+def reset_venue_gap_cache() -> None:
+    _GAP_CACHE.clear()
+
 
 @dataclass(frozen=True)
 class VenueQuote:

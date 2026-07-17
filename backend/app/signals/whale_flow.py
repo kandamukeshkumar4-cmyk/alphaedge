@@ -63,12 +63,25 @@ class WhalePressure:
     as_of: datetime  # capture-time clock; never post-close resolution
 
 
+# Process-local pressure cache for the sync prediction graph node (D4).
+_PRESSURE_CACHE: dict[str, WhalePressure] = {}
+
+
+def cache_whale_pressure(pressure: WhalePressure) -> None:
+    _PRESSURE_CACHE[pressure.market_slug] = pressure
+
+
+def get_cached_whale_pressure(market_slug: str) -> WhalePressure | None:
+    return _PRESSURE_CACHE.get(market_slug)
+
+
 def reset_whale_flow_state() -> None:
-    """Test helper — clear circuit breaker and rate-limit clock."""
+    """Test helper — clear circuit breaker, rate-limit clock, and pressure cache."""
     global _consecutive_failures, _circuit_open_until, _last_poll_at
     _consecutive_failures = 0
     _circuit_open_until = None
     _last_poll_at = 0.0
+    _PRESSURE_CACHE.clear()
 
 
 def circuit_is_open(*, now: float | None = None) -> bool:

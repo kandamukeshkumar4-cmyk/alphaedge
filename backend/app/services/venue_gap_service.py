@@ -20,6 +20,7 @@ from app.db.models import OddsSnapshot, VenueGap, VenueMarketMatch
 from app.signals.venue_gap import (
     DEFAULT_STALE_AFTER_SEC,
     VenueQuote,
+    cache_venue_gap,
     compute_venue_gap,
 )
 
@@ -87,6 +88,7 @@ class VenueGapService:
             )
             computed += 1
             await self._upsert(result)
+            cache_venue_gap(result)
             upserted += 1
         if upserted:
             await self.session.flush()

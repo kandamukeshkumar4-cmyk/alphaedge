@@ -129,6 +129,48 @@ def nemotron_node(state: AgentState) -> AgentState:
     return state
 
 
+def whale_signal_node(state: AgentState) -> AgentState:
+    """Inject whale_pressure + venue_gap as bounded features (Loop V58 D4).
+
+    Flag-gated: WHALE_SIGNAL_ENABLED default false. Reads process-local caches
+    populated by whale_flow / venue_gap workers — never hits the network and
+    never mutates predicted_prob / order_intent. Analysis-only features.
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if not getattr(settings, "whale_signal_enabled", False):
+        return state
+
+    from app.signals.venue_gap import (
+        bounded_venue_gap_feature,
+        get_cached_venue_gap,
+    )
+    from app.signals.whale_flow import get_cached_whale_pressure
+
+    features = dict(state.features)
+    pressure = get_cached_whale_pressure(state.market_slug)
+    if pressure is not None:
+        features["whale_pressure"] = max(-1.0, min(1.0, float(pressure.pressure)))
+        features["whale_event_count"] = int(pressure.event_count)
+        features["whale_pressure_captured_at"] = pressure.as_of.isoformat()
+    elif "whale_pressure" not in features:
+        # Honest absence — do not fabricate a non-zero signal.
+        features.setdefault("whale_pressure", 0.0)
+
+    gap = get_cached_venue_gap(state.market_slug)
+    if gap is not None:
+        features["venue_gap"] = float(gap.gap)
+        features["venue_gap_bounded"] = bounded_venue_gap_feature(gap.gap)
+        features["venue_gap_stale"] = bool(gap.stale)
+        features["venue_gap_captured_at"] = gap.captured_at.isoformat()
+    elif "venue_gap_bounded" not in features:
+        features.setdefault("venue_gap_bounded", 0.0)
+
+    state.features = features
+    return state
+
+
 # ── memory node ──────────────────────────────────────────────────────────────
 # Optional provider hook so the (synchronous) memory node can pull similar past
 # cases. Callers on an async request path bind a session-backed provider via
@@ -331,6 +373,7 @@ GRAPH_NODES: list[tuple[str, Callable[[AgentState], AgentState]]] = [
     ("data", data_node),
     ("news", news_node),
     ("nemotron", nemotron_node),
+    ("whale_signal", whale_signal_node),
     ("memory", memory_node),
     ("prediction", prediction_node),
     ("risk", risk_node),
@@ -353,7 +396,8 @@ def _build_langgraph():
     graph.add_edge(START, "data")
     graph.add_edge("data", "news")
     graph.add_edge("news", "nemotron")
-    graph.add_edge("nemotron", "memory")
+    graph.add_edge("nemotron", "whale_signal")
+    graph.add_edge("whale_signal", "memory")
     graph.add_edge("memory", "prediction")
     graph.add_edge("prediction", "risk")
     graph.add_edge("risk", "market_tools")

@@ -23,6 +23,7 @@ from app.db.models import Market, MarketStatus, WhaleEvent
 from app.signals.whale_flow import (
     LargeTrade,
     WhalePressure,
+    cache_whale_pressure,
     circuit_is_open,
     compute_whale_pressure,
     normalize_large_trades,
@@ -208,6 +209,8 @@ class WhaleFlowService:
             )
             for r in rows
         ]
-        return compute_whale_pressure(
+        pressure = compute_whale_pressure(
             events, market_slug=market_slug, window_sec=win, as_of=now
         )
+        cache_whale_pressure(pressure)
+        return pressure
