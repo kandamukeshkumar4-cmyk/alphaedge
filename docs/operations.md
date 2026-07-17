@@ -397,6 +397,7 @@ schedulers run inside the API process).
 | **`daily_digest`** | Per-user daily **in-app** Notification digest (no email) | `workers/daily_digest.py` |
 | **`jobrun_retention`** | Delete old `job_runs` (default 30d, flag-gated) | `workers/jobrun_retention.py` |
 | **`data_retention`** | Odds downsample + signal/notification prune (flag-gated) | `workers/data_retention.py` |
+| **`heartbeat_manager`** | Code-only position heartbeat (hold/tighten/exit/emergency); decision log | `services/heartbeat_manager.py` |
 
 Verify names in a running API:
 
@@ -421,6 +422,33 @@ Related env flags (names only): `SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED`,
 `JOBRUN_RETENTION_ENABLED` / `JOBRUN_RETENTION_DAYS`,
 `DATA_RETENTION_ENABLED`, odds/signal/notification retention day settings in
 `backend/app/core/config.py`.
+
+---
+
+## 9b. Heartbeat position manager (Loop V59)
+
+Code-only in-process loop (default **off**: `HEARTBEAT_MANAGER_ENABLED=false`).
+Cadence default **45s** (`HEARTBEAT_MANAGER_INTERVAL_SEC`). No LLM calls.
+
+| Concern | How |
+|---------|-----|
+| Liveness + detail counts | `GET /api/v1/system/loops` → `heartbeat_manager` (`scanned=… hold=… exit=…`) |
+| Decision audit log | `GET /api/v1/heartbeat/decisions?limit=50` (public read) |
+| Order path | CLOB exits only via `RiskService` → `OrderIntent(is_exit=True)` → `OrderBookService` |
+| Emergency halts | `HEARTBEAT_GLOBAL_KILL`; price-feed staleness; daily-loss (pod ledger read-only when V57 registry present) — all logged, reversible when condition clears |
+
+Rules (config): `HEARTBEAT_TIME_STOP_SEC`, `HEARTBEAT_ADVERSE_MOVE_PCT`,
+`HEARTBEAT_PROFIT_TARGET_PCT`, `HEARTBEAT_STALENESS_SEC`,
+`HEARTBEAT_TIGHTEN_ADVERSE_PCT`, `HEARTBEAT_DAILY_LOSS_HALT_PCT`.
+
+```text
+curl -sS "$BASE_URL/api/v1/heartbeat/decisions?limit=20"
+curl -sS "$BASE_URL/api/v1/system/loops" | python -c "import sys,json; d=json.load(sys.stdin); print([x for x in d['loops'] if x['name']=='heartbeat_manager'][0])"
+```
+
+**Do not** treat JWT paper `exit_logged` / `emergency_logged` rows as filled
+orders — those are auditable recommendations; CLOB exits show `*_submitted`
+only after RiskService approval.
 
 ---
 

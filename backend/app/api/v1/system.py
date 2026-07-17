@@ -62,6 +62,7 @@ _ALL_LOOPS: tuple[str, ...] = (
     "daily_digest",
     "jobrun_retention",
     "data_retention",
+    "heartbeat_manager",
 )
 
 

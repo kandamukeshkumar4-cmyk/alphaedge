@@ -56,6 +56,7 @@ from app.api.v1.desk import router as desk_router
 from app.api.v1.track_record import router as track_record_router
 from app.api.v1.profile import router as profile_router
 from app.api.v1.system import router as system_router
+from app.api.v1.heartbeat import router as heartbeat_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.api.v1.alerts_feed import router as alerts_feed_router
 from app.api.v1.notify_prefs import router as notify_prefs_router
@@ -554,6 +555,40 @@ async def _data_retention_loop() -> None:
             )
 
 
+async def _heartbeat_manager_loop() -> None:
+    """Loop V59: code-only position heartbeat (45s default). Flag-gated."""
+    from app.services.heartbeat_manager import heartbeat_detail, heartbeat_manager_task
+
+    interval = max(30, int(settings.heartbeat_manager_interval_sec))
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            summary = await heartbeat_manager_task({})
+            if isinstance(summary, dict) and summary.get("skipped"):
+                record_heartbeat(
+                    "heartbeat_manager",
+                    status="ok",
+                    detail=str(summary.get("reason", "skipped")),
+                )
+            else:
+                duration = None
+                if isinstance(summary, dict):
+                    duration = summary.get("duration_ms")
+                record_heartbeat(
+                    "heartbeat_manager",
+                    status="ok",
+                    detail=heartbeat_detail(summary if isinstance(summary, dict) else None),
+                    duration_ms=float(duration) if duration is not None else None,
+                )
+        except Exception:
+            logger.error("Heartbeat manager loop failed", exc_info=True)
+            record_heartbeat(
+                "heartbeat_manager",
+                status="error",
+                detail="heartbeat manager pass failed",
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
@@ -614,6 +649,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_jobrun_retention_loop())
     if settings.scheduler_data_retention_enabled:
         asyncio.create_task(_data_retention_loop())
+    if settings.heartbeat_manager_enabled:
+        asyncio.create_task(_heartbeat_manager_loop())
     if settings.live_feed_enabled:
         # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
         # must NOT block startup — a slow/429'd upstream would delay uvicorn from
@@ -843,6 +880,7 @@ app.include_router(smart_money_router)
 app.include_router(desk_router)
 app.include_router(profile_router)
 app.include_router(system_router)
+app.include_router(heartbeat_router)
 app.include_router(watchlist_router)
 app.include_router(alerts_feed_router)
 app.include_router(notify_prefs_router)
