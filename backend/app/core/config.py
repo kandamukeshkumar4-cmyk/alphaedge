@@ -206,6 +206,24 @@ class Settings(BaseSettings):
     brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
     exa_api_key: str = Field(default="", alias="EXA_API_KEY")
 
+    # Loop V52 — Nemotron-3 NIM reasoning signal (optional graph feature; never a forecast)
+    # Default model id verified 2026-07-16 at:
+    # https://build.nvidia.com/nvidia/nemotron-3-nano-30b-a3b
+    # (free NIM API endpoint; OpenAI-compatible model string nvidia/nemotron-3-nano-30b-a3b)
+    nemotron_signal_enabled: bool = Field(
+        default=False, alias="NEMOTRON_SIGNAL_ENABLED"
+    )
+    nemotron_model: str = Field(
+        default="nvidia/nemotron-3-nano-30b-a3b",
+        alias="NEMOTRON_MODEL",
+    )
+    nemotron_signal_timeout: float = Field(
+        default=30.0, alias="NEMOTRON_SIGNAL_TIMEOUT"
+    )
+    nemotron_prompt_version: str = Field(
+        default="v1", alias="NEMOTRON_PROMPT_VERSION"
+    )
+
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_reasoning_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_REASONING_MODEL")
     gemini_judge_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_JUDGE_MODEL")

@@ -133,6 +133,7 @@ async def test_agent_trace_steps_have_correct_node_names():
     assert names == [
         "data",
         "news",
+        "nemotron",
         "memory",
         "prediction",
         "risk",

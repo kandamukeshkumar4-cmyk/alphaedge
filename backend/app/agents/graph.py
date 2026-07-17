@@ -92,6 +92,43 @@ def news_node(state: AgentState) -> AgentState:
     return state
 
 
+def nemotron_node(state: AgentState) -> AgentState:
+    """Inject cached Nemotron-3 reasoning signal as a bounded feature (off by default).
+
+    Guardrails: flag-gated (NEMOTRON_SIGNAL_ENABLED, default false); never mutates
+    predicted_prob / confidence / order_intent; records model_id + prompt_version
+    + payload for forecast provenance. The LLM never emits a probability here —
+    only signed_strength in [-1, 1] plus rationale/citations.
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if not settings.nemotron_signal_enabled:
+        return state
+
+    from app.signals.nemotron_signal import get_cached_signal
+
+    signal = get_cached_signal(state.market_slug)
+    if signal is None:
+        return state
+
+    features = dict(state.features)
+    # Bounded feature for the prediction graph (research input, not a forecast).
+    features["nemotron_signed_strength"] = max(
+        -1.0, min(1.0, float(signal.signed_strength))
+    )
+    features["nemotron_direction"] = signal.direction
+    features["nemotron_strength"] = signal.strength
+    features["nemotron_rationale"] = signal.rationale
+    features["nemotron_cited_inputs"] = list(signal.cited_inputs)
+    # Provenance (V51 amendment expectations: model id + prompt version + payload)
+    features["nemotron_model_id"] = signal.model_id
+    features["nemotron_prompt_version"] = signal.prompt_version
+    features["nemotron_signal_payload"] = signal.as_provenance()
+    state.features = features
+    return state
+
+
 # ── memory node ──────────────────────────────────────────────────────────────
 # Optional provider hook so the (synchronous) memory node can pull similar past
 # cases. Callers on an async request path bind a session-backed provider via
@@ -241,6 +278,16 @@ def reasoning_node(state: AgentState) -> AgentState:
         )
         headline = state.features.get("news_headline", "")
         news_note = f" News: {direction} ({sentiment:+.2f}). {headline}"
+    nemotron_note = ""
+    n_signed = state.features.get("nemotron_signed_strength")
+    if n_signed is not None:
+        n_dir = state.features.get("nemotron_direction", "neutral")
+        n_model = state.features.get("nemotron_model_id", "")
+        n_pv = state.features.get("nemotron_prompt_version", "")
+        nemotron_note = (
+            f" Nemotron: {n_dir} signed={float(n_signed):+.2f}"
+            f" (model={n_model} prompt={n_pv})."
+        )
     memory_note = ""
     memory_context = state.features.get("memory_context")
     if memory_context:
@@ -250,7 +297,8 @@ def reasoning_node(state: AgentState) -> AgentState:
         f"Model predicts {state.predicted_prob:.2%} vs market "
         f"{state.features.get('implied_yes', 0.5):.2%}. "
         f"{state.features.get('forecast_gate_reason', 'forecast gate unavailable')}. "
-        f"Risk {'approved' if state.approved else 'rejected'}.{news_note}{memory_note}{tools_note}"
+        f"Risk {'approved' if state.approved else 'rejected'}."
+        f"{news_note}{nemotron_note}{memory_note}{tools_note}"
     )
     return state
 
@@ -282,6 +330,7 @@ def execute_node(state: AgentState) -> AgentState:
 GRAPH_NODES: list[tuple[str, Callable[[AgentState], AgentState]]] = [
     ("data", data_node),
     ("news", news_node),
+    ("nemotron", nemotron_node),
     ("memory", memory_node),
     ("prediction", prediction_node),
     ("risk", risk_node),
@@ -303,7 +352,8 @@ def _build_langgraph():
         graph.add_node(name, node_fn)
     graph.add_edge(START, "data")
     graph.add_edge("data", "news")
-    graph.add_edge("news", "memory")
+    graph.add_edge("news", "nemotron")
+    graph.add_edge("nemotron", "memory")
     graph.add_edge("memory", "prediction")
     graph.add_edge("prediction", "risk")
     graph.add_edge("risk", "market_tools")
@@ -344,6 +394,18 @@ async def prefetch_news_for_market(
     from app.signals.news_signal import fetch_news_signal
 
     await fetch_news_signal(market_slug, timeout=timeout)
+
+
+async def prefetch_nemotron_for_market(
+    market_slug: str,
+    context: dict | None = None,
+    *,
+    timeout: float | None = None,
+) -> None:
+    """Pre-warm the Nemotron signal cache (no-op when flag off / key missing)."""
+    from app.signals.nemotron_signal import fetch_nemotron_signal
+
+    await fetch_nemotron_signal(market_slug, context or {}, timeout=timeout)
 
 
 def run_agent_graph(market_slug: str, features: dict | None = None) -> AgentState:

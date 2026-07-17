@@ -48,6 +48,7 @@ async def test_admin_agent_run_persists_guardrail_proof_steps(db_session):
     assert [step["step_name"] for step in payload["steps"]] == [
         "data",
         "news",
+        "nemotron",
         "memory",
         "prediction",
         "risk",
@@ -78,6 +79,7 @@ async def test_admin_agent_run_persists_guardrail_proof_steps(db_session):
     assert [step.step_name for step in steps] == [
         "data",
         "news",
+        "nemotron",
         "memory",
         "prediction",
         "risk",
@@ -171,7 +173,7 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
             "status": "blocked",
             "graph_version": "v1",
             "approved": False,
-            "step_count": 8,
+            "step_count": 9,
             "errors": [
                 "no resolved walk-forward evaluation",
                 "edge 0.00% < 5%",
@@ -189,6 +191,7 @@ async def test_admin_agent_runs_list_recent_summaries_and_detail_steps(db_sessio
     assert [step["step_name"] for step in detail["steps"]] == [
         "data",
         "news",
+        "nemotron",
         "memory",
         "prediction",
         "risk",
