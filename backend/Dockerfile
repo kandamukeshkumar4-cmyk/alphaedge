@@ -8,7 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY . .
 
-RUN pip install --no-cache-dir uv && uv sync --no-dev
+# Railway builds this Dockerfile (backend/railway.toml). The A/B harness must
+# refuse unless the real LightGBM arm is importable, so include the already
+# lock-pinned optional ML extra rather than falling back to XGBoost.
+RUN pip install --no-cache-dir uv && uv sync --no-dev --extra ml-extra
 
 ENV PAPER_TRADING_ONLY=true
 

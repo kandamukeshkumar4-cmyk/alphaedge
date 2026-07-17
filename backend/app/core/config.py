@@ -391,6 +391,15 @@ class Settings(BaseSettings):
     research_lookback_hours: float = Field(default=24.0, alias="RESEARCH_LOOKBACK_HOURS")
     # ML model selection (T11) — "xgboost" (default) | "lightgbm" (optional dep)
     ml_model_type: str = Field(default="xgboost", alias="ML_MODEL_TYPE")
+    # V51 A/B preflight. An operator must provide a non-secret reference to
+    # Railway deployment/config history before a historic comparison can run.
+    # Defaults deliberately refuse rather than infer historic runtime settings.
+    ab_model_type_history_verified: bool = Field(
+        default=False, alias="AB_MODEL_TYPE_HISTORY_VERIFIED"
+    )
+    ab_model_type_history_evidence: str = Field(
+        default="", alias="AB_MODEL_TYPE_HISTORY_EVIDENCE"
+    )
     # Instability signal (T13) — feature/context only, OFF by default
     instability_enabled: bool = Field(default=False, alias="INSTABILITY_ENABLED")
     instability_window_hours: float = Field(default=24.0, alias="INSTABILITY_WINDOW_HOURS")

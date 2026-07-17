@@ -170,6 +170,7 @@ Env: `NEXT_PUBLIC_API_URL` = public API origin (HTTPS, no trailing slash).
 | Name | Purpose |
 |------|---------|
 | `ML_MODEL_TYPE` | Deployed default (`xgboost` or `lightgbm`) — **not** auto-flipped by A/B |
+| `AB_MODEL_TYPE_HISTORY_VERIFIED` / `AB_MODEL_TYPE_HISTORY_EVIDENCE` | Non-secret operator reference to Railway deploy/config history; A/B refuses when absent |
 | `ENSEMBLE_ENABLED` | Multi-model ensemble router |
 | `DRIFT_ALARM_ENABLED` | When true, drift endpoint may fire T09 alerts |
 | `DRIFT_ALARM_THRESHOLD` | Absolute Brier drift threshold |
@@ -245,11 +246,24 @@ Unauthorized → `401`. Implementation: `backend/app/observability/metrics.py`.
 |----------|-----|
 | `GET /api/v1/system/loops` | Planned vs running background loops + last heartbeat (`never` if never beat) |
 | `GET /api/v1/system/metrics` | In-process HTTP/cache counters (not Prometheus) |
-| `GET /api/v1/system/resolved-count` | Resolved sample vs A/B gate; does not flip model |
-| `GET /api/v1/system/model-ab` | Walk-forward comparison; `applied` always false |
+| `GET /api/v1/system/resolved-count` | Forecast-score nominal population plus correlation-cluster A/B readiness; does not flip model |
+| `GET /api/v1/system/model-ab` | Cached controlled comparison only; public GET never trains; `applied` always false |
 | `GET /api/v1/system/sources` | **Admin** connector health registry |
 | `GET /api/v1/admin/observability/*` | **Admin** traces / drift / SLO / summary |
 | `GET /health` | Liveness |
+
+Refresh the cache through an operator-controlled Railway shell/job, never via
+the public GET:
+
+```bash
+AB_MODEL_TYPE_HISTORY_VERIFIED=true \
+AB_MODEL_TYPE_HISTORY_EVIDENCE='Railway deployment/config-history reference' \
+uv run python scripts/refresh_model_ab.py
+```
+
+The evidence value is a non-secret reference for the operator handoff. Without
+both settings the script persists an honest `model_type_history_unverified`
+refusal and no Brier comparison.
 
 ### D. After deploy smoke
 
