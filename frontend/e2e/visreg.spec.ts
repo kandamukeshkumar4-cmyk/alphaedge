@@ -90,19 +90,29 @@ async function readyObservability(page: Page) {
   await dismissOnboardingIfPresent(page);
   const keyHeading = page.getByRole("heading", { name: /Admin API Key/i });
   if (await keyHeading.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    // Controlled React input: fill can race hydration (DOM value set, but
+    // draftKey still "" → Save stays disabled). Retry until Save enables.
+    // Mirrors admin-eval enterAdminKey + session fillControlled.
     const input = page.locator("#admin-api-key");
-    await input.click();
-    await input.fill("");
-    await input.pressSequentially(DEV_ADMIN_KEY, { delay: 10 });
-    await page.waitForFunction(
-      ({ sel, expected }) => {
-        const el = document.querySelector(sel) as HTMLInputElement | null;
-        return el != null && el.value === expected;
-      },
-      { sel: "#admin-api-key", expected: DEV_ADMIN_KEY },
-      { timeout: 10_000 },
-    );
-    await page.getByRole("button", { name: /Save Key/i }).click();
+    await input.waitFor({ state: "visible", timeout: 15_000 });
+    const save = page.getByRole("button", { name: /Save Key/i });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await input.click();
+      await input.fill("");
+      await input.pressSequentially(DEV_ADMIN_KEY, { delay: 15 });
+      await page.waitForFunction(
+        ({ sel, expected }) => {
+          const el = document.querySelector(sel) as HTMLInputElement | null;
+          return el != null && el.value === expected;
+        },
+        { sel: "#admin-api-key", expected: DEV_ADMIN_KEY },
+        { timeout: 10_000 },
+      );
+      if (await save.isEnabled().catch(() => false)) break;
+      await page.waitForTimeout(250);
+    }
+    await expect(save).toBeEnabled({ timeout: 10_000 });
+    await save.click();
     await expect(
       page.getByRole("button", { name: /Change API key/i }),
     ).toBeVisible({ timeout: 10_000 });
