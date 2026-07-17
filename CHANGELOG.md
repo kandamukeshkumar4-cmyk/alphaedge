@@ -136,6 +136,50 @@ Supporting product proof for the V33 bridge (same tranche theme):
 
 ---
 
+## Wave 10 — Pods fleet, market context, heartbeat, provenance (2026-07-17)
+
+Detailed narrative: [`docs/releases/wave-10.md`](docs/releases/wave-10.md).
+
+Evidence basis while drafting Loop V66:
+
+```text
+git log --oneline --merges -15
+```
+
+| What shipped | Why it matters | SHA |
+|---|---|---|
+| **Loop 56** per-lock forecast provenance — migration `048_lock_provenance`, same-transaction provenance, honest nulls | A/B and operators can see *which path* wrote a lock; historic rows stay null (no invented backfill) | `ffedfa4` |
+| Integrate `048_lock_provenance` head (unblocks multi-head ESCALATION) | Single Alembic head so later pod/whale/heartbeat migrations can chain | `133af64` |
+| **Loop 58** master data pipeline — whale flow, venue gaps, market context API, graph wiring | Large-trade pressure, cross-venue gap, and `GET …/context` feed the desk and prediction graph (flag-gated graph features) | `4f9cb97` |
+| Heartbeat migration renumber `051→052` onto `051_venue_gaps` (single head) | Keeps Alembic single-head after V58 venue-gap migration | `91239e3` |
+| Loop 59 config union (V58 whale/gap + V59 heartbeat settings) | Land path for **heartbeat_manager** alongside whale/gap settings (no titled `merge(loop59)` in merge log) | `09af5eb` |
+| **Loop 57** pods engine — three paper pods, scoring, `pod_runner` registration; re-chain `053_pods` onto `052_heartbeat` | Independent paper strategy pods with RiskService-only order path; public `GET /api/v1/pods` | `40aeeec` |
+| **Loop 60** pods command center UI — fleet dashboard, decision terminal, context panels | Operators and users can open **`/pods`** for paper fleet telemetry without fake numbers | `8ae25a4` |
+| **Loop 54** QA e2e specs — locked-forecast, bell/eval loading, resolved-count contract | Playwright contracts cover honesty surfaces that Wave 9/10 product claims depend on | `04162bc` |
+| **Loop 61** continuous sentiment desk — adaptive cadence, trend features, analyst lenses (**flag-gated**) | News/sentiment becomes a continuous desk input for context/pods; ships behind flags (merge on integration line) | `ea2be72` |
+
+Feature commits behind the merges (optional drill-down):
+
+| Topic | SHAs |
+|---|---|
+| V56 tickets | `f58a1c1` P1 · `45e977a` P2 · `4dccbdb` P3 · `9ca6980` P4 |
+| V58 tickets | `a1e5e96` D1 · `1d7f114` D2 · `b88de74` D3 · `bf119dd` D4 · `2f882dd` D5 |
+| V59 tickets | `8c4c293` H1 · `75a3b54` H2 · `303180c` H3 · `15391a5` H4 · `ce099e9` H5 |
+| V57 tickets | `f1ab750` P1 · `79497b5` P2 · `48933a3` P3 · `3003a8c` P4 · `539117c` P5 |
+| V60 tickets | `bc14e33` U1 · `3c9f9dc` U2 · `313ee4d` U3 · `a9dc430` U4 · `ed9b223` U5 |
+| V61 tickets | `7a9ac87` S1 · `45950a3` S2 · `aad10c9` S3 · `876ae23` S4 · `b28aa71` S5 |
+
+**Prod observation (not a git SHA — live API check during V66 docs):**
+`GET /api/v1/system/loops` on the uptime host showed `whale_flow`, `venue_gap`,
+`heartbeat_manager`, and `pod_runner` with `running: true` / `status: ok`, and
+`GET /api/v1/pods` returned three pods (`crypto_5m_momentum_fade`,
+`longshot_fade`, `sports_value`) with `enabled: true` and
+`paper_trading_only: true`. Code defaults for `PODS_ENABLED` /
+`HEARTBEAT_MANAGER_ENABLED` remain false in-tree (`backend/app/core/config.py`);
+operator env on Railway turns the runners on.
+
+---
+
 ## How to verify a citation
 
 ```text
