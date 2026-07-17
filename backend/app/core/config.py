@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     paper_trading_only: bool = Field(default=True, alias="PAPER_TRADING_ONLY")
+    # Loop V57: disabled by default. Pods are paper-only and started only by
+    # the in-process runner when an operator explicitly enables this flag.
+    pods_enabled: bool = Field(default=False, alias="PODS_ENABLED")
     database_url: str = Field(
         default="postgresql+asyncpg://alphaedge:alphaedge@localhost:5432/alphaedge",
         alias="DATABASE_URL",
