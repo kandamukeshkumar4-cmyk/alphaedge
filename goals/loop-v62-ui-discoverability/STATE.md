@@ -13,7 +13,7 @@ Scope: frontend only. Binding: `GOAL.md` (the 15-second rule) +
 | R3 Feature spotlight (coach marks, NEW badges, empty states) | **DONE** | see R3 notes + gate below |
 | R4 Motion pass (easing tokens, tickers, chart reveals) | **DONE** | see R4 notes + gate below |
 | R5 Discoverability audit table (feature→route→clicks≤2→label) | **DONE** | table below; 0 misses |
-| R6 Gate (typecheck, lint, vitest, build) | PARTIAL | full gate already green as of R1 |
+| R6 Gate (typecheck, lint, vitest, build) | **DONE** | final counts below; suite fully green |
 
 ## R1 — DONE (commit `feat(loop62): R1 …`)
 
@@ -176,6 +176,27 @@ full server restart + cache clear + `console.clear()`. They are false positives
 — current `CoachMarks.tsx` has no `motion.aside`, and typecheck/lint/build all
 pass and the page renders. Trust the CLI gate, not the replayed console buffer.
 
+## R6 — DONE · final gate (commit `feat(loop62): R6 …`)
+
+Final full frontend gate on the completed R1–R5 work, from
+`E:/polymarket-worktrees/loop62-ui/frontend`:
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` | ✅ 0 errors |
+| `npm run lint` | ✅ 0 errors, 0 warnings |
+| `npx vitest run` | ✅ **78 files, 467 tests passed** (0 failed) |
+| `npm run build` | ✅ compiled, 102/102 static pages (`/features` static) |
+
+**Pre-existing `quest/` failures**: **none exist**. There are no
+`src/components/quest/**/*.test.*` files, and the full suite is green (467/467),
+so there is nothing to record as pre-existing or to verify against a baseline —
+the "quest/ out of scope" clause is moot in this worktree.
+
+**Loop delta**: vitest 457 (R1) → 461 (R2) → 465 (R3) → 467 (R4). +10 tests
+added across the loop; no test weakened or skipped. Final independent verifier
+(R4–R6): PASS.
+
 ## R5 — DONE · discoverability audit (commit `feat(loop62): R5 …`)
 
 **Rule**: every feature ≤2 clicks from home (`/`). A "click" counts a link
@@ -263,3 +284,8 @@ outcome=improved (vitest 465→467)
 AutoLab: not applicable (R5 is a discoverability audit doc — no iterative
 measure). Result: 31 rows audited, every feature ≤2 clicks from home, 0 misses,
 so no code fix required.
+
+AutoLab: baseline=R4 gate green (vitest 467) | benchmark=final full gate
+(typecheck/lint/vitest 467/build 102/102) | iterations=1 (gate clean first run;
+confirmed no quest/ test files exist → no pre-existing failures) | budget=6/6
+tickets | outcome=improved (loop complete, R1–R6 DONE)
