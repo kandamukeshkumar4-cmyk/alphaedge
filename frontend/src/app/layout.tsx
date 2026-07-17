@@ -16,6 +16,7 @@ import { QuestLiveTicker } from "@/components/quest/QuestLiveTicker";
 import { PortfolioBanner } from "@/components/PortfolioBanner";
 import { AtlasPanel } from "@/components/quest/AtlasPanel";
 import { AtlasPanelProvider } from "@/context/atlas-panel";
+import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
 
 // QuestFlow uses a rounded geometric sans; Figtree is the closest match.
 const inter = Figtree({
@@ -31,12 +32,9 @@ const mono = IBM_Plex_Mono({
   display: "swap",
 });
 
-const DISCLAIMER =
-  "AlphaEdge is a paper-trading simulation for sports and election markets using simulated funds for research and portfolio demonstration only.";
-
 export const metadata: Metadata = {
   title: "AlphaEdge — AI Prediction Markets",
-  description: DISCLAIMER,
+  description: PAPER_TRADING_DISCLAIMER,
 };
 
 /** Dark-only paper terminal — no light chrome / theme toggle (PC08). */
@@ -73,7 +71,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <CoachMarks />
               <BottomNav />
               <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
-                <nav className="mb-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-semibold">
+                <nav
+                  aria-label="Site footer"
+                  className="mb-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-semibold"
+                >
                   <Link href="/features" className="text-muted transition hover:text-primary">
                     Feature map
                   </Link>
@@ -89,9 +90,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Link href="/portfolio" className="text-muted transition hover:text-primary">
                     Portfolio
                   </Link>
+                  <Link href="/about" className="text-muted transition hover:text-primary">
+                    About
+                  </Link>
+                  <Link href="/terms" className="text-muted transition hover:text-primary">
+                    Terms
+                  </Link>
                 </nav>
                 <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
-                  {DISCLAIMER}
+                  {PAPER_TRADING_DISCLAIMER}
                 </p>
               </footer>
             </ToastProvider>
