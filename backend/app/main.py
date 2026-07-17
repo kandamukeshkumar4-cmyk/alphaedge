@@ -19,6 +19,7 @@ from app.api.v1.admin_stats import router as admin_stats_router
 from app.api.v1.admin_users import router as admin_users_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.orders import router as orders_router
+from app.api.v1.pods import router as pods_router
 from app.api.v1.portfolio import router as portfolio_router
 from app.api.v1.portfolio_clv import router as portfolio_clv_router
 from app.api.v1.calibration import router as calibration_router
@@ -503,6 +504,20 @@ async def _data_retention_loop() -> None:
             )
 
 
+async def _pod_runner_loop() -> None:
+    """Loop V57: 60-second, flag-gated in-process paper-pod runner."""
+    from app.pods.runner import pod_detail, pod_runner_task
+
+    while True:
+        await _paced_sleep(60, 60)
+        try:
+            summary = await pod_runner_task({})
+            record_heartbeat("pod_runner", detail=pod_detail(summary))
+        except Exception:
+            logger.error("Pod runner loop failed", exc_info=True)
+            record_heartbeat("pod_runner", status="error", detail="pod runner pass failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
@@ -559,6 +574,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_jobrun_retention_loop())
     if settings.scheduler_data_retention_enabled:
         asyncio.create_task(_data_retention_loop())
+    if settings.pods_enabled:
+        asyncio.create_task(_pod_runner_loop())
     if settings.live_feed_enabled:
         # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
         # must NOT block startup — a slow/429'd upstream would delay uvicorn from
@@ -758,6 +775,7 @@ app.include_router(wc2026_router)
 app.include_router(wc2026_admin_router)
 app.include_router(wc2026_admin_resolve_router)
 app.include_router(orders_router)
+app.include_router(pods_router)
 app.include_router(portfolio_router)
 app.include_router(portfolio_clv_router)
 app.include_router(v1_router)

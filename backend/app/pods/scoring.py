@@ -84,7 +84,14 @@ async def load_preclose_history(
         )
     ).all()
     return tuple(
-        PricePoint(captured_at=captured_at, implied_yes=Decimal(implied_yes))
+        PricePoint(
+            captured_at=(
+                captured_at.replace(tzinfo=UTC)
+                if captured_at.tzinfo is None
+                else captured_at
+            ),
+            implied_yes=Decimal(implied_yes),
+        )
         for captured_at, implied_yes in reversed(rows)
     )
 
