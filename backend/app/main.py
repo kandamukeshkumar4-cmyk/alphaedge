@@ -56,6 +56,7 @@ from app.api.v1.desk import router as desk_router
 from app.api.v1.track_record import router as track_record_router
 from app.api.v1.profile import router as profile_router
 from app.api.v1.system import router as system_router
+from app.api.v1.heartbeat import router as heartbeat_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.api.v1.alerts_feed import router as alerts_feed_router
 from app.api.v1.notify_prefs import router as notify_prefs_router
@@ -824,6 +825,7 @@ app.include_router(smart_money_router)
 app.include_router(desk_router)
 app.include_router(profile_router)
 app.include_router(system_router)
+app.include_router(heartbeat_router)
 app.include_router(watchlist_router)
 app.include_router(alerts_feed_router)
 app.include_router(notify_prefs_router)
