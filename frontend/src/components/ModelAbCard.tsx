@@ -38,6 +38,9 @@ export function ModelAbCard() {
 
   const view = buildModelAbView(ab, resolved);
   const state = loaded ? view.state : "loading";
+  const concentrationVerdict = resolved?.population?.verdict;
+  const isConcentrated =
+    typeof concentrationVerdict === "string" && concentrationVerdict.startsWith("CONCENTRATED");
 
   return (
     <section data-testid="model-ab-card" className="mt-10">
@@ -58,35 +61,65 @@ export function ModelAbCard() {
         </div>
       ) : (
         <MotionReveal className="mt-4 rounded-2xl border border-border bg-surface p-4">
-          {/* Progress toward the threshold — shown in every state. */}
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-[0.06em] text-muted">
-              Resolved outcomes
-            </span>
-            <span className="font-mono font-bold text-text">
-              <AnimatedNumber value={view.resolvedCount} format={(n) => String(Math.round(n))} /> /{" "}
-              {view.threshold} resolved
-            </span>
+          {view.progressPct === null ? (
+            <p className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-xs font-semibold text-gold">
+              Cluster data unavailable — A/B progress is not shown until the API reports both
+              correlation clusters and a cluster threshold.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold uppercase tracking-[0.06em] text-muted">
+                  Correlation clusters
+                </span>
+                <span className="font-mono font-bold text-text">
+                  <AnimatedNumber
+                    value={view.clusterCount ?? 0}
+                    format={(n) => String(Math.round(n))}
+                  />{" "}
+                  / {view.clusterThreshold} clusters
+                </span>
+              </div>
+              <div
+                className="mt-2 h-2.5 overflow-hidden rounded-full bg-surface-3"
+                role="progressbar"
+                aria-valuenow={Math.round(view.progressPct)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`A/B unblock progress: ${view.clusterLabel}`}
+              >
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${view.progressPct}%` }}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="mt-3 rounded-lg border border-border bg-bg/40 px-3 py-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              Nominal scored forecasts
+            </p>
+            <p className="mt-1 font-mono text-sm font-bold text-text">
+              {view.forecastScoredCount === null ? "—" : view.forecastScoredCount}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-2">
+              Context only; this count does not set the A/B threshold.
+            </p>
           </div>
-          <div
-            className="mt-2 h-2.5 overflow-hidden rounded-full bg-surface-3"
-            role="progressbar"
-            aria-valuenow={Math.round(view.progressPct)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`A/B unblock progress: ${view.resolvedLabel}`}
-          >
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-500"
-              style={{ width: `${view.progressPct}%` }}
-            />
-          </div>
+
+          {isConcentrated ? (
+            <p className="mt-3 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-xs font-semibold text-gold">
+              {concentrationVerdict}
+            </p>
+          ) : null}
 
           {state === "not-ready" ? (
             <p className="mt-3 text-xs text-muted">
-              {view.remaining} more resolved outcome{view.remaining === 1 ? "" : "s"} needed before
-              the walk-forward A/B can run. Default model:{" "}
-              <span className="font-mono font-semibold text-text">{view.defaultModelLabel}</span>{" "}
+              {view.remaining === null
+                ? "The walk-forward A/B remains unready until the cluster gate is reported."
+                : `${view.remaining} more correlation cluster${view.remaining === 1 ? "" : "s"} needed before the walk-forward A/B can run.`}{" "}
+              Default model: <span className="font-mono font-semibold text-text">{view.defaultModelLabel}</span>{" "}
               (unchanged).
             </p>
           ) : (
