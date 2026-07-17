@@ -3,6 +3,7 @@
   "configurations": [
     { "name": "frontend", "runtimeExecutable": "npm.cmd", "runtimeArgs": ["run", "dev", "--prefix", "E:/polymarket clone/frontend"], "port": 3000, "autoPort": true },
     { "name": "frontend-preview", "runtimeExecutable": "npm.cmd", "runtimeArgs": ["run", "dev", "--prefix", "E:/polymarket clone/frontend"], "port": 3101, "autoPort": true },
-    { "name": "loop-opus-polish", "runtimeExecutable": "npm.cmd", "runtimeArgs": ["run", "dev", "--prefix", "E:/polymarket-worktrees/loop-opus-polish/frontend"], "port": 3210, "autoPort": true }
+    { "name": "loop-opus-polish", "runtimeExecutable": "npm.cmd", "runtimeArgs": ["run", "dev", "--prefix", "E:/polymarket-worktrees/loop-opus-polish/frontend"], "port": 3210, "autoPort": true },
+    { "name": "loop62-ui", "runtimeExecutable": "npm.cmd", "runtimeArgs": ["run", "dev", "--prefix", "E:/polymarket-worktrees/loop62-ui/frontend"], "port": 3262, "autoPort": true }
   ]
 }

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { HomeHero } from "@/components/HomeHero";
 import { QuestDiscoverShell } from "@/components/quest/QuestDiscoverShell";
 import { QuestMobileRail } from "@/components/quest/QuestMobileRail";
 import { QuestSignalRail } from "@/components/quest/QuestSignalRail";
@@ -18,8 +19,9 @@ export default async function DiscoverHome() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4">
+      <HomeHero />
       <QuestMobileRail initialMarkets={initialMarkets} />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
         <div className="hidden lg:block">
           <div className="sticky top-[4.5rem] max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
             <QuestSignalRail initialMarkets={initialMarkets} />

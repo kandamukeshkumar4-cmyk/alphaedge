@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import { EmptyState } from "@/components/EmptyState";
 import { QuestArenaHero } from "@/components/quest/QuestArenaHero";
 import { QuestFeed } from "@/components/quest/QuestFeed";
 import {
@@ -194,9 +195,17 @@ export function QuestDiscoverShell({ initialMarkets }: { initialMarkets?: Market
                 ))}
               </div>
             ) : filtered.length === 0 ? (
-              <p className="mt-8 py-12 text-center text-sm text-muted-2">
-                No markets in this topic{query ? ` matching “${query}”` : ""}.
-              </p>
+              <EmptyState
+                className="mt-6"
+                icon="grid"
+                title={query ? "No markets match your search" : "No markets in this topic yet"}
+                body={
+                  query
+                    ? `Nothing matches “${query}” in this topic. Clear the search or browse the full board.`
+                    : "This topic has no open markets right now. Browse the full markets board to find something to forecast."
+                }
+                cta={{ href: "/markets", label: "Browse all markets" }}
+              />
             ) : (
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {filtered.map((market, i) => (
