@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Mapping
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,9 +23,29 @@ from app.db.models import (
 from app.events.bus import DomainEventBus
 from app.forecasting import scoring
 from app.forecasting.market_source import get_adapter
-from app.forecasting.predictor import predict_market
+from app.forecasting.predictor import ForecastPrediction, predict_market
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ForecastProvenance:
+    """What actually produced a locked probability, recorded at lock time.
+
+    Loop V56. Every field is optional and a null is never guessed away:
+    ``artifact_digest``/``model_version`` stay None whenever the model registry
+    could not supply them, which is the honest record and is counted rather than
+    filled in. ``model_type`` names the *producing* path (see predictor
+    PRODUCER_* constants), not ``settings.ml_model_type`` — today's lock path
+    supplies no artifact, so no ML model runs and stamping "xgboost" here would
+    be a fabrication.
+    """
+
+    model_type: str | None = None
+    model_version: str | None = None
+    artifact_digest: str | None = None
+    feature_schema_digest: str | None = None
+    feature_payload: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -31,6 +53,24 @@ class MarketDetailForecastResult:
     model_prob: float
     clv_gate_passed: bool
     provisional: bool
+    provenance: ForecastProvenance = ForecastProvenance()
+
+
+def feature_schema_digest(payload: Mapping[str, object]) -> str:
+    """Stable digest of the feature *names* handed to the predictor.
+
+    Keys only: this identifies the feature schema across locks, while the values
+    live in ``feature_payload``.
+    """
+    canonical = ",".join(sorted(str(key) for key in payload))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _jsonable(value: object) -> object:
+    """Reduce a feature value to something JSON can hold, without inventing data."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    return repr(value)
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -52,14 +92,15 @@ class ForecastService:
     @staticmethod
     def predict(slug: str, implied_yes: float = 0.5) -> MarketDetailForecastResult | None:
         """Return a paper forecast for catalog markets when the predictor is available."""
+        # The exact payload handed to the predictor, captured before the call so
+        # the provenance records what was actually sent rather than a rebuild.
+        features: dict[str, object] = {
+            "market_slug": slug,
+            "implied_yes": implied_yes,
+            "market_implied": implied_yes,
+        }
         try:
-            prediction = predict_market(
-                {
-                    "market_slug": slug,
-                    "implied_yes": implied_yes,
-                    "market_implied": implied_yes,
-                }
-            )
+            prediction = predict_market(features)
         except Exception:
             logger.exception("ForecastService.predict failed for slug=%s", slug)
             return None
@@ -72,6 +113,28 @@ class ForecastService:
             model_prob=round(prediction.predicted_prob, 4),
             clv_gate_passed=clv_gate_passed,
             provisional=not clv_gate_passed,
+            provenance=ForecastService._provenance(prediction, features),
+        )
+
+    @staticmethod
+    def _provenance(
+        prediction: ForecastPrediction, features: Mapping[str, object]
+    ) -> ForecastProvenance:
+        """Describe the producing model without ever inventing an identifier.
+
+        The registry is not consulted by the lock path today: no caller supplies
+        ``model_artifact_path``, so ``predict_market`` loads no artifact and
+        there is no digest or version to read. Those stay None and are counted
+        by the A/B preflight (V56 P3) instead of being filled from
+        ``settings.ml_model_type``, which would attribute a market-implied
+        passthrough to a model that never ran.
+        """
+        return ForecastProvenance(
+            model_type=prediction.producer,
+            model_version=None,
+            artifact_digest=None,
+            feature_schema_digest=feature_schema_digest(features),
+            feature_payload={key: _jsonable(value) for key, value in features.items()},
         )
 
     async def lock_forecast(
@@ -86,6 +149,7 @@ class ForecastService:
         outcome_label: str = "YES",
         snapshot_metadata: dict[str, object] | None = None,
         idempotency_key: str | None = None,
+        provenance: ForecastProvenance | None = None,
     ) -> ForecastLog:
         if idempotency_key:
             existing = await self._get_by_idempotency_key(forecaster.id, idempotency_key)
@@ -163,6 +227,14 @@ class ForecastService:
             snapshot_metadata=effective_metadata,
             time_to_resolution_seconds=ttr_seconds,
             locked_at=locked_at,
+            # V56: provenance rides on the forecast row itself, so it is written
+            # by the same INSERT as the lock and cannot survive a rollback of it.
+            # A caller that supplies none leaves every column null (unknown).
+            model_type=provenance.model_type if provenance else None,
+            model_version=provenance.model_version if provenance else None,
+            artifact_digest=provenance.artifact_digest if provenance else None,
+            feature_schema_digest=provenance.feature_schema_digest if provenance else None,
+            feature_payload=provenance.feature_payload if provenance else None,
         )
         self.session.add(forecast)
         await self.session.flush()

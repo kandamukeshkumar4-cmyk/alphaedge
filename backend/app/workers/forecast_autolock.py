@@ -168,6 +168,10 @@ async def autolock_forecasts(
                     source=ForecastSource.WEB,
                     snapshot_metadata=metadata,
                     idempotency_key=f"model-autolock:{market.id}",
+                    # V56: the provenance of the prediction that produced
+                    # model_prob, written by the same INSERT inside this
+                    # savepoint — an eligibility rollback takes it with the lock.
+                    provenance=prediction.provenance,
                 )
                 # lock_forecast deliberately refreshes the venue snapshot. Re-check
                 # that second read and the actual lock timestamp inside the savepoint

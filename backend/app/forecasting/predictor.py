@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, Mapping, Sequence
 
 import joblib
@@ -23,6 +23,16 @@ from app.backtesting.significance import (
 
 ForecastOutcome = Literal["yes", "no"]
 
+# Loop V56: which code path actually produced ``predicted_prob``. This is the
+# only honest source for per-lock model provenance — it is NOT ML_MODEL_TYPE,
+# which merely names the model the *trainer* would build. A caller that supplies
+# no artifact paths gets PRODUCER_IMPLIED_PASSTHROUGH and no model runs at all.
+PRODUCER_ARTIFACT = "artifact"
+PRODUCER_FIFA = "fifa_wc2026"
+PRODUCER_SUPPLIED = "supplied_probability"
+PRODUCER_IMPLIED_PASSTHROUGH = "implied_passthrough"
+_SUPPLIED_PROBABILITY_KEYS = ("model_probability", "calibrated_probability", "predicted_prob")
+
 
 @dataclass(frozen=True)
 class ForecastPrediction:
@@ -37,6 +47,7 @@ class ForecastPrediction:
     outcome: ForecastOutcome = "yes"
     executable_price: float = 0.5
     top_features: tuple[dict[str, Any], ...] = ()
+    producer: str = PRODUCER_IMPLIED_PASSTHROUGH
 
 
 @dataclass(frozen=True)
@@ -60,18 +71,20 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
         from app.data.fifa.predictor import predict_fifa_market
         fifa_pred = predict_fifa_market(slug, dict(features))
         if fifa_pred is not None:
-            return fifa_pred
+            return replace(fifa_pred, producer=PRODUCER_FIFA)
         # Fall through to generic path on any failure
     artifact_probability = _artifact_probability(features)
-    predicted = _probability(
-        artifact_probability
-        if artifact_probability is not None
-        else _first_present(
-            features,
-            ("model_probability", "calibrated_probability", "predicted_prob"),
-            implied,
+    if artifact_probability is not None:
+        producer = PRODUCER_ARTIFACT
+        raw_predicted: object = artifact_probability
+    else:
+        raw_predicted = _first_present(features, _SUPPLIED_PROBABILITY_KEYS, implied)
+        producer = (
+            PRODUCER_SUPPLIED
+            if any(features.get(name) is not None for name in _SUPPLIED_PROBABILITY_KEYS)
+            else PRODUCER_IMPLIED_PASSTHROUGH
         )
-    )
+    predicted = _probability(raw_predicted)
     comparisons = _forecast_comparisons(features)
     evaluation: ForecastEvaluation | None = None
     significance: SignificanceVerdict | None = None
@@ -136,6 +149,7 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
         outcome=recommendation.outcome,
         executable_price=recommendation.price,
         top_features=top_features,
+        producer=producer,
     )
 
 
