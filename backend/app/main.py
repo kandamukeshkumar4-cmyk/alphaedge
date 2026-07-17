@@ -229,11 +229,11 @@ async def _eval_loop() -> None:
 
 
 async def _news_scan_loop() -> None:
-    """Hourly news scan (mirrors ``cron(news_scan_task, minute={35})``)."""
+    """V61 adaptive news scan; the task caps calls and keeps baseline hourly."""
     from app.workers.tasks import news_scan_task
 
     while True:
-        await asyncio.sleep(3600)
+        await asyncio.sleep(300)
         try:
             await news_scan_task({})
             record_heartbeat("news_scan")

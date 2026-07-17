@@ -808,6 +808,29 @@ class WhaleEvent(Base):
     source: Mapped[str] = mapped_column(String(64), default="polymarket.data-api")
 
 
+class MarketSentimentSnapshot(Base):
+    """V61 S2 capture-time news sentiment for per-market trend features.
+
+    This is evidence from the existing compliant public-news pipeline, not a
+    forecast or order input. Consumers must request it with a pre-close cutoff.
+    """
+
+    __tablename__ = "market_sentiment_snapshots"
+    __table_args__ = (
+        Index("ix_sentiment_market_captured", "market_slug", "captured_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    sentiment_score: Mapped[float] = mapped_column(Float, nullable=False)
+    volume_score: Mapped[float] = mapped_column(Float, nullable=False)
+    sources_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="public-news")
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class VenueGap(Base):
     """Loop V58 D2: PM↔Kalshi implied-probability gap for a matched pair.
 

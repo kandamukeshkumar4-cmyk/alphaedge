@@ -227,43 +227,123 @@ async def news_scan_task(ctx: dict) -> dict:
         return {"skipped": True, "reason": "NEWS_SIGNALS_ENABLED=false"}
 
     async with AsyncSessionLocal() as session:
-        results = await run_news_scan(session)
+        results = await run_news_scan(session, settings=settings)
         await session.commit()
     return {"scanned": len(results), "results": results}
 
 
-async def run_news_scan(session) -> dict[str, str]:
+async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
     """Core of news_scan_task on a caller-provided session (testable without
     the app engine)."""
     from datetime import UTC as _UTC
     from datetime import datetime as _dt
+    from datetime import timedelta
 
     from sqlalchemy import select as _select
 
+    from app.core.config import get_settings as _get_settings
     from app.db.models import Market as _Market
+    from app.db.models import MarketSentimentSnapshot as _MarketSentimentSnapshot
     from app.db.models import MarketStatus as _MarketStatus
+    from app.db.models import OddsSnapshot as _OddsSnapshot
     from app.signals.news_lag import NewsLagService
+    from app.signals.news_cadence import (
+        HOT_INTERVAL_SEC,
+        NewsRefreshCandidate,
+        eligible_candidates,
+        record_refresh_failure,
+        record_refresh_success,
+        refresh_interval_sec,
+    )
     from app.signals.news_signal import fetch_news_signal
+    from app.signals.sentiment_debate import persist_debate, run_news_debate
+    from app.services.whale_flow_service import WhaleFlowService
 
+    settings = settings or _get_settings()
+    now = now or _dt.now(_UTC)
     results: dict[str, str] = {}
     rows = (
         await session.execute(
-            _select(_Market.slug, _Market.title)
+            _select(_Market.slug, _Market.title, _Market.lock_at, _Market.volume)
             .where(
                 _Market.status == _MarketStatus.OPEN,
                 _Market.source.in_(("polymarket", "kalshi")),
             )
             .order_by(_Market.volume.desc())
-            .limit(_NEWS_SCAN_TOP_N)
+            .limit(max(_NEWS_SCAN_TOP_N, int(settings.news_cadence_budget)))
         )
     ).all()
+    candidates: list[NewsRefreshCandidate] = []
+    titles: dict[str, str] = {}
+    whale_service = WhaleFlowService(session)
+    for slug, title, lock_at, volume in rows:
+        prices = (await session.execute(
+            _select(_OddsSnapshot.implied_yes)
+            .where(
+                _OddsSnapshot.market_slug == slug,
+                _OddsSnapshot.captured_at >= now - timedelta(hours=1),
+                _OddsSnapshot.captured_at <= now,
+            )
+            .order_by(_OddsSnapshot.captured_at.asc())
+            .limit(2)
+        )).scalars().all()
+        delta = float(prices[-1] - prices[0]) if len(prices) >= 2 else None
+        pressure = await whale_service.pressure_for(slug)
+        candidates.append(NewsRefreshCandidate(
+            slug=slug,
+            close_at=lock_at,
+            price_delta_1h=delta,
+            whale_pressure=pressure.pressure,
+            volume=int(volume or 0),
+        ))
+        titles[slug] = title
+    if not settings.news_cadence_enabled:
+        selected = candidates[:_NEWS_SCAN_TOP_N]
+    else:
+        selected = eligible_candidates(
+            candidates,
+            now=now,
+            budget=max(0, int(settings.news_cadence_budget)),
+            price_jump_threshold=float(settings.news_cadence_price_jump),
+            whale_spike_threshold=float(settings.news_cadence_whale_spike),
+        )
     service = NewsLagService(session)
-    for slug, title in rows:
+    for candidate in selected:
+        slug = candidate.slug
         try:
-            signal = await fetch_news_signal(title)
-            if signal is None or signal.sentiment_score == 0.0:
+            signal = await fetch_news_signal(titles[slug])
+            if signal is None:
                 results[slug] = "no-news"
+                record_refresh_success(slug)
                 continue
+            session.add(_MarketSentimentSnapshot(
+                market_slug=slug,
+                sentiment_score=max(-1.0, min(1.0, float(signal.sentiment_score))),
+                volume_score=max(0.0, min(1.0, float(signal.volume_score))),
+                sources_count=max(0, int(signal.sources_count)),
+                source="public-news",
+                captured_at=now,
+            ))
+            if signal.sentiment_score == 0.0:
+                results[slug] = "neutral-news"
+                record_refresh_success(slug)
+                continue
+            if refresh_interval_sec(
+                candidate,
+                now=now,
+                price_jump_threshold=float(settings.news_cadence_price_jump),
+                whale_spike_threshold=float(settings.news_cadence_whale_spike),
+            ) == HOT_INTERVAL_SEC:
+                verdicts = await run_news_debate(
+                    candidate=candidate,
+                    title=titles[slug],
+                    headline=signal.headline,
+                    sentiment_score=signal.sentiment_score,
+                    settings=settings,
+                    now=now,
+                )
+                if len(verdicts) == 3:
+                    persist_debate(session, market_slug=slug, verdicts=verdicts)
             outcome = await service.detect(
                 slug,
                 relevance=max(0.0, min(1.0, signal.volume_score)),
@@ -272,8 +352,10 @@ async def run_news_scan(session) -> dict[str, str]:
                 headline=signal.headline,
             )
             results[slug] = outcome.reason
+            record_refresh_success(slug)
         except Exception as exc:  # noqa: BLE001 - per-market isolation
             results[slug] = f"error: {exc}"
+            record_refresh_failure()
     return results
 
 
@@ -1099,8 +1181,9 @@ class WorkerSettings:
     cron_jobs = [
         cron(capture_market_snapshots_task, minute={0}),
         cron(ingest_odds_task, hour={12}, minute=0),
-        cron(fetch_news_signals_task, minute={30}),  # every hour at :30
-        cron(news_scan_task, minute={35}),  # B04: news -> news_arrival events hourly
+        cron(fetch_news_signals_task, minute={30}),  # hourly baseline cache warm
+        # V61 S1: 5-minute scheduler; adaptive eligibility keeps non-hot markets hourly.
+        cron(news_scan_task, minute=set(range(0, 60, 5))),
         cron(news_mispricing_scan_task, minute={45}),  # G03: news -> news:mispricing
         cron(unusual_flow_scan_task, minute={55}),  # G04: move w/o news -> anomaly
         cron(weather_scan_task, minute={40}),  # O04: NWS-vs-Kalshi weather edges hourly

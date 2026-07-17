@@ -62,7 +62,13 @@ async def test_news_scan_task_emits_news_arrival_events(db_session, monkeypatch)
 
     from sqlalchemy import select
 
-    from app.db.models import Market, MarketStatus, OddsSnapshot, SignalEvent
+    from app.db.models import (
+        Market,
+        MarketSentimentSnapshot,
+        MarketStatus,
+        OddsSnapshot,
+        SignalEvent,
+    )
     from app.signals.news_signal import NewsSignal
     from app.workers import tasks as worker_tasks
 
@@ -120,3 +126,10 @@ async def test_news_scan_task_emits_news_arrival_events(db_session, monkeypatch)
         )
     )).scalars().all()
     assert len(events) >= 1
+    snapshots = (await db_session.execute(
+        select(MarketSentimentSnapshot).where(
+            MarketSentimentSnapshot.market_slug == "pm-news-scan-test"
+        )
+    )).scalars().all()
+    assert len(snapshots) == 1
+    assert float(snapshots[0].sentiment_score) == pytest.approx(0.9)

@@ -221,6 +221,8 @@ async def test_market_context_endpoint_shape(db_session):
         "whale",
         "venue_gap",
         "news",
+        "sentiment_trend",
+        "sentiment_debate",
         "price_trend",
         "volume",
         "features",
@@ -243,6 +245,8 @@ async def test_market_context_endpoint_shape(db_session):
         "venue_gap",
         "venue_gap_bounded",
         "news_sentiment",
+        "sentiment_direction",
+        "sentiment_acceleration",
         "price_delta_1h",
         "volume_percentile",
     }
