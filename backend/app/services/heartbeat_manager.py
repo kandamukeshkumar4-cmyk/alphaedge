@@ -41,6 +41,12 @@ from app.services.heartbeat_decision import (
     PositionSnapshot,
     decide,
 )
+from app.services.heartbeat_halts import (
+    compose_halt_flags,
+    evaluate_daily_loss_halts,
+    evaluate_price_feed_staleness,
+    halt_transition_log_rows,
+)
 from app.services.order_book_service import OrderBookService
 
 logger = logging.getLogger(__name__)
@@ -87,6 +93,8 @@ def heartbeat_detail(summary: dict[str, Any] | None) -> str | None:
         f"emergency={summary.get('emergency', 0)}",
         f"logged={summary.get('logged', 0)}",
         f"exits_submitted={summary.get('exits_submitted', 0)}",
+        f"halts_engaged={summary.get('halts_engaged', 0)}",
+        f"halts_cleared={summary.get('halts_cleared', 0)}",
         f"errors={summary.get('errors', 0)}",
     ]
     return " ".join(parts)
@@ -273,7 +281,6 @@ async def run_heartbeat_pass(
     started = time.perf_counter()
     now = now or datetime.now(timezone.utc)
     rules = rules_from_settings()
-    halts = halts or halt_flags_from_settings()
 
     summary: dict[str, Any] = {
         "scanned": 0,
@@ -284,6 +291,8 @@ async def run_heartbeat_pass(
         "logged": 0,
         "exits_submitted": 0,
         "errors": 0,
+        "halts_engaged": 0,
+        "halts_cleared": 0,
     }
 
     try:
@@ -294,11 +303,66 @@ async def run_heartbeat_pass(
         summary["errors"] += 1
         return summary
 
+    # H3: evaluate reversible emergency gates before per-position decide().
+    daily_loss_refs: set[str] = set()
+    price_feed_stale = False
+    if halts is None:
+        try:
+            account_ids = list(
+                {t.account_id for t in tracked if t.account_id is not None}
+            )
+            paper_user_ids: list[UUID] = []
+            for t in tracked:
+                if t.snapshot.source == "paper":
+                    # position_ref = paper:<user_id>:<slug>:<outcome>
+                    parts = t.snapshot.position_ref.split(":")
+                    if len(parts) >= 2:
+                        try:
+                            paper_user_ids.append(UUID(parts[1]))
+                        except ValueError:
+                            pass
+            paper_user_ids = list(set(paper_user_ids))
+            price_feed_stale = await evaluate_price_feed_staleness(session, now=now)
+            daily_loss_refs = await evaluate_daily_loss_halts(
+                session,
+                now=now,
+                account_ids=account_ids,
+                paper_user_ids=paper_user_ids,
+            )
+            for row in halt_transition_log_rows(now):
+                action = row["action_taken"]
+                if action == "halt_engaged":
+                    summary["halts_engaged"] += 1
+                elif action == "halt_cleared":
+                    summary["halts_cleared"] += 1
+                session.add(
+                    HeartbeatDecisionLog(
+                        position_ref=row["position_ref"],
+                        rule_fired=row["rule_fired"],
+                        inputs_snapshot=row["inputs_snapshot"],
+                        action_taken=action,
+                        latency_ms=0.0,
+                    )
+                )
+                summary["logged"] += 1
+        except Exception:
+            logger.exception("heartbeat halt evaluation failed")
+            summary["errors"] += 1
+
     for item in tracked:
         summary["scanned"] += 1
         t0 = time.perf_counter()
         try:
-            decision = decide(item.snapshot, rules, now=now, halts=halts)
+            pos_halts = (
+                halts
+                if halts is not None
+                else compose_halt_flags(
+                    position_ref=item.snapshot.position_ref,
+                    price_feed_stale=price_feed_stale,
+                    daily_loss_refs=daily_loss_refs,
+                )
+            )
+            decision = decide(item.snapshot, rules, now=now, halts=pos_halts)
             action = decision.action
             if action is HeartbeatAction.HOLD:
                 summary["hold"] += 1
