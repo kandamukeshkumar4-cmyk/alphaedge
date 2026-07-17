@@ -69,6 +69,7 @@ from app.api.v1.resolved import router as resolved_router
 from app.api.v1.categories import router as categories_router
 from app.api.v1.compare import router as compare_router
 from app.api.v1.venue_gaps import router as venue_gaps_router
+from app.api.v1.market_context import router as market_context_router
 from app.observability.loop_state import record_heartbeat
 from app.observability.metrics import router as metrics_router
 from app.core.config import get_settings
@@ -855,6 +856,7 @@ app.include_router(resolved_router)
 app.include_router(categories_router)
 app.include_router(compare_router)
 app.include_router(venue_gaps_router)
+app.include_router(market_context_router)
 app.include_router(forecast_router)
 app.include_router(eval_router)
 app.include_router(calibration_router)
