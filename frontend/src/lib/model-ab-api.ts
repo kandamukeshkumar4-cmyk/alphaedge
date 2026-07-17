@@ -26,9 +26,33 @@ export type ModelAbResponse = {
 /** Population that produced ``resolved_count`` (V33 B2'c disclosure). */
 export type ResolvedCountSource = "forecast_scores" | "paper_orders_fallback" | string;
 
+export type PopulationHistogramEntry = {
+  key: string;
+  n: number;
+  share: number;
+};
+
+/** Backend-owned composition facts for the scored forecast population. */
+export type ResolvedCountPopulation = {
+  ab_cluster_threshold?: number | null;
+  category_histogram?: PopulationHistogramEntry[] | null;
+  family_histogram?: PopulationHistogramEntry[] | null;
+  cluster_histogram?: PopulationHistogramEntry[] | null;
+  effective_n_estimate?: number | null;
+  effective_n_ratio?: number | null;
+  horizon_hours?: Record<string, number> | null;
+  checks?: Record<string, boolean> | null;
+  verdict?: string | null;
+};
+
 export type ResolvedCountResponse = {
   resolved_count: number;
-  ab_threshold: number;
+  /** Legacy threshold name. It is safe for cluster progress only alongside correlation_clusters. */
+  ab_threshold?: number | null;
+  /** V53 cluster-gate threshold. */
+  ab_cluster_threshold?: number | null;
+  /** V53 effective independent-population numerator. */
+  correlation_clusters?: number | null;
   ab_ready: boolean;
   model_default: string;
   paper_trading_only: boolean;
@@ -36,6 +60,7 @@ export type ResolvedCountResponse = {
   source?: ResolvedCountSource | null;
   /** Scored LIVE ForecastLog rows — may be 0 while resolved_count > 0 via fallback. */
   forecast_scored_count?: number | null;
+  population?: ResolvedCountPopulation | null;
 };
 
 /** Honest, user-facing labels for the resolved-count disclosure fields. */
@@ -97,11 +122,12 @@ export type ModelAbState = "loading" | "not-ready" | "lgbm-unavailable" | "ready
 
 export type ModelAbView = {
   state: ModelAbState;
-  resolvedCount: number;
-  threshold: number;
-  progressPct: number;
-  remaining: number;
-  resolvedLabel: string;
+  clusterCount: number | null;
+  clusterThreshold: number | null;
+  progressPct: number | null;
+  remaining: number | null;
+  clusterLabel: string;
+  forecastScoredCount: number | null;
   defaultModelLabel: string;
   /** Always true — the harness never changes the deployed model. */
   defaultUnchanged: boolean;
@@ -134,18 +160,31 @@ export function buildModelAbView(
   ab: ModelAbResponse | null,
   resolved: ResolvedCountResponse | null,
 ): ModelAbView {
-  const threshold = num(resolved?.ab_threshold) ?? num(ab?.threshold) ?? 100;
-  const resolvedCount = num(resolved?.resolved_count) ?? num(ab?.resolved_count) ?? 0;
+  const clusterCount = num(resolved?.correlation_clusters);
+  const hasRawClusterCount =
+    resolved?.correlation_clusters !== undefined && resolved?.correlation_clusters !== null;
+  const clusterThreshold =
+    num(resolved?.ab_cluster_threshold) ??
+    num(resolved?.population?.ab_cluster_threshold) ??
+    (hasRawClusterCount ? num(resolved?.ab_threshold) : null);
+  const hasClusterProgress =
+    clusterCount !== null && clusterThreshold !== null && clusterThreshold > 0;
+  const progressPct = hasClusterProgress
+    ? Math.max(0, Math.min(100, (clusterCount / clusterThreshold) * 100))
+    : null;
+  const remaining = hasClusterProgress ? Math.max(0, clusterThreshold - clusterCount) : null;
+  const forecastScoredCount = num(resolved?.forecast_scored_count);
   const defaultModel = resolved?.model_default ?? ab?.model_default ?? null;
-  const progressPct = threshold > 0 ? Math.max(0, Math.min(100, (resolvedCount / threshold) * 100)) : 0;
-  const remaining = Math.max(0, threshold - resolvedCount);
 
   const base = {
-    resolvedCount,
-    threshold,
+    clusterCount,
+    clusterThreshold,
     progressPct,
     remaining,
-    resolvedLabel: `${resolvedCount} / ${threshold} resolved`,
+    clusterLabel: hasClusterProgress
+      ? `${clusterCount} / ${clusterThreshold} correlation clusters`
+      : "Cluster data unavailable",
+    forecastScoredCount,
     defaultModelLabel: titleCase(defaultModel),
     defaultUnchanged: true,
     xgbBrierLabel: "—",
