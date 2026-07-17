@@ -204,6 +204,11 @@ class Settings(BaseSettings):
     # News signals (last30days skill)
     news_signals_enabled: bool = Field(default=True, alias="NEWS_SIGNALS_ENABLED")
     news_signals_timeout: float = Field(default=25.0, alias="NEWS_SIGNALS_TIMEOUT")
+    # Loop V61 S1: decide refreshes from observed urgency, while capping calls.
+    news_cadence_enabled: bool = Field(default=True, alias="NEWS_CADENCE_ENABLED")
+    news_cadence_budget: int = Field(default=10, alias="NEWS_CADENCE_BUDGET")
+    news_cadence_price_jump: float = Field(default=0.05, alias="NEWS_CADENCE_PRICE_JUMP")
+    news_cadence_whale_spike: float = Field(default=0.50, alias="NEWS_CADENCE_WHALE_SPIKE")
     # Optional API keys forwarded to last30days.py (all have free-tier fallbacks)
     scrapecreators_api_key: str = Field(default="", alias="SCRAPECREATORS_API_KEY")
     brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
