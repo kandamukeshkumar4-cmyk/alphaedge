@@ -93,9 +93,9 @@ describe("buildHomeView — anon", () => {
     expect(view.signals).toHaveLength(2);
     expect(view.digest.total).toBe(2);
     expect(view.topMarkets).toHaveLength(2);
-    // model A/B readiness: progress toward threshold, never a claimed winner.
+    // model A/B readiness: cluster-gate progress, never a claimed winner.
     expect(view.modelAb.state).toBe("not-ready");
-    expect(view.modelAb.resolvedLabel).toBe("42 / 100 resolved");
+    expect(view.modelAb.clusterLabel).toBe("Cluster data unavailable");
     expect(view.modelAb.winnerLabel).toBeNull();
     expect(view.watchlistCount).toBeNull();
     expect(view.watchlistAlerts).toEqual([]);

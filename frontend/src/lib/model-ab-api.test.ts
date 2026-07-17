@@ -9,6 +9,7 @@ import {
 const RESOLVED_LOW: ResolvedCountResponse = {
   resolved_count: 42,
   ab_threshold: 100,
+  correlation_clusters: 12,
   ab_ready: false,
   model_default: "xgboost",
   paper_trading_only: true,
@@ -19,6 +20,7 @@ const RESOLVED_LOW: ResolvedCountResponse = {
 const RESOLVED_READY: ResolvedCountResponse = {
   ...RESOLVED_LOW,
   resolved_count: 120,
+  correlation_clusters: 120,
   ab_ready: true,
   source: "forecast_scores",
   forecast_scored_count: 120,
@@ -61,14 +63,65 @@ describe("buildResolvedCountDisclosure", () => {
 });
 
 describe("buildModelAbView — not ready", () => {
-  it("shows progress toward the threshold and never claims a winner", () => {
+  it("shows correlation-cluster progress and never claims a winner", () => {
     const view = buildModelAbView({ ready: false, resolved_count: 42, threshold: 100 }, RESOLVED_LOW);
     expect(view.state).toBe("not-ready");
-    expect(view.progressPct).toBeCloseTo(42, 5);
-    expect(view.remaining).toBe(58);
-    expect(view.resolvedLabel).toBe("42 / 100 resolved");
+    expect(view.progressPct).toBeCloseTo(12, 5);
+    expect(view.remaining).toBe(88);
+    expect(view.clusterLabel).toBe("12 / 100 correlation clusters");
+    expect(view.forecastScoredCount).toBe(0);
     expect(view.winnerLabel).toBeNull();
     expect(view.defaultUnchanged).toBe(true);
+  });
+
+  it("uses the V53 top-level cluster threshold before legacy compatibility", () => {
+    const view = buildModelAbView(null, {
+      ...RESOLVED_LOW,
+      correlation_clusters: 25,
+      ab_threshold: 999,
+      ab_cluster_threshold: 50,
+    });
+    expect(view.clusterThreshold).toBe(50);
+    expect(view.progressPct).toBe(50);
+  });
+
+  it("uses the nested population cluster threshold when the top-level field is absent", () => {
+    const view = buildModelAbView(null, {
+      ...RESOLVED_LOW,
+      ab_threshold: 999,
+      correlation_clusters: 25,
+      population: { ab_cluster_threshold: 50 },
+    });
+    expect(view.clusterThreshold).toBe(50);
+    expect(view.progressPct).toBe(50);
+  });
+
+  it("uses legacy ab_threshold only when correlation_clusters exists in the same response", () => {
+    const view = buildModelAbView(null, RESOLVED_LOW);
+    expect(view.clusterThreshold).toBe(100);
+    expect(view.progressPct).toBe(12);
+  });
+
+  it("does not turn a legacy count threshold into cluster progress without cluster data", () => {
+    const view = buildModelAbView(null, {
+      ...RESOLVED_LOW,
+      correlation_clusters: undefined,
+      ab_threshold: 100,
+    });
+    expect(view.clusterCount).toBeNull();
+    expect(view.clusterThreshold).toBeNull();
+    expect(view.progressPct).toBeNull();
+    expect(view.clusterLabel).toBe("Cluster data unavailable");
+  });
+
+  it("does not fabricate cluster progress from invalid values", () => {
+    const view = buildModelAbView(null, {
+      ...RESOLVED_LOW,
+      correlation_clusters: Number.NaN,
+      ab_cluster_threshold: 0,
+    });
+    expect(view.progressPct).toBeNull();
+    expect(view.remaining).toBeNull();
   });
 
   it("is loading when both inputs are null", () => {

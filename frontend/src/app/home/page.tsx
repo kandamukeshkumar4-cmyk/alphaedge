@@ -175,18 +175,26 @@ function ModelStatus({ view }: { view: HomeView }) {
       }
     >
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="text-muted">Resolved markets</span>
-        <span className="font-mono font-bold text-text">{m.resolvedLabel}</span>
+        <span className="text-muted">Correlation clusters</span>
+        <span className="font-mono font-bold text-text">{m.clusterLabel}</span>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-3" aria-hidden>
-        <div
-          className="h-full rounded-full bg-primary transition-[width] duration-500"
-          style={{ width: `${m.progressPct}%` }}
-        />
-      </div>
+      {m.progressPct === null ? (
+        <p className="mt-2 rounded-lg border border-gold/30 bg-gold/10 px-2.5 py-2 text-[11px] font-semibold text-gold">
+          Cluster data unavailable.
+        </p>
+      ) : (
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-3" aria-hidden>
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-500"
+            style={{ width: `${m.progressPct}%` }}
+          />
+        </div>
+      )}
       <p className="mt-3 text-[11px] leading-relaxed text-muted-2">
         {m.state === "not-ready"
-          ? `${m.remaining} more resolved market${m.remaining === 1 ? "" : "s"} until the walk-forward A/B is eligible. The deployed default (${m.defaultModelLabel}) is never flipped here.`
+          ? m.remaining === null
+            ? `The walk-forward A/B is not eligible until the API reports the cluster gate. The deployed default (${m.defaultModelLabel}) is never flipped here.`
+            : `${m.remaining} more correlation cluster${m.remaining === 1 ? "" : "s"} until the walk-forward A/B is eligible. The deployed default (${m.defaultModelLabel}) is never flipped here.`
           : `Default model ${m.defaultModelLabel} — analysis only, the deployed default is unchanged.`}
       </p>
     </Panel>
