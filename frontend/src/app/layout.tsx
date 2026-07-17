@@ -7,6 +7,7 @@ import "@astryxdesign/theme-neutral/theme.css";
 import "./globals.css";
 import { Providers } from "./providers";
 import { BottomNav } from "@/components/BottomNav";
+import { CoachMarks } from "@/components/CoachMarks";
 import { FirstBetOnboarding } from "@/components/FirstBetOnboarding";
 import { HealthBanner } from "@/components/HealthBanner";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <QuestLiveTicker />
               <FirstBetOnboarding />
+              <CoachMarks />
               <BottomNav />
               <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
                 <nav className="mb-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-semibold">

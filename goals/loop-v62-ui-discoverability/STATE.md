@@ -10,7 +10,7 @@ Scope: frontend only. Binding: `GOAL.md` (the 15-second rule) +
 |---|---|---|
 | R1 Information architecture (nav overhaul + `/features` map) | **DONE** | accepted by orchestrator |
 | R2 Home hero (15s comprehension, three loops) | **DONE** | see R2 notes + gate below |
-| R3 Feature spotlight (coach marks, NEW badges, empty states) | TODO | registry seeds `badge:"NEW"` already |
+| R3 Feature spotlight (coach marks, NEW badges, empty states) | **DONE** | see R3 notes + gate below |
 | R4 Motion pass (easing tokens, tickers, chart reveals) | TODO | |
 | R5 Discoverability audit table (feature→route→clicks≤2→label) | TODO | scaffold below; fill after R2/R3 |
 | R6 Gate (typecheck, lint, vitest, build) | PARTIAL | full gate already green as of R1 |
@@ -93,6 +93,50 @@ Note (encode-once): running `npm run build` while the dev server is up corrupts
 the shared `.next` (MODULE_NOT_FOUND ./NNNN.js → 500). Fix: stop preview, `rm
 -rf .next`, restart. Verify UI in the browser BEFORE running a production build.
 
+## R3 — DONE (commit `feat(loop62): R3 …`)
+
+**What shipped**
+- **Coach marks** (`components/CoachMarks.tsx`, mounted in `layout.tsx`):
+  first-visit, dismissable corner card spotlighting the 6 nav groups (from the
+  registry) + "Open the feature map →" (`/features`). Storage is a single
+  boolean seen flag `alphaedge.coachmarks.v1` — **never auth data** (browser-
+  verified: only `coachmarks.v1` + existing `onboarded` keys after dismiss).
+  Non-blocking corner placement so it doesn't fight the first-bet modal.
+- **NEW badges from the registry**: `feature-registry.ts` `badge:"NEW"` now set
+  on Pods + Heartbeat; rendered on `/features` cards (already) and as a NEW pill
+  in the More mega-menu. Data-driven, not hardcoded per-item.
+- **Honest empty states**: new canonical `components/EmptyState.tsx`
+  (title + "what will appear" body + feeder-link CTA), API-compatible with the
+  existing per-page local EmptyStates. Adopted in `QuestDiscoverShell` (the bare
+  "No markets" text → linked EmptyState → `/markets`). Per-page honest empty
+  states already exist on watchlist/alerts/forecast/pods etc. and already link
+  to feeders (to be catalogued in the R5 audit).
+
+**Reduced-motion fix (encode-once)**: the first CoachMarks draft used
+framer-motion `AnimatePresence` with an empty `exit` under reduced-motion —
+`onExitComplete` never fired, so "Got it" set the flag but the card lingered
+until reload. Rewrote to a plain conditional mount + CSS `animate-fade-up`
+(auto-zeroed by the globals.css reduced-motion kill-switch). Browser-verified:
+dismiss now unmounts immediately; card does not reappear after reload.
+
+**Browser-verified** (dev port 3262): coach marks show on first visit (6 groups
++ /features link), dismiss writes only the seen flag and clears instantly, stays
+gone after reload; Pods `/features` card shows NEW badge; 0 *current* console
+errors (stale HMR syntax errors from a transient mid-edit state were flushed —
+module compiles and renders live).
+
+**Parked / unresolved**: could not observe the QuestDiscoverShell EmptyState
+*live-empty branch* in the browser — with no local backend the discover shell
+stays in the loading (skeleton) state, so `!loading && filtered.length===0`
+never triggers. EmptyState itself is unit-tested and its wiring is build-clean.
+What-to-check-next: run against a reachable API (or seed initialMarkets) and
+search a no-match query to see the linked empty state render.
+
+**Gate (R3) — all green**: typecheck 0 · lint 0 · vitest **77 files / 465
+tests** (+4: EmptyState ×2, NEW-badge ×1, CoachMarks ×1) · build 102/102.
+Independent verifier: PASS (7/7 guardrails; localStorage seen-flag only,
+reduced-motion unmount safe, registry-driven badge, no new deps).
+
 ## R5 discoverability audit (scaffold — to complete with R5)
 
 Clicks-from-home rule: every feature must be ≤2 clicks from `/`. With the
@@ -119,3 +163,9 @@ comprehension (paper-trading truth + 3 loops deep-linked, 0 console errors, no
 overflow 1280/375) | iterations=1 (landed first pass; recovered dev server via
 .next clear after build clobber) | budget=2/6 tickets | outcome=improved
 (vitest 457→461)
+
+AutoLab: baseline=R2 gate green (vitest 461) | benchmark=feature-spotlight
+(coach marks first-visit + dismiss-persist, NEW badge from registry, honest
+linked empty state) | iterations=2 (draft framer-motion coach marks hung under
+reduced-motion → rewrote to CSS-animated plain mount; re-verified dismiss
+unmounts instantly) | budget=3/6 tickets | outcome=improved (vitest 461→465)

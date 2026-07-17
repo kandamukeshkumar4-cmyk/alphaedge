@@ -121,13 +121,20 @@ export function HeaderMoreMenu() {
                         active ? "bg-surface-2" : "hover:bg-surface-2",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "text-[13px] font-semibold",
-                          active ? "text-primary" : "text-text",
-                        )}
-                      >
-                        {item.label}
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "text-[13px] font-semibold",
+                            active ? "text-primary" : "text-text",
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                        {item.badge === "NEW" ? (
+                          <span className="rounded-full border border-accent/40 bg-accent/12 px-1.5 py-0.5 font-mono text-[8px] font-black uppercase tracking-[0.1em] text-accent">
+                            New
+                          </span>
+                        ) : null}
                       </span>
                       <span className="text-[11px] leading-snug text-muted-2">{item.blurb}</span>
                     </Link>

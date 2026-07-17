@@ -171,6 +171,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         id: "pods",
         label: "Pods",
         href: "/pods",
+        badge: "NEW",
         blurb: "Command center for the paper-trading pod fleet.",
       },
       {
@@ -178,6 +179,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         label: "Heartbeat decisions",
         href: "/pods",
         surface: "embedded",
+        badge: "NEW",
         note: "The live decision log runs inside Pods.",
         blurb: "The live decision log — every rule-gated pod action as it happens.",
       },
