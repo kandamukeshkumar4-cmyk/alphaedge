@@ -5,7 +5,7 @@
 | S1 Adaptive cadence | DONE | 21 passed in 6.85s; `uv run --extra dev ruff check app tests` clean. Public Exa/Polymarket pipeline only; no X/Reddit ingestion added. |
 | S2 Sentiment trend | DONE | 24 passed in 7.28s; Ruff clean; Alembic `054_sentiment_trend` is the sole head and chains to `053_pods`. |
 | S3 Analyst-debate pass | DONE | 26 passed in 7.98s; Ruff clean; disabled/missing-NIM/cold-market cases return no invented verdict. |
-| S4 Wire into master context endpoint | QUEUED | — |
+| S4 Wire into master context endpoint | DONE | 31 passed in 10.65s; Ruff clean; context and pods carry read-only trend/debate blocks. |
 | S5 Tests + full gate | QUEUED | — |
 
 ## Notes
@@ -25,4 +25,9 @@
   three in `analyst_briefs` with model/prompt/lens and public-news provenance;
   no probability, side, stake, claim, or order is emitted.
 - AutoLab: baseline=24 S2-focused tests + Ruff clean | benchmark=debate/trend/news tests | iterations=2 + 26 passed | budget=2/3 | outcome=improved
+- S4 adds leakage-filtered `sentiment_trend` and provenance-bearing
+  `sentiment_debate` blocks to V58 market context, with explicit unavailable
+  states. V57 pods receive those blocks as `PodMarket.metadata` only; scoring
+  and the validated execution path are unchanged.
+- AutoLab: baseline=26 S3-focused tests + Ruff clean | benchmark=context/pod/debate/trend tests | iterations=2 + 31 passed | budget=2/3 | outcome=improved
 - AutoLab: baseline=18 focused tests + Ruff clean | benchmark=focused cadence/news/V58 tests | iterations=1 + 21 passed | budget=1/3 | outcome=improved

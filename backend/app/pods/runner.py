@@ -131,6 +131,12 @@ async def _process_market(
         raise ValueError("post-decision snapshot rejected")
     price = history[-1].implied_yes
     pod = registry.create(pod_row.key, config=pod_row.config)
+    # V61 S4: a read-only context snapshot enriches pod inputs. Strategy code
+    # remains pure and the existing RiskService -> OrderIntent -> order-book path
+    # remains the only possible execution path below.
+    from app.services.master_context import build_market_context
+
+    context = await build_market_context(session, market.slug)
     market_view = PodMarket(
         market_id=str(market.id),
         slug=market.slug,
@@ -143,6 +149,8 @@ async def _process_market(
             "source": market.source,
             "title": market.title,
             "model_probability": await _latest_model_probability(session, market.slug),
+            "sentiment_trend": context["sentiment_trend"],
+            "sentiment_debate": context["sentiment_debate"],
         },
     )
     score = pod.score_market(market_view)

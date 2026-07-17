@@ -15,7 +15,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import Market, OddsSnapshot
+from app.db.models import AnalystBrief, Market, OddsSnapshot
+from app.signals.sentiment_trend import load_sentiment_trend
 from app.services.venue_gap_service import VenueGapService
 from app.services.whale_flow_service import WhaleFlowService
 from app.signals.venue_gap import bounded_venue_gap_feature
@@ -115,6 +116,44 @@ async def _news_block(slug: str) -> dict[str, Any]:
     }
 
 
+async def _debate_block(
+    session: AsyncSession, *, slug: str, as_of: datetime
+) -> dict[str, Any]:
+    """Latest three S3 lenses at or before the pre-close context cutoff."""
+    rows = (
+        await session.execute(
+            select(AnalystBrief)
+            .where(
+                AnalystBrief.market_slug == slug,
+                AnalystBrief.kind == "debate",
+                AnalystBrief.created_at <= as_of,
+            )
+            .order_by(AnalystBrief.created_at.desc())
+            .limit(30)
+        )
+    ).scalars().all()
+    lenses: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        lens = row.persona or ""
+        if lens in lenses:
+            continue
+        tool = (row.tools_used or [{}])[0] if row.tools_used else {}
+        lenses[lens] = {
+            "verdict": tool.get("verdict") if isinstance(tool, dict) else None,
+            "rationale": row.body_markdown,
+            "citations": row.citations or [],
+            "model_id": tool.get("model_id") if isinstance(tool, dict) else row.model_version,
+            "prompt_version": tool.get("prompt_version") if isinstance(tool, dict) else row.prompt_version,
+            "captured_at": row.created_at.isoformat() if row.created_at else None,
+        }
+    required = ("news-bull", "news-bear", "base-rate-skeptic")
+    return {
+        "available": all(lens in lenses for lens in required),
+        "lenses": {lens: lenses.get(lens) for lens in required},
+        "reason": None if all(lens in lenses for lens in required) else "no complete pre-close debate",
+    }
+
+
 async def build_market_context(
     session: AsyncSession,
     slug: str,
@@ -170,6 +209,14 @@ async def build_market_context(
     price = await _price_trend(session, slug)
     volume = await _volume_percentile(session, slug)
     news = await _news_block(slug)
+    cutoff = now
+    if market and market.lock_at:
+        lock_at = market.lock_at.replace(tzinfo=UTC) if market.lock_at.tzinfo is None else market.lock_at
+        cutoff = min(cutoff, lock_at)
+    sentiment_trend = await load_sentiment_trend(
+        session, market_slug=slug, as_of=cutoff, close_at=market.lock_at if market else None
+    )
+    sentiment_debate = await _debate_block(session, slug=slug, as_of=cutoff)
 
     return {
         "found": found,
@@ -179,6 +226,8 @@ async def build_market_context(
         "whale": whale_block,
         "venue_gap": venue_block,
         "news": news,
+        "sentiment_trend": sentiment_trend,
+        "sentiment_debate": sentiment_debate,
         "price_trend": price,
         "volume": volume,
         # Flattened features for pods/prediction consumers
@@ -187,6 +236,8 @@ async def build_market_context(
             "venue_gap": venue_block.get("gap"),
             "venue_gap_bounded": venue_block["bounded_feature"],
             "news_sentiment": news.get("sentiment_score"),
+            "sentiment_direction": sentiment_trend.get("direction"),
+            "sentiment_acceleration": sentiment_trend.get("acceleration"),
             "price_delta_1h": price.get("delta_1h"),
             "volume_percentile": volume.get("percentile"),
         },
@@ -195,7 +246,7 @@ async def build_market_context(
         "paper_trading_only": settings.paper_trading_only,
         "disclaimer": (
             "Master market context — whale flow, cross-venue gap, news, "
-            "price trend and volume percentile. All timestamps are capture "
+            "sentiment trend/debate, price trend and volume percentile. All timestamps are capture "
             "times; consumers must filter to pre-close. Signal only."
         ),
     }
