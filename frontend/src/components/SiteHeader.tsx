@@ -78,7 +78,11 @@ export function SiteHeader() {
         {/* BUG-V18-01: gap-2/gap-1.5 below 640px — the logo + auth cluster
             otherwise overflows a 375px viewport by ~6px (scrollWidth 381). */}
         <div className="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="AlphaEdge home">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2.5"
+            aria-label="AE AlphaEdge home"
+          >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-mono text-xs font-black text-bg shadow-glow">
               AE
             </span>

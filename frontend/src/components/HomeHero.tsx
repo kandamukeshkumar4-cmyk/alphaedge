@@ -97,8 +97,8 @@ export function HomeHero() {
 
         <ol className="mt-6 grid gap-3 sm:grid-cols-3">
           {LOOPS.map((loop, i) => (
-            <MotionReveal key={loop.name} delay={0.08 + i * 0.08} className="h-full">
-              <li className="h-full list-none">
+            <li key={loop.name} className="h-full list-none">
+              <MotionReveal delay={0.08 + i * 0.08} className="h-full">
                 <Link
                   href={loop.href}
                   className={cn(
@@ -123,8 +123,8 @@ export function HomeHero() {
                     {loop.cta} →
                   </span>
                 </Link>
-              </li>
-            </MotionReveal>
+              </MotionReveal>
+            </li>
           ))}
         </ol>
       </div>

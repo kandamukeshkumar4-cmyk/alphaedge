@@ -141,7 +141,7 @@ export function QuestArenaHero() {
         ))}
       </div>
 
-      <div className="flex justify-center gap-1.5 py-2">
+      <div className="flex justify-center gap-2 py-2">
         {SLIDES.map((_, i) => (
           <button
             key={i}
@@ -150,8 +150,8 @@ export function QuestArenaHero() {
             onClick={() => setSlide(i)}
             className={
               i === slide
-                ? "h-1 w-5 rounded-full bg-primary transition-all"
-                : "h-1 w-1.5 rounded-full bg-surface-3 transition-all"
+                ? "h-6 min-w-6 rounded-full bg-primary px-2 transition-all"
+                : "h-6 w-6 rounded-full bg-surface-3/80 transition-all hover:bg-surface-3"
             }
           />
         ))}
