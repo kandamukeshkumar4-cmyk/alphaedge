@@ -3,7 +3,7 @@
 | ID | Ticket | Status | Notes / evidence |
 |----|--------|--------|------------------|
 | T1 | /pods page (cards, banner, empty) | DONE | `pods.spec.ts` — cards from mocked fleet, paper banner, empty state |
-| T2 | decision-log terminal (rows, colors, empty) | PENDING | |
+| T2 | decision-log terminal (rows, colors, empty) | DONE | `decision-log.spec.ts` — mocked rows, buy/sell tokens, empty |
 | T3 | market context panel (gauge, gap, absent) | PENDING | |
 | T4 | run new specs + counts | PENDING | |
 
