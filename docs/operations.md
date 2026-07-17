@@ -158,7 +158,11 @@ Env: `NEXT_PUBLIC_API_URL` = public API origin (HTTPS, no trailing slash).
 | `SCHEDULER_NEWS_SCAN_ENABLED` | In-process news scan loop |
 | `SCHEDULER_WEATHER_SCAN_ENABLED` | Weather scan |
 | `SCHEDULER_MORNING_RESEARCH_ENABLED` | Morning research |
-| `SCHEDULER_WHALE_REFRESH_ENABLED` | Whale refresh |
+| `SCHEDULER_WHALE_REFRESH_ENABLED` | Whale refresh (legacy research loop) |
+| `SCHEDULER_WHALE_FLOW_ENABLED` / `WHALE_FLOW_ENABLED` | Large-trade whale flow loop (Wave 10 / V58 — `4f9cb97`) |
+| `SCHEDULER_VENUE_GAP_ENABLED` / `VENUE_GAP_ENABLED` | Cross-venue gap loop (Wave 10 / V58 — `4f9cb97`) |
+| `HEARTBEAT_MANAGER_ENABLED` | Code-only position heartbeat (Wave 10 / V59 — land `09af5eb`; default **false** in code) |
+| `PODS_ENABLED` | Multi-pod paper engine runner (Wave 10 / V57 — `40aeeec`; default **false** in code) |
 | `SCHEDULER_WC2026_RESOLVE_ENABLED` | WC2026 resolve |
 | `SCHEDULER_EXTERNAL_RESOLVE_ENABLED` | Venue resolve + score locked forecasts |
 | `SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED` | Auto-lock pre-close model forecasts |
@@ -387,6 +391,8 @@ schedulers run inside the API process).
 | `eval` | Evaluation scoring pass | eval loop |
 | `kalshi_ws` / `polymarket_ws` | Venue WebSocket streams | data streams plan |
 | `news_scan` / `weather_scan` / `morning_research` / `whale_refresh` | Research schedulers | flag-gated in-process loops |
+| **`whale_flow`** | Large-trade tape → whale pressure (Wave 10 / V58 — `4f9cb97`) | `services/whale_flow_service.py` + `main.py` / ARQ task |
+| **`venue_gap`** | Cross-venue implied gap store (Wave 10 / V58 — `4f9cb97`) | `services/venue_gap_service.py` + `main.py` / ARQ task |
 | `wc2026_resolve` | WC2026 resolution helper | scheduler |
 | `external_resolve` | Venue resolve + grade locked forecasts | external resolve loop |
 | **`external_market_bridge`** | Register **ingested** venue markets as `ExternalMarket` rows so autolock has input | `workers/external_market_bridge.py` |
@@ -397,7 +403,8 @@ schedulers run inside the API process).
 | **`daily_digest`** | Per-user daily **in-app** Notification digest (no email) | `workers/daily_digest.py` |
 | **`jobrun_retention`** | Delete old `job_runs` (default 30d, flag-gated) | `workers/jobrun_retention.py` |
 | **`data_retention`** | Odds downsample + signal/notification prune (flag-gated) | `workers/data_retention.py` |
-| **`heartbeat_manager`** | Code-only position heartbeat (hold/tighten/exit/emergency); decision log | `services/heartbeat_manager.py` |
+| **`heartbeat_manager`** | Code-only position heartbeat (hold/tighten/exit/emergency); decision log (Wave 10 / V59 land `09af5eb`) | `services/heartbeat_manager.py` |
+| **`pod_runner`** | Multi-pod paper strategy scan/score/enter/exit (Wave 10 / V57 — `40aeeec`) | `pods/runner.py` |
 
 Verify names in a running API:
 
@@ -423,12 +430,42 @@ Related env flags (names only): `SCHEDULER_EXTERNAL_AUTOLOCK_ENABLED`,
 `DATA_RETENTION_ENABLED`, odds/signal/notification retention day settings in
 `backend/app/core/config.py`.
 
+### Wave 10 loops (V57–V59 / V58 pipeline)
+
+Ship SHAs: V58 `4f9cb97`, V59 land `09af5eb` + chain `91239e3`, V57
+`40aeeec`. Full narrative: [docs/releases/wave-10.md](./releases/wave-10.md).
+
+| Loop | What “healthy” looks like | Failure modes / flags |
+|------|---------------------------|------------------------|
+| **`whale_flow`** | Heartbeat `ok`; detail like `fetched=… inserted=…`; pressure updates for large CASH tape trades | Off when `WHALE_FLOW_ENABLED` / `SCHEDULER_WHALE_FLOW_ENABLED` false; circuit breaker + min poll; external data-api only (read-only) |
+| **`venue_gap`** | Heartbeat `ok`; detail like `upserted=… skipped_odds=…`; `GET /api/v1/venue-gaps` non-error | Off when `VENUE_GAP_ENABLED` / `SCHEDULER_VENUE_GAP_ENABLED` false; stale pairs when odds missing |
+| **`heartbeat_manager`** | Heartbeat `ok`; detail counts `scanned` / `hold` / `exit` / `emergency`; `GET /api/v1/heartbeat/decisions` grows | Code default **off** (`HEARTBEAT_MANAGER_ENABLED=false`); enable in Railway to run; JWT `*_logged` ≠ filled CLOB exit |
+| **`pod_runner`** | Heartbeat `ok`; detail `scanned` / `scored` / `entered` / `exited`; `GET /api/v1/pods` shows pod keys | Code default **off** (`PODS_ENABLED=false`); skip reason `PODS_ENABLED=false` when disabled; never bypasses RiskService order path |
+
+```text
+# Spot-check the four Wave 10 loops on a live API (no secrets)
+curl -sS "$BASE_URL/api/v1/system/loops" | python -c "import sys,json; d=json.load(sys.stdin); want={'whale_flow','venue_gap','heartbeat_manager','pod_runner'};
+print([x for x in d['loops'] if x['name'] in want])"
+curl -sS "$BASE_URL/api/v1/pods"
+curl -sS "$BASE_URL/api/v1/heartbeat/decisions?limit=10"
+```
+
+**Note on `planned` vs `running`:** `GET /api/v1/system/loops` may show
+`planned: false` while `running: true` if the loop is started from lifespan
+tasks / env outside the older `background_loop_plan` list. Trust heartbeats +
+detail strings for liveness; fix plan drift in a code loop if you need them to
+match.
+
 ---
 
 ## 9b. Heartbeat position manager (Loop V59)
 
 Code-only in-process loop (default **off**: `HEARTBEAT_MANAGER_ENABLED=false`).
 Cadence default **45s** (`HEARTBEAT_MANAGER_INTERVAL_SEC`). No LLM calls.
+
+**Land SHAs (no titled `merge(loop59)` in `git log --merges -15`):**
+`91239e3` (migration re-chain), `09af5eb` (config union with V58), feature
+tickets `8c4c293`…`ce099e9`. See [wave-10.md](./releases/wave-10.md).
 
 | Concern | How |
 |---------|-----|
@@ -449,6 +486,52 @@ curl -sS "$BASE_URL/api/v1/system/loops" | python -c "import sys,json; d=json.lo
 **Do not** treat JWT paper `exit_logged` / `emergency_logged` rows as filled
 orders — those are auditable recommendations; CLOB exits show `*_submitted`
 only after RiskService approval.
+
+---
+
+## 9c. Pod runner + paper pods (Loop V57)
+
+In-process multi-pod paper engine (merge-resolve `40aeeec`). Default **off** in
+code: `PODS_ENABLED=false`. Cadence ~60s (`pods/runner.py`).
+
+| Concern | How |
+|---------|-----|
+| Liveness | `GET /api/v1/system/loops` → `pod_runner` detail `scanned=… scored=… entered=… exited=…` |
+| Fleet status | `GET /api/v1/pods` — public read; `paper_trading_only` always true on response |
+| UI | Frontend `/pods` (Wave 10 / V60 — `8ae25a4`); honest empty / not-deployed states |
+| Order path | Pods **must not** bypass RiskService → OrderIntent → OrderBookService |
+
+Three strategy keys from the engine design (`48933a3` / live pods payload):
+`crypto_5m_momentum_fade`, `longshot_fade`, `sports_value`.
+
+```text
+curl -sS "$BASE_URL/api/v1/pods"
+curl -sS "$BASE_URL/api/v1/system/loops" | python -c "import sys,json; d=json.load(sys.stdin); print([x for x in d['loops'] if x['name']=='pod_runner'][0])"
+```
+
+---
+
+## 9d. Whale flow + venue gap (Loop V58)
+
+Master data pipeline merge `4f9cb97`. Defaults in code: whale flow and venue
+gap schedulers **on** (`WHALE_FLOW_ENABLED` / `VENUE_GAP_ENABLED` and their
+`SCHEDULER_*` twins default true); graph injection of whale pressure remains a
+separate flag (`WHALE_SIGNAL_ENABLED`, default false per V58 STATE).
+
+| Loop | Cadence | Primary API / side effect |
+|------|---------|---------------------------|
+| `whale_flow` | ~60s | Large-trade tape → pressure; feeds context |
+| `venue_gap` | ~60s | PM−KS gap store; `GET /api/v1/venue-gaps` |
+| context | on read | `GET /api/v1/markets/{slug}/context`, `GET /api/v1/context/digest` |
+
+```text
+curl -sS "$BASE_URL/api/v1/venue-gaps"
+curl -sS "$BASE_URL/api/v1/markets/<slug>/context"
+curl -sS "$BASE_URL/api/v1/context/digest"
+```
+
+Leakage rule (from V58 STATE): observations timestamped at capture; consumers
+filter pre-close only. No order-path changes in this pipeline.
 
 ---
 
