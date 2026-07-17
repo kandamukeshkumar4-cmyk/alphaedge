@@ -5,7 +5,7 @@ is the sole execution boundary and must validate through ``RiskService`` then
 ``OrderBookService``.
 """
 
-from app.pods.base import Pod, PodDecision, PodMarket, PodScore
+from app.pods.base import Pod, PodDecision, PodMarket, PodScore, PricePoint
 from app.pods.registry import PodRegistry
 
-__all__ = ["Pod", "PodDecision", "PodMarket", "PodRegistry", "PodScore"]
+__all__ = ["Pod", "PodDecision", "PodMarket", "PodRegistry", "PodScore", "PricePoint"]

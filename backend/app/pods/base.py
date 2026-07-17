@@ -5,7 +5,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
+from datetime import datetime
 from typing import Any, Mapping
+
+
+@dataclass(frozen=True)
+class PricePoint:
+    captured_at: datetime
+    implied_yes: Decimal
 
 
 @dataclass(frozen=True)
@@ -21,6 +28,8 @@ class PodMarket:
     category: str
     price: Decimal
     close_at: object | None = None
+    as_of: datetime | None = None
+    price_history: tuple[PricePoint, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
