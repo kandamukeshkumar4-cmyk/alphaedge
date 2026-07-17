@@ -3,31 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+
+import { NavIcon } from "@/components/nav-icons";
+import { ALL_FEATURES, FEATURE_GROUPS } from "@/lib/feature-registry";
 import { cn } from "@/lib/cn";
 
-// P04: secondary surfaces that regressed out of the primary nav. Kept in a
-// "More" dropdown so the primary 6 tabs stay uncluttered while every shipped
-// capability is ≤1 click from the header. Shared with the mobile menu.
-export const MORE_NAV: { label: string; href: string; blurb: string }[] = [
-  { label: "Home", href: "/home", blurb: "Personal desk home" },
-  { label: "Clones", href: "/clones", blurb: "Paper agent clones" },
-  { label: "Pods", href: "/pods", blurb: "Paper pod fleet telemetry" },
-  { label: "Opportunities", href: "/opportunities", blurb: "Biggest model-vs-market edges" },
-  { label: "Research", href: "/research", blurb: "AI briefs & citations" },
-  { label: "Feed", href: "/feed", blurb: "Signals activity stream" },
-  { label: "Alerts", href: "/alerts", blurb: "Price & signal triggers" },
-  { label: "Track record", href: "/track-record", blurb: "Calibration & CLV" },
-  { label: "Resolved", href: "/resolved", blurb: "Model calls vs real outcomes" },
-  { label: "Compare", href: "/compare", blurb: "Markets side by side" },
-  { label: "Smart money", href: "/smart-money", blurb: "Whale flow & concentration" },
-  { label: "Arb", href: "/arb", blurb: "Cross-venue matched pairs" },
-  { label: "Weather", href: "/weather", blurb: "Outdoor-market edges" },
-  { label: "Macro", href: "/macro", blurb: "Rates & econ context" },
-  { label: "Eval", href: "/eval", blurb: "Model evaluation" },
-  { label: "Backtest", href: "/backtest", blurb: "Walk-forward CLV" },
-];
+/*
+ * Loop V62 (R1) — the "More" menu is now a grouped feature map driven by the
+ * single-source feature registry. Every shipped capability is ≤1 click from
+ * the header (open More) and the full map is one click away at /features. The
+ * grouping + labels + one-line blurbs kill "mystery meat" secondary nav.
+ */
 
 function isActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -35,7 +24,7 @@ export function HeaderMoreMenu() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const anyActive = MORE_NAV.some((item) => isActive(pathname, item.href));
+  const anyActive = ALL_FEATURES.some((item) => isActive(pathname, item.href));
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +64,7 @@ export function HeaderMoreMenu() {
           fill="none"
           stroke="currentColor"
           strokeWidth="2.5"
-          className={cn("transition-transform", open && "rotate-180")}
+          className={cn("transition-transform duration-200", open && "rotate-180")}
           aria-hidden
         >
           <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -88,33 +77,65 @@ export function HeaderMoreMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-lift"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[72vh] w-[min(92vw,42rem)] overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-lift"
         >
-          {MORE_NAV.map((item) => {
-            const active = isActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex flex-col gap-0.5 rounded-lg px-3 py-2 transition",
-                  active ? "bg-surface-2" : "hover:bg-surface-2",
-                )}
-              >
-                <span
-                  className={cn(
-                    "text-[13px] font-semibold",
-                    active ? "text-primary" : "text-text",
-                  )}
-                >
-                  {item.label}
-                </span>
-                <span className="text-[11px] text-muted-2">{item.blurb}</span>
-              </Link>
-            );
-          })}
+          <Link
+            href="/features"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "mb-2 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 transition",
+              isActive(pathname, "/features")
+                ? "border-primary/40 bg-primary-dim/40"
+                : "border-border bg-surface-2/60 hover:border-primary/40",
+            )}
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+              <NavIcon name="map" size={17} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-black text-text">All features →</span>
+              <span className="block text-[11px] text-muted-2">
+                The full map of everything AlphaEdge does.
+              </span>
+            </span>
+          </Link>
+
+          <div className="grid gap-x-3 sm:grid-cols-2">
+            {FEATURE_GROUPS.map((group) => (
+              <div key={group.id} className="py-1">
+                <p className="flex items-center gap-1.5 px-2 pb-1 pt-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-2">
+                  <NavIcon name={group.icon} size={13} />
+                  {group.title}
+                </p>
+                {group.features.map((item) => {
+                  const active = isActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      role="menuitem"
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex flex-col gap-0.5 rounded-lg px-2 py-1.5 transition",
+                        active ? "bg-surface-2" : "hover:bg-surface-2",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "text-[13px] font-semibold",
+                          active ? "text-primary" : "text-text",
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                      <span className="text-[11px] leading-snug text-muted-2">{item.blurb}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

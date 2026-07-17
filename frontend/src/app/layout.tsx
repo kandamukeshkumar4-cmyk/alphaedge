@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Figtree, IBM_Plex_Mono } from "next/font/google";
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
@@ -70,6 +71,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <FirstBetOnboarding />
               <BottomNav />
               <footer className="border-t border-border bg-surface/40 px-4 py-6 pb-24 text-center lg:pb-6">
+                <nav className="mb-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-semibold">
+                  <Link href="/features" className="text-muted transition hover:text-primary">
+                    Feature map
+                  </Link>
+                  <Link href="/markets" className="text-muted transition hover:text-primary">
+                    Markets
+                  </Link>
+                  <Link href="/eval" className="text-muted transition hover:text-primary">
+                    Proof
+                  </Link>
+                  <Link href="/pods" className="text-muted transition hover:text-primary">
+                    Pods
+                  </Link>
+                  <Link href="/portfolio" className="text-muted transition hover:text-primary">
+                    Portfolio
+                  </Link>
+                </nav>
                 <p className="mx-auto max-w-3xl text-xs leading-relaxed text-muted-2">
                   {DISCLAIMER}
                 </p>

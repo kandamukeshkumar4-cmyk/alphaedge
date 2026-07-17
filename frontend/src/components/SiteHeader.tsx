@@ -6,27 +6,32 @@ import { useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { AlertToast } from "@/components/AlertToast";
 import { ApiHealthChip } from "@/components/ApiHealthChip";
-import { HeaderMoreMenu, MORE_NAV } from "@/components/HeaderMoreMenu";
+import { HeaderMoreMenu } from "@/components/HeaderMoreMenu";
 import { HeaderSearch } from "@/components/HeaderSearch";
 import { AlertsBell } from "@/components/AlertsBell";
+import { NavIcon, type NavIconKey } from "@/components/nav-icons";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
+import { FEATURE_GROUPS } from "@/lib/feature-registry";
 import { useAuth } from "@/hooks/useAuth";
 import { useSignalAlerts } from "@/hooks/useSignalAlerts";
 import { cn } from "@/lib/cn";
 
 /*
- * QuestFlow nav: Discover | Trade | Markets | Signals | Clones | Portfolio
- * (Leaderboard stays reachable from Discover Intelligence + /leaderboard).
+ * QuestFlow nav: Discover | Trade | Markets | Signals | Portfolio | Features
+ * with icon+text labels (Loop V62 R1 — no icon-only mystery meat). Home and
+ * Clones defer to xl to keep the 1280 row tight; Features (the full map) and
+ * every secondary surface stay ≤1 click away via the grouped More menu.
  */
-const NAV = [
-  { label: "Discover", href: "/" },
-  { label: "Home", href: "/home" },
-  { label: "Trade", href: "/trade" },
-  { label: "Markets", href: "/markets" },
-  { label: "Signals", href: "/signals" },
-  { label: "Clones", href: "/clones" },
-  { label: "Portfolio", href: "/portfolio" },
+const NAV: { label: string; href: string; icon: NavIconKey }[] = [
+  { label: "Discover", href: "/", icon: "compass" },
+  { label: "Home", href: "/home", icon: "home" },
+  { label: "Trade", href: "/trade", icon: "bolt" },
+  { label: "Markets", href: "/markets", icon: "grid" },
+  { label: "Signals", href: "/signals", icon: "signal" },
+  { label: "Clones", href: "/clones", icon: "clone" },
+  { label: "Portfolio", href: "/portfolio", icon: "wallet" },
+  { label: "Features", href: "/features", icon: "map" },
 ];
 
 function formatPaperBalance(value: number): string {
@@ -95,8 +100,10 @@ export function SiteHeader() {
                 item.href === "/"
                   ? pathname === "/"
                   : pathname === base || pathname.startsWith(`${base}/`);
-              // PC10: at 1280, Home+Clones compete with search — keep them in More/xl.
-              const deferWide = item.label === "Home" || item.label === "Clones";
+              // PC10: at 1280, Home/Clones/Features compete with search — defer
+              // them to xl. Every one stays ≤1 click away via the More map.
+              const deferWide =
+                item.label === "Home" || item.label === "Clones" || item.label === "Features";
               return (
                 <Link
                   key={item.label}
@@ -104,11 +111,12 @@ export function SiteHeader() {
                   aria-current={active ? "page" : undefined}
                   onClick={item.label === "Signals" ? () => markRead() : undefined}
                   className={cn(
-                    "relative flex items-center px-2 text-[13px] font-semibold transition",
+                    "relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition",
                     deferWide && "hidden xl:flex",
                     active ? "text-text" : "text-muted hover:text-text",
                   )}
                 >
+                  <NavIcon name={item.icon} size={15} className="shrink-0" />
                   <NavLabel
                     label={item.label}
                     unreadCount={item.label === "Signals" ? unreadCount : undefined}
@@ -194,8 +202,9 @@ export function SiteHeader() {
                     }
                     setOpen(false);
                   }}
-                  className="rounded-md px-2 py-2 text-muted transition hover:bg-surface-2 hover:text-text"
+                  className="flex items-center gap-2.5 rounded-md px-2 py-2 text-muted transition hover:bg-surface-2 hover:text-text"
                 >
+                  <NavIcon name={item.icon} size={16} className="shrink-0 text-muted-2" />
                   <NavLabel
                     label={item.label}
                     unreadCount={item.label === "Signals" ? unreadCount : undefined}
@@ -203,19 +212,41 @@ export function SiteHeader() {
                 </Link>
               ))}
             </nav>
-            <p className="mt-3 px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">
-              More
-            </p>
-            <nav className="mt-1 grid grid-cols-2 gap-1 text-sm font-semibold">
-              {MORE_NAV.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className="rounded-md px-2 py-2 text-muted transition hover:bg-surface-2 hover:text-text"
-                >
-                  {item.label}
-                </Link>
+            <Link
+              href="/features"
+              onClick={() => setOpen(false)}
+              className="mt-3 flex items-center gap-2.5 rounded-lg border border-border bg-surface-2/60 px-3 py-2.5 transition hover:border-primary/40"
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+                <NavIcon name="map" size={15} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-black text-text">All features →</span>
+                <span className="block text-[11px] text-muted-2">
+                  The full map of everything AlphaEdge does.
+                </span>
+              </span>
+            </Link>
+            <nav className="mt-2 flex flex-col gap-2">
+              {FEATURE_GROUPS.map((group) => (
+                <div key={group.id}>
+                  <p className="flex items-center gap-1.5 px-2 pb-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">
+                    <NavIcon name={group.icon} size={12} />
+                    {group.title}
+                  </p>
+                  <div className="grid grid-cols-2 gap-1 text-sm font-semibold">
+                    {group.features.map((item) => (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className="rounded-md px-2 py-1.5 text-muted transition hover:bg-surface-2 hover:text-text"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               ))}
             </nav>
           </div>
