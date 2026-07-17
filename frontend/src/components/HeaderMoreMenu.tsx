@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 export const MORE_NAV: { label: string; href: string; blurb: string }[] = [
   { label: "Home", href: "/home", blurb: "Personal desk home" },
   { label: "Clones", href: "/clones", blurb: "Paper agent clones" },
+  { label: "Pods", href: "/pods", blurb: "Paper pod fleet telemetry" },
   { label: "Opportunities", href: "/opportunities", blurb: "Biggest model-vs-market edges" },
   { label: "Research", href: "/research", blurb: "AI briefs & citations" },
   { label: "Feed", href: "/feed", blurb: "Signals activity stream" },
