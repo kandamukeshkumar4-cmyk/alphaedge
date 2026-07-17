@@ -22,4 +22,13 @@ describe("/pods page shell", () => {
     expect(html).not.toContain("Last decision");
     expect(html).not.toContain("Bankroll");
   });
+
+  // U3 — the decision-log terminal is embedded on /pods and streams from the
+  // heartbeat endpoint (its own honest states; no fabricated log rows).
+  it("embeds the decision-log terminal in the initial paint", () => {
+    const html = renderToStaticMarkup(React.createElement(PodsPage));
+
+    expect(html).toContain("Decision log");
+    expect(html).toContain("/api/v1/heartbeat/decisions");
+  });
 });

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DecisionLogTerminal } from "@/components/DecisionLogTerminal";
 import { PodEquitySparkline } from "@/components/PodEquitySparkline";
 import { PageHeader, PageShell } from "@/components/ui/kit";
 import { relativeTime } from "@/lib/alerts-api";
@@ -102,6 +103,12 @@ export default function PodsPage() {
           ))}
         </div>
       )}
+
+      {/* U3 — live decision-log terminal (independent endpoint; renders its
+          own honest states regardless of the fleet state above). */}
+      <div className="mt-6">
+        <DecisionLogTerminal />
+      </div>
     </PageShell>
   );
 }

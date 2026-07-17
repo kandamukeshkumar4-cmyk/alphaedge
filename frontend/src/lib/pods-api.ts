@@ -181,6 +181,35 @@ export function decisionKey(decision: HeartbeatDecision): string {
   return `${decision.t}|${decision.pod}|${decision.market}|${decision.rule}|${decision.action}`;
 }
 
+/**
+ * Keys in `decisions` that are not in `known` — the rows the terminal should
+ * blink. The very first successful load passes `known = null` and marks
+ * nothing as new (the whole list is "new" on first paint; blinking every row
+ * would be noise).
+ */
+export function findNewDecisionKeys(
+  known: ReadonlySet<string> | null,
+  decisions: HeartbeatDecision[],
+): Set<string> {
+  if (known === null) return new Set();
+  const fresh = new Set<string>();
+  for (const decision of decisions) {
+    const key = decisionKey(decision);
+    if (!known.has(key)) fresh.add(key);
+  }
+  return fresh;
+}
+
+/**
+ * Terminal timestamp for a decision row: HH:MM:SS (UTC, locale-independent so
+ * SSR and client paint identical text). Unparseable input renders as "—".
+ */
+export function formatDecisionTime(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "—";
+  return new Date(ms).toISOString().slice(11, 19);
+}
+
 /** Clamp a contract number into [min, max]; non-finite input -> fallback. */
 export function clampMetric(
   value: number | null | undefined,

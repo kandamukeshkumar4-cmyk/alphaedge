@@ -7,6 +7,8 @@ import {
   fetchHeartbeatDecisions,
   fetchMarketContext,
   fetchPods,
+  findNewDecisionKeys,
+  formatDecisionTime,
   normalizePodStatus,
   sortDecisionsNewestFirst,
   type HeartbeatDecision,
@@ -258,6 +260,60 @@ describe("decision ordering and identity", () => {
       "2026-07-17T09:00:00Z|a|m1|r1|buy_yes",
     );
     expect(decisionKey(older)).not.toBe(decisionKey(newer));
+  });
+});
+
+describe("findNewDecisionKeys", () => {
+  const first: HeartbeatDecision = {
+    t: "2026-07-17T10:00:00Z",
+    pod: "nba-momentum",
+    market: "nba-2025-01-15-lal-bos",
+    rule: "edge_threshold",
+    action: "buy_yes",
+    latency_ms: 182,
+  };
+  const second: HeartbeatDecision = {
+    t: "2026-07-17T10:00:05Z",
+    pod: "election-mean-revert",
+    market: "election-2026-senate",
+    rule: "clv_guard",
+    action: "skip",
+    latency_ms: 94,
+  };
+
+  it("marks nothing as new on the very first load (known = null)", () => {
+    // The whole list is new on first paint; blinking every row would be noise.
+    expect(findNewDecisionKeys(null, [first, second]).size).toBe(0);
+  });
+
+  it("flags only decisions that were not already known", () => {
+    const known = new Set([decisionKey(first)]);
+    const fresh = findNewDecisionKeys(known, [first, second]);
+
+    expect(fresh.has(decisionKey(second))).toBe(true);
+    expect(fresh.has(decisionKey(first))).toBe(false);
+  });
+
+  it("returns an empty set when a poll finds no new rows", () => {
+    const known = new Set([decisionKey(first), decisionKey(second)]);
+    expect(findNewDecisionKeys(known, [first, second]).size).toBe(0);
+  });
+
+  it("handles an empty poll result against a known set", () => {
+    const known = new Set([decisionKey(first)]);
+    expect(findNewDecisionKeys(known, []).size).toBe(0);
+  });
+});
+
+describe("formatDecisionTime", () => {
+  it("formats an ISO timestamp as HH:MM:SS UTC", () => {
+    expect(formatDecisionTime("2026-07-17T10:03:07Z")).toBe("10:03:07");
+    expect(formatDecisionTime("2026-07-17T23:59:59.123Z")).toBe("23:59:59");
+  });
+
+  it("renders an em dash for unparseable input", () => {
+    expect(formatDecisionTime("not-a-date")).toBe("—");
+    expect(formatDecisionTime("")).toBe("—");
   });
 });
 
