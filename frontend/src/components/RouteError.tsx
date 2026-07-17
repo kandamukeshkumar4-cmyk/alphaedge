@@ -2,16 +2,15 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 
 /*
- * Shared route-level error fallback (Loop V13 U01). Rendered by every Next
- * App Router `error.tsx` / `global-error.tsx` boundary so a client render error
- * shows a friendly Quest-styled panel with a retry instead of a white screen.
- * ONE component so the boundaries never diverge. All styling flows through the
- * central Tailwind tokens (bg/surface/border/danger/primary/muted) — no hex.
+ * Shared route-level error fallback (Loop V13 U01 / V67 L3). Rendered by every
+ * Next App Router `error.tsx` / `global-error.tsx` boundary so a client render
+ * error shows a friendly Quest-styled panel with a retry instead of a white
+ * screen. Never renders error.message or stack — only an optional digest ref.
  */
 export function RouteError({
   reset,
   title = "Something went wrong",
-  description = "This section hit an unexpected error. Your paper-trading data is safe — try again, or head back home.",
+  description = "This section hit an unexpected error. Your paper-trading data is safe — try again, or head back home. No fabricated numbers are shown here.",
   error,
   className,
 }: {
@@ -22,6 +21,10 @@ export function RouteError({
   error?: Error & { digest?: string };
   className?: string;
 }) {
+  // Hard guard: never surface raw Error fields to the DOM.
+  const digest =
+    typeof error?.digest === "string" && error.digest.length > 0 ? error.digest : null;
+
   return (
     <div
       role="alert"
@@ -32,7 +35,10 @@ export function RouteError({
         className,
       )}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-danger/40 bg-danger-dim">
+      <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-danger">
+        Error · AlphaEdge
+      </p>
+      <div className="mt-4 flex h-12 w-12 items-center justify-center rounded-full border border-danger/40 bg-danger-dim">
         <svg
           width="22"
           height="22"
@@ -52,8 +58,8 @@ export function RouteError({
       </div>
       <h1 className="mt-5 text-xl font-black tracking-tight text-text sm:text-2xl">{title}</h1>
       <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">{description}</p>
-      {error?.digest ? (
-        <p className="mt-3 font-mono text-[11px] text-muted-2">Ref: {error.digest}</p>
+      {digest ? (
+        <p className="mt-3 font-mono text-[11px] text-muted-2">Ref: {digest}</p>
       ) : null}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         {reset ? (
@@ -70,6 +76,12 @@ export function RouteError({
           className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-bold text-muted transition hover:border-border-light hover:text-text"
         >
           Back home
+        </Link>
+        <Link
+          href="/markets"
+          className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-bold text-muted transition hover:border-border-light hover:text-text"
+        >
+          Markets
         </Link>
       </div>
     </div>

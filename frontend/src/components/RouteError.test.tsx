@@ -73,4 +73,20 @@ describe("RouteError shared fallback (U01)", () => {
     // The raw error message must never leak into the UI.
     expect(html).not.toContain("boom");
   });
+
+  it("never leaks stack or message and offers Markets nav (loop67 L3)", () => {
+    const err = Object.assign(new Error("secret stack frame /var/app/leak.ts"), {
+      digest: "xyz",
+      stack: "Error: secret stack frame\n    at /var/app/leak.ts:1:1",
+    });
+    const html = renderToStaticMarkup(
+      React.createElement(RouteError, { reset: () => {}, error: err }),
+    );
+
+    expect(html).not.toContain("secret stack frame");
+    expect(html).not.toContain("/var/app/leak.ts");
+    expect(html).toContain('href="/markets"');
+    expect(html).toContain("Error · AlphaEdge");
+  });
 });
+
