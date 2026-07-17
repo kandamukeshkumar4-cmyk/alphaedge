@@ -11,7 +11,7 @@ Scope: frontend only. Binding: `GOAL.md` (the 15-second rule) +
 | R1 Information architecture (nav overhaul + `/features` map) | **DONE** | accepted by orchestrator |
 | R2 Home hero (15s comprehension, three loops) | **DONE** | see R2 notes + gate below |
 | R3 Feature spotlight (coach marks, NEW badges, empty states) | **DONE** | see R3 notes + gate below |
-| R4 Motion pass (easing tokens, tickers, chart reveals) | TODO | |
+| R4 Motion pass (easing tokens, tickers, chart reveals) | **DONE** | see R4 notes + gate below |
 | R5 Discoverability audit table (feature→route→clicks≤2→label) | TODO | scaffold below; fill after R2/R3 |
 | R6 Gate (typecheck, lint, vitest, build) | PARTIAL | full gate already green as of R1 |
 
@@ -137,6 +137,45 @@ tests** (+4: EmptyState ×2, NEW-badge ×1, CoachMarks ×1) · build 102/102.
 Independent verifier: PASS (7/7 guardrails; localStorage seen-flag only,
 reduced-motion unmount safe, registry-driven badge, no new deps).
 
+## R4 — DONE (commit `feat(loop62): R4 …`)
+
+**What shipped**
+- **Shared motion tokens** (`tailwind.config.ts`): `ease-swift`
+  (`cubic-bezier(0.22,1,0.36,1)` — the one canonical easing, previously
+  duplicated as a literal in fade-up / slide-in / MotionReveal) +
+  `duration-250`. Enter/hover/transition now sit in the 150–250ms band.
+- **Adopted `ease-swift`** on the new R1–R3 interactive surfaces: HomeHero loop
+  cards, `/features` cards, EmptyState CTA, CoachMarks CTA.
+- **Animated number ticker**: new `CountUp.tsx` (reveal-on-view via
+  IntersectionObserver, reduced-motion safe) drives the `/features` total
+  ("All N capabilities" counts up). Browser-verified reaching 29.
+
+**Existing motion, verified reduced-motion gated (no rework needed)**:
+`AnimatedNumber` (17 usages, rAF tween, jumps instantly when reduced),
+decision-log blink (`animate-flash-green/red/ticker-in` in DecisionLogTerminal),
+scroll/chart reveals (`MotionReveal`, `EdgeHistoryChart`), and the global
+`globals.css` `@media (prefers-reduced-motion: reduce)` kill-switch that zeroes
+all CSS animation/transition durations.
+
+**Robustness fix (encode-once)**: `CountUp` initially relied on rAF to count
+0→N. In a throttled/background tab rAF doesn't advance, leaving the stat stuck
+at **0** — a *misleading* number (reads as "0 capabilities"), not just a missing
+flourish. Fixed two ways: (1) run immediately when the element is already in the
+viewport (don't wait on an IO callback, which also never fired in the headless
+preview); (2) a guaranteed `setTimeout(setDisplay(value), duration+120)` so the
+true value always lands regardless of rAF. Also dropped framer's
+`useReducedMotion` here (its null→false settle re-ran the effect and cancelled
+the in-flight count); reduced-motion is read once via `matchMedia`.
+
+**Gate (R4) — all green**: typecheck 0 · lint 0 · vitest **78 files / 467
+tests** (+2 CountUp) · build 102/102.
+
+**Tooling note**: the browser MCP console buffer kept replaying stale
+`CoachMarks … motion.aside` syntax errors from R3's mid-edit window even after a
+full server restart + cache clear + `console.clear()`. They are false positives
+— current `CoachMarks.tsx` has no `motion.aside`, and typecheck/lint/build all
+pass and the page renders. Trust the CLI gate, not the replayed console buffer.
+
 ## R5 discoverability audit (scaffold — to complete with R5)
 
 Clicks-from-home rule: every feature must be ≤2 clicks from `/`. With the
@@ -169,3 +208,10 @@ AutoLab: baseline=R2 gate green (vitest 461) | benchmark=feature-spotlight
 linked empty state) | iterations=2 (draft framer-motion coach marks hung under
 reduced-motion → rewrote to CSS-animated plain mount; re-verified dismiss
 unmounts instantly) | budget=3/6 tickets | outcome=improved (vitest 461→465)
+
+AutoLab: baseline=R3 gate green (vitest 465) | benchmark=motion pass (shared
+ease-swift/duration tokens, CountUp ticker reaches true value, existing
+tickers/blink/reveals reduced-motion gated) | iterations=2 (CountUp stuck at 0
+under rAF throttle + framer useReducedMotion re-run bug → matchMedia + in-view
+immediate-run + guaranteed settle timeout) | budget=4/6 tickets |
+outcome=improved (vitest 465→467)

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CountUp } from "@/components/CountUp";
 import { MotionReveal } from "@/components/MotionReveal";
 import { NavIcon } from "@/components/nav-icons";
 import { PageHeader, PageShell } from "@/components/ui/kit";
@@ -33,7 +34,13 @@ export default function FeaturesPage() {
       <PageHeader
         kicker="Everything AlphaEdge does"
         title="Feature map"
-        subtitle={`All ${total} capabilities in one place — grouped, labeled, and one click away. AlphaEdge is a paper-trading simulation: every trade and balance is simulated, no real money is ever used.`}
+        subtitle={
+          <>
+            All <CountUp value={total} className="font-black text-text" /> capabilities in one
+            place — grouped, labeled, and one click away. AlphaEdge is a paper-trading simulation:
+            every trade and balance is simulated, no real money is ever used.
+          </>
+        }
       />
 
       <div className="flex flex-col gap-8">
@@ -76,7 +83,7 @@ function FeatureCard({ feature }: { feature: FeatureEntry }) {
     <Link
       href={feature.href}
       className={cn(
-        "group flex h-full flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition",
+        "group flex h-full flex-col rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 ease-swift",
         "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-glow focus-visible:border-primary/40",
         "motion-reduce:transform-none motion-reduce:transition-none",
       )}

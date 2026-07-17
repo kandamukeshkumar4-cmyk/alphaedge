@@ -102,7 +102,7 @@ export function HomeHero() {
                 <Link
                   href={loop.href}
                   className={cn(
-                    "group flex h-full flex-col rounded-xl border border-border bg-bg/40 p-4 transition duration-200",
+                    "group flex h-full flex-col rounded-xl border border-border bg-bg/40 p-4 transition duration-200 ease-swift",
                     "hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-glow",
                     "focus-visible:border-primary/45 motion-reduce:transform-none motion-reduce:transition-none",
                   )}

@@ -98,7 +98,7 @@ export function CoachMarks() {
               <Link
                 href="/features"
                 onClick={dismiss}
-                className="inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-primary px-3 text-[13px] font-bold text-bg shadow-glow transition duration-200 hover:brightness-110"
+                className="inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-primary px-3 text-[13px] font-bold text-bg shadow-glow transition duration-200 ease-swift hover:brightness-110"
               >
                 Open the feature map →
               </Link>

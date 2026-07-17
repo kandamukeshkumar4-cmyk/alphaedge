@@ -93,6 +93,17 @@ const config: Config = {
         "slide-in-right": "slide-in-right 0.35s cubic-bezier(0.22,1,0.36,1) both",
         marquee: "marquee 60s linear infinite",
       },
+      // Loop V62 (R4) — shared motion tokens. `ease-swift` is the one canonical
+      // easing (was duplicated as the cubic-bezier literal in fade-up /
+      // slide-in / MotionReveal); durations sit in the 150–250ms band for
+      // enter/hover/transition. All motion stays reduced-motion gated by the
+      // globals.css kill-switch.
+      transitionTimingFunction: {
+        swift: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+      transitionDuration: {
+        "250": "250ms",
+      },
     },
   },
   plugins: [],

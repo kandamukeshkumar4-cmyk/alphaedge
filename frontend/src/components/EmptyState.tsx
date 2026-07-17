@@ -44,7 +44,7 @@ export function EmptyState({
       {cta ? (
         <Link
           href={cta.href}
-          className="mt-4 inline-flex h-9 items-center rounded-xl bg-primary px-4 text-sm font-bold text-bg shadow-glow transition duration-200 hover:brightness-110"
+          className="mt-4 inline-flex h-9 items-center rounded-xl bg-primary px-4 text-sm font-bold text-bg shadow-glow transition duration-200 ease-swift hover:brightness-110"
         >
           {cta.label} →
         </Link>
