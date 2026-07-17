@@ -89,9 +89,64 @@ async def load_forecast_score_rows(session: AsyncSession) -> list[dict[str, Any]
                 "correlation_cluster": correlation_cluster(market.external_id),
                 "model_provisional": bool(metadata.get("model_provisional")),
                 "clv_gate_passed": bool(metadata.get("clv_gate_passed")),
+                # V56 provenance. None on every row locked before 048 — that is
+                # the honest "unknown", never backfilled.
+                "model_type": forecast.model_type,
+                "model_version": forecast.model_version,
+                "artifact_digest": forecast.artifact_digest,
+                "feature_schema_digest": forecast.feature_schema_digest,
             }
         )
     return rows
+
+
+def provenance_readout(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Count provenanced locks and find the cutoff the A/B may trust (V56 P3).
+
+    A row is provenanced when it records the model that produced it
+    (``model_type``). ``artifact_digest`` is deliberately not required: the lock
+    path consults no registry, so demanding a digest would report zero forever
+    and hide the model_type signal the §C-7 provenance-constant check needs.
+
+    The cutoff is the ``locked_at`` of the earliest lock from which every later
+    lock is provenanced — a suffix over the (locked_at, forecast_id) order, so a
+    gap resets it. Earlier rows can never prove which model made them and stay
+    ineligible.
+
+    ``provenance_cutoff`` is a disclosure timestamp, not a filter: when several
+    locks share one ``locked_at``, an unprovenanced row can sit exactly AT the
+    cutoff. Eligibility is therefore computed from the provenanced suffix itself,
+    never by re-filtering on the timestamp — a consumer that reuses this value as
+    a raw ``locked_at >= cutoff`` predicate would readmit that row.
+    """
+    ordered = sorted(
+        (row for row in rows if row.get("locked_at") is not None),
+        key=lambda row: (row["locked_at"], str(row.get("forecast_id"))),
+    )
+    provenanced = [row for row in ordered if row.get("model_type") is not None]
+    cutoff: datetime | None = None
+    for row in reversed(ordered):
+        if row.get("model_type") is None:
+            break
+        cutoff = row["locked_at"]
+    eligible = [row for row in provenanced if cutoff is not None and row["locked_at"] >= cutoff]
+    return {
+        "provenanced_count": len(provenanced),
+        "provenance_cutoff": cutoff.isoformat() if cutoff is not None else None,
+        "provenance_eligible_count": len(eligible),
+        "unprovenanced_count": len(ordered) - len(provenanced),
+        # Distinct producers at/after the cutoff. The §C-7 constant check is
+        # answerable only when this is exactly one.
+        "provenance_model_types": sorted({str(row["model_type"]) for row in eligible}),
+        # Counted, never fabricated: the lock path gets no digest/version from
+        # the registry, so these are expected to equal provenanced_count today.
+        "missing_artifact_digest_count": sum(
+            1 for row in provenanced if row.get("artifact_digest") is None
+        ),
+        "missing_model_version_count": sum(
+            1 for row in provenanced if row.get("model_version") is None
+        ),
+    }
 
 
 def population_summary(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -123,6 +178,7 @@ def population_summary(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
 
     report = build_report(materialized, mode="forecast_scores")
     autolock_count = sum(bool(row.get("is_model_autolock")) for row in materialized)
+    provenance = provenance_readout(materialized)
     report.update(
         {
             "dataset_source": "forecast_scores",
@@ -132,6 +188,11 @@ def population_summary(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "feature_columns": list(FORECAST_AB_FEATURE_COLUMNS),
             "invalid_row_reasons": dict(sorted(invalid.items())),
             "valid_for_ab": not invalid,
+            # V56 P3: disclosure only. Missing provenance is NOT an invalid-row
+            # reason and does not gate ab_ready — clusters still gate.
+            "provenanced_count": provenance["provenanced_count"],
+            "provenance_cutoff": provenance["provenance_cutoff"],
+            "provenance": provenance,
         }
     )
     return report

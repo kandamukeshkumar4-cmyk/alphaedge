@@ -1008,6 +1008,16 @@ class ForecastLog(Base):
     locked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Loop V56: per-lock forecast provenance. Every column is nullable because
+    # rows locked before 048 carry no provenance and must never be backfilled —
+    # a null here means "unknown", which is the honest value. A non-null
+    # model_type records what actually produced user_probability, which is not
+    # necessarily ML_MODEL_TYPE (see ForecastService._provenance).
+    model_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    model_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    artifact_digest: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    feature_schema_digest: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    feature_payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     forecaster: Mapped["Forecaster"] = relationship(back_populates="forecasts")
     external_market: Mapped["ExternalMarket"] = relationship(back_populates="forecasts")

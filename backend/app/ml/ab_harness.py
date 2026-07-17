@@ -163,6 +163,18 @@ def run_forecast_score_ab(
         "model_type_history": {
             "verified": bool(model_type_history_verified and model_type_history_evidence),
             "evidence": model_type_history_evidence.strip() or None,
+            # V56 P3: per-lock provenance for the §C-7 constant check. Disclosure
+            # only — it does not satisfy `verified` here. Rows before the cutoff
+            # carry no provenance, and the post-cutoff producer is recorded in
+            # population["provenance"]["provenance_model_types"], so a later loop
+            # can retire the operator-supplied evidence once a post-cutoff
+            # population exists.
+            "provenance_cutoff": population["provenance_cutoff"],
+            "provenanced_count": population["provenanced_count"],
+            "provenance_eligible_count": population["provenance"][
+                "provenance_eligible_count"
+            ],
+            "provenance_model_types": population["provenance"]["provenance_model_types"],
         },
         "lightgbm_available": lightgbm_available(),
         "ran": False,
