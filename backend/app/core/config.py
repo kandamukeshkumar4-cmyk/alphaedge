@@ -231,6 +231,9 @@ class Settings(BaseSettings):
     nemotron_prompt_version: str = Field(
         default="v1", alias="NEMOTRON_PROMPT_VERSION"
     )
+    # V61 S3: opt-in, research-only hot-market lenses; missing NIM is honest off.
+    sentiment_debate_enabled: bool = Field(default=False, alias="SENTIMENT_DEBATE_ENABLED")
+    sentiment_debate_timeout: float = Field(default=20.0, alias="SENTIMENT_DEBATE_TIMEOUT")
 
     # Loop V58 D1 — whale flow (large-trade tape → whale_pressure feature)
     whale_flow_enabled: bool = Field(default=True, alias="WHALE_FLOW_ENABLED")

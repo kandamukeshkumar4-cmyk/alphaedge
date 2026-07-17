@@ -248,12 +248,15 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
     from app.db.models import OddsSnapshot as _OddsSnapshot
     from app.signals.news_lag import NewsLagService
     from app.signals.news_cadence import (
+        HOT_INTERVAL_SEC,
         NewsRefreshCandidate,
         eligible_candidates,
         record_refresh_failure,
         record_refresh_success,
+        refresh_interval_sec,
     )
     from app.signals.news_signal import fetch_news_signal
+    from app.signals.sentiment_debate import persist_debate, run_news_debate
     from app.services.whale_flow_service import WhaleFlowService
 
     settings = settings or _get_settings()
@@ -325,6 +328,22 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
                 results[slug] = "neutral-news"
                 record_refresh_success(slug)
                 continue
+            if refresh_interval_sec(
+                candidate,
+                now=now,
+                price_jump_threshold=float(settings.news_cadence_price_jump),
+                whale_spike_threshold=float(settings.news_cadence_whale_spike),
+            ) == HOT_INTERVAL_SEC:
+                verdicts = await run_news_debate(
+                    candidate=candidate,
+                    title=titles[slug],
+                    headline=signal.headline,
+                    sentiment_score=signal.sentiment_score,
+                    settings=settings,
+                    now=now,
+                )
+                if len(verdicts) == 3:
+                    persist_debate(session, market_slug=slug, verdicts=verdicts)
             outcome = await service.detect(
                 slug,
                 relevance=max(0.0, min(1.0, signal.volume_score)),
