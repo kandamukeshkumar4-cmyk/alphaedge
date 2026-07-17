@@ -224,7 +224,6 @@ class Settings(BaseSettings):
         default="v1", alias="NEMOTRON_PROMPT_VERSION"
     )
 
-<<<<<<< HEAD
     # Loop V58 D1 — whale flow (large-trade tape → whale_pressure feature)
     whale_flow_enabled: bool = Field(default=True, alias="WHALE_FLOW_ENABLED")
     whale_flow_interval_sec: int = Field(default=60, alias="WHALE_FLOW_INTERVAL_SEC")
@@ -252,7 +251,8 @@ class Settings(BaseSettings):
     venue_gap_match_limit: int = Field(default=200, alias="VENUE_GAP_MATCH_LIMIT")
     scheduler_venue_gap_enabled: bool = Field(
         default=True, alias="SCHEDULER_VENUE_GAP_ENABLED"
-=======
+    )
+
     # Loop V59 — code-only position heartbeat (no LLM). Default off.
     heartbeat_manager_enabled: bool = Field(
         default=False, alias="HEARTBEAT_MANAGER_ENABLED"
@@ -281,7 +281,6 @@ class Settings(BaseSettings):
     )
     heartbeat_daily_loss_halt_pct: float = Field(
         default=0.05, alias="HEARTBEAT_DAILY_LOSS_HALT_PCT"
->>>>>>> loop59/heartbeat
     )
 
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
