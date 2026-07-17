@@ -4,7 +4,7 @@
 |----|--------|--------|------------------|
 | T1 | /pods page (cards, banner, empty) | DONE | `pods.spec.ts` — cards from mocked fleet, paper banner, empty state |
 | T2 | decision-log terminal (rows, colors, empty) | DONE | `decision-log.spec.ts` — mocked rows, buy/sell tokens, empty |
-| T3 | market context panel (gauge, gap, absent) | PENDING | |
+| T3 | market context panel (gauge, gap, absent) | DONE | `market-context.spec.ts` — whale gauge, venue gap, 404/unavailable |
 | T4 | run new specs + counts | PENDING | |
 
 ## Spec files
