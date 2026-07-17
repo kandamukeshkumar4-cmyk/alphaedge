@@ -685,6 +685,45 @@ def _artifact_dir_from_ctx(ctx: dict) -> Path | None:
 
 REFRESH_WHALES_JOB_NAME = "refresh_whales_task"
 SNAPSHOT_WHALES_JOB_NAME = "snapshot_whale_positions_task"
+WHALE_FLOW_JOB_NAME = "whale_flow_task"
+
+
+async def whale_flow_task(ctx: dict) -> dict:
+    """Loop V58 D1: poll Polymarket data-api large trades → whale_events.
+
+    Bounded, rate-limited, circuit-broken. Analysis only — no order path.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.services.whale_flow_service import WhaleFlowService
+
+    settings = get_settings()
+    if not settings.whale_flow_enabled:
+        return {"skipped": True, "reason": "WHALE_FLOW_ENABLED=false"}
+
+    async with AsyncSessionLocal() as session:
+        service = WhaleFlowService(session)
+        summary = await service.poll_and_store(force=bool(ctx.get("force")))
+        await session.commit()
+    return summary
+
+
+VENUE_GAP_JOB_NAME = "venue_gap_task"
+
+
+async def venue_gap_task(ctx: dict) -> dict:
+    """Loop V58 D2: recompute PM↔Kalshi implied gaps from odds snapshots."""
+    from app.db.session import AsyncSessionLocal
+    from app.services.venue_gap_service import VenueGapService
+
+    settings = get_settings()
+    if not settings.venue_gap_enabled:
+        return {"skipped": True, "reason": "VENUE_GAP_ENABLED=false"}
+
+    async with AsyncSessionLocal() as session:
+        service = VenueGapService(session)
+        summary = await service.refresh_gaps()
+        await session.commit()
+    return summary
 
 
 async def refresh_whales_task(ctx: dict) -> dict:
@@ -1038,6 +1077,8 @@ class WorkerSettings:
         resolve_external_markets_task,
         refresh_whales_task,
         snapshot_whale_positions_task,
+        whale_flow_task,
+        venue_gap_task,
         score_claims_task,
         analyst_aggregates_task,
         morning_research_task,
@@ -1075,6 +1116,10 @@ class WorkerSettings:
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
         cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
         cron(snapshot_whale_positions_task, minute=set(range(0, 60, 3))),
+        # Loop V58 D1: large-trade whale flow (~every minute; loop also in-process)
+        cron(whale_flow_task, minute=set(range(60))),
+        # Loop V58 D2: cross-venue gap refresh every minute
+        cron(venue_gap_task, minute=set(range(60))),
         # grade claims every 15 min; recompute the public track record hourly
         cron(score_claims_task, minute={0, 15, 30, 45}),
         cron(analyst_aggregates_task, minute={50}),

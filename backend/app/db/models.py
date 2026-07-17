@@ -721,6 +721,70 @@ class WalletPositionSnapshot(Base):
     )
 
 
+class WhaleEvent(Base):
+    """Loop V58 D1: large-trade tape observation from Polymarket data-api.
+
+    Analysis only — every row is timestamped at capture for leakage filtering
+    (consumers must drop events after market lock/close). Never drives orders.
+    """
+
+    __tablename__ = "whale_events"
+    __table_args__ = (
+        Index("ix_whale_events_market_captured", "market_slug", "captured_at"),
+        Index("ix_whale_events_wallet", "wallet"),
+        Index("ix_whale_events_tx_hash", "tx_hash"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    wallet: Mapped[str] = mapped_column(String(64), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)  # BUY / SELL
+    outcome: Mapped[str] = mapped_column(String(8), nullable=False, default="YES")
+    size: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
+    notional: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    trade_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    source: Mapped[str] = mapped_column(String(64), default="polymarket.data-api")
+
+
+class VenueGap(Base):
+    """Loop V58 D2: PM↔Kalshi implied-probability gap for a matched pair.
+
+    Latest gap per (pm_slug, ks_slug). Analysis only — never an order signal.
+    """
+
+    __tablename__ = "venue_gaps"
+    __table_args__ = (
+        UniqueConstraint("pm_slug", "ks_slug", name="uq_venue_gaps_pair"),
+        Index("ix_venue_gaps_abs_gap", "abs_gap"),
+        Index("ix_venue_gaps_captured", "captured_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pm_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    ks_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    pm_implied: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    ks_implied: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    gap: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)  # pm - ks
+    abs_gap: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    match_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    stale: Mapped[bool] = mapped_column(Boolean, default=False)
+    pm_captured_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ks_captured_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class AnalystBrief(Base):
     """T07 AI research brief generated on an analyst.trigger."""
 

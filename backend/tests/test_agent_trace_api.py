@@ -134,6 +134,7 @@ async def test_agent_trace_steps_have_correct_node_names():
         "data",
         "news",
         "nemotron",
+        "whale_signal",
         "memory",
         "prediction",
         "risk",
