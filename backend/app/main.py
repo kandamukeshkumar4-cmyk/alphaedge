@@ -503,6 +503,40 @@ async def _data_retention_loop() -> None:
             )
 
 
+async def _heartbeat_manager_loop() -> None:
+    """Loop V59: code-only position heartbeat (45s default). Flag-gated."""
+    from app.services.heartbeat_manager import heartbeat_detail, heartbeat_manager_task
+
+    interval = max(30, int(settings.heartbeat_manager_interval_sec))
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            summary = await heartbeat_manager_task({})
+            if isinstance(summary, dict) and summary.get("skipped"):
+                record_heartbeat(
+                    "heartbeat_manager",
+                    status="ok",
+                    detail=str(summary.get("reason", "skipped")),
+                )
+            else:
+                duration = None
+                if isinstance(summary, dict):
+                    duration = summary.get("duration_ms")
+                record_heartbeat(
+                    "heartbeat_manager",
+                    status="ok",
+                    detail=heartbeat_detail(summary if isinstance(summary, dict) else None),
+                    duration_ms=float(duration) if duration is not None else None,
+                )
+        except Exception:
+            logger.error("Heartbeat manager loop failed", exc_info=True)
+            record_heartbeat(
+                "heartbeat_manager",
+                status="error",
+                detail="heartbeat manager pass failed",
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # REL-COLD-DB: wait out a cold managed-Postgres endpoint before the first
@@ -559,6 +593,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_jobrun_retention_loop())
     if settings.scheduler_data_retention_enabled:
         asyncio.create_task(_data_retention_loop())
+    if settings.heartbeat_manager_enabled:
+        asyncio.create_task(_heartbeat_manager_loop())
     if settings.live_feed_enabled:
         # The first live ingest sync hits external APIs (Kalshi/Polymarket) and
         # must NOT block startup — a slow/429'd upstream would delay uvicorn from

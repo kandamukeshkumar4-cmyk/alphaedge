@@ -224,6 +224,36 @@ class Settings(BaseSettings):
         default="v1", alias="NEMOTRON_PROMPT_VERSION"
     )
 
+    # Loop V59 — code-only position heartbeat (no LLM). Default off.
+    heartbeat_manager_enabled: bool = Field(
+        default=False, alias="HEARTBEAT_MANAGER_ENABLED"
+    )
+    heartbeat_manager_interval_sec: int = Field(
+        default=45, alias="HEARTBEAT_MANAGER_INTERVAL_SEC"
+    )
+    heartbeat_time_stop_sec: float = Field(
+        default=86_400.0, alias="HEARTBEAT_TIME_STOP_SEC"
+    )
+    heartbeat_adverse_move_pct: float = Field(
+        default=0.10, alias="HEARTBEAT_ADVERSE_MOVE_PCT"
+    )
+    heartbeat_profit_target_pct: float = Field(
+        default=0.15, alias="HEARTBEAT_PROFIT_TARGET_PCT"
+    )
+    heartbeat_staleness_sec: float = Field(
+        default=120.0, alias="HEARTBEAT_STALENESS_SEC"
+    )
+    heartbeat_tighten_adverse_pct: float = Field(
+        default=0.05, alias="HEARTBEAT_TIGHTEN_ADVERSE_PCT"
+    )
+    # Reversible emergency gates (H3); default off / inactive.
+    heartbeat_global_kill: bool = Field(
+        default=False, alias="HEARTBEAT_GLOBAL_KILL"
+    )
+    heartbeat_daily_loss_halt_pct: float = Field(
+        default=0.05, alias="HEARTBEAT_DAILY_LOSS_HALT_PCT"
+    )
+
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_reasoning_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_REASONING_MODEL")
     gemini_judge_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_JUDGE_MODEL")

@@ -155,3 +155,43 @@ def test_risk_suggests_no_outcome_stake_against_no_executable_ask():
     assert suggestion.predicted_prob == pytest.approx(0.70)
     assert suggestion.price == Decimal("0.6200")
     assert suggestion.edge == pytest.approx(0.08)
+
+
+def test_risk_accepts_exit_intent_without_entry_edge():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="sell",
+        outcome="yes",
+        quantity=Decimal("10"),
+        price=Decimal("0.40"),
+        predicted_prob=0.40,
+        confidence=0.0,
+        edge=0.0,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.0,
+        minutes_before_start=0,
+        is_exit=True,
+    )
+    ok, failures = RiskService().validate(intent)
+    assert ok
+    assert failures == []
+
+
+def test_risk_rejects_exit_intent_that_is_not_sell():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="buy",
+        outcome="yes",
+        quantity=Decimal("10"),
+        price=Decimal("0.40"),
+        predicted_prob=0.40,
+        confidence=0.0,
+        edge=0.0,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.0,
+        minutes_before_start=0,
+        is_exit=True,
+    )
+    ok, failures = RiskService().validate(intent)
+    assert not ok
+    assert any("sell" in f for f in failures)

@@ -1200,3 +1200,28 @@ class ForecastDriftSnapshot(Base):
     ece_delta: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     degraded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class HeartbeatDecisionLog(Base):
+    """Loop V59 — auditable heartbeat manager decision row.
+
+    One row per position evaluated in a pass. Stores the inputs snapshot the
+    engine saw; never fabricates marks. Exits (when taken) go through
+    RiskService → OrderIntent → OrderBookService, not this table.
+    """
+
+    __tablename__ = "heartbeat_decision_logs"
+    __table_args__ = (
+        Index("ix_heartbeat_decision_logs_created", "created_at"),
+        Index("ix_heartbeat_decision_logs_position_ref", "position_ref"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    position_ref: Mapped[str] = mapped_column(String(256), nullable=False)
+    rule_fired: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    inputs_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    action_taken: Mapped[str] = mapped_column(String(32), nullable=False)
+    latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

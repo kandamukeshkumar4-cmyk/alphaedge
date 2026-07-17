@@ -25,6 +25,9 @@ class OrderIntent:
     expires_at: Optional[datetime] = None
     # Loop V23 A2: when True, RiskService rejects (admin-suspended JWT user).
     user_suspended: bool = False
+    # Loop V59: exit/emergency SELL intents skip entry edge/confidence/timing
+    # gates but still require PAPER_TRADING_ONLY + agent_enabled + not suspended.
+    is_exit: bool = False
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,10 @@ class RiskService:
             failures.append("agent trading disabled")
         if intent.user_suspended:
             failures.append("user is suspended")
+        if intent.is_exit:
+            if intent.side.lower() != "sell":
+                failures.append("exit intent must be sell")
+            return len(failures) == 0, failures
         if intent.edge < self.MIN_EDGE:
             failures.append(f"edge {intent.edge:.2%} < {self.MIN_EDGE:.0%}")
         if intent.confidence < self.MIN_CONFIDENCE:
