@@ -11,14 +11,18 @@ Scope: **frontend only**. Binding: `GOAL.md`. Never push/merge.
 | L2 Metadata / OG / favicon / robots / sitemap | **DONE** | commit `feat(loop67): L2 …` |
 | L3 Branded 404/error + API-down banner | **DONE** | commit `feat(loop67): L3 …` |
 | L4 Lighthouse sanity (max 3 cheap fixes) | **DONE** | scores + fixes below |
-| L5 Gate (typecheck / lint / vitest / build) | **PENDING** | counts after L5 |
+| L5 Gate (typecheck / lint / vitest / build) | **DONE** | counts below |
+
+## Exit
+
+**L1–L5 DONE.** Branch `loop67/launch-polish` only — no push/merge.
 
 ## L4 — Lighthouse (local prod build)
 
 **Setup:** `npm run build` then `npm run start -- --port 3767`  
 **Target:** `http://localhost:3767/`  
 **Tool:** lighthouse@12.6.1 (headless Chrome)  
-**Artifact:** `goals/loop-v67-launch-polish/lighthouse-home.json` (baseline pre-fix run)
+**Artifact:** scores recorded here (full JSON ~1.1MB not committed)
 
 ### Baseline category scores (home)
 
@@ -48,3 +52,24 @@ Scope: **frontend only**. Binding: `GOAL.md`. Never push/merge.
 | Source maps missing (prod) | best-practices nit | Intentional for public build size | Optional `productionBrowserSourceMaps` for internal only |
 
 **Guardrail:** no fabricated Lighthouse scores; no new product libraries; paper-trading truth unchanged.
+
+## L5 — Gate (frontend)
+
+| Command | Result | Counts |
+|---|---|---|
+| `npm run typecheck` (`tsc --noEmit`) | **PASS** exit 0 | 0 errors |
+| `npm run lint` (`eslint src --max-warnings=0`) | **PASS** exit 0 | 0 errors, 0 warnings |
+| `npm test` (`vitest run`) | **PASS** exit 0 | **83** files, **484** tests passed |
+| `npm run build` (`next build`) | **PASS** exit 0 | **107/107** static pages generated; `/about`, `/terms`, `/robots.txt`, `/sitemap.xml`, `/icon.svg` present |
+
+### Commits (one per ticket)
+
+1. `feat(loop67): L1 /terms + /about with paper disclaimer`
+2. `feat(loop67): L2 metadata OG favicon robots sitemap`
+3. `feat(loop67): L3 branded 404 error API-down banner`
+4. `feat(loop67): L4 lighthouse scores and three a11y fixes`
+5. `feat(loop67): L5 gate + STATE counts`
+
+### AutoLab
+
+AutoLab: not applicable (no iterative measure — launch polish one-shot tickets).
