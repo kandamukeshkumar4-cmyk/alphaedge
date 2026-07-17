@@ -50,6 +50,7 @@ _ALL_LOOPS: tuple[str, ...] = (
     "weather_scan",
     "morning_research",
     "whale_refresh",
+    "whale_flow",
     "wc2026_resolve",
     "external_resolve",
     "external_market_bridge",

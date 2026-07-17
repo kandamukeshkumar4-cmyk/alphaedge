@@ -33,6 +33,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "weather_scan": 3600,
     "morning_research": 86400,
     "whale_refresh": 604800,
+    "whale_flow": 60,
     "wc2026_resolve": 600,
     "external_resolve": 900,
     "external_market_bridge": 900,

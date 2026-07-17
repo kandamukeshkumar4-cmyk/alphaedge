@@ -305,6 +305,32 @@ async def _whale_refresh_loop() -> None:
             record_heartbeat("whale_refresh", status="error", detail="whale refresh pass failed")
 
 
+async def _whale_flow_loop() -> None:
+    """Loop V58 D1: large-trade whale flow (~every minute).
+
+    Mirrors ``cron(whale_flow_task)`` for prod (uvicorn-only, no ARQ worker).
+    """
+    from app.workers.tasks import whale_flow_task
+
+    while True:
+        await asyncio.sleep(max(30, int(settings.whale_flow_interval_sec or 60)))
+        try:
+            summary = await whale_flow_task({})
+            detail = None
+            if isinstance(summary, dict):
+                if summary.get("skipped"):
+                    detail = f"skipped:{summary.get('reason')}"
+                else:
+                    detail = (
+                        f"fetched={summary.get('fetched', 0)} "
+                        f"inserted={summary.get('inserted', 0)}"
+                    )
+            record_heartbeat("whale_flow", detail=detail)
+        except Exception:
+            logger.error("Whale flow loop failed", exc_info=True)
+            record_heartbeat("whale_flow", status="error", detail="whale flow pass failed")
+
+
 async def _wc2026_resolve_loop() -> None:
     """Every 10 min WC2026 resolution sweep (mirrors
     ``cron(wc2026_resolve_task, minute={5,15,25,35,45,55})``)."""
@@ -539,6 +565,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_morning_research_loop())
     if settings.scheduler_whale_refresh_enabled:
         asyncio.create_task(_whale_refresh_loop())
+    if settings.scheduler_whale_flow_enabled:
+        asyncio.create_task(_whale_flow_loop())
     if settings.scheduler_wc2026_resolve_enabled:
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.scheduler_external_resolve_enabled:

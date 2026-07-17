@@ -721,6 +721,37 @@ class WalletPositionSnapshot(Base):
     )
 
 
+class WhaleEvent(Base):
+    """Loop V58 D1: large-trade tape observation from Polymarket data-api.
+
+    Analysis only — every row is timestamped at capture for leakage filtering
+    (consumers must drop events after market lock/close). Never drives orders.
+    """
+
+    __tablename__ = "whale_events"
+    __table_args__ = (
+        Index("ix_whale_events_market_captured", "market_slug", "captured_at"),
+        Index("ix_whale_events_wallet", "wallet"),
+        Index("ix_whale_events_tx_hash", "tx_hash"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    wallet: Mapped[str] = mapped_column(String(64), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)  # BUY / SELL
+    outcome: Mapped[str] = mapped_column(String(8), nullable=False, default="YES")
+    size: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
+    notional: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    trade_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    source: Mapped[str] = mapped_column(String(64), default="polymarket.data-api")
+
+
 class AnalystBrief(Base):
     """T07 AI research brief generated on an analyst.trigger."""
 

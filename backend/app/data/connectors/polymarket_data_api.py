@@ -232,3 +232,27 @@ class PolymarketDataApiConnector:
                 break
             offset += page_size
         return out[:limit]
+
+    def fetch_recent_trades_raw(
+        self,
+        *,
+        limit: int = 200,
+        min_cash: float | None = None,
+        taker_only: bool = True,
+        offset: int = 0,
+    ) -> Any:
+        """Global public trade tape (Loop V58 whale flow).
+
+        Uses data-api ``filterType=CASH&filterAmount=N`` when min_cash is set
+        (polyterm technique). Read-only; no auth. Returns raw payload for the
+        whale_flow normalizer.
+        """
+        params: dict[str, str] = {
+            "limit": str(limit),
+            "offset": str(offset),
+            "takerOnly": "true" if taker_only else "false",
+        }
+        if min_cash is not None and min_cash > 0:
+            params["filterType"] = "CASH"
+            params["filterAmount"] = str(int(min_cash))
+        return self.http.get_json("/trades", params=params)

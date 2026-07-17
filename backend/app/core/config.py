@@ -224,6 +224,21 @@ class Settings(BaseSettings):
         default="v1", alias="NEMOTRON_PROMPT_VERSION"
     )
 
+    # Loop V58 D1 — whale flow (large-trade tape → whale_pressure feature)
+    whale_flow_enabled: bool = Field(default=True, alias="WHALE_FLOW_ENABLED")
+    whale_flow_interval_sec: int = Field(default=60, alias="WHALE_FLOW_INTERVAL_SEC")
+    whale_flow_min_notional: float = Field(
+        default=1000.0, alias="WHALE_FLOW_MIN_NOTIONAL"
+    )
+    whale_flow_trade_limit: int = Field(default=200, alias="WHALE_FLOW_TRADE_LIMIT")
+    whale_flow_market_limit: int = Field(default=200, alias="WHALE_FLOW_MARKET_LIMIT")
+    whale_flow_window_sec: float = Field(default=3600.0, alias="WHALE_FLOW_WINDOW_SEC")
+    # Graph feature flag (D4): inject whale_pressure into prediction graph.
+    whale_signal_enabled: bool = Field(default=False, alias="WHALE_SIGNAL_ENABLED")
+    scheduler_whale_flow_enabled: bool = Field(
+        default=True, alias="SCHEDULER_WHALE_FLOW_ENABLED"
+    )
+
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_reasoning_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_REASONING_MODEL")
     gemini_judge_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_JUDGE_MODEL")
