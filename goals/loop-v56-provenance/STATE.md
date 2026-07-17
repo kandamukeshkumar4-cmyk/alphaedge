@@ -109,8 +109,13 @@ rather than papering over it.
   `artifact_digest` is deliberately *not* required — requiring it would report
   zero forever and hide the `model_type` signal §C-7 actually asks for.
 - **`provenance_cutoff`** = `locked_at` of the earliest lock from which *every*
-  later lock is provenanced (an unbroken suffix; a gap resets it). Rows at/after
-  it are eligible for the provenance-constant check.
+  later lock is provenanced (an unbroken suffix; a gap resets it).
+  It is a **disclosure timestamp, not a filter.** Eligibility for the
+  provenance-constant check is the provenanced suffix itself — never a re-filter
+  on the timestamp. Locks can share a `locked_at`, so an unprovenanced row can
+  sit exactly AT the cutoff; a consumer applying `locked_at >= cutoff` in raw SQL
+  would readmit it. Pinned by
+  `test_tied_lock_times_never_readmit_an_unprovenanced_row`.
 
 ## Guardrails held
 
