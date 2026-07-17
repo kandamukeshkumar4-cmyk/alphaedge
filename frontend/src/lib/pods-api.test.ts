@@ -9,8 +9,14 @@ import {
   fetchPods,
   findNewDecisionKeys,
   formatDecisionTime,
+  formatSignedPct,
+  formatVenueGap,
+  formatVolumePct,
+  newsSignalTone,
   normalizePodStatus,
   sortDecisionsNewestFirst,
+  whalePressurePct,
+  whalePressureTier,
   type HeartbeatDecision,
 } from "./pods-api";
 
@@ -329,5 +335,104 @@ describe("clampMetric", () => {
     expect(clampMetric(Number.POSITIVE_INFINITY, 0, 1, 0.5)).toBe(0.5);
     expect(clampMetric(undefined, -1, 1, 0)).toBe(0);
     expect(clampMetric(null, -1, 1, 0)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U4 — market context panel view helpers
+// ---------------------------------------------------------------------------
+
+describe("whalePressureTier", () => {
+  it("buckets the 0..1 share into quiet / building / heavy", () => {
+    expect(whalePressureTier(0)).toBe("quiet");
+    expect(whalePressureTier(0.33)).toBe("quiet");
+    expect(whalePressureTier(0.34)).toBe("building");
+    expect(whalePressureTier(0.66)).toBe("building");
+    expect(whalePressureTier(0.67)).toBe("heavy");
+    expect(whalePressureTier(1)).toBe("heavy");
+  });
+
+  it("treats out-of-range and non-finite input defensively", () => {
+    expect(whalePressureTier(1.7)).toBe("heavy");
+    expect(whalePressureTier(-0.5)).toBe("quiet");
+    expect(whalePressureTier(Number.NaN)).toBe("quiet");
+    expect(whalePressureTier(undefined)).toBe("quiet");
+    expect(whalePressureTier(null)).toBe("quiet");
+  });
+});
+
+describe("whalePressurePct", () => {
+  it("converts the share to a 0-100 gauge fill", () => {
+    expect(whalePressurePct(0.72)).toBe(72);
+    expect(whalePressurePct(0)).toBe(0);
+    expect(whalePressurePct(1)).toBe(100);
+  });
+
+  it("clamps outliers and falls back to 0 for non-finite input", () => {
+    expect(whalePressurePct(1.7)).toBe(100);
+    expect(whalePressurePct(-0.5)).toBe(0);
+    expect(whalePressurePct(Number.NaN)).toBe(0);
+    expect(whalePressurePct(undefined)).toBe(0);
+  });
+});
+
+describe("newsSignalTone", () => {
+  it("buckets the -1..1 score around the neutral band", () => {
+    expect(newsSignalTone(0.4)).toBe("positive");
+    expect(newsSignalTone(0.21)).toBe("positive");
+    expect(newsSignalTone(0.2)).toBe("neutral");
+    expect(newsSignalTone(-0.2)).toBe("neutral");
+    expect(newsSignalTone(-0.21)).toBe("negative");
+    expect(newsSignalTone(-0.9)).toBe("negative");
+  });
+
+  it("clamps outliers and treats non-finite input as neutral", () => {
+    expect(newsSignalTone(3)).toBe("positive");
+    expect(newsSignalTone(-3)).toBe("negative");
+    expect(newsSignalTone(Number.NaN)).toBe("neutral");
+    expect(newsSignalTone(undefined)).toBe("neutral");
+    expect(newsSignalTone(null)).toBe("neutral");
+  });
+});
+
+describe("formatVenueGap", () => {
+  it("renders the signed gap in cents", () => {
+    expect(formatVenueGap(0.015)).toBe("+1.5¢");
+    expect(formatVenueGap(-0.02)).toBe("-2.0¢");
+    expect(formatVenueGap(0)).toBe("0.0¢");
+    expect(formatVenueGap(0.004)).toBe("+0.4¢");
+  });
+
+  it("renders an em dash for non-finite input", () => {
+    expect(formatVenueGap(Number.NaN)).toBe("—");
+    expect(formatVenueGap(undefined)).toBe("—");
+    expect(formatVenueGap(null)).toBe("—");
+  });
+});
+
+describe("formatSignedPct", () => {
+  it("renders a signed percent for the price trend", () => {
+    expect(formatSignedPct(0.06)).toBe("+6.0%");
+    expect(formatSignedPct(-0.025)).toBe("-2.5%");
+    expect(formatSignedPct(0)).toBe("0.0%");
+  });
+
+  it("renders an em dash for non-finite input", () => {
+    expect(formatSignedPct(Number.NaN)).toBe("—");
+    expect(formatSignedPct(undefined)).toBe("—");
+  });
+});
+
+describe("formatVolumePct", () => {
+  it("renders the volume share as a whole percent", () => {
+    expect(formatVolumePct(0.81)).toBe("81%");
+    expect(formatVolumePct(1.24)).toBe("124%");
+    expect(formatVolumePct(0)).toBe("0%");
+  });
+
+  it("never goes negative and renders an em dash for non-finite input", () => {
+    expect(formatVolumePct(-0.4)).toBe("0%");
+    expect(formatVolumePct(Number.NaN)).toBe("—");
+    expect(formatVolumePct(undefined)).toBe("—");
   });
 });

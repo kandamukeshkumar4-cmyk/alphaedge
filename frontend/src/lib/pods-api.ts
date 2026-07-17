@@ -220,3 +220,62 @@ export function clampMetric(
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, value));
 }
+
+// ---------------------------------------------------------------------------
+// U4 — market context panel view helpers (descriptive only, never advice)
+// ---------------------------------------------------------------------------
+
+export type WhalePressureTier = "quiet" | "building" | "heavy";
+
+/**
+ * Intensity tier for the whale-pressure gauge. whale_pressure is a 0..1 share;
+ * the tier only describes how concentrated recent large-wallet flow is — it
+ * says nothing about direction or what anyone should do about it.
+ */
+export function whalePressureTier(value: number | null | undefined): WhalePressureTier {
+  const v = clampMetric(value, 0, 1);
+  if (v >= 0.67) return "heavy";
+  if (v >= 0.34) return "building";
+  return "quiet";
+}
+
+/** Gauge fill percentage (0-100) for the whale-pressure bar; clamps outliers. */
+export function whalePressurePct(value: number | null | undefined): number {
+  return Math.round(clampMetric(value, 0, 1) * 100);
+}
+
+export type NewsSignalTone = "positive" | "neutral" | "negative";
+
+/** Headline-tone bucket for the -1..1 news_signal score. */
+export function newsSignalTone(value: number | null | undefined): NewsSignalTone {
+  const v = clampMetric(value, -1, 1, 0);
+  if (v > 0.2) return "positive";
+  if (v < -0.2) return "negative";
+  return "neutral";
+}
+
+/**
+ * Signed venue gap in cents: 0.015 -> "+1.5¢", -0.02 -> "-2.0¢", 0 -> "0.0¢".
+ * The sign is shown as-is (this market vs the reference venue); the panel
+ * never interprets it as an opportunity.
+ */
+export function formatVenueGap(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  const cents = value * 100;
+  const sign = cents > 0 ? "+" : cents < 0 ? "-" : "";
+  return `${sign}${Math.abs(cents).toFixed(1)}¢`;
+}
+
+/** Signed percent for price_trend: 0.06 -> "+6.0%", -0.025 -> "-2.5%". */
+export function formatSignedPct(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  const pct = value * 100;
+  const sign = pct > 0 ? "+" : pct < 0 ? "-" : "";
+  return `${sign}${Math.abs(pct).toFixed(1)}%`;
+}
+
+/** Volume share of the market's typical pace: 0.81 -> "81%". */
+export function formatVolumePct(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return `${Math.round(Math.max(0, value) * 100)}%`;
+}

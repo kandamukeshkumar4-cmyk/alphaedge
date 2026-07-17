@@ -35,6 +35,7 @@ import { SimilarMarkets } from "@/components/SimilarMarkets";
 import { SimilarPastMarkets } from "@/components/SimilarPastMarkets";
 import { QuestMarketRail } from "@/components/quest/QuestMarketRail";
 import { DeskIntelligencePanel } from "@/components/DeskIntelligencePanel";
+import { MarketContextPanel } from "@/components/MarketContextPanel";
 import { useAtlasPanel } from "@/context/atlas-panel";
 import {
   marketCloseCountdown,
@@ -319,6 +320,10 @@ export default function MarketDetailClient({
           {/* D01: one desk call replaces the per-market signal-events fetch
               (QuestMarketActivity) and adds edge/smart-money/arb in situ. */}
           <DeskIntelligencePanel slug={slug} />
+          {/* Loop V60 (U4): master context snapshot — descriptive telemetry
+              only (whale pressure / venue gap / news tone); honest states
+              until the context endpoint ships. */}
+          <MarketContextPanel slug={slug} />
           <QuestMarketRail slug={slug} />
           <DecisionSignalPanel market={market} />
           <DecisionCard slug={slug} />
