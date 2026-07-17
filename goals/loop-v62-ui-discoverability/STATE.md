@@ -8,8 +8,8 @@ Scope: frontend only. Binding: `GOAL.md` (the 15-second rule) +
 
 | Ticket | Status | Evidence |
 |---|---|---|
-| R1 Information architecture (nav overhaul + `/features` map) | **DONE** | see R1 notes + gate below |
-| R2 Home hero (15s comprehension, three loops) | TODO | |
+| R1 Information architecture (nav overhaul + `/features` map) | **DONE** | accepted by orchestrator |
+| R2 Home hero (15s comprehension, three loops) | **DONE** | see R2 notes + gate below |
 | R3 Feature spotlight (coach marks, NEW badges, empty states) | TODO | registry seeds `badge:"NEW"` already |
 | R4 Motion pass (easing tokens, tickers, chart reveals) | TODO | |
 | R5 Discoverability audit table (feature→route→clicks≤2→label) | TODO | scaffold below; fill after R2/R3 |
@@ -64,6 +64,35 @@ Scope: frontend only. Binding: `GOAL.md` (the 15-second rule) +
 - Pre-existing `quest/` failures: **none exist** in this worktree (explorer +
   full suite confirm). Nothing skipped.
 
+## R2 — DONE (commit `feat(loop62): R2 …`)
+
+**What shipped**
+- **`frontend/src/components/HomeHero.tsx`** — comprehension hero mounted at the
+  top of the landing page (`app/page.tsx`), above the discover grid, so it is
+  the first thing every visitor sees (heroTop ≈110px, right under the header).
+- Honest 15-second copy: kicker "Paper-trading prediction markets", H1 "See the
+  edge, trade it on paper, and prove the call.", and a plain-language line —
+  "AlphaEdge is a paper-trading simulation … simulated funds only, with no
+  real-money execution." No advice language, no fabricated numbers.
+- **Three core loops as animated cards**: Predict → `/markets`, Track → `/pods`,
+  Prove → `/eval`, each with step number + shared nav icon + honest blurb + CTA.
+  Scroll-revealed via existing `MotionReveal` (reduced-motion safe) with a small
+  stagger; hover lift guarded by `motion-reduce:transform-none`.
+- Two primary CTAs: "Explore markets" → `/markets`, "See everything it does" →
+  `/features` (ties the hero back to the R1 map).
+
+**Browser-verified** (dev port 3262, after clearing `.next`): hero present on
+`/`, correct title, three loops link to /markets//pods//eval, paper-trading
+truth visible, 0 console errors, no horizontal overflow at 1280 or 375 (cards
+stack single-column on mobile).
+
+**Gate (R2) — all green**: typecheck 0 · lint 0 · vitest **75 files / 461
+tests** (+4 new `HomeHero.test.tsx`) · build 102/102.
+
+Note (encode-once): running `npm run build` while the dev server is up corrupts
+the shared `.next` (MODULE_NOT_FOUND ./NNNN.js → 500). Fix: stop preview, `rm
+-rf .next`, restart. Verify UI in the browser BEFORE running a production build.
+
 ## R5 discoverability audit (scaffold — to complete with R5)
 
 Clicks-from-home rule: every feature must be ≤2 clicks from `/`. With the
@@ -84,3 +113,9 @@ AutoLab: baseline=frontend gate green (typecheck/lint/vitest 457/build) |
 benchmark=gate green + /features discoverability (all features ≤2 clicks, 0
 console errors) | iterations=1 (R1 landed first pass; fixed TS JSX-namespace +
 lint no-html-link + test HTML-escape) | budget=1/6 tickets | outcome=improved
+
+AutoLab: baseline=R1 gate green (vitest 457) | benchmark=home hero 15s
+comprehension (paper-trading truth + 3 loops deep-linked, 0 console errors, no
+overflow 1280/375) | iterations=1 (landed first pass; recovered dev server via
+.next clear after build clobber) | budget=2/6 tickets | outcome=improved
+(vitest 457→461)
