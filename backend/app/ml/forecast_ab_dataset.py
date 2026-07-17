@@ -109,9 +109,15 @@ def provenance_readout(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
     and hide the model_type signal the §C-7 provenance-constant check needs.
 
     The cutoff is the ``locked_at`` of the earliest lock from which every later
-    lock is provenanced — a suffix, so a gap resets it. Rows at/after it are
-    eligible for the provenance-constant check; earlier rows can never prove
-    which model made them and stay ineligible.
+    lock is provenanced — a suffix over the (locked_at, forecast_id) order, so a
+    gap resets it. Earlier rows can never prove which model made them and stay
+    ineligible.
+
+    ``provenance_cutoff`` is a disclosure timestamp, not a filter: when several
+    locks share one ``locked_at``, an unprovenanced row can sit exactly AT the
+    cutoff. Eligibility is therefore computed from the provenanced suffix itself,
+    never by re-filtering on the timestamp — a consumer that reuses this value as
+    a raw ``locked_at >= cutoff`` predicate would readmit that row.
     """
     ordered = sorted(
         (row for row in rows if row.get("locked_at") is not None),
