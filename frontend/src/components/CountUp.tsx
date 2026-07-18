@@ -14,7 +14,16 @@ import { easeOutCubic } from "@/components/AnimatedNumber";
  * useReducedMotion settles null->false after mount, which would re-run the
  * effect and cancel an in-flight count. Safe to drop into a server component
  * as a client island (e.g. the /features total).
+ *
+ * Loop V71: when `value` changes, clear the one-shot `started` latch so the
+ * display re-animates (or jumps immediately under reduced-motion / durationMs≤0).
  */
+
+/** Clear the one-shot latch so a new target value can animate (or setDisplay). */
+export function resetCountUpStarted(started: { current: boolean }): void {
+  started.current = false;
+}
+
 export function CountUp({
   value,
   durationMs = 900,
@@ -33,6 +42,10 @@ export function CountUp({
   const started = useRef(false);
 
   useEffect(() => {
+    // Value (or duration) changed — allow run() again; otherwise a prior
+    // animation leaves started=true and the display never updates.
+    resetCountUpStarted(started);
+
     const reduced =
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
