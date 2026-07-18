@@ -530,8 +530,15 @@ class OrderBookService:
                     description,
                     order.market_id,
                 )
+                previous_shares = pos.yes_shares
                 pos.yes_shares -= quantity
-                if pos.yes_shares <= 0:
+                if pos.yes_shares < 0 and previous_shares < 0:
+                    pos.avg_yes_cost = (
+                        pos.avg_yes_cost * -previous_shares + price * quantity
+                    ) / -pos.yes_shares
+                elif pos.yes_shares < 0:
+                    pos.avg_yes_cost = price
+                elif pos.yes_shares == 0:
                     pos.avg_yes_cost = Decimal("0")
         else:
             if order.side == OrderSide.BUY:
@@ -562,8 +569,15 @@ class OrderBookService:
                     description,
                     order.market_id,
                 )
+                previous_shares = pos.no_shares
                 pos.no_shares -= quantity
-                if pos.no_shares <= 0:
+                if pos.no_shares < 0 and previous_shares < 0:
+                    pos.avg_no_cost = (
+                        pos.avg_no_cost * -previous_shares + price * quantity
+                    ) / -pos.no_shares
+                elif pos.no_shares < 0:
+                    pos.avg_no_cost = price
+                elif pos.no_shares == 0:
                     pos.avg_no_cost = Decimal("0")
 
         await self.session.flush()

@@ -153,9 +153,11 @@ async def test_settle_market_void_refunds_entry_price(db_session):
 
     summary = await settle_market(db_session, "settle-void-refund", "VOID")
     await db_session.refresh(buyer)
+    await db_session.refresh(seller)
 
     assert Decimal(summary["total_payout"]) == Decimal("22.0")
     assert buyer.cash_balance == Decimal("5000")
+    assert seller.cash_balance == Decimal("5000")
 
 
 @pytest.mark.asyncio

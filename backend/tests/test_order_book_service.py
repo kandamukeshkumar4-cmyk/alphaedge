@@ -111,7 +111,7 @@ async def test_ledger_debit_cannot_overdraw(db_session):
         (OrderOutcome.NO, "no_shares", "avg_no_cost"),
     ],
 )
-async def test_scaled_long_uses_weighted_average_and_resets_after_crossing_zero(
+async def test_scaled_long_uses_weighted_average_and_sets_new_short_basis_after_crossing_zero(
     db_session, outcome, shares_attr, cost_attr
 ):
     market = await MarketService(db_session).create_market(
@@ -194,7 +194,7 @@ async def test_scaled_long_uses_weighted_average_and_resets_after_crossing_zero(
     )
     await db_session.refresh(position)
     assert getattr(position, shares_attr) == Decimal("-5.0000")
-    assert getattr(position, cost_attr) == Decimal("0.0000")
+    assert getattr(position, cost_attr) == Decimal("0.5000")
 
 
 @pytest.mark.asyncio
