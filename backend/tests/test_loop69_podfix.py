@@ -366,4 +366,7 @@ async def test_runner_writes_equity_snapshot_per_pod_pass(db_session):
     assert snaps[0].cash_balance == Decimal("10000")
     assert snaps[0].positions_mtm == Decimal("0")
     assert snaps[0].equity == Decimal("10000")
-    assert snaps[0].captured_at == now
+    captured = snaps[0].captured_at
+    if captured.tzinfo is None:
+        captured = captured.replace(tzinfo=UTC)
+    assert captured == now

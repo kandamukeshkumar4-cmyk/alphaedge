@@ -22,6 +22,7 @@ from app.db.models import (
     OrderStatus,
     OrderType,
     Pod as PodRow,
+    PodEquitySnapshot,
     PodTrade,
     Position,
     PredictionLog,
@@ -93,11 +94,17 @@ async def ensure_default_pods(session: AsyncSession) -> list[PodRow]:
 
 
 async def _latest_model_probability(
-    session: AsyncSession, market_slug: str
+    session: AsyncSession, market_slug: str, *, as_of: datetime
 ) -> float | None:
+    """Latest model probability at or before decision time (no post-decision leak)."""
+    if as_of.tzinfo is None:
+        as_of = as_of.replace(tzinfo=UTC)
     probability = await session.scalar(
         select(PredictionLog.predicted_prob)
-        .where(PredictionLog.market_slug == market_slug)
+        .where(
+            PredictionLog.market_slug == market_slug,
+            PredictionLog.predicted_at <= as_of,
+        )
         .order_by(PredictionLog.predicted_at.desc())
         .limit(1)
     )
@@ -161,6 +168,28 @@ async def _entry_count(session: AsyncSession, *, pod_id, market_id) -> int:
     return int(count or 0)
 
 
+async def _snapshot_pod_equity(
+    session: AsyncSession,
+    *,
+    pod_row: PodRow,
+    account: Account,
+    now: datetime,
+) -> None:
+    """Write one equity snapshot for this pod (cash + position value)."""
+    cash = Decimal(account.cash_balance or 0)
+    positions_mtm = await _position_value(session, account.id)
+    equity = cash + positions_mtm
+    session.add(
+        PodEquitySnapshot(
+            pod_id=pod_row.id,
+            captured_at=now,
+            cash_balance=cash,
+            positions_mtm=positions_mtm,
+            equity=equity,
+        )
+    )
+
+
 def _minutes_until_close(market: Market, now: datetime) -> int:
     if market.lock_at is None:
         return 60
@@ -193,7 +222,7 @@ async def _process_market(
     # remains the only possible execution path below.
     from app.services.master_context import build_market_context
 
-    context = await build_market_context(session, market.slug)
+    context = await build_market_context(session, market.slug, as_of=now)
     market_view = PodMarket(
         market_id=str(market.id),
         slug=market.slug,
@@ -205,7 +234,9 @@ async def _process_market(
         metadata={
             "source": market.source,
             "title": market.title,
-            "model_probability": await _latest_model_probability(session, market.slug),
+            "model_probability": await _latest_model_probability(
+                session, market.slug, as_of=now
+            ),
             "sentiment_trend": context["sentiment_trend"],
             "sentiment_debate": context["sentiment_debate"],
         },
@@ -344,5 +375,15 @@ async def pod_runner_task(ctx: dict[str, Any]) -> dict[str, Any]:
                     continue
                 summary["scored"] += int(scored)
                 summary["entered"] += int(entered)
+            # One equity snapshot per pod per runner pass (cash + position value).
+            try:
+                await session.refresh(account)
+                await _snapshot_pod_equity(
+                    session, pod_row=pod, account=account, now=now
+                )
+            except Exception:  # noqa: BLE001 - snapshot must not stop the loop
+                summary.setdefault("errors", 0)
+                summary["errors"] += 1
+                continue
         await session.commit()
     return summary
