@@ -3,7 +3,6 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -453,7 +452,6 @@ async def test_news_block_null_when_cache_empty(db_session):
 async def test_price_delta_1h_is_latest_minus_oldest_not_two_oldest(db_session, monkeypatch):
     """Three snapshots in window: delta must be newest - oldest, not row1-row0 only."""
     from app.db.models import MarketStatus
-    from app.signals.news_signal import NewsSignal
     from app.workers import tasks as worker_tasks
 
     now = datetime(2026, 3, 1, 12, tzinfo=UTC)
@@ -485,7 +483,7 @@ async def test_price_delta_1h_is_latest_minus_oldest_not_two_oldest(db_session, 
     async def fake_fetch(topic, **kw):
         return None
 
-    from app.signals.news_cadence import NewsRefreshCandidate, eligible_candidates
+    from app.signals.news_cadence import eligible_candidates
 
     real_eligible = eligible_candidates
 
