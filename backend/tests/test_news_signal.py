@@ -111,8 +111,10 @@ async def test_news_scan_task_emits_news_arrival_events(db_session, monkeypatch)
         )
 
     from app.signals import news_signal as news_signal_module
+    from app.signals.news_cadence import reset_news_cadence_state
 
     news_signal_module._CACHE.clear()  # other tests may have cached real signals
+    reset_news_cadence_state()  # a circuit left open by cadence tests disables the scan
     monkeypatch.setattr("app.signals.news_signal.fetch_news_signal", fake_fetch)
     # the task imports it locally from news_signal, so patch at source module
 

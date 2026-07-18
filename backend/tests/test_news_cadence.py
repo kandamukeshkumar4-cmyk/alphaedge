@@ -62,7 +62,14 @@ def test_cadence_thresholds_are_configurable():
 
 def test_cadence_circuit_opens_after_three_fetch_failures():
     reset_news_cadence_state()
-    for _ in range(3):
-        record_refresh_failure(monotonic_now=10)
-    assert circuit_is_open(monotonic_now=11) is True
-    assert eligible_candidates([_candidate()], now=datetime.now(UTC), budget=10, monotonic_now=11) == []
+    try:
+        for _ in range(3):
+            record_refresh_failure(monotonic_now=10)
+        assert circuit_is_open(monotonic_now=11) is True
+        assert eligible_candidates([_candidate()], now=datetime.now(UTC), budget=10, monotonic_now=11) == []
+    finally:
+        # The circuit is keyed to real time.monotonic() (~system uptime). On a
+        # freshly booted CI runner that clock is still below the fake
+        # `10 + COOLDOWN_SEC` threshold, so a leaked open circuit silently
+        # disables run_news_scan in later tests (test_news_signal B04).
+        reset_news_cadence_state()
