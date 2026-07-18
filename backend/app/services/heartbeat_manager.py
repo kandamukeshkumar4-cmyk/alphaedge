@@ -380,13 +380,10 @@ async def run_heartbeat_pass(
                     # JWT paper: auditable recommendation only (no PaperOrder bypass).
                     action_taken = "exit_logged"
             else:
+                # Halts and stale/missing position marks are always audit-only.
+                # Never turn a global safety condition into a market SELL.
                 summary["emergency"] += 1
-                if item.snapshot.source == "clob":
-                    action_taken = await _submit_clob_exit(session, item, "emergency")
-                    if action_taken.endswith("_submitted"):
-                        summary["exits_submitted"] += 1
-                else:
-                    action_taken = "emergency_logged"
+                action_taken = "freeze_logged"
 
             latency_ms = (time.perf_counter() - t0) * 1000.0
             session.add(

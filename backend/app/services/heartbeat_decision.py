@@ -19,7 +19,7 @@ class HeartbeatAction(str, Enum):
     HOLD = "hold"
     TIGHTEN = "tighten"
     EXIT = "exit"
-    EMERGENCY = "emergency"
+    FREEZE = "freeze"
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class HeartbeatRules:
 
 @dataclass(frozen=True)
 class HaltFlags:
-    """Reversible emergency gates (H3). Any true → EMERGENCY."""
+    """Reversible halt gates. Any true freezes execution for this pass."""
 
     global_kill: bool = False
     price_feed_stale: bool = False
@@ -128,33 +128,35 @@ def decide(
         "halts": asdict(halts),
     }
 
-    # --- Emergency halts (highest priority; reversible flags) ---
+    # --- Global halt gates (highest priority; reversible, log-only) ---
     if halts.global_kill:
         return HeartbeatDecision(
-            action=HeartbeatAction.EMERGENCY,
+            action=HeartbeatAction.FREEZE,
             rule_fired="global_kill",
             inputs=inputs,
             reason="global kill flag set",
         )
     if halts.price_feed_stale:
         return HeartbeatDecision(
-            action=HeartbeatAction.EMERGENCY,
+            action=HeartbeatAction.FREEZE,
             rule_fired="price_feed_staleness_halt",
             inputs=inputs,
             reason="price feed marked stale — halt exits",
         )
     if halts.daily_loss_halt:
         return HeartbeatDecision(
-            action=HeartbeatAction.EMERGENCY,
+            action=HeartbeatAction.FREEZE,
             rule_fired="daily_loss_halt",
             inputs=inputs,
             reason="daily loss halt for this pod/account",
         )
 
     # --- Per-position staleness kill ---
+    # A stale or missing mark cannot safely price a market sell.  This is a
+    # log-only freeze until a later pass receives a fresh position mark.
     if price_age_sec is None or price_age_sec > rules.staleness_sec:
         return HeartbeatDecision(
-            action=HeartbeatAction.EMERGENCY,
+            action=HeartbeatAction.FREEZE,
             rule_fired="staleness_kill",
             inputs=inputs,
             reason=(

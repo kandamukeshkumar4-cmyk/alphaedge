@@ -1,5 +1,9 @@
 """Loop V59 H2 — heartbeat manager loop registration + detail + flag skip."""
 
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from uuid import uuid4
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -7,7 +11,13 @@ from app.db.session import get_db
 from app.main import app
 from app.observability import loop_state
 from app.observability.loop_state import LOOP_INTERVALS
-from app.services.heartbeat_manager import heartbeat_detail, heartbeat_manager_task
+from app.services.heartbeat_decision import HaltFlags, PositionSnapshot
+from app.services.heartbeat_manager import (
+    _TrackedPosition,
+    heartbeat_detail,
+    heartbeat_manager_task,
+    run_heartbeat_pass,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -68,3 +78,48 @@ async def test_system_loops_includes_heartbeat_manager():
     assert "heartbeat_manager" in by_name
     assert by_name["heartbeat_manager"]["interval_sec"] == 45
     assert by_name["heartbeat_manager"]["status"] == "never"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "halts",
+    [
+        HaltFlags(global_kill=True),
+        HaltFlags(price_feed_stale=True),
+        HaltFlags(daily_loss_halt=True),
+    ],
+)
+async def test_global_halts_log_without_submitting_a_clob_exit(db_session, monkeypatch, halts):
+    now = datetime(2026, 7, 17, 12, tzinfo=timezone.utc)
+    tracked = _TrackedPosition(
+        snapshot=PositionSnapshot(
+            position_ref="clob:test:market:yes",
+            entry_price=Decimal("0.50"),
+            mark_price=Decimal("0.60"),
+            opened_at=now - timedelta(minutes=5),
+            price_as_of=now - timedelta(seconds=1),
+            quantity=Decimal("2"),
+            source="clob",
+        ),
+        account_id=uuid4(),
+        market_id=uuid4(),
+        market_slug="market",
+    )
+
+    async def load_paper(_session):
+        return []
+
+    async def load_clob(_session):
+        return [tracked]
+
+    async def forbidden_submit(*_args, **_kwargs):
+        raise AssertionError("halted heartbeat must not submit a CLOB exit")
+
+    monkeypatch.setattr("app.services.heartbeat_manager._load_paper_positions", load_paper)
+    monkeypatch.setattr("app.services.heartbeat_manager._load_clob_positions", load_clob)
+    monkeypatch.setattr("app.services.heartbeat_manager._submit_clob_exit", forbidden_submit)
+
+    summary = await run_heartbeat_pass(db_session, now=now, halts=halts)
+
+    assert summary["exits_submitted"] == 0
+    assert summary["emergency"] == 1

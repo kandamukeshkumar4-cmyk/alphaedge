@@ -112,7 +112,7 @@ def test_global_kill_via_settings(monkeypatch):
             quantity=Decimal("1"),
         )
         d = decide(pos, _RULES, now=_NOW, halts=flags)
-        assert d.action is HeartbeatAction.EMERGENCY
+        assert d.action is HeartbeatAction.FREEZE
         assert d.rule_fired == "global_kill"
     finally:
         monkeypatch.delenv("HEARTBEAT_GLOBAL_KILL", raising=False)
