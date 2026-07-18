@@ -1,11 +1,7 @@
 """pod strategy tables (Loop V57 P1).
 
-This checkout intentionally has 048 as its local Alembic head. The integration
-orchestrator re-chains this migration above 052 when the concurrent migration
-waves merge; do not change this temporary local parent here.
-
 Revision ID: 053_pods
-Revises: 048_lock_provenance
+Revises: 052_heartbeat
 Create Date: 2026-07-17
 """
 

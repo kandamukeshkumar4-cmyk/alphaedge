@@ -1,8 +1,8 @@
 """Loop V59 H2: heartbeat decision_log table (revision id <= 32 chars).
 
-Pre-assigned 051_heartbeat (V57=049, V58=050 reserved). In this worktree
-chains from head 047_social (048/049/050 absent). Orchestrator re-chains
-at merge to single head: 048 -> 049 -> 050 -> 051 — do not pre-fight that.
+Revision ID: 052_heartbeat
+Revises: 051_venue_gaps
+Create Date: 2026-07-17
 """
 
 from typing import Sequence, Union
