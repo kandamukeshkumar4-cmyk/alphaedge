@@ -506,6 +506,14 @@ class Settings(BaseSettings):
     # configured (4 → 1 → 0). With 0 providers, or if every provider fails, the
     # prediction path falls back byte-identically to the single-model baseline.
     ensemble_enabled: bool = Field(default=True, alias="ENSEMBLE_ENABLED")
+    # ai-hedge-fund v2 alpha blend (app/forecasting/alpha): blend the artifact
+    # model's probability with the market-implied prior per the YAML spec in
+    # app/forecasting/strategies/market_blend.yaml. Default ON: SAFE because it
+    # only applies where a calibrated artifact probability exists (never the
+    # FIFA / supplied / implied-passthrough paths), shrinks forecasts TOWARD
+    # the market (more conservative edges), and degrades to artifact-only when
+    # every other model abstains.
+    alpha_blend_enabled: bool = Field(default=True, alias="ALPHA_BLEND_ENABLED")
     # JSON string: {"NBA": "single", "Elections": "single", "default": "single"}
     # All categories default to "single" until the CLV gate passes.
     ensemble_router_config: str = Field(

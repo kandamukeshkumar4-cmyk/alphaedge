@@ -6,6 +6,7 @@ import pandas as pd
 
 from app.backtesting.clv import ForecastComparison, evaluate_forecasts_against_closing
 from app.backtesting.metrics import brier_score, calibration_error, max_drawdown, roi
+from app.forecasting.alpha import blend_market_probability, default_blend_spec
 from app.backtesting.simulator import simulate_trade
 from app.ml.features import load_fixture_dataset
 from app.ml.trainer import (
@@ -24,6 +25,7 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
     df = load_fixture_dataset(fixtures_dir)
 
     predictions: list[float] = []
+    alpha_blend_predictions: list[float] = []
     outcomes: list[int] = []
     forecast_comparisons: list[ForecastComparison] = []
     pnls: list[float] = []
@@ -35,6 +37,11 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
         prob = calibrator.predict([raw_prob])[0]
         outcome = int(row["winner_yes"])
         predictions.append(prob)
+        blend = blend_market_probability(
+            {"market_slug": row["market_slug"], "implied_yes": implied},
+            artifact_probability=float(prob),
+        )
+        alpha_blend_predictions.append(blend.probability if blend else float(prob))
         outcomes.append(outcome)
         forecast_comparisons.append(
             ForecastComparison(
@@ -50,9 +57,19 @@ def run_backtest(fixtures_dir: Path, artifact_dir: Path | None = None) -> dict[s
 
     forecast_evaluation = evaluate_forecasts_against_closing(forecast_comparisons)
     phase3_gate = _phase3_forecast_gate(fixtures_dir, artifact_dir / "phase3_walk_forward")
+    baseline_brier = brier_score(predictions, outcomes)
+    alpha_blend_brier = brier_score(alpha_blend_predictions, outcomes)
+    blend_spec = default_blend_spec()
     return {
         "market_count": len(df),
-        "brier_score": brier_score(predictions, outcomes),
+        "brier_score": baseline_brier,
+        "alpha_blend": {
+            "spec": blend_spec.name,
+            "weights": blend_spec.model_weights,
+            "brier_score": alpha_blend_brier,
+            "delta_vs_baseline": alpha_blend_brier - baseline_brier,
+            "calibration_error": calibration_error(alpha_blend_predictions, outcomes),
+        },
         "closing_brier_score": forecast_evaluation.closing_brier,
         "brier_delta_vs_closing": forecast_evaluation.brier_delta_vs_closing,
         "model_log_loss": forecast_evaluation.model_log_loss,

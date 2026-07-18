@@ -82,6 +82,9 @@ def test_prediction_serves_calibrated_probability_from_persisted_model(tmp_path)
             "model_artifact_path": str(model_path),
             "calibrator_path": str(calibrator_path),
             "feature_columns": ["implied_yes", "elo_diff"],
+            # This test pins the raw artifact path; blend behavior is covered
+            # in tests/test_alpha_blend.py.
+            "alpha_blend_enabled": False,
         }
     )
 

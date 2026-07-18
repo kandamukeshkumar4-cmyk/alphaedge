@@ -1,0 +1,15 @@
+# Default alpha-blend strategy for prediction-market forecasts.
+# Adapted from virattt/ai-hedge-fund v2 strategy specs (docs/ATTRIBUTIONS.md):
+# a mandate is data — models + blend weights, nothing else.
+#
+# Weights are the AutoLab-measured configuration; tune here, never in code.
+name: market-blend
+display_name: Market Blend
+# AutoLab sweep 2026-07-18 (fixtures, n=3): artifact-only Brier 0.2500;
+# 0.5/0.5 -> 0.2246; 0.4/0.6 -> 0.2198 (ECE 0.1347); pure market rejected as
+# degenerate (model deleted, ECE worst at 0.2075).
+models:
+  - name: artifact
+    weight: 0.4
+  - name: market_implied
+    weight: 0.6

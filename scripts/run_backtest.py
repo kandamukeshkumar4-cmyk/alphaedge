@@ -122,6 +122,15 @@ def main(argv: list[str] | None = None) -> None:
             f"ROI: {result['roi']:.2%} · "
             f"Calibration Error: {result['calibration_error']:.4f}"
         )
+        blend = result.get("alpha_blend")
+        if blend:
+            print(
+                f"Alpha blend ({blend['spec']}): "
+                f"Brier {blend['brier_score']:.4f} "
+                f"(delta vs baseline {blend['delta_vs_baseline']:+.4f}) · "
+                f"Calibration Error: {blend['calibration_error']:.4f} · "
+                f"weights {blend['weights']}"
+            )
     else:
         print(f"Backtested {summary_subject}: {result['market_count']}")
     phase3 = result["phase3_forecast_gate"]
