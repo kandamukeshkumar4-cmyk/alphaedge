@@ -13,6 +13,9 @@ from datetime import UTC, datetime
 HOT_INTERVAL_SEC = 5 * 60
 WARM_INTERVAL_SEC = 15 * 60
 BASELINE_INTERVAL_SEC = 60 * 60
+# Flag-off path: pre-V61 hourly volume when NEWS_CADENCE_ENABLED=false.
+# The in-process loop runs every 5 min; without this, top-N would 12x Exa/news.
+FALLBACK_COOLDOWN_SEC = BASELINE_INTERVAL_SEC
 FAILURE_THRESHOLD = 3
 COOLDOWN_SEC = 5 * 60
 
@@ -127,3 +130,26 @@ def record_refresh_failure(*, monotonic_now: float | None = None) -> None:
     _consecutive_failures += 1
     if _consecutive_failures >= FAILURE_THRESHOLD:
         _circuit_open_until = now + COOLDOWN_SEC
+
+
+def fallback_eligible_candidates(
+    candidates: list[NewsRefreshCandidate],
+    *,
+    budget: int,
+    cooldown_sec: float = FALLBACK_COOLDOWN_SEC,
+    monotonic_now: float | None = None,
+) -> list[NewsRefreshCandidate]:
+    """Pre-V61 selection: top-N by input order with a per-slug hourly cooldown.
+
+    Used when NEWS_CADENCE_ENABLED=false so the 5-minute loop does not multiply
+    external news calls by 12 vs the historical hourly scan.
+    """
+    if budget <= 0:
+        return []
+    mono = time.monotonic() if monotonic_now is None else monotonic_now
+    due = [
+        candidate
+        for candidate in candidates
+        if mono - _last_refresh.get(candidate.slug, float("-inf")) >= cooldown_sec
+    ]
+    return due[:budget]
