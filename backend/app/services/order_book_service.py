@@ -491,9 +491,18 @@ class OrderBookService:
                     description,
                     order.market_id,
                 )
+                previous_shares = pos.yes_shares
                 pos.yes_shares += quantity
-                if pos.yes_shares > 0:
+                if previous_shares >= 0 and pos.yes_shares > 0:
+                    pos.avg_yes_cost = (
+                        pos.avg_yes_cost * previous_shares + price * quantity
+                    ) / pos.yes_shares
+                elif pos.yes_shares > 0:
+                    # A buy that crosses a short through zero opens a new long
+                    # position at this fill price.
                     pos.avg_yes_cost = price
+                else:
+                    pos.avg_yes_cost = Decimal("0")
             else:
                 await self.ledger.credit(
                     order.account_id,
@@ -503,6 +512,8 @@ class OrderBookService:
                     order.market_id,
                 )
                 pos.yes_shares -= quantity
+                if pos.yes_shares <= 0:
+                    pos.avg_yes_cost = Decimal("0")
         else:
             if order.side == OrderSide.BUY:
                 await self.ledger.debit(
@@ -512,9 +523,18 @@ class OrderBookService:
                     description,
                     order.market_id,
                 )
+                previous_shares = pos.no_shares
                 pos.no_shares += quantity
-                if pos.no_shares > 0:
+                if previous_shares >= 0 and pos.no_shares > 0:
+                    pos.avg_no_cost = (
+                        pos.avg_no_cost * previous_shares + price * quantity
+                    ) / pos.no_shares
+                elif pos.no_shares > 0:
+                    # A buy that crosses a short through zero opens a new long
+                    # position at this fill price.
                     pos.avg_no_cost = price
+                else:
+                    pos.avg_no_cost = Decimal("0")
             else:
                 await self.ledger.credit(
                     order.account_id,
@@ -524,6 +544,8 @@ class OrderBookService:
                     order.market_id,
                 )
                 pos.no_shares -= quantity
+                if pos.no_shares <= 0:
+                    pos.avg_no_cost = Decimal("0")
 
         await self.session.flush()
 

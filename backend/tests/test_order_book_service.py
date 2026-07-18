@@ -3,7 +3,15 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from app.db.models import Account, LedgerEntry, LedgerEntryType, OrderOutcome, OrderSide, OrderType
+from app.db.models import (
+    Account,
+    LedgerEntry,
+    LedgerEntryType,
+    OrderOutcome,
+    OrderSide,
+    OrderType,
+    Position,
+)
 from app.services.ledger_service import LedgerService
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
@@ -89,3 +97,97 @@ async def test_ledger_debit_cannot_overdraw(db_session):
 
     await db_session.refresh(account)
     assert account.cash_balance == Decimal("10.0000")  # unchanged
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("outcome", "shares_attr", "cost_attr"),
+    [
+        (OrderOutcome.YES, "yes_shares", "avg_yes_cost"),
+        (OrderOutcome.NO, "no_shares", "avg_no_cost"),
+    ],
+)
+async def test_scaled_long_uses_weighted_average_and_resets_after_crossing_zero(
+    db_session, outcome, shares_attr, cost_attr
+):
+    market = await MarketService(db_session).create_market(
+        slug=f"weighted-average-{outcome.value}",
+        title="Weighted-average position test",
+        question="Does a scaled position retain its true entry basis?",
+    )
+    buyer = Account(name=f"{outcome.value} buyer", cash_balance=Decimal("100"))
+    seller = Account(name=f"{outcome.value} seller", cash_balance=Decimal("100"))
+    db_session.add_all([buyer, seller])
+    await db_session.flush()
+    book = OrderBookService(db_session)
+
+    for price in (Decimal("0.40"), Decimal("0.60")):
+        await book.submit_order(
+            market.id,
+            seller.id,
+            OrderSide.SELL,
+            outcome,
+            OrderType.LIMIT,
+            Decimal("10"),
+            price,
+        )
+        await book.submit_order(
+            market.id,
+            buyer.id,
+            OrderSide.BUY,
+            outcome,
+            OrderType.LIMIT,
+            Decimal("10"),
+            price,
+        )
+
+    position = await db_session.scalar(
+        select(Position).where(Position.account_id == buyer.id, Position.market_id == market.id)
+    )
+    assert position is not None
+    assert getattr(position, shares_attr) == Decimal("20.0000")
+    assert getattr(position, cost_attr) == Decimal("0.5000")
+
+    await book.submit_order(
+        market.id,
+        seller.id,
+        OrderSide.BUY,
+        outcome,
+        OrderType.LIMIT,
+        Decimal("5"),
+        Decimal("0.50"),
+    )
+    await book.submit_order(
+        market.id,
+        buyer.id,
+        OrderSide.SELL,
+        outcome,
+        OrderType.LIMIT,
+        Decimal("5"),
+        Decimal("0.50"),
+    )
+    await db_session.refresh(position)
+    assert getattr(position, shares_attr) == Decimal("15.0000")
+    assert getattr(position, cost_attr) == Decimal("0.5000")
+
+    await book.submit_order(
+        market.id,
+        seller.id,
+        OrderSide.BUY,
+        outcome,
+        OrderType.LIMIT,
+        Decimal("20"),
+        Decimal("0.50"),
+    )
+    await book.submit_order(
+        market.id,
+        buyer.id,
+        OrderSide.SELL,
+        outcome,
+        OrderType.LIMIT,
+        Decimal("20"),
+        Decimal("0.50"),
+    )
+    await db_session.refresh(position)
+    assert getattr(position, shares_attr) == Decimal("-5.0000")
+    assert getattr(position, cost_attr) == Decimal("0.0000")
