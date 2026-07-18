@@ -22,6 +22,7 @@ from app.db.models import (
     OrderType,
     Pod as PodRow,
     PodTrade,
+    Position,
     PredictionLog,
 )
 from app.db.session import AsyncSessionLocal
@@ -89,8 +90,35 @@ async def _latest_model_probability(
     return float(probability) if probability is not None else None
 
 
+async def _position_value(session: AsyncSession, account_id) -> Decimal:
+    """Filled position capital at cost for the pod account (positions table)."""
+    rows = (
+        await session.execute(
+            select(
+                Position.yes_shares,
+                Position.avg_yes_cost,
+                Position.no_shares,
+                Position.avg_no_cost,
+            ).where(
+                Position.account_id == account_id,
+                Position.settled.is_(False),
+            )
+        )
+    ).all()
+    total = Decimal("0")
+    for yes_shares, avg_yes, no_shares, avg_no in rows:
+        yes = Decimal(yes_shares or 0)
+        no = Decimal(no_shares or 0)
+        if yes > 0:
+            total += yes * Decimal(avg_yes or 0)
+        if no > 0:
+            total += no * Decimal(avg_no or 0)
+    return total
+
+
 async def _open_exposure(session: AsyncSession, account_id) -> Decimal:
-    exposure = await session.scalar(
+    """Resting order residual + filled position value (cannot ignore fills)."""
+    resting = await session.scalar(
         select(
             func.coalesce(
                 func.sum(Order.price * (Order.quantity - Order.filled_quantity)),
@@ -101,7 +129,22 @@ async def _open_exposure(session: AsyncSession, account_id) -> Decimal:
             Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
         )
     )
-    return Decimal(exposure or 0)
+    filled = await _position_value(session, account_id)
+    return Decimal(resting or 0) + filled
+
+
+async def _entry_count(session: AsyncSession, *, pod_id, market_id) -> int:
+    """Successful enter trades for pod+market (idempotency sequence)."""
+    count = await session.scalar(
+        select(func.count())
+        .select_from(PodTrade)
+        .where(
+            PodTrade.pod_id == pod_id,
+            PodTrade.market_id == market_id,
+            PodTrade.action == "enter",
+        )
+    )
+    return int(count or 0)
 
 
 def _minutes_until_close(market: Market, now: datetime) -> int:
@@ -230,6 +273,9 @@ async def _submit_decision(
     if not accepted:
         trade.decision = {**trade.decision, "rejected": "; ".join(failures)}
         return False
+    # Key on pod+market+entry-count (not wall-clock minute) so same-minute
+    # refills cannot mint a new order after a fill while the cap is still hit.
+    entries = await _entry_count(session, pod_id=pod_row.id, market_id=market.id)
     order = await OrderBookService(session, correlation_id=f"pod:{pod_row.key}").submit_order(
         market_id=market.id,
         account_id=account.id,
@@ -238,7 +284,7 @@ async def _submit_decision(
         order_type=OrderType.LIMIT,
         quantity=quantity,
         price=limit_price,
-        idempotency_key=f"pod:{pod_row.id}:{market.id}:{now.strftime('%Y%m%d%H%M')}",
+        idempotency_key=f"pod:{pod_row.id}:{market.id}:{entries}",
     )
     trade.action = "enter"
     trade.outcome = decision.outcome
