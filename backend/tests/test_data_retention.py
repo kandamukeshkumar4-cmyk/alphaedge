@@ -11,12 +11,19 @@ import pytest
 from sqlalchemy import func, select
 
 from app.db.models import (
+    Account,
+    HeartbeatDecisionLog,
     JobRun,
+    Market,
+    MarketSentimentSnapshot,
     Notification,
     OddsSnapshot,
+    Pod as PodRow,
+    PodTrade,
     PredictionLog,
     SignalEvent,
     User,
+    WhaleEvent,
 )
 from app.observability.loop_state import LOOP_INTERVALS
 from app.workers.data_retention import (
@@ -24,9 +31,13 @@ from app.workers.data_retention import (
     _as_utc,
     data_retention_task,
     run_data_retention_sweeps,
+    sweep_heartbeat_decision_logs,
+    sweep_market_sentiment_snapshots,
     sweep_notifications,
     sweep_odds_snapshots_downsample,
+    sweep_pod_trades,
     sweep_signal_events,
+    sweep_whale_events,
 )
 from app.workers.tasks import WorkerSettings
 
@@ -465,6 +476,167 @@ def test_worker_settings_registers_data_retention():
 
 def test_loop_intervals_include_data_retention():
     assert LOOP_INTERVALS["data_retention"] == 86400
+
+
+@pytest.mark.asyncio
+async def test_whale_events_age_and_row_cap(db_session):
+    """Loop V70: whale_events keep ≤14d and ≤max_rows (newest)."""
+    now = datetime(2026, 7, 17, 12, 0, tzinfo=UTC)
+    # 3 older than 14d, 2 recent
+    for i, days_ago in enumerate((20, 18, 15, 5, 1)):
+        db_session.add(
+            WhaleEvent(
+                wallet=f"0x{i:040x}",
+                side="BUY",
+                outcome="YES",
+                size=Decimal("10"),
+                price=Decimal("0.55"),
+                notional=Decimal("5.5"),
+                market_slug="nba-2025-01-15-lal-bos",
+                market_id="m1",
+                captured_at=now - timedelta(days=days_ago),
+            )
+        )
+    await db_session.flush()
+
+    summary = await sweep_whale_events(
+        db_session, retention_days=14, max_rows=500_000, batch_size=100, now=now
+    )
+    await db_session.commit()
+    assert summary["deleted"] == 3
+    assert summary["age_deleted"] == 3
+    left = int(await db_session.scalar(select(func.count()).select_from(WhaleEvent)))
+    assert left == 2
+
+    # Row-cap: keep only newest 2 of 4 recent rows
+    for i in range(4):
+        db_session.add(
+            WhaleEvent(
+                wallet=f"0xcap{i:036x}",
+                side="SELL",
+                outcome="NO",
+                size=Decimal("1"),
+                price=Decimal("0.40"),
+                notional=Decimal("0.4"),
+                market_slug="nba-2025-01-15-lal-bos",
+                market_id="m1",
+                captured_at=now - timedelta(hours=i + 1),
+            )
+        )
+    await db_session.flush()
+    # 2 previous + 4 new = 6; cap=3 → delete 3 oldest
+    cap_summary = await sweep_whale_events(
+        db_session, retention_days=14, max_rows=3, batch_size=100, now=now
+    )
+    await db_session.commit()
+    assert cap_summary["cap_deleted"] == 3
+    left = int(await db_session.scalar(select(func.count()).select_from(WhaleEvent)))
+    assert left == 3
+
+
+@pytest.mark.asyncio
+async def test_sentiment_and_heartbeat_high_growth_sweeps(db_session):
+    now = datetime(2026, 7, 17, 12, 0, tzinfo=UTC)
+    for days_ago in (20, 10, 1):
+        db_session.add(
+            MarketSentimentSnapshot(
+                market_slug="m1",
+                sentiment_score=0.1,
+                volume_score=0.2,
+                sources_count=1,
+                captured_at=now - timedelta(days=days_ago),
+            )
+        )
+        db_session.add(
+            HeartbeatDecisionLog(
+                position_ref=f"pos-{days_ago}",
+                inputs_snapshot={"x": 1},
+                action_taken="hold",
+                created_at=now - timedelta(days=days_ago),
+            )
+        )
+    await db_session.flush()
+
+    s = await sweep_market_sentiment_snapshots(
+        db_session, retention_days=14, max_rows=500_000, now=now
+    )
+    h = await sweep_heartbeat_decision_logs(
+        db_session, retention_days=14, max_rows=500_000, now=now
+    )
+    await db_session.commit()
+    assert s["deleted"] == 1
+    assert h["deleted"] == 1
+    assert int(await db_session.scalar(select(func.count()).select_from(MarketSentimentSnapshot))) == 2
+    assert int(await db_session.scalar(select(func.count()).select_from(HeartbeatDecisionLog))) == 2
+
+
+@pytest.mark.asyncio
+async def test_pod_trades_age_prune_fk_safe(db_session):
+    """pod_trades prune is FK-safe (outbound FKs only; parents remain)."""
+    now = datetime(2026, 7, 17, 12, 0, tzinfo=UTC)
+    account = Account(name="ret-pod", cash_balance=Decimal("1000"))
+    market = Market(
+        slug="nba-2025-01-15-lal-bos",
+        title="LAL/BOS",
+        question="Lakers win?",
+        category="NBA",
+        source="polymarket",
+    )
+    db_session.add_all([account, market])
+    await db_session.flush()
+    pod = PodRow(
+        key="ret_test_pod",
+        display_name="Ret",
+        account_id=account.id,
+        config={},
+        enabled=False,
+    )
+    db_session.add(pod)
+    await db_session.flush()
+
+    for days_ago in (30, 20, 2):
+        db_session.add(
+            PodTrade(
+                pod_id=pod.id,
+                market_id=market.id,
+                action="skip",
+                decision={"status": "skip"},
+                created_at=now - timedelta(days=days_ago),
+            )
+        )
+    await db_session.flush()
+
+    summary = await sweep_pod_trades(
+        db_session, retention_days=14, max_rows=500_000, now=now
+    )
+    await db_session.commit()
+    assert summary["deleted"] == 2
+    left = int(await db_session.scalar(select(func.count()).select_from(PodTrade)))
+    assert left == 1
+    # Parent rows untouched
+    assert await db_session.get(PodRow, pod.id) is not None
+    assert await db_session.get(Market, market.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_run_sweeps_registers_high_growth_tables(db_session):
+    now = datetime(2026, 7, 17, 12, 0, tzinfo=UTC)
+    summary = await run_data_retention_sweeps(
+        db_session,
+        now=now,
+        odds_enabled=False,
+        signals_enabled=False,
+        notifications_enabled=False,
+        high_growth_enabled=True,
+    )
+    for key in (
+        "whale_events",
+        "market_sentiment_snapshots",
+        "heartbeat_decision_logs",
+        "pod_trades",
+    ):
+        assert summary[key] is not None
+        assert summary[key]["deleted"] == 0
 
 
 def _session_factory(session):
