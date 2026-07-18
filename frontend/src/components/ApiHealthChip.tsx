@@ -20,7 +20,7 @@ const STYLES = {
     chip: "border-gold/30 bg-gold/10 text-gold",
     pulse: false,
     title:
-      "Backend unreachable or unconfigured — sample data may be shown. Start the API + workers for live content.",
+      "Backend unreachable or unconfigured — live data unavailable. AlphaEdge will not invent markets or scores as live.",
   },
   checking: {
     label: "Checking",

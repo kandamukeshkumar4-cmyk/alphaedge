@@ -12,9 +12,16 @@ type ProbeResult = "ok" | "degraded" | "down" | "fetch_fail";
 
 const POLL_MS = 30_000;
 // A single transient failure (HF Space 429 / cold start) must NOT flip the
-// whole app to "sample data". Require this many consecutive bad probes.
+// whole app to API-down. Require this many consecutive bad probes.
 const FAILURES_BEFORE_DOWN = 2;
 const RETRY_AFTER_FAILURE_MS = 5_000;
+
+/** Honest API-down copy (loop67 L3) — never claims fabricated live data is real. */
+export const API_DOWN_BANNER_MESSAGE =
+  "Backend unreachable. Live paper-trading data is unavailable — this app will not invent markets, scores, or balances.";
+
+export const API_DEGRADED_BANNER_MESSAGE =
+  "AlphaEdge API is degraded. Some live features may be limited — no fabricated metrics are shown as healthy.";
 
 async function probe(base: string): Promise<ProbeResult> {
   try {
@@ -77,15 +84,12 @@ export function HealthBanner() {
     return null;
   }
 
-  // A dead/unreachable API (fetch_fail) is "unavailable", not "degraded" — a
-  // connection-refused is a hard outage, and every surface is now showing the
-  // bundled sample/mock data, so the banner must say so honestly. This state
-  // is only reached after FAILURES_BEFORE_DOWN consecutive failed probes, and
-  // the poll loop keeps running so recovery clears the banner automatically.
+  // A dead/unreachable API (fetch_fail) is "unavailable", not "degraded".
+  // Honest launch copy: backend unreachable — do not present fake live data.
+  // Reached only after FAILURES_BEFORE_DOWN consecutive failed probes; poll
+  // continues so recovery clears the banner automatically.
   const isDown = status === "down" || status === "fetch_fail";
-  const message = isDown
-    ? "AlphaEdge API is unavailable. Showing sample data — paper trading data is not live."
-    : "AlphaEdge API is degraded. Some features may be limited.";
+  const message = isDown ? API_DOWN_BANNER_MESSAGE : API_DEGRADED_BANNER_MESSAGE;
 
   return (
     <div

@@ -57,17 +57,23 @@ export function AlertsBell() {
   }, []);
 
   const unread = unreadAlertCount(filterItemsByPrefs(items, enabledFamilies), lastSeen);
+  // Visible badge text must appear in the accessible name (Lighthouse label-content-name-mismatch).
+  const badgeLabel = unread > 9 ? "9+" : unread > 0 ? String(unread) : "";
+  const ariaLabel =
+    unread > 0
+      ? `Signal alerts ${badgeLabel}, ${unread} unread`
+      : "Signal alerts";
 
   return (
     <Link
       href="/alerts"
-      aria-label={`Signal alerts${unread > 0 ? `, ${unread} unread` : ""}`}
+      aria-label={ariaLabel}
       className="relative grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text"
     >
       <BellIcon />
       {unread > 0 && (
         <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-0.5 font-mono text-[10px] font-black text-bg">
-          {unread > 9 ? "9+" : unread}
+          {badgeLabel}
         </span>
       )}
     </Link>
