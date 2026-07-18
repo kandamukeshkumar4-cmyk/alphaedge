@@ -395,3 +395,24 @@ These have concrete basis but could not be fully confirmed end-to-end in this pa
 **AutoLab:** not applicable (no iterative measure; review-only).
 
 **Commit scope:** this report only. No code changes. Do not push/merge from this review.
+
+---
+
+## Orchestrator disposition (2026-07-17)
+
+Findings: #1,#2,#7,#6,#10,#9 -> Loop V74 (in flight); #3,#4,#5,#8 + unresolved
+#6 -> Loop V75 (queued behind V74, shared files); retention/ops cluster ->
+Loop V70 (in flight).
+
+Unresolved concerns closed by direct check:
+- #1 multi-process book divergence: prod runs a single uvicorn process, no ARQ
+  worker (REDIS_URL=disabled) — books cannot diverge today; revisit if
+  replicas are ever added.
+- #3 prod secrets: ADMIN_API_KEY and JWT_SECRET_KEY are overridden with real
+  values in Railway (verified by name/prefix, values not logged).
+- #5 CI branch filter: ci-backend triggers on loop3-agent-memory and
+  codex/alphaedge-base — the two branches all work pushes to; CI runs on
+  every push. Working as intended.
+Still parked: #2 uuid.hex raw-SQL dialect (add prod-dialect integration test
+in V75); #4 alembic 015 downgrade FK cascade (downgrade-to-015 is not an
+operational path; documented hazard only).
