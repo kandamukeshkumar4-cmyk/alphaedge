@@ -11,7 +11,7 @@
  * path here.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { relativeTime } from "@/lib/alerts-api";
 import { cn } from "@/lib/cn";
@@ -33,18 +33,30 @@ type PanelState =
   | { phase: "loading" }
   | { phase: "ready"; result: PodsApiResult<MarketContextResponse> };
 
+/** Drop out-of-order / unmounted responses (slug change race). Exported for tests. */
+export function isCurrentMarketContextRequest(
+  requestId: number,
+  latestRequestId: number,
+): boolean {
+  return requestId === latestRequestId;
+}
+
 export function MarketContextPanel({ slug }: { slug: string }) {
   const [state, setState] = useState<PanelState>({ phase: "loading" });
-
-  const load = useCallback(async () => {
-    const result = await fetchMarketContext(slug);
-    setState({ phase: "ready", result });
-  }, [slug]);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current;
     setState({ phase: "loading" });
-    void load();
-  }, [load]);
+    void fetchMarketContext(slug).then((result) => {
+      if (!isCurrentMarketContextRequest(requestId, requestIdRef.current)) return;
+      setState({ phase: "ready", result });
+    });
+    return () => {
+      // Invalidate in-flight work on slug change / unmount.
+      requestIdRef.current += 1;
+    };
+  }, [slug]);
 
   const response = state.phase === "ready" ? state.result : null;
   const statusDot =

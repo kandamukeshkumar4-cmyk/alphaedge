@@ -2,7 +2,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { DecisionLogTerminal } from "./DecisionLogTerminal";
+import {
+  DecisionLogTerminal,
+  isCurrentDecisionPoll,
+} from "./DecisionLogTerminal";
 
 // Loop V60 (U3) — the decision-log terminal must render its chrome and honest
 // skeleton rows in the initial paint (effects/fetch never run during SSR), and
@@ -24,5 +27,13 @@ describe("DecisionLogTerminal", () => {
     expect(html).not.toContain('role="log"');
     expect(html).not.toContain("No decisions logged yet");
     expect(html).not.toContain("not yet deployed");
+  });
+});
+
+describe("isCurrentDecisionPoll (loop71 stale guard)", () => {
+  it("accepts the matching poll id and drops out-of-order responses", () => {
+    expect(isCurrentDecisionPoll(5, 5)).toBe(true);
+    expect(isCurrentDecisionPoll(4, 5)).toBe(false);
+    expect(isCurrentDecisionPoll(5, 6)).toBe(false);
   });
 });
