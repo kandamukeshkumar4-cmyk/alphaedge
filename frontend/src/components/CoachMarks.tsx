@@ -11,29 +11,51 @@ import { FEATURE_GROUPS, ALL_FEATURES } from "@/lib/feature-registry";
  * card that spotlights the nav groups so a newcomer learns where everything
  * lives, then points at the full /features map.
  *
+ * Loop V72 (C1) — never block the app: pointer-events-none on the wrapper with
+ * pointer-events-auto only on interactive controls; on small viewports the card
+ * auto-collapses to a chip above the bottom nav (and expands at top so it cannot
+ * cover mobile primary CTAs).
+ *
  * Storage: a single boolean "seen" flag in localStorage — NEVER auth data,
  * never anything but this flag. Non-modal (sits in the corner) so it does not
  * fight the first-bet onboarding modal. Entrance animation respects
  * prefers-reduced-motion.
  */
 
-const SEEN_KEY = "alphaedge.coachmarks.v1";
+export const COACHMARKS_SEEN_KEY = "alphaedge.coachmarks.v1";
 const NEW_COUNT = ALL_FEATURES.filter((f) => f.badge === "NEW").length;
 
 export function CoachMarks() {
   const [show, setShow] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     try {
-      if (!localStorage.getItem(SEEN_KEY)) setShow(true);
+      if (!localStorage.getItem(COACHMARKS_SEEN_KEY)) setShow(true);
     } catch {
       // localStorage unavailable (SSR / private mode) — simply don't show.
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => {
+      const narrow = mq.matches;
+      setIsNarrow(narrow);
+      // Auto-collapse on small viewports so the full card never sits over the
+      // mobile bottom nav / primary CTAs at 375×812.
+      if (narrow) setCollapsed(true);
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
   function dismiss() {
     try {
-      localStorage.setItem(SEEN_KEY, "true");
+      localStorage.setItem(COACHMARKS_SEEN_KEY, "true");
     } catch {
       // ignore
     }
@@ -45,72 +67,112 @@ export function CoachMarks() {
 
   if (!show) return null;
 
+  // Narrow: collapsed chip above bottom nav (bottom-20 ≈ above z-40 nav bar).
+  if (isNarrow && collapsed) {
+    return (
+      <aside
+        aria-label="Getting started"
+        className="pointer-events-none fixed bottom-20 right-3 z-40"
+      >
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-label="Open getting-started tips"
+          className="pointer-events-auto inline-flex h-10 items-center gap-1.5 rounded-full border border-primary/30 bg-surface px-3 text-[12px] font-bold text-primary shadow-lift"
+        >
+          <NavIcon name="compass" size={14} />
+          Tips
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       aria-label="Getting started"
-      className="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4"
+      className={
+        isNarrow
+          ? "pointer-events-none fixed top-20 right-3 z-40 w-[min(92vw,340px)] animate-fade-up"
+          : "pointer-events-none fixed bottom-4 right-4 z-40 w-[min(92vw,340px)] animate-fade-up"
+      }
     >
-          <div className="flex items-center justify-between gap-2 border-b border-border bg-surface-2/60 px-4 py-2.5">
-            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-primary">
-              <NavIcon name="compass" size={14} />
-              Find your way around
-            </p>
+      <div className="overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift">
+        <div className="flex items-center justify-between gap-2 border-b border-border bg-surface-2/60 px-4 py-2.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-primary">
+            <NavIcon name="compass" size={14} />
+            Find your way around
+          </p>
+          <div className="flex items-center gap-1">
+            {isNarrow ? (
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                aria-label="Collapse getting-started tips"
+                className="pointer-events-auto grid h-6 w-6 place-items-center rounded-md text-muted-2 transition hover:bg-surface-3 hover:text-text"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+                  <path d="M6 12h12" strokeLinecap="round" />
+                </svg>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={dismiss}
               aria-label="Dismiss getting-started tips"
-              className="grid h-6 w-6 place-items-center rounded-md text-muted-2 transition hover:bg-surface-3 hover:text-text"
+              className="pointer-events-auto grid h-6 w-6 place-items-center rounded-md text-muted-2 transition hover:bg-surface-3 hover:text-text"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
                 <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
               </svg>
             </button>
           </div>
+        </div>
 
-          <div className="px-4 py-3">
-            <p className="text-[13px] leading-relaxed text-muted">
-              Everything AlphaEdge does is grouped in the top nav. Here&rsquo;s the map:
-            </p>
-            <ul className="mt-2.5 flex flex-col gap-1.5">
-              {FEATURE_GROUPS.map((group) => (
-                <li key={group.id} className="flex items-start gap-2.5">
-                  <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border border-primary/20 bg-primary-dim/40 text-primary">
-                    <NavIcon name={group.icon} size={13} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[12px] font-bold text-text">{group.title}</span>
-                    <span className="block text-[11px] leading-snug text-muted-2">{group.blurb}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            {NEW_COUNT > 0 ? (
-              <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-2">
-                <span className="rounded-full border border-accent/40 bg-accent/12 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.1em] text-accent">
-                  New
+        <div className="max-h-[min(50vh,420px)] overflow-y-auto px-4 py-3">
+          <p className="text-[13px] leading-relaxed text-muted">
+            Everything AlphaEdge does is grouped in the top nav. Here&rsquo;s the map:
+          </p>
+          <ul className="mt-2.5 flex flex-col gap-1.5">
+            {FEATURE_GROUPS.map((group) => (
+              <li key={group.id} className="flex items-start gap-2.5">
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border border-primary/20 bg-primary-dim/40 text-primary">
+                  <NavIcon name={group.icon} size={13} />
                 </span>
-                {NEW_COUNT} recently shipped surface{NEW_COUNT > 1 ? "s" : ""} — look for the badge.
-              </p>
-            ) : null}
+                <span className="min-w-0">
+                  <span className="block text-[12px] font-bold text-text">{group.title}</span>
+                  <span className="block text-[11px] leading-snug text-muted-2">{group.blurb}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
 
-            <div className="mt-3.5 flex items-center gap-2">
-              <Link
-                href="/features"
-                onClick={dismiss}
-                className="inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-primary px-3 text-[13px] font-bold text-bg shadow-glow transition duration-200 ease-swift hover:brightness-110"
-              >
-                Open the feature map →
-              </Link>
-              <button
-                type="button"
-                onClick={dismiss}
-                className="h-9 rounded-xl border border-border px-3 text-[13px] font-semibold text-muted transition hover:border-border-light hover:text-text"
-              >
-                Got it
-              </button>
-            </div>
+          {NEW_COUNT > 0 ? (
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-2">
+              <span className="rounded-full border border-accent/40 bg-accent/12 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.1em] text-accent">
+                New
+              </span>
+              {NEW_COUNT} recently shipped surface{NEW_COUNT > 1 ? "s" : ""} — look for the badge.
+            </p>
+          ) : null}
+
+          <div className="mt-3.5 flex items-center gap-2">
+            <Link
+              href="/features"
+              onClick={dismiss}
+              className="pointer-events-auto inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-primary px-3 text-[13px] font-bold text-bg shadow-glow transition duration-200 ease-swift hover:brightness-110"
+            >
+              Open the feature map →
+            </Link>
+            <button
+              type="button"
+              onClick={dismiss}
+              className="pointer-events-auto h-9 rounded-xl border border-border px-3 text-[13px] font-semibold text-muted transition hover:border-border-light hover:text-text"
+            >
+              Got it
+            </button>
           </div>
+        </div>
+      </div>
     </aside>
   );
 }

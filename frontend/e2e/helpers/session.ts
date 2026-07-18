@@ -5,15 +5,34 @@ import type { Page } from "@playwright/test";
  * Local stack only — never talks to prod.
  */
 
-/** Suppress first-visit onboarding modal so journeys can click through UI. */
+/** Coach-marks localStorage key — keep in sync with CoachMarks.tsx. */
+export const COACHMARKS_SEEN_KEY = "alphaedge.coachmarks.v1";
+
+/**
+ * Suppress first-visit onboarding modal + coach-marks card so journeys can
+ * click through UI. Loop V72 (C2): seed coach-marks "seen" for every journey
+ * that calls this helper; the dedicated coachmarks.spec.ts opts out.
+ */
 export async function skipOnboarding(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+  await page.addInitScript((coachKey: string) => {
     try {
       localStorage.setItem("alphaedge.onboarded", "true");
+      localStorage.setItem(coachKey, "true");
     } catch {
       /* ignore */
     }
-  });
+  }, COACHMARKS_SEEN_KEY);
+}
+
+/** Pre-seed coach-marks "seen" without touching onboarding (visreg / extras). */
+export async function skipCoachMarks(page: Page): Promise<void> {
+  await page.addInitScript((coachKey: string) => {
+    try {
+      localStorage.setItem(coachKey, "true");
+    } catch {
+      /* ignore */
+    }
+  }, COACHMARKS_SEEN_KEY);
 }
 
 /** Dismiss onboarding if it still appears (e.g. storage blocked). */
