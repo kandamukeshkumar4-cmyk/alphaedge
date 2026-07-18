@@ -55,6 +55,20 @@ def test_time_stop_exits():
     assert d.inputs["age_sec"] == 3600.0
 
 
+def test_unknown_opened_at_skips_time_stop_with_an_honest_detail():
+    pos = _pos(age_sec=3600.0)
+    d = decide(
+        PositionSnapshot(
+            **{**pos.__dict__, "opened_at": None},
+        ),
+        _RULES,
+        now=_NOW,
+    )
+    assert d.action is HeartbeatAction.HOLD
+    assert d.inputs["opened_at"] is None
+    assert d.inputs["time_stop_detail"] == "opened_at unknown — time_stop skipped"
+
+
 def test_adverse_move_stop_exits():
     # 0.50 -> 0.44 = -12% adverse
     d = decide(_pos(mark="0.44"), _RULES, now=_NOW)

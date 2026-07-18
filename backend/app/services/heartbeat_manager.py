@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -30,6 +30,7 @@ from app.db.models import (
     OddsSnapshot,
     OrderOutcome,
     OrderSide,
+    Order,
     OrderType,
     PaperOrder,
     Position,
@@ -196,6 +197,23 @@ async def _load_clob_positions(session: AsyncSession) -> list[_TrackedPosition]:
             )
         )
     ).all()
+    position_pairs = {(position.account_id, position.market_id) for position, _ in rows}
+    opened_at_by_position: dict[tuple[UUID, UUID], datetime] = {}
+    if position_pairs:
+        opening_rows = (
+            await session.execute(
+                select(
+                    Order.account_id,
+                    Order.market_id,
+                    func.min(Order.created_at).label("opened_at"),
+                )
+                .where(tuple_(Order.account_id, Order.market_id).in_(position_pairs))
+                .group_by(Order.account_id, Order.market_id)
+            )
+        ).all()
+        opened_at_by_position = {
+            (row.account_id, row.market_id): row.opened_at for row in opening_rows
+        }
     out: list[_TrackedPosition] = []
     for position, slug in rows:
         legs: list[tuple[str, Decimal, Decimal]] = []
@@ -216,7 +234,7 @@ async def _load_clob_positions(session: AsyncSession) -> list[_TrackedPosition]:
                         position_ref=ref,
                         entry_price=entry_px,
                         mark_price=mark,
-                        opened_at=position.updated_at or datetime.now(timezone.utc),
+                    opened_at=opened_at_by_position.get((position.account_id, position.market_id)),
                         price_as_of=price_as_of,
                         quantity=qty,
                         outcome=outcome,

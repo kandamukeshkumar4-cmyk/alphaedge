@@ -12,8 +12,10 @@ from app.main import app
 from app.observability import loop_state
 from app.observability.loop_state import LOOP_INTERVALS
 from app.services.heartbeat_decision import HaltFlags, PositionSnapshot
+from app.db.models import Account, Market, Order, OrderOutcome, OrderSide, OrderStatus, OrderType, Position
 from app.services.heartbeat_manager import (
     _TrackedPosition,
+    _load_clob_positions,
     heartbeat_exit_idempotency_key,
     heartbeat_detail,
     heartbeat_manager_task,
@@ -135,3 +137,37 @@ def test_heartbeat_exit_idempotency_key_is_position_unique_and_utc_daily():
     assert first != heartbeat_exit_idempotency_key("clob:other:market:yes", same_day)
     assert first.endswith("-20260717")
     assert heartbeat_exit_idempotency_key("clob:account:market:yes", next_day).endswith("-20260718")
+
+
+@pytest.mark.asyncio
+async def test_clob_opened_at_comes_from_earliest_related_order_not_position_update(db_session):
+    now = datetime(2026, 7, 17, 12, tzinfo=timezone.utc)
+    account = Account(name="heartbeat account", cash_balance=Decimal("100"))
+    market = Market(slug="heartbeat-opened-at", title="t", question="q")
+    db_session.add_all([account, market])
+    await db_session.flush()
+    position = Position(
+        account_id=account.id,
+        market_id=market.id,
+        yes_shares=Decimal("2"),
+        avg_yes_cost=Decimal("0.50"),
+        updated_at=now - timedelta(minutes=1),
+    )
+    old_order = Order(
+        account_id=account.id,
+        market_id=market.id,
+        side=OrderSide.BUY,
+        outcome=OrderOutcome.YES,
+        order_type=OrderType.MARKET,
+        quantity=Decimal("2"),
+        filled_quantity=Decimal("2"),
+        status=OrderStatus.FILLED,
+        created_at=now - timedelta(hours=2),
+    )
+    db_session.add_all([position, old_order])
+    await db_session.commit()
+
+    tracked = await _load_clob_positions(db_session)
+
+    assert tracked[0].snapshot.opened_at == old_order.created_at.replace(tzinfo=None)
+    assert tracked[0].snapshot.opened_at != position.updated_at.replace(tzinfo=None)

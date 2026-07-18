@@ -50,7 +50,7 @@ class PositionSnapshot:
     position_ref: str
     entry_price: Decimal
     mark_price: Decimal
-    opened_at: datetime
+    opened_at: datetime | None
     price_as_of: datetime | None
     quantity: Decimal
     outcome: str = "yes"
@@ -96,8 +96,8 @@ def decide(
     """Evaluate one open position. Pure: no I/O, no fabricated marks."""
     halts = halts or HaltFlags()
     now_u = _utc(now)
-    opened = _utc(position.opened_at)
-    age_sec = max(0.0, (now_u - opened).total_seconds())
+    opened = _utc(position.opened_at) if position.opened_at is not None else None
+    age_sec = max(0.0, (now_u - opened).total_seconds()) if opened else None
     price_age_sec: float | None = None
     if position.price_as_of is not None:
         price_age_sec = max(0.0, (now_u - _utc(position.price_as_of)).total_seconds())
@@ -113,7 +113,10 @@ def decide(
         "entry_price": str(position.entry_price),
         "mark_price": str(position.mark_price),
         "quantity": str(position.quantity),
-        "opened_at": opened.isoformat().replace("+00:00", "Z"),
+        "opened_at": opened.isoformat().replace("+00:00", "Z") if opened else None,
+        "time_stop_detail": (
+            None if opened else "opened_at unknown — time_stop skipped"
+        ),
         "price_as_of": (
             _utc(position.price_as_of).isoformat().replace("+00:00", "Z")
             if position.price_as_of is not None
@@ -167,7 +170,7 @@ def decide(
         )
 
     # --- Time stop ---
-    if age_sec >= rules.time_stop_sec:
+    if age_sec is not None and age_sec >= rules.time_stop_sec:
         return HeartbeatDecision(
             action=HeartbeatAction.EXIT,
             rule_fired="time_stop",
