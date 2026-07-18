@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -21,7 +22,9 @@ from app.db.models import (
     OrderStatus,
     OrderType,
     Pod as PodRow,
+    PodEquitySnapshot,
     PodTrade,
+    Position,
     PredictionLog,
 )
 from app.db.session import AsyncSessionLocal
@@ -34,6 +37,8 @@ from app.services.order_book_service import OrderBookService
 
 # Importing the module registers the three explicitly declared pod types.
 from app.pods import strategies as _strategies  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 POD_RUNNER_INTERVAL_SEC = 60
 DEFAULT_POD_BANKROLL = Decimal("10000")
@@ -53,13 +58,24 @@ def pod_detail(summary: dict[str, Any] | None) -> str | None:
 
 
 async def ensure_default_pods(session: AsyncSession) -> list[PodRow]:
-    """Provision one account-backed row per registered strategy, idempotently."""
+    """Provision one account-backed row per registered strategy, idempotently.
+
+    New pods default to enabled=False (per-pod opt-in). Registry keys missing
+    from DEFAULT_POD_CONFIGS are skipped with a warning — never KeyError.
+    """
     existing = {
         pod.key: pod
         for pod in (await session.execute(select(PodRow))).scalars().all()
     }
     for key in registry.keys():
         if key in existing:
+            continue
+        config = DEFAULT_POD_CONFIGS.get(key)
+        if config is None:
+            logger.warning(
+                "skipping registered pod %s: missing DEFAULT_POD_CONFIGS entry",
+                key,
+            )
             continue
         account = Account(name=f"Pod: {key}", cash_balance=DEFAULT_POD_BANKROLL)
         session.add(account)
@@ -68,8 +84,8 @@ async def ensure_default_pods(session: AsyncSession) -> list[PodRow]:
             key=key,
             display_name=key.replace("_", " ").title(),
             account_id=account.id,
-            config=dict(DEFAULT_POD_CONFIGS[key]),
-            enabled=True,
+            config=dict(config),
+            enabled=False,
         )
         session.add(pod)
         await session.flush()
@@ -78,19 +94,52 @@ async def ensure_default_pods(session: AsyncSession) -> list[PodRow]:
 
 
 async def _latest_model_probability(
-    session: AsyncSession, market_slug: str
+    session: AsyncSession, market_slug: str, *, as_of: datetime
 ) -> float | None:
+    """Latest model probability at or before decision time (no post-decision leak)."""
+    if as_of.tzinfo is None:
+        as_of = as_of.replace(tzinfo=UTC)
     probability = await session.scalar(
         select(PredictionLog.predicted_prob)
-        .where(PredictionLog.market_slug == market_slug)
+        .where(
+            PredictionLog.market_slug == market_slug,
+            PredictionLog.predicted_at <= as_of,
+        )
         .order_by(PredictionLog.predicted_at.desc())
         .limit(1)
     )
     return float(probability) if probability is not None else None
 
 
+async def _position_value(session: AsyncSession, account_id) -> Decimal:
+    """Filled position capital at cost for the pod account (positions table)."""
+    rows = (
+        await session.execute(
+            select(
+                Position.yes_shares,
+                Position.avg_yes_cost,
+                Position.no_shares,
+                Position.avg_no_cost,
+            ).where(
+                Position.account_id == account_id,
+                Position.settled.is_(False),
+            )
+        )
+    ).all()
+    total = Decimal("0")
+    for yes_shares, avg_yes, no_shares, avg_no in rows:
+        yes = Decimal(yes_shares or 0)
+        no = Decimal(no_shares or 0)
+        if yes > 0:
+            total += yes * Decimal(avg_yes or 0)
+        if no > 0:
+            total += no * Decimal(avg_no or 0)
+    return total
+
+
 async def _open_exposure(session: AsyncSession, account_id) -> Decimal:
-    exposure = await session.scalar(
+    """Resting order residual + filled position value (cannot ignore fills)."""
+    resting = await session.scalar(
         select(
             func.coalesce(
                 func.sum(Order.price * (Order.quantity - Order.filled_quantity)),
@@ -101,7 +150,44 @@ async def _open_exposure(session: AsyncSession, account_id) -> Decimal:
             Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIAL]),
         )
     )
-    return Decimal(exposure or 0)
+    filled = await _position_value(session, account_id)
+    return Decimal(resting or 0) + filled
+
+
+async def _entry_count(session: AsyncSession, *, pod_id, market_id) -> int:
+    """Successful enter trades for pod+market (idempotency sequence)."""
+    count = await session.scalar(
+        select(func.count())
+        .select_from(PodTrade)
+        .where(
+            PodTrade.pod_id == pod_id,
+            PodTrade.market_id == market_id,
+            PodTrade.action == "enter",
+        )
+    )
+    return int(count or 0)
+
+
+async def _snapshot_pod_equity(
+    session: AsyncSession,
+    *,
+    pod_row: PodRow,
+    account: Account,
+    now: datetime,
+) -> None:
+    """Write one equity snapshot for this pod (cash + position value)."""
+    cash = Decimal(account.cash_balance or 0)
+    positions_mtm = await _position_value(session, account.id)
+    equity = cash + positions_mtm
+    session.add(
+        PodEquitySnapshot(
+            pod_id=pod_row.id,
+            captured_at=now,
+            cash_balance=cash,
+            positions_mtm=positions_mtm,
+            equity=equity,
+        )
+    )
 
 
 def _minutes_until_close(market: Market, now: datetime) -> int:
@@ -136,7 +222,7 @@ async def _process_market(
     # remains the only possible execution path below.
     from app.services.master_context import build_market_context
 
-    context = await build_market_context(session, market.slug)
+    context = await build_market_context(session, market.slug, as_of=now)
     market_view = PodMarket(
         market_id=str(market.id),
         slug=market.slug,
@@ -148,7 +234,9 @@ async def _process_market(
         metadata={
             "source": market.source,
             "title": market.title,
-            "model_probability": await _latest_model_probability(session, market.slug),
+            "model_probability": await _latest_model_probability(
+                session, market.slug, as_of=now
+            ),
             "sentiment_trend": context["sentiment_trend"],
             "sentiment_debate": context["sentiment_debate"],
         },
@@ -230,6 +318,9 @@ async def _submit_decision(
     if not accepted:
         trade.decision = {**trade.decision, "rejected": "; ".join(failures)}
         return False
+    # Key on pod+market+entry-count (not wall-clock minute) so same-minute
+    # refills cannot mint a new order after a fill while the cap is still hit.
+    entries = await _entry_count(session, pod_id=pod_row.id, market_id=market.id)
     order = await OrderBookService(session, correlation_id=f"pod:{pod_row.key}").submit_order(
         market_id=market.id,
         account_id=account.id,
@@ -238,7 +329,7 @@ async def _submit_decision(
         order_type=OrderType.LIMIT,
         quantity=quantity,
         price=limit_price,
-        idempotency_key=f"pod:{pod_row.id}:{market.id}:{now.strftime('%Y%m%d%H%M')}",
+        idempotency_key=f"pod:{pod_row.id}:{market.id}:{entries}",
     )
     trade.action = "enter"
     trade.outcome = decision.outcome
@@ -284,5 +375,15 @@ async def pod_runner_task(ctx: dict[str, Any]) -> dict[str, Any]:
                     continue
                 summary["scored"] += int(scored)
                 summary["entered"] += int(entered)
+            # One equity snapshot per pod per runner pass (cash + position value).
+            try:
+                await session.refresh(account)
+                await _snapshot_pod_equity(
+                    session, pod_row=pod, account=account, now=now
+                )
+            except Exception:  # noqa: BLE001 - snapshot must not stop the loop
+                summary.setdefault("errors", 0)
+                summary["errors"] += 1
+                continue
         await session.commit()
     return summary

@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
-_CACHE: dict[str, tuple[float, "NewsSignal"]] = {}
+# mono_ts for TTL, wall-clock fetched_at for honest capture timestamps, signal.
+_CACHE: dict[str, tuple[float, datetime, "NewsSignal"]] = {}
 _TTL_SECONDS = 3600  # 1 hour
 
 
@@ -26,14 +27,24 @@ class NewsSignal:
 
 
 def get_cached_signal(topic: str) -> NewsSignal | None:
+    entry = get_cached_entry(topic)
+    return entry[0] if entry is not None else None
+
+
+def get_cached_entry(topic: str) -> tuple["NewsSignal", datetime] | None:
+    """Return (signal, fetched_at) when the cache entry is still fresh."""
     entry = _CACHE.get(topic)
     if entry and (time.monotonic() - entry[0]) < _TTL_SECONDS:
-        return entry[1]
+        return entry[2], entry[1]
     return None
 
 
-def cache_signal(signal: NewsSignal) -> None:
-    _CACHE[signal.topic] = (time.monotonic(), signal)
+def cache_signal(signal: NewsSignal, *, fetched_at: datetime | None = None) -> None:
+    """Cache *signal* and record a real wall-clock fetch time (not read time)."""
+    stamp = fetched_at or datetime.now(UTC)
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    _CACHE[signal.topic] = (time.monotonic(), stamp, signal)
 
 
 async def fetch_news_signal(

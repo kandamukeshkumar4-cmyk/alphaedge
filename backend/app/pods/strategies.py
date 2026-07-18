@@ -75,6 +75,9 @@ class LongshotFadePod(Pod):
         return score_price_history(market.price_history)
 
     def decide(self, market: PodMarket, score: PodScore) -> PodDecision:
+        allowed = {category.lower() for category in self.universe()}
+        if market.category.lower() not in allowed:
+            return _hold("outside longshot universe")
         favorite_min = Decimal(str(self.config.get("favorite_min_price", "0.80")))
         if market.price < favorite_min:
             return _hold("not a deep favorite")
