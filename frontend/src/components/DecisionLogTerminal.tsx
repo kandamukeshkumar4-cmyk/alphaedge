@@ -32,6 +32,14 @@ type TerminalState =
   | { phase: "loading" }
   | { phase: "ready"; result: PodsApiResult<HeartbeatDecisionsResponse> };
 
+/** Drop out-of-order / unmounted poll responses. Exported for tests. */
+export function isCurrentDecisionPoll(
+  requestId: number,
+  latestRequestId: number,
+): boolean {
+  return requestId === latestRequestId;
+}
+
 export function DecisionLogTerminal({
   pollMs = DEFAULT_POLL_MS,
 }: {
@@ -41,9 +49,12 @@ export function DecisionLogTerminal({
   const [freshKeys, setFreshKeys] = useState<ReadonlySet<string>>(() => new Set());
   // null until the first successful load — the first paint blinks nothing.
   const knownKeysRef = useRef<Set<string> | null>(null);
+  const requestIdRef = useRef(0);
 
   const poll = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     const result = await fetchHeartbeatDecisions({ limit: MAX_ROWS });
+    if (!isCurrentDecisionPoll(requestId, requestIdRef.current)) return;
     if (!result.ok) {
       setState({ phase: "ready", result });
       return;
@@ -68,7 +79,11 @@ export function DecisionLogTerminal({
   useEffect(() => {
     void poll();
     const interval = setInterval(() => void poll(), pollMs);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Invalidate in-flight poll on unmount / pollMs change.
+      requestIdRef.current += 1;
+    };
   }, [poll, pollMs]);
 
   const response = state.phase === "ready" ? state.result : null;

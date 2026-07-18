@@ -185,20 +185,6 @@ export const PUBLIC_SITEMAP_ROUTES: ReadonlyArray<{
     priority: 0.7,
   },
   {
-    path: "/auth/login",
-    title: "Log in",
-    description: "Log in to your AlphaEdge paper-trading account.",
-    changeFrequency: "monthly",
-    priority: 0.4,
-  },
-  {
-    path: "/auth/signup",
-    title: "Sign up",
-    description: "Create an AlphaEdge paper-trading research account.",
-    changeFrequency: "monthly",
-    priority: 0.4,
-  },
-  {
     path: "/resolved",
     title: "Resolved",
     description: "Resolved paper markets and graded outcomes.",

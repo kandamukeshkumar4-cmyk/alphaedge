@@ -46,6 +46,14 @@ describe("site metadata (loop67 L2)", () => {
     expect(PUBLIC_SITEMAP_ROUTES.some((r) => r.path === "/terms")).toBe(true);
   });
 
+  it("excludes auth login/signup from the public sitemap (loop71)", () => {
+    expect(PUBLIC_SITEMAP_ROUTES.some((r) => r.path === "/auth/login")).toBe(false);
+    expect(PUBLIC_SITEMAP_ROUTES.some((r) => r.path === "/auth/signup")).toBe(false);
+    const urls = sitemap().map((e) => e.url);
+    expect(urls.some((u) => u.includes("/auth/login"))).toBe(false);
+    expect(urls.some((u) => u.includes("/auth/signup"))).toBe(false);
+  });
+
   it("disallows admin in robots.txt and points at the sitemap", () => {
     const doc = robots();
     const rules = Array.isArray(doc.rules) ? doc.rules : [doc.rules];

@@ -25,6 +25,23 @@ import {
   readLwcChartTheme,
 } from "@/lib/chart-colors";
 
+/** Map equity points to chart series data, dropping NaN/invalid timestamps. */
+export function toSparklineSeries(
+  points: PodEquityPoint[],
+): Array<{ time: UTCTimestamp; value: number }> {
+  const data = points
+    .map((p) => ({
+      time: Math.floor(new Date(p.t).getTime() / 1000) as UTCTimestamp,
+      value: p.equity,
+    }))
+    .filter((point) => Number.isFinite(point.time as number));
+  // lightweight-charts requires ascending unique timestamps.
+  data.sort((a, b) => (a.time as number) - (b.time as number));
+  return data.filter(
+    (point, index) => index === 0 || point.time !== data[index - 1]!.time,
+  );
+}
+
 export function PodEquitySparkline({
   points,
   height = 56,
@@ -102,15 +119,8 @@ export function PodEquitySparkline({
 
   useEffect(() => {
     if (!seriesRef.current || points.length < 2) return;
-    const data = points.map((p) => ({
-      time: Math.floor(new Date(p.t).getTime() / 1000) as UTCTimestamp,
-      value: p.equity,
-    }));
-    // lightweight-charts requires ascending unique timestamps.
-    data.sort((a, b) => (a.time as number) - (b.time as number));
-    const deduped = data.filter(
-      (point, index) => index === 0 || point.time !== data[index - 1]!.time,
-    );
+    const deduped = toSparklineSeries(points);
+    if (deduped.length < 2) return;
     seriesRef.current.setData(deduped);
     chartRef.current?.timeScale().fitContent();
   }, [points]);

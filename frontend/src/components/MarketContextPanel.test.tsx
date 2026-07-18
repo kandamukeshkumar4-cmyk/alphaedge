@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  isCurrentMarketContextRequest,
   MarketContextPanel,
   MarketContextReady,
   MarketContextUnavailable,
@@ -108,5 +109,13 @@ describe("MarketContextUnavailable", () => {
 
     expect(html).toContain("Market context unavailable");
     expect(html).toContain("No cached or synthetic values");
+  });
+});
+
+describe("isCurrentMarketContextRequest (loop71 stale guard)", () => {
+  it("accepts the matching request id and drops stale ones", () => {
+    expect(isCurrentMarketContextRequest(3, 3)).toBe(true);
+    expect(isCurrentMarketContextRequest(2, 3)).toBe(false);
+    expect(isCurrentMarketContextRequest(3, 4)).toBe(false);
   });
 });
