@@ -5,16 +5,20 @@ from sqlalchemy import select
 
 from app.db.models import (
     Account,
+    Fill,
     LedgerEntry,
     LedgerEntryType,
+    Order,
     OrderOutcome,
     OrderSide,
+    OrderStatus,
     OrderType,
     Position,
 )
 from app.services.ledger_service import LedgerService
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
+from app.market.order_book import MatchResult, Outcome
 
 
 @pytest.mark.asyncio
@@ -191,3 +195,64 @@ async def test_scaled_long_uses_weighted_average_and_resets_after_crossing_zero(
     await db_session.refresh(position)
     assert getattr(position, shares_attr) == Decimal("-5.0000")
     assert getattr(position, cost_attr) == Decimal("0.0000")
+
+
+@pytest.mark.asyncio
+async def test_record_fill_caps_stale_match_to_both_orders_remaining_quantity(db_session):
+    market = await MarketService(db_session).create_market(
+        slug="record-fill-remaining-cap",
+        title="Record fill remaining cap",
+        question="Does a stale match overfill resting liquidity?",
+    )
+    buyer = Account(name="Fill-cap buyer", cash_balance=Decimal("100"))
+    seller = Account(name="Fill-cap seller", cash_balance=Decimal("100"))
+    db_session.add_all([buyer, seller])
+    await db_session.flush()
+    buy_order = Order(
+        market_id=market.id,
+        account_id=buyer.id,
+        side=OrderSide.BUY,
+        outcome=OrderOutcome.YES,
+        order_type=OrderType.LIMIT,
+        price=Decimal("0.50"),
+        quantity=Decimal("5"),
+    )
+    sell_order = Order(
+        market_id=market.id,
+        account_id=seller.id,
+        side=OrderSide.SELL,
+        outcome=OrderOutcome.YES,
+        order_type=OrderType.LIMIT,
+        price=Decimal("0.50"),
+        quantity=Decimal("5"),
+        filled_quantity=Decimal("4"),
+        status=OrderStatus.PARTIAL,
+    )
+    db_session.add_all([buy_order, sell_order])
+    await db_session.flush()
+    match = MatchResult(
+        buy_order_id=buy_order.id,
+        sell_order_id=sell_order.id,
+        outcome=Outcome.YES,
+        price=Decimal("0.50"),
+        quantity=Decimal("3"),
+    )
+
+    book = OrderBookService(db_session)
+    await book._record_fill(market.id, match)
+    await book._record_fill(market.id, match)
+    await db_session.refresh(buy_order)
+    await db_session.refresh(sell_order)
+    await db_session.refresh(buyer)
+    await db_session.refresh(seller)
+
+    fills = (await db_session.scalars(select(Fill).where(Fill.market_id == market.id))).all()
+    assert [(fill.price, fill.quantity) for fill in fills] == [
+        (Decimal("0.5000"), Decimal("1.0000"))
+    ]
+    assert buy_order.filled_quantity == Decimal("1.0000")
+    assert buy_order.status == OrderStatus.PARTIAL
+    assert sell_order.filled_quantity == Decimal("5.0000")
+    assert sell_order.status == OrderStatus.FILLED
+    assert buyer.cash_balance == Decimal("99.5000")
+    assert seller.cash_balance == Decimal("100.5000")

@@ -430,27 +430,40 @@ class OrderBookService:
             await self.session.flush()
 
     async def _record_fill(self, market_id: UUID, match) -> None:
+        # Lock both sides before creating any durable fill or ledger movement.
+        # The in-memory book can be stale across service instances, so the
+        # database remaining quantity is authoritative at this boundary.
+        rows = await self.session.execute(
+            select(Order)
+            .where(Order.id.in_((match.buy_order_id, match.sell_order_id)))
+            .order_by(Order.id)
+            .with_for_update()
+        )
+        orders = {order.id: order for order in rows.scalars().all()}
+        buy_order = orders[match.buy_order_id]
+        sell_order = orders[match.sell_order_id]
+        applied_quantity = min(
+            match.quantity,
+            buy_order.quantity - buy_order.filled_quantity,
+            sell_order.quantity - sell_order.filled_quantity,
+        )
+        if applied_quantity <= 0:
+            return
+
         fill = Fill(
             market_id=market_id,
             buy_order_id=match.buy_order_id,
             sell_order_id=match.sell_order_id,
             outcome=OrderOutcome(match.outcome.value),
             price=match.price,
-            quantity=match.quantity,
+            quantity=applied_quantity,
         )
         self.session.add(fill)
         await self.session.flush()
 
-        for order_id in (match.buy_order_id, match.sell_order_id):
-            # Audit H-RACE-03: lock the maker+taker rows for the fill so two
-            # concurrent takers cannot both advance filled_quantity past
-            # quantity against the same resting liquidity.
-            result = await self.session.execute(
-                select(Order).where(Order.id == order_id).with_for_update()
-            )
-            order = result.scalar_one()
-            await self._apply_fill_to_position(order, match.price, match.quantity)
-            self._advance_order_fill_state(order, match.quantity)
+        for order in (buy_order, sell_order):
+            await self._apply_fill_to_position(order, match.price, applied_quantity)
+            self._advance_order_fill_state(order, applied_quantity)
 
         await self.session.flush()
 
@@ -458,19 +471,25 @@ class OrderBookService:
             "fill_id": str(fill.id),
             "market_id": str(market_id),
             "price": str(match.price),
-            "quantity": str(match.quantity),
+            "quantity": str(applied_quantity),
             "outcome": match.outcome.value,
         }
         await self.events.emit("order_filled", fill_payload)
         get_event_bus().publish("order.filled", fill_payload)
 
     @staticmethod
-    def _advance_order_fill_state(order: Order, quantity: Decimal) -> None:
-        order.filled_quantity += quantity
+    def _advance_order_fill_state(order: Order, quantity: Decimal) -> Decimal:
+        remaining = order.quantity - order.filled_quantity
+        applied_quantity = min(quantity, remaining)
+        if applied_quantity <= 0:
+            return Decimal("0")
+
+        order.filled_quantity += applied_quantity
         if order.filled_quantity >= order.quantity:
             order.status = OrderStatus.FILLED
         elif order.filled_quantity > 0:
             order.status = OrderStatus.PARTIAL
+        return applied_quantity
 
     async def _apply_fill_to_position(
         self, order: Order, price: Decimal, quantity: Decimal
