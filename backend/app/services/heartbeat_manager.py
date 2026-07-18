@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import logging
 import time
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -29,6 +30,7 @@ from app.db.models import (
     OddsSnapshot,
     OrderOutcome,
     OrderSide,
+    Order,
     OrderType,
     PaperOrder,
     Position,
@@ -98,6 +100,13 @@ def heartbeat_detail(summary: dict[str, Any] | None) -> str | None:
         f"errors={summary.get('errors', 0)}",
     ]
     return " ".join(parts)
+
+
+def heartbeat_exit_idempotency_key(position_ref: str, now: datetime) -> str:
+    """Stable per-position exit key, renewed only on a new UTC trading day."""
+    utc_day = now.astimezone(timezone.utc).strftime("%Y%m%d") if now.tzinfo else now.strftime("%Y%m%d")
+    ref_hash = sha256(position_ref.encode("utf-8")).hexdigest()[:24]
+    return f"hb-exit-{ref_hash}-{utc_day}"
 
 
 async def _latest_mark(
@@ -188,6 +197,23 @@ async def _load_clob_positions(session: AsyncSession) -> list[_TrackedPosition]:
             )
         )
     ).all()
+    position_pairs = {(position.account_id, position.market_id) for position, _ in rows}
+    opened_at_by_position: dict[tuple[UUID, UUID], datetime] = {}
+    if position_pairs:
+        opening_rows = (
+            await session.execute(
+                select(
+                    Order.account_id,
+                    Order.market_id,
+                    func.min(Order.created_at).label("opened_at"),
+                )
+                .where(tuple_(Order.account_id, Order.market_id).in_(position_pairs))
+                .group_by(Order.account_id, Order.market_id)
+            )
+        ).all()
+        opened_at_by_position = {
+            (row.account_id, row.market_id): row.opened_at for row in opening_rows
+        }
     out: list[_TrackedPosition] = []
     for position, slug in rows:
         legs: list[tuple[str, Decimal, Decimal]] = []
@@ -208,7 +234,7 @@ async def _load_clob_positions(session: AsyncSession) -> list[_TrackedPosition]:
                         position_ref=ref,
                         entry_price=entry_px,
                         mark_price=mark,
-                        opened_at=position.updated_at or datetime.now(timezone.utc),
+                    opened_at=opened_at_by_position.get((position.account_id, position.market_id)),
                         price_as_of=price_as_of,
                         quantity=qty,
                         outcome=outcome,
@@ -223,7 +249,11 @@ async def _load_clob_positions(session: AsyncSession) -> list[_TrackedPosition]:
 
 
 async def _submit_clob_exit(
-    session: AsyncSession, tracked: _TrackedPosition, decision_action: str
+    session: AsyncSession,
+    tracked: _TrackedPosition,
+    decision_action: str,
+    *,
+    now: datetime,
 ) -> str:
     """RiskService → OrderIntent(is_exit) → OrderBookService SELL. Returns action_taken."""
     if tracked.account_id is None or tracked.market_id is None or tracked.market_slug is None:
@@ -248,6 +278,7 @@ async def _submit_clob_exit(
         current_drawdown=0.0,
         minutes_before_start=60,
         is_exit=True,
+        exit_notional_cap=snap.quantity * snap.mark_price,
     )
     ok, failures = RiskService().validate(intent)
     if not ok:
@@ -266,7 +297,7 @@ async def _submit_clob_exit(
         OrderType.MARKET,
         snap.quantity,
         None,
-        idempotency_key=f"hb-exit-{snap.position_ref}"[:64],
+        idempotency_key=heartbeat_exit_idempotency_key(snap.position_ref, now),
     )
     return f"{decision_action}_submitted"
 
@@ -373,20 +404,17 @@ async def run_heartbeat_pass(
             elif action is HeartbeatAction.EXIT:
                 summary["exit"] += 1
                 if item.snapshot.source == "clob":
-                    action_taken = await _submit_clob_exit(session, item, "exit")
+                    action_taken = await _submit_clob_exit(session, item, "exit", now=now)
                     if action_taken.endswith("_submitted"):
                         summary["exits_submitted"] += 1
                 else:
                     # JWT paper: auditable recommendation only (no PaperOrder bypass).
                     action_taken = "exit_logged"
             else:
+                # Halts and stale/missing position marks are always audit-only.
+                # Never turn a global safety condition into a market SELL.
                 summary["emergency"] += 1
-                if item.snapshot.source == "clob":
-                    action_taken = await _submit_clob_exit(session, item, "emergency")
-                    if action_taken.endswith("_submitted"):
-                        summary["exits_submitted"] += 1
-                else:
-                    action_taken = "emergency_logged"
+                action_taken = "freeze_logged"
 
             latency_ms = (time.perf_counter() - t0) * 1000.0
             session.add(

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -171,6 +172,7 @@ def test_risk_accepts_exit_intent_without_entry_edge():
         current_drawdown=0.0,
         minutes_before_start=0,
         is_exit=True,
+        exit_notional_cap=Decimal("4"),
     )
     ok, failures = RiskService().validate(intent)
     assert ok
@@ -191,7 +193,51 @@ def test_risk_rejects_exit_intent_that_is_not_sell():
         current_drawdown=0.0,
         minutes_before_start=0,
         is_exit=True,
+        exit_notional_cap=Decimal("4"),
     )
     ok, failures = RiskService().validate(intent)
     assert not ok
     assert any("sell" in f for f in failures)
+
+
+def test_risk_rejects_expired_exit_even_when_entry_gates_are_skipped():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="sell",
+        outcome="yes",
+        quantity=Decimal("10"),
+        price=Decimal("0.40"),
+        predicted_prob=0.40,
+        confidence=0.0,
+        edge=0.0,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.0,
+        minutes_before_start=0,
+        is_exit=True,
+        exit_notional_cap=Decimal("4"),
+        expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+    )
+    ok, failures = RiskService().validate(intent)
+    assert not ok
+    assert "order expiry must be in the future" in failures
+
+
+def test_risk_rejects_exit_that_exceeds_its_position_notional_cap():
+    intent = OrderIntent(
+        market_slug="nba-2025-01-15-lal-bos",
+        side="sell",
+        outcome="yes",
+        quantity=Decimal("11"),
+        price=Decimal("0.40"),
+        predicted_prob=0.40,
+        confidence=0.0,
+        edge=0.0,
+        bankroll=Decimal("10000"),
+        current_drawdown=0.0,
+        minutes_before_start=0,
+        is_exit=True,
+        exit_notional_cap=Decimal("4"),
+    )
+    ok, failures = RiskService().validate(intent)
+    assert not ok
+    assert "exit exceeds position notional cap" in failures
