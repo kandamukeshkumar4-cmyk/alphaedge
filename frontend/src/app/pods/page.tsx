@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { formatLastDecisionAt } from "./format";
+
 import { DecisionLogTerminal } from "@/components/DecisionLogTerminal";
 import { PodEquitySparkline } from "@/components/PodEquitySparkline";
 import { PageHeader, PageShell } from "@/components/ui/kit";
-import { relativeTime } from "@/lib/alerts-api";
 import { cn } from "@/lib/cn";
 import { formatUSD } from "@/lib/mock-data";
 import {
@@ -25,12 +26,6 @@ import {
 
 const PAPER_BANNER =
   "Simulated funds — no execution. Pod balances, equity curves, and decisions are paper-trading telemetry only.";
-
-/** Last-decision label: em-dash when missing or unparseable. */
-function formatLastDecisionAt(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return relativeTime(iso) || "—";
-}
 
 type LoadState =
   | { phase: "loading" }
