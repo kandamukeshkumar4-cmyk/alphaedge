@@ -58,3 +58,27 @@ prompt MUST contain, in this order of importance:
    finished work.
 7. **Model tiering** — cheap/fast models for mechanical stages; strong
    models only for the hardest design/verify steps.
+
+## Routing table + agent-ergonomic tools (2026-07-18, from L8 setup review)
+
+Model routing (binding defaults; override only with stated reason):
+| Task | Route |
+|---|---|
+| Orchestration/review/merges | This thread (strong model, high effort) |
+| Trust-critical design/migrations | Opus/Fable thread with pasted loop |
+| Backend feature loops | codex exec (full-auto, nohup </dev/null) |
+| Docs/data/mechanical loops | grok -p (cheap, fast, reliable) |
+| Frontend loops | GLM 5.2 via opencode (when credits) / cursor-agent |
+| QA/e2e | cursor-agent with capped one-run protocol |
+
+Tool ergonomics (quota is the bottleneck, tokens are the cost):
+- Prefer CLIs over MCP servers for the same capability: gh CLI over any
+  GitHub MCP; curl+jq/python over heavyweight wrappers. Benchmarked
+  finding (Kun/Axi): CLI beats MCP on cost, speed, and turn count.
+- Prefer terse text output over JSON when a human-free agent consumes it;
+  request counts/tails, never full dumps (pipes: tail -n, head -c).
+- Watch QUOTA not tokens: when a provider's pool nears dry, one line in
+  this guide switches the default route — do not let a runner fail on an
+  empty subscription (OpenCode credits incident, 2026-07-17).
+- No ultra/fan-out modes in runner prompts — capped rounds only (see
+  token-budget law above).
