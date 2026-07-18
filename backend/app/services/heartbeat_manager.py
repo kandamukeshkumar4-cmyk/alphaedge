@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -98,6 +99,13 @@ def heartbeat_detail(summary: dict[str, Any] | None) -> str | None:
         f"errors={summary.get('errors', 0)}",
     ]
     return " ".join(parts)
+
+
+def heartbeat_exit_idempotency_key(position_ref: str, now: datetime) -> str:
+    """Stable per-position exit key, renewed only on a new UTC trading day."""
+    utc_day = now.astimezone(timezone.utc).strftime("%Y%m%d") if now.tzinfo else now.strftime("%Y%m%d")
+    ref_hash = sha256(position_ref.encode("utf-8")).hexdigest()[:24]
+    return f"hb-exit-{ref_hash}-{utc_day}"
 
 
 async def _latest_mark(
@@ -223,7 +231,11 @@ async def _load_clob_positions(session: AsyncSession) -> list[_TrackedPosition]:
 
 
 async def _submit_clob_exit(
-    session: AsyncSession, tracked: _TrackedPosition, decision_action: str
+    session: AsyncSession,
+    tracked: _TrackedPosition,
+    decision_action: str,
+    *,
+    now: datetime,
 ) -> str:
     """RiskService → OrderIntent(is_exit) → OrderBookService SELL. Returns action_taken."""
     if tracked.account_id is None or tracked.market_id is None or tracked.market_slug is None:
@@ -266,7 +278,7 @@ async def _submit_clob_exit(
         OrderType.MARKET,
         snap.quantity,
         None,
-        idempotency_key=f"hb-exit-{snap.position_ref}"[:64],
+        idempotency_key=heartbeat_exit_idempotency_key(snap.position_ref, now),
     )
     return f"{decision_action}_submitted"
 
@@ -373,7 +385,7 @@ async def run_heartbeat_pass(
             elif action is HeartbeatAction.EXIT:
                 summary["exit"] += 1
                 if item.snapshot.source == "clob":
-                    action_taken = await _submit_clob_exit(session, item, "exit")
+                    action_taken = await _submit_clob_exit(session, item, "exit", now=now)
                     if action_taken.endswith("_submitted"):
                         summary["exits_submitted"] += 1
                 else:

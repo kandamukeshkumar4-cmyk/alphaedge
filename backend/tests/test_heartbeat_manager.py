@@ -14,6 +14,7 @@ from app.observability.loop_state import LOOP_INTERVALS
 from app.services.heartbeat_decision import HaltFlags, PositionSnapshot
 from app.services.heartbeat_manager import (
     _TrackedPosition,
+    heartbeat_exit_idempotency_key,
     heartbeat_detail,
     heartbeat_manager_task,
     run_heartbeat_pass,
@@ -123,3 +124,14 @@ async def test_global_halts_log_without_submitting_a_clob_exit(db_session, monke
 
     assert summary["exits_submitted"] == 0
     assert summary["emergency"] == 1
+
+
+def test_heartbeat_exit_idempotency_key_is_position_unique_and_utc_daily():
+    same_day = datetime(2026, 7, 17, 23, 30, tzinfo=timezone.utc)
+    next_day = datetime(2026, 7, 18, 0, 1, tzinfo=timezone.utc)
+    first = heartbeat_exit_idempotency_key("clob:account:market:yes", same_day)
+
+    assert first == heartbeat_exit_idempotency_key("clob:account:market:yes", same_day)
+    assert first != heartbeat_exit_idempotency_key("clob:other:market:yes", same_day)
+    assert first.endswith("-20260717")
+    assert heartbeat_exit_idempotency_key("clob:account:market:yes", next_day).endswith("-20260718")
