@@ -300,3 +300,70 @@ def test_longshot_decide_allows_declared_universe_category():
     decision = pod.decide(market, pod.score_market(market))
     assert decision.action == "enter"
     assert decision.outcome == "no"
+
+
+# --- (4) pod equity snapshots -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_runner_writes_equity_snapshot_per_pod_pass(db_session):
+    now = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    account = Account(name="Equity pod", cash_balance=Decimal("10000"))
+    market = Market(
+        slug="btc-eq-5m",
+        title="BTC eq",
+        question="?",
+        category="Crypto",
+        source="polymarket",
+        lock_at=now + timedelta(minutes=10),
+    )
+    db_session.add_all([account, market])
+    await db_session.flush()
+    pod = PodRow(
+        key="crypto_5m_momentum_fade",
+        display_name="Crypto",
+        account_id=account.id,
+        config={
+            "entry_threshold": 101,
+            "max_bet_fraction": "0.005",
+            "max_exposure_fraction": "0.05",
+            "fee_per_contract": "0.002",
+        },
+        enabled=True,
+    )
+    db_session.add(pod)
+    for offset, price in enumerate(["0.40", "0.44", "0.49"]):
+        db_session.add(
+            OddsSnapshot(
+                market_slug=market.slug,
+                implied_yes=Decimal(price),
+                captured_at=now - timedelta(minutes=3 - offset),
+            )
+        )
+    await db_session.flush()
+
+    before = (
+        await db_session.execute(
+            select(PodEquitySnapshot).where(PodEquitySnapshot.pod_id == pod.id)
+        )
+    ).scalars().all()
+    assert before == []
+
+    summary = await pod_runner_task(
+        {
+            "settings": SimpleNamespace(pods_enabled=True),
+            "session_factory": _SessionFactory(db_session),
+            "now": now,
+        }
+    )
+    assert summary.get("skipped") is not True
+    snaps = (
+        await db_session.execute(
+            select(PodEquitySnapshot).where(PodEquitySnapshot.pod_id == pod.id)
+        )
+    ).scalars().all()
+    assert len(snaps) == 1
+    assert snaps[0].cash_balance == Decimal("10000")
+    assert snaps[0].positions_mtm == Decimal("0")
+    assert snaps[0].equity == Decimal("10000")
+    assert snaps[0].captured_at == now
