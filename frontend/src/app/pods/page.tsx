@@ -27,7 +27,7 @@ const PAPER_BANNER =
   "Simulated funds — no execution. Pod balances, equity curves, and decisions are paper-trading telemetry only.";
 
 /** Last-decision label: em-dash when missing or unparseable. */
-export function formatLastDecisionAt(iso: string | null | undefined): string {
+function formatLastDecisionAt(iso: string | null | undefined): string {
   if (!iso) return "—";
   return relativeTime(iso) || "—";
 }
