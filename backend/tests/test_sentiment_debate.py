@@ -2,12 +2,18 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.signals.news_cadence import NewsRefreshCandidate
-from app.signals.sentiment_debate import LENSES, persist_debate, run_news_debate
-
+from app.signals.sentiment_debate import (
+    LENSES,
+    _get_nim_client,
+    persist_debate,
+    reset_nim_client,
+    run_news_debate,
+)
 
 class _Completions:
     async def create(self, **kwargs):
@@ -53,3 +59,20 @@ async def test_debate_is_honestly_unavailable_when_flag_or_key_is_missing():
     assert await run_news_debate(candidate=candidate, title="Market", headline="Public news", sentiment_score=0.5, settings=_settings(nim_api_key=""), now=now) == []
     cold = NewsRefreshCandidate("cold", None, 0.0, 0.0)
     assert await run_news_debate(candidate=cold, title="Market", headline="Public news", sentiment_score=0.5, settings=_settings(), client=_Client(), now=now) == []
+
+
+def test_module_level_nim_client_is_reused():
+    """Loop V70: no per-call AsyncOpenAI construction leak."""
+    reset_nim_client()
+    settings = _settings(nim_base_url="https://nim.example/v1", nim_api_key="k1")
+    fake = MagicMock(name="AsyncOpenAI")
+    with patch("openai.AsyncOpenAI", return_value=fake) as ctor:
+        a = _get_nim_client(settings)
+        b = _get_nim_client(settings)
+        assert a is b is fake
+        assert ctor.call_count == 1
+        # Credential change rebuilds once.
+        c = _get_nim_client(_settings(nim_base_url="https://nim.example/v1", nim_api_key="k2"))
+        assert c is fake
+        assert ctor.call_count == 2
+    reset_nim_client()
