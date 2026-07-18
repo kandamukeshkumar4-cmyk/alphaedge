@@ -10,6 +10,8 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from app.core.resilience import CircuitBreaker, TtlLruCache
+
 HOT_INTERVAL_SEC = 5 * 60
 WARM_INTERVAL_SEC = 15 * 60
 BASELINE_INTERVAL_SEC = 60 * 60
@@ -29,17 +31,19 @@ class NewsRefreshCandidate:
     volume: int = 0
 
 
-_last_refresh: dict[str, float] = {}
-_consecutive_failures = 0
-_circuit_open_until: float | None = None
+# Last-refresh monotonic timestamps; TTL far beyond any refresh interval so
+# age-gated reads still see recent marks, while LRU caps process memory.
+_last_refresh: TtlLruCache[str, float] = TtlLruCache(maxsize=2048, ttl_sec=7 * 86400)
+_breaker = CircuitBreaker(
+    failure_threshold=FAILURE_THRESHOLD,
+    cooldown_sec=COOLDOWN_SEC,
+)
 
 
 def reset_news_cadence_state() -> None:
     """Clear process-local cadence state for isolated tests."""
-    global _consecutive_failures, _circuit_open_until
     _last_refresh.clear()
-    _consecutive_failures = 0
-    _circuit_open_until = None
+    _breaker.reset()
 
 
 def refresh_interval_sec(
@@ -71,9 +75,14 @@ def refresh_interval_sec(
     return BASELINE_INTERVAL_SEC
 
 
+def _last_refresh_at(slug: str, *, now: float | None = None) -> float:
+    """Monotonic timestamp of last refresh, or -inf if never / expired."""
+    stored = _last_refresh.get(slug, now=now)
+    return float("-inf") if stored is None else stored
+
+
 def circuit_is_open(*, monotonic_now: float | None = None) -> bool:
-    now = time.monotonic() if monotonic_now is None else monotonic_now
-    return _circuit_open_until is not None and now < _circuit_open_until
+    return _breaker.is_open(now=monotonic_now)
 
 
 def eligible_candidates(
@@ -92,7 +101,7 @@ def eligible_candidates(
     due = [
         candidate
         for candidate in candidates
-        if mono - _last_refresh.get(candidate.slug, float("-inf"))
+        if mono - _last_refresh_at(candidate.slug, now=mono)
         >= refresh_interval_sec(
             candidate,
             now=now,
@@ -118,18 +127,13 @@ def eligible_candidates(
 
 
 def record_refresh_success(slug: str, *, monotonic_now: float | None = None) -> None:
-    global _consecutive_failures, _circuit_open_until
-    _last_refresh[slug] = time.monotonic() if monotonic_now is None else monotonic_now
-    _consecutive_failures = 0
-    _circuit_open_until = None
+    mono = time.monotonic() if monotonic_now is None else monotonic_now
+    _last_refresh.set(slug, mono, now=mono)
+    _breaker.record_success()
 
 
 def record_refresh_failure(*, monotonic_now: float | None = None) -> None:
-    global _consecutive_failures, _circuit_open_until
-    now = time.monotonic() if monotonic_now is None else monotonic_now
-    _consecutive_failures += 1
-    if _consecutive_failures >= FAILURE_THRESHOLD:
-        _circuit_open_until = now + COOLDOWN_SEC
+    _breaker.record_failure(now=monotonic_now)
 
 
 def fallback_eligible_candidates(
@@ -150,6 +154,6 @@ def fallback_eligible_candidates(
     due = [
         candidate
         for candidate in candidates
-        if mono - _last_refresh.get(candidate.slug, float("-inf")) >= cooldown_sec
+        if mono - _last_refresh_at(candidate.slug, now=mono) >= cooldown_sec
     ]
     return due[:budget]

@@ -21,16 +21,14 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
+from app.core.resilience import CircuitBreaker, TtlLruCache
+
 # Default cash notional (USD) above which a trade is a "whale" observation.
 DEFAULT_MIN_NOTIONAL = Decimal("1000")
 DEFAULT_PRESSURE_WINDOW_SEC = 3600.0
 DEFAULT_MIN_POLL_INTERVAL_SEC = 60.0
 
-# Circuit breaker (process-local; mirrors nemotron_signal pattern).
-_FAILURE_THRESHOLD = 3
-_COOLDOWN_SEC = 300.0
-_consecutive_failures = 0
-_circuit_open_until: float | None = None
+_breaker = CircuitBreaker()
 _last_poll_at: float = 0.0
 
 
@@ -64,11 +62,14 @@ class WhalePressure:
 
 
 # Process-local pressure cache for the sync prediction graph node (D4).
-_PRESSURE_CACHE: dict[str, WhalePressure] = {}
+# Bounded + TTL so long-running processes cannot grow unbounded.
+_PRESSURE_CACHE: TtlLruCache[str, WhalePressure] = TtlLruCache(
+    maxsize=2048, ttl_sec=DEFAULT_PRESSURE_WINDOW_SEC
+)
 
 
 def cache_whale_pressure(pressure: WhalePressure) -> None:
-    _PRESSURE_CACHE[pressure.market_slug] = pressure
+    _PRESSURE_CACHE.set(pressure.market_slug, pressure)
 
 
 def get_cached_whale_pressure(market_slug: str) -> WhalePressure | None:
@@ -77,31 +78,26 @@ def get_cached_whale_pressure(market_slug: str) -> WhalePressure | None:
 
 def reset_whale_flow_state() -> None:
     """Test helper — clear circuit breaker, rate-limit clock, and pressure cache."""
-    global _consecutive_failures, _circuit_open_until, _last_poll_at
-    _consecutive_failures = 0
-    _circuit_open_until = None
+    global _last_poll_at
+    _breaker.reset()
     _last_poll_at = 0.0
     _PRESSURE_CACHE.clear()
 
 
 def circuit_is_open(*, now: float | None = None) -> bool:
-    ts = time.monotonic() if now is None else now
-    return _circuit_open_until is not None and ts < _circuit_open_until
+    return _breaker.is_open(now=now)
 
 
 def record_poll_success() -> None:
-    global _consecutive_failures, _circuit_open_until, _last_poll_at
-    _consecutive_failures = 0
-    _circuit_open_until = None
+    global _last_poll_at
+    _breaker.record_success()
     _last_poll_at = time.monotonic()
 
 
 def record_poll_failure() -> None:
-    global _consecutive_failures, _circuit_open_until, _last_poll_at
-    _consecutive_failures += 1
+    global _last_poll_at
+    _breaker.record_failure()
     _last_poll_at = time.monotonic()
-    if _consecutive_failures >= _FAILURE_THRESHOLD:
-        _circuit_open_until = time.monotonic() + _COOLDOWN_SEC
 
 
 def rate_limit_ok(
