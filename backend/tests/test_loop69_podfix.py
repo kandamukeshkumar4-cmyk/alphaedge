@@ -370,3 +370,141 @@ async def test_runner_writes_equity_snapshot_per_pod_pass(db_session):
     if captured.tzinfo is None:
         captured = captured.replace(tzinfo=UTC)
     assert captured == now
+
+
+# --- (5) leakage: as_of, model filter, news fetched_at ------------------------
+
+
+@pytest.mark.asyncio
+async def test_latest_model_probability_filters_predicted_at_as_of(db_session):
+    from app.pods.runner import _latest_model_probability
+
+    now = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    db_session.add(
+        PredictionLog(
+            market_slug="leak-mkt",
+            predicted_prob=Decimal("0.40"),
+            confidence=Decimal("0.5"),
+            predicted_at=now - timedelta(hours=1),
+        )
+    )
+    db_session.add(
+        PredictionLog(
+            market_slug="leak-mkt",
+            predicted_prob=Decimal("0.90"),
+            confidence=Decimal("0.5"),
+            predicted_at=now + timedelta(hours=1),
+        )
+    )
+    await db_session.flush()
+
+    prob = await _latest_model_probability(db_session, "leak-mkt", as_of=now)
+    assert prob == pytest.approx(0.40)
+
+
+@pytest.mark.asyncio
+async def test_build_market_context_accepts_as_of_and_honest_news_timestamps(
+    db_session,
+):
+    from app.services.master_context import build_market_context
+    from app.signals import news_signal as news_mod
+    from app.signals.news_signal import NewsSignal, cache_signal
+
+    now = datetime(2026, 6, 1, 15, 0, tzinfo=UTC)
+    fetched = datetime(2026, 6, 1, 14, 0, tzinfo=UTC)
+    news_mod._CACHE.clear()
+    cache_signal(
+        NewsSignal(
+            topic="ctx-slug",
+            sentiment_score=0.1,
+            volume_score=0.2,
+            polymarket_consensus=None,
+            headline="h",
+            sources_count=1,
+        ),
+        fetched_at=fetched,
+    )
+    ctx = await build_market_context(db_session, "ctx-slug", as_of=now)
+    assert ctx["as_of"] == now.isoformat()
+    assert ctx["generated_at"] == now.isoformat()
+    assert ctx["news"]["available"] is True
+    assert ctx["news"]["fetched_at"] == fetched.isoformat()
+    assert ctx["news"]["captured_at"] == fetched.isoformat()
+    # Must not stamp read/generation time as capture.
+    assert ctx["news"]["captured_at"] != now.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_news_block_null_when_cache_empty(db_session):
+    from app.services.master_context import _news_block
+    from app.signals import news_signal as news_mod
+
+    news_mod._CACHE.clear()
+    block = await _news_block("no-cache-slug")
+    assert block["available"] is False
+    assert block["captured_at"] is None
+    assert block["fetched_at"] is None
+
+
+# --- (6) price_delta_1h latest-minus-oldest -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_price_delta_1h_is_latest_minus_oldest_not_two_oldest(db_session, monkeypatch):
+    """Three snapshots in window: delta must be newest - oldest, not row1-row0 only."""
+    from app.db.models import MarketStatus
+    from app.signals.news_signal import NewsSignal
+    from app.workers import tasks as worker_tasks
+
+    now = datetime(2026, 3, 1, 12, tzinfo=UTC)
+    market = Market(
+        slug="delta-1h-mkt",
+        title="Delta",
+        question="?",
+        category="Politics",
+        source="polymarket",
+        status=MarketStatus.OPEN,
+        volume=1_000_000,
+        lock_at=now + timedelta(hours=2),
+    )
+    db_session.add(market)
+    # oldest 0.20, middle 0.50, newest 0.80 → correct delta = +0.60
+    # Bug of "two oldest" would yield 0.50 - 0.20 = +0.30
+    for minutes, price in ((50, "0.20"), (30, "0.50"), (5, "0.80")):
+        db_session.add(
+            OddsSnapshot(
+                market_slug=market.slug,
+                implied_yes=Decimal(price),
+                captured_at=now - timedelta(minutes=minutes),
+            )
+        )
+    await db_session.flush()
+
+    captured: dict[str, float | None] = {}
+
+    async def fake_fetch(topic, **kw):
+        return None
+
+    from app.signals.news_cadence import NewsRefreshCandidate, eligible_candidates
+
+    real_eligible = eligible_candidates
+
+    def capture_eligible(candidates, **kwargs):
+        for c in candidates:
+            if c.slug == market.slug:
+                captured["delta"] = c.price_delta_1h
+        return real_eligible(candidates, **kwargs)
+
+    monkeypatch.setattr("app.signals.news_signal.fetch_news_signal", fake_fetch)
+    monkeypatch.setattr(
+        "app.signals.news_cadence.eligible_candidates", capture_eligible
+    )
+    settings = SimpleNamespace(
+        news_cadence_enabled=True,
+        news_cadence_budget=10,
+        news_cadence_price_jump=0.01,
+        news_cadence_whale_spike=0.01,
+    )
+    await worker_tasks.run_news_scan(db_session, settings=settings, now=now)
+    assert "delta" in captured
+    assert captured["delta"] == pytest.approx(0.60)

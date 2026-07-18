@@ -92,10 +92,10 @@ async def _volume_percentile(session: AsyncSession, slug: str) -> dict[str, Any]
 
 
 async def _news_block(slug: str) -> dict[str, Any]:
-    from app.signals.news_signal import get_cached_signal
+    from app.signals.news_signal import get_cached_entry
 
-    signal = get_cached_signal(slug)
-    if signal is None:
+    entry = get_cached_entry(slug)
+    if entry is None:
         return {
             "available": False,
             "sentiment_score": None,
@@ -103,7 +103,11 @@ async def _news_block(slug: str) -> dict[str, Any]:
             "headline": None,
             "sources_count": 0,
             "captured_at": None,
+            "fetched_at": None,
         }
+    signal, fetched_at = entry
+    # Surface real cache write time — never stamp read-time as capture time.
+    stamp = fetched_at.isoformat() if fetched_at else None
     return {
         "available": True,
         "sentiment_score": signal.sentiment_score,
@@ -111,8 +115,8 @@ async def _news_block(slug: str) -> dict[str, Any]:
         "headline": signal.headline,
         "sources_count": signal.sources_count,
         "polymarket_consensus": signal.polymarket_consensus,
-        # Cache has no explicit capture time; surface generation time as as_of.
-        "captured_at": datetime.now(UTC).isoformat(),
+        "captured_at": stamp,
+        "fetched_at": stamp,
     }
 
 
@@ -157,10 +161,18 @@ async def _debate_block(
 async def build_market_context(
     session: AsyncSession,
     slug: str,
+    *,
+    as_of: datetime | None = None,
 ) -> dict[str, Any]:
-    """Compose the master context document for one market slug."""
+    """Compose the master context document for one market slug.
+
+    *as_of* is the decision clock (runner passes ctx now). Consumers must not
+    see post-decision signals; debate/sentiment cutoffs use this timestamp.
+    """
     settings = get_settings()
-    now = datetime.now(UTC)
+    now = as_of or datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
 
     market = await session.scalar(select(Market).where(Market.slug == slug))
     found = market is not None
@@ -242,6 +254,7 @@ async def build_market_context(
             "volume_percentile": volume.get("percentile"),
         },
         "generated_at": now.isoformat(),
+        "as_of": now.isoformat(),
         "signal_only": True,
         "paper_trading_only": settings.paper_trading_only,
         "disclaimer": (
