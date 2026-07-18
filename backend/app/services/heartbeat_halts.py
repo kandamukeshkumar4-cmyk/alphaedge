@@ -31,6 +31,7 @@ class HaltState:
     """In-process reversible halt latches (cleared when conditions clear)."""
 
     price_feed_stale: bool = False
+    global_kill: bool = False
     daily_loss_accounts: set[str] = field(default_factory=set)
     last_eval: dict[str, Any] = field(default_factory=dict)
 
@@ -43,6 +44,7 @@ def get_halt_state() -> HaltState:
     with _lock:
         return HaltState(
             price_feed_stale=_state.price_feed_stale,
+            global_kill=_state.global_kill,
             daily_loss_accounts=set(_state.daily_loss_accounts),
             last_eval=dict(_state.last_eval),
         )
@@ -52,6 +54,7 @@ def reset_halt_state() -> None:
     """Test helper — clear all in-process halt latches."""
     with _lock:
         _state.price_feed_stale = False
+        _state.global_kill = False
         _state.daily_loss_accounts.clear()
         _state.last_eval.clear()
 
@@ -370,13 +373,26 @@ def halt_transition_log_rows(now: datetime | None = None) -> list[dict[str, Any]
                 "inputs_snapshot": {"ref": ref, **{k: dl.get(k) for k in ("threshold_pct",)}},
             }
         )
-    if get_settings().heartbeat_global_kill:
+    with _lock:
+        global_kill = bool(get_settings().heartbeat_global_kill)
+        previous_global_kill = _state.global_kill
+        _state.global_kill = global_kill
+    if global_kill and not previous_global_kill:
         rows.append(
             {
                 "position_ref": "halt:global_kill",
                 "rule_fired": "global_kill",
-                "action_taken": "halt_active",
+                "action_taken": "halt_engaged",
                 "inputs_snapshot": {"heartbeat_global_kill": True},
+            }
+        )
+    if previous_global_kill and not global_kill:
+        rows.append(
+            {
+                "position_ref": "halt:global_kill",
+                "rule_fired": "global_kill",
+                "action_taken": "halt_cleared",
+                "inputs_snapshot": {"heartbeat_global_kill": False},
             }
         )
     # stamp — unused except for callers that want created_at alignment

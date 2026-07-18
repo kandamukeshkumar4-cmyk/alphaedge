@@ -182,6 +182,27 @@ def test_global_kill_via_settings(monkeypatch):
         get_settings.cache_clear()
 
 
+def test_global_kill_rows_are_transition_only(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("HEARTBEAT_GLOBAL_KILL", "true")
+    get_settings.cache_clear()
+    try:
+        first = halt_transition_log_rows(_NOW)
+        second = halt_transition_log_rows(_NOW)
+        assert [row["action_taken"] for row in first] == ["halt_engaged"]
+        assert second == []
+
+        monkeypatch.setenv("HEARTBEAT_GLOBAL_KILL", "false")
+        get_settings.cache_clear()
+        cleared = halt_transition_log_rows(_NOW)
+        assert [row["action_taken"] for row in cleared] == ["halt_cleared"]
+        assert halt_transition_log_rows(_NOW) == []
+    finally:
+        monkeypatch.delenv("HEARTBEAT_GLOBAL_KILL", raising=False)
+        get_settings.cache_clear()
+
+
 def test_pod_registry_absent_is_none():
     from app.services.heartbeat_halts import _try_pod_daily_pnl
 
