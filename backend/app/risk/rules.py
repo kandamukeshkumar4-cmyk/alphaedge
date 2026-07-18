@@ -28,6 +28,9 @@ class OrderIntent:
     # Loop V59: exit/emergency SELL intents skip entry edge/confidence/timing
     # gates but still require PAPER_TRADING_ONLY + agent_enabled + not suspended.
     is_exit: bool = False
+    # Required for exit intents: caller derives this from the owned position so
+    # the risk layer can reject an oversized market SELL.
+    exit_notional_cap: Optional[Decimal] = None
 
 
 @dataclass(frozen=True)
@@ -62,9 +65,20 @@ class RiskService:
             failures.append("agent trading disabled")
         if intent.user_suspended:
             failures.append("user is suspended")
+        bet_notional = (intent.price or Decimal("0.5")) * intent.quantity
+        if intent.expires_at is not None:
+            expires_at = intent.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                failures.append("order expiry must be in the future")
         if intent.is_exit:
             if intent.side.lower() != "sell":
                 failures.append("exit intent must be sell")
+            if intent.exit_notional_cap is None:
+                failures.append("exit notional cap required")
+            elif bet_notional > intent.exit_notional_cap:
+                failures.append("exit exceeds position notional cap")
             return len(failures) == 0, failures
         if intent.edge < self.MIN_EDGE:
             failures.append(f"edge {intent.edge:.2%} < {self.MIN_EDGE:.0%}")
@@ -72,18 +86,10 @@ class RiskService:
             failures.append(f"confidence {intent.confidence:.2f} < {self.MIN_CONFIDENCE}")
         if intent.current_drawdown >= self.MAX_DRAWDOWN:
             failures.append(f"drawdown {intent.current_drawdown:.2%} >= {self.MAX_DRAWDOWN:.0%}")
-        bet_notional = (intent.price or Decimal("0.5")) * intent.quantity
         if bet_notional > intent.bankroll * Decimal(str(self.MAX_BET_PCT)):
             failures.append("bet exceeds max % bankroll")
         if intent.minutes_before_start < 5:
             failures.append("too close to game start")
-        if intent.expires_at is not None:
-            expires_at = intent.expires_at
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            if expires_at <= datetime.now(timezone.utc):
-                failures.append("order expiry must be in the future")
-
         return len(failures) == 0, failures
 
     def suggest_stake(self, intent: OrderIntent) -> KellyStakeSuggestion:

@@ -278,6 +278,7 @@ async def _submit_clob_exit(
         current_drawdown=0.0,
         minutes_before_start=60,
         is_exit=True,
+        exit_notional_cap=snap.quantity * snap.mark_price,
     )
     ok, failures = RiskService().validate(intent)
     if not ok:
