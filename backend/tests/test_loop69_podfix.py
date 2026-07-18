@@ -197,3 +197,106 @@ async def test_filled_position_blocks_refill_against_exposure_cap(db_session):
         await db_session.execute(select(PodTrade).where(PodTrade.pod_id == pod.id))
     ).scalar_one()
     assert trade.decision.get("rejected") == "pod max exposure cap"
+
+
+# --- (2) pods seeding ---------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_default_pods_seeds_disabled_opt_in(db_session):
+    pods = await ensure_default_pods(db_session)
+    keys = {pod.key for pod in pods}
+    assert {"crypto_5m_momentum_fade", "longshot_fade", "sports_value"}.issubset(keys)
+    for pod in pods:
+        if pod.key in {
+            "crypto_5m_momentum_fade",
+            "longshot_fade",
+            "sports_value",
+        }:
+            assert pod.enabled is False
+
+
+@pytest.mark.asyncio
+async def test_ensure_default_pods_skips_registry_keys_missing_config(
+    db_session, monkeypatch, caplog
+):
+    import logging
+
+    from app.pods import runner as runner_mod
+    from app.pods.base import Pod, PodDecision, PodScore
+    from app.pods.registry import PodRegistry
+
+    class GhostPod(Pod):
+        key = "ghost_unconfigured"
+
+        def universe(self):
+            return {"Sports"}
+
+        def score_market(self, market):
+            return PodScore(0, {})
+
+        def decide(self, market, score):
+            return PodDecision(action="hold", reason="ghost")
+
+    reg = PodRegistry()
+    reg.register(GhostPod)
+    # Keep the real three so DEFAULT_POD_CONFIGS path still works.
+    from app.pods.strategies import (
+        CryptoMomentumFadePod,
+        LongshotFadePod,
+        SportsValuePod,
+    )
+
+    reg.register(CryptoMomentumFadePod)
+    reg.register(LongshotFadePod)
+    reg.register(SportsValuePod)
+    monkeypatch.setattr(runner_mod, "registry", reg)
+
+    with caplog.at_level(logging.WARNING, logger="app.pods.runner"):
+        pods = await ensure_default_pods(db_session)
+
+    assert "ghost_unconfigured" not in {p.key for p in pods}
+    assert any("ghost_unconfigured" in r.message for r in caplog.records)
+
+
+# --- (3) LongshotFadePod universe enforcement ---------------------------------
+
+
+def _price_history() -> tuple[PricePoint, ...]:
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    return tuple(
+        PricePoint(start + timedelta(minutes=i), Decimal(v))
+        for i, v in enumerate(["0.80", "0.82", "0.84", "0.86", "0.88", "0.90"])
+    )
+
+
+def test_longshot_decide_rejects_category_outside_universe():
+    pod = LongshotFadePod(config={"entry_threshold": 30, "fee_per_contract": "0.002"})
+    market = PodMarket(
+        market_id="m",
+        slug="other-cat",
+        category="Entertainment",
+        price=Decimal("0.90"),
+        as_of=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=6),
+        price_history=_price_history(),
+        metadata={"source": "polymarket"},
+    )
+    decision = pod.decide(market, pod.score_market(market))
+    assert decision.action == "hold"
+    assert "outside longshot universe" in decision.reason
+
+
+def test_longshot_decide_allows_declared_universe_category():
+    pod = LongshotFadePod(config={"entry_threshold": 30, "fee_per_contract": "0.002"})
+    market = PodMarket(
+        market_id="m",
+        slug="politics-fav",
+        category="Politics",
+        price=Decimal("0.90"),
+        as_of=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=6),
+        price_history=_price_history(),
+        metadata={"source": "polymarket"},
+    )
+    decision = pod.decide(market, pod.score_market(market))
+    assert decision.action == "enter"
+    assert decision.outcome == "no"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -36,6 +37,8 @@ from app.services.order_book_service import OrderBookService
 # Importing the module registers the three explicitly declared pod types.
 from app.pods import strategies as _strategies  # noqa: F401
 
+logger = logging.getLogger(__name__)
+
 POD_RUNNER_INTERVAL_SEC = 60
 DEFAULT_POD_BANKROLL = Decimal("10000")
 DEFAULT_POD_CONFIGS: dict[str, dict[str, Any]] = {
@@ -54,13 +57,24 @@ def pod_detail(summary: dict[str, Any] | None) -> str | None:
 
 
 async def ensure_default_pods(session: AsyncSession) -> list[PodRow]:
-    """Provision one account-backed row per registered strategy, idempotently."""
+    """Provision one account-backed row per registered strategy, idempotently.
+
+    New pods default to enabled=False (per-pod opt-in). Registry keys missing
+    from DEFAULT_POD_CONFIGS are skipped with a warning — never KeyError.
+    """
     existing = {
         pod.key: pod
         for pod in (await session.execute(select(PodRow))).scalars().all()
     }
     for key in registry.keys():
         if key in existing:
+            continue
+        config = DEFAULT_POD_CONFIGS.get(key)
+        if config is None:
+            logger.warning(
+                "skipping registered pod %s: missing DEFAULT_POD_CONFIGS entry",
+                key,
+            )
             continue
         account = Account(name=f"Pod: {key}", cash_balance=DEFAULT_POD_BANKROLL)
         session.add(account)
@@ -69,8 +83,8 @@ async def ensure_default_pods(session: AsyncSession) -> list[PodRow]:
             key=key,
             display_name=key.replace("_", " ").title(),
             account_id=account.id,
-            config=dict(DEFAULT_POD_CONFIGS[key]),
-            enabled=True,
+            config=dict(config),
+            enabled=False,
         )
         session.add(pod)
         await session.flush()
