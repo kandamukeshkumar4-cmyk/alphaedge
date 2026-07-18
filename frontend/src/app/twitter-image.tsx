@@ -1,11 +1,11 @@
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
+export const dynamic = "force-static";
 export const alt = "AlphaEdge — paper-trading prediction markets";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-/** Same branded card as opengraph-image (duplicated so Next can see `runtime`). */
+/** Same branded card as opengraph-image (duplicated so Next can see the route config). */
 export default function TwitterImage() {
   return new ImageResponse(
     (

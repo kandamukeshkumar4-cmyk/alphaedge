@@ -65,3 +65,21 @@ This file records source-code attributions per the Loop C §G4 license policy.
   source pasted; all use AlphaEdge CLOB/snapshots/fills. Existing
   `get_order_book_summary` / `get_price_history` / `get_whale_activity` remain.
 - **Ticket**: Loop 8 L8-T4 — vendor-study MCP gap-fill
+
+## ai-hedge-fund v2 (MIT)
+
+- **Repo**: https://github.com/virattt/ai-hedge-fund (`v2/` directory)
+- **License**: MIT
+- **Used in**: `backend/app/forecasting/alpha/` (`base.py`, `models.py`,
+  `blend.py`, `spec.py`), `backend/app/forecasting/strategies/market_blend.yaml`
+- **What was adapted**: The `AlphaModel -> Signal` interface (conviction in
+  [-1, +1] + reasoning, `v2/signals/base.py`, `v2/models.py`), the abstention
+  semantics and conviction-weighted blend (`v2/portfolio/construction.py` —
+  abstained views excluded from numerator AND denominator), and the
+  "mandates as data" YAML strategy spec with `extra='forbid'`
+  (`v2/fund/spec.py`). Re-targeted from equity tickers/target weights to
+  prediction-market YES-probabilities; no code copied verbatim. The v2
+  principle "the LLM never touches the trade" maps onto AlphaEdge's existing
+  RiskService -> OrderIntent -> OrderBookService guardrail, which this
+  package never calls.
+- **Ticket**: clone-integrate-v2-backend — alpha blend for prediction accuracy

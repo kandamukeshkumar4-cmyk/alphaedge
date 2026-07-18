@@ -31,6 +31,10 @@ PRODUCER_ARTIFACT = "artifact"
 PRODUCER_FIFA = "fifa_wc2026"
 PRODUCER_SUPPLIED = "supplied_probability"
 PRODUCER_IMPLIED_PASSTHROUGH = "implied_passthrough"
+# ai-hedge-fund v2 alpha blend: the artifact view blended with the
+# market-implied view (app/forecasting/alpha). Only ever replaces
+# PRODUCER_ARTIFACT — supplied/passthrough/FIFA paths are never blended.
+PRODUCER_ALPHA_BLEND = "alpha_blend"
 _SUPPLIED_PROBABILITY_KEYS = ("model_probability", "calibrated_probability", "predicted_prob")
 
 
@@ -85,6 +89,11 @@ def predict_market(features: Mapping[str, Any]) -> ForecastPrediction:
             else PRODUCER_IMPLIED_PASSTHROUGH
         )
     predicted = _probability(raw_predicted)
+    if producer == PRODUCER_ARTIFACT and _alpha_blend_enabled(features):
+        blend = _alpha_blend(features, predicted)
+        if blend is not None:
+            predicted = blend.probability
+            producer = PRODUCER_ALPHA_BLEND
     comparisons = _forecast_comparisons(features)
     evaluation: ForecastEvaluation | None = None
     significance: SignificanceVerdict | None = None
@@ -272,6 +281,21 @@ def _artifact_probability(features: Mapping[str, Any]) -> float | None:
     raw_probability = float(model.predict_proba([row])[0][1])
     calibrated = float(calibrator.predict([raw_probability])[0])
     return calibrated
+
+
+def _alpha_blend_enabled(features: Mapping[str, Any]) -> bool:
+    override = features.get("alpha_blend_enabled")
+    if override is not None:
+        return bool(override)
+    from app.core.config import get_settings
+
+    return bool(get_settings().alpha_blend_enabled)
+
+
+def _alpha_blend(features: Mapping[str, Any], artifact_probability: float):
+    from app.forecasting.alpha import blend_market_probability
+
+    return blend_market_probability(features, artifact_probability=artifact_probability)
 
 
 def _confidence(features: Mapping[str, Any], is_edge: bool) -> float:
