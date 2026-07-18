@@ -1,4 +1,4 @@
-# Loop V72 — Coach-marks interaction blocking + visreg baselines (QUEUED for Cursor after V71)
+# Loop V72 — Coach-marks interaction blocking + visreg baselines (DONE)
 
 E2e-confirmed: the V62 CoachMarks aside (aria-label="Getting started", fixed
 bottom-right z-40) intercepts pointer events over mobile tap targets and
