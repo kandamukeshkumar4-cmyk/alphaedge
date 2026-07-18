@@ -6,7 +6,14 @@ from uuid import uuid4
 
 import pytest
 
-from app.db.models import OddsSnapshot
+from app.db.models import (
+    Account,
+    LedgerEntry,
+    LedgerEntryType,
+    Market,
+    OddsSnapshot,
+    Position,
+)
 from app.services.heartbeat_decision import (
     HeartbeatAction,
     HeartbeatRules,
@@ -78,6 +85,62 @@ async def test_daily_loss_halt_empty_when_no_loss(db_session):
         db_session, now=_NOW, account_ids=[], paper_user_ids=[]
     )
     assert halted == set()
+
+
+@pytest.mark.asyncio
+async def test_daily_loss_uses_actual_account_equity_not_a_fixed_bankroll(db_session):
+    account = Account(name="small bankroll", cash_balance=Decimal("100"))
+    db_session.add(account)
+    await db_session.flush()
+    db_session.add(
+        LedgerEntry(
+            account_id=account.id,
+            entry_type=LedgerEntryType.TRADE,
+            amount=Decimal("-5"),
+            balance_after=Decimal("100"),
+            created_at=_NOW - timedelta(minutes=1),
+        )
+    )
+    await db_session.commit()
+
+    halted = await evaluate_daily_loss_halts(
+        db_session, now=_NOW, account_ids=[account.id], paper_user_ids=[]
+    )
+
+    assert halted == {f"clob:{account.id}"}
+
+
+@pytest.mark.asyncio
+async def test_daily_loss_freezes_when_a_position_mark_is_stale(db_session):
+    account = Account(name="stale valuation", cash_balance=Decimal("100"))
+    market = Market(slug="halt-stale-mark", title="t", question="q")
+    db_session.add_all([account, market])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            Position(
+                account_id=account.id,
+                market_id=market.id,
+                yes_shares=Decimal("2"),
+                avg_yes_cost=Decimal("0.50"),
+            ),
+            OddsSnapshot(
+                market_slug=market.slug,
+                implied_yes=Decimal("0.50"),
+                source="fixture",
+                captured_at=_NOW - timedelta(seconds=121),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    halted = await evaluate_daily_loss_halts(
+        db_session, now=_NOW, account_ids=[account.id], paper_user_ids=[]
+    )
+
+    assert halted == {f"clob:{account.id}"}
+    details = get_halt_state().last_eval["daily_loss"]["details"]
+    assert details[0]["valuation"] == "unknown"
 
 
 def test_compose_halt_flags_matches_prefix():

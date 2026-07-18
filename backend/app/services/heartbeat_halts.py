@@ -16,11 +16,11 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import LedgerEntry, OddsSnapshot, PaperOrder
+from app.db.models import Account, LedgerEntry, Market, OddsSnapshot, PaperOrder, Position, User
 from app.services.heartbeat_decision import HaltFlags
 
 logger = logging.getLogger(__name__)
@@ -158,6 +158,76 @@ async def _paper_user_daily_realized(
     return Decimal(str(total))
 
 
+async def _account_equity(
+    session: AsyncSession, account_id: UUID, now: datetime, stale_after_sec: float
+) -> Decimal | None:
+    """Return cash plus fresh marked open-position value, or None when unknown."""
+    cash = await session.scalar(select(Account.cash_balance).where(Account.id == account_id))
+    if cash is None:
+        return None
+    latest = (
+        select(
+            OddsSnapshot.market_slug.label("market_slug"),
+            OddsSnapshot.implied_yes.label("implied_yes"),
+            OddsSnapshot.captured_at.label("captured_at"),
+            func.row_number()
+            .over(
+                partition_by=OddsSnapshot.market_slug,
+                order_by=OddsSnapshot.captured_at.desc(),
+            )
+            .label("rank"),
+        )
+        .subquery()
+    )
+    rows = (
+        await session.execute(
+            select(
+                Position.yes_shares,
+                Position.no_shares,
+                latest.c.implied_yes,
+                latest.c.captured_at,
+            )
+            .join(Market, Market.id == Position.market_id)
+            .outerjoin(
+                latest,
+                and_(Market.slug == latest.c.market_slug, latest.c.rank == 1),
+            )
+            .where(
+                Position.account_id == account_id,
+                Position.settled.is_(False),
+            )
+        )
+    ).all()
+    positions_value = Decimal("0")
+    for row in rows:
+        has_position = (
+            Decimal(str(row.yes_shares or 0)) > 0
+            or Decimal(str(row.no_shares or 0)) > 0
+        )
+        if not has_position:
+            continue
+        if row.implied_yes is None or row.captured_at is None:
+            return None
+        age_sec = (now - _utc(row.captured_at)).total_seconds()
+        if age_sec < 0 or age_sec > stale_after_sec:
+            return None
+        implied_yes = Decimal(str(row.implied_yes))
+        positions_value += Decimal(str(row.yes_shares or 0)) * implied_yes
+        positions_value += Decimal(str(row.no_shares or 0)) * (Decimal("1") - implied_yes)
+    equity = Decimal(str(cash)) + positions_value
+    return equity if equity > 0 else None
+
+
+async def _paper_user_starting_equity(
+    session: AsyncSession, user_id: UUID
+) -> Decimal | None:
+    balance = await session.scalar(select(User.paper_balance).where(User.id == user_id))
+    if balance is None:
+        return None
+    equity = Decimal(str(balance))
+    return equity if equity > 0 else None
+
+
 async def evaluate_daily_loss_halts(
     session: AsyncSession,
     *,
@@ -170,6 +240,7 @@ async def evaluate_daily_loss_halts(
     now = _utc(now or datetime.now(timezone.utc))
     settings = get_settings()
     halt_pct = Decimal(str(settings.heartbeat_daily_loss_halt_pct))
+    stale_after_sec = float(settings.heartbeat_staleness_sec)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     halted: set[str] = set()
     details: list[dict[str, Any]] = []
@@ -189,20 +260,29 @@ async def evaluate_daily_loss_halts(
 
     for account_id in account_ids or []:
         pnl = await _account_daily_pnl(session, account_id, day_start)
-        # Normalize vs a 10k paper bankroll default for fraction.
-        loss_frac = float((-pnl) / Decimal("10000")) if pnl < 0 else 0.0
-        is_halt = loss_frac >= float(halt_pct)
+        equity = await _account_equity(session, account_id, now, stale_after_sec)
         ref = f"clob:{account_id}"
-        details.append({"ref": ref, "pnl": str(pnl), "loss_frac": loss_frac, "halt": is_halt})
+        if equity is None:
+            details.append({"ref": ref, "pnl": str(pnl), "valuation": "unknown", "halt": True})
+            halted.add(ref)
+            continue
+        loss_frac = float((-pnl) / equity) if pnl < 0 else 0.0
+        is_halt = loss_frac >= float(halt_pct)
+        details.append({"ref": ref, "pnl": str(pnl), "equity": str(equity), "loss_frac": loss_frac, "halt": is_halt})
         if is_halt:
             halted.add(ref)
 
     for user_id in paper_user_ids or []:
         pnl = await _paper_user_daily_realized(session, user_id, day_start)
-        loss_frac = float((-pnl) / Decimal("10000")) if pnl < 0 else 0.0
-        is_halt = loss_frac >= float(halt_pct)
+        equity = await _paper_user_starting_equity(session, user_id)
         ref = f"paper:{user_id}"
-        details.append({"ref": ref, "pnl": str(pnl), "loss_frac": loss_frac, "halt": is_halt})
+        if equity is None:
+            details.append({"ref": ref, "pnl": str(pnl), "valuation": "unknown", "halt": True})
+            halted.add(ref)
+            continue
+        loss_frac = float((-pnl) / equity) if pnl < 0 else 0.0
+        is_halt = loss_frac >= float(halt_pct)
+        details.append({"ref": ref, "pnl": str(pnl), "equity": str(equity), "loss_frac": loss_frac, "halt": is_halt})
         if is_halt:
             halted.add(ref)
 
