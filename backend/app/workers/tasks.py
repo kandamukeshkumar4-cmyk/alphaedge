@@ -277,17 +277,36 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
     titles: dict[str, str] = {}
     whale_service = WhaleFlowService(session)
     for slug, title, lock_at, volume in rows:
-        prices = (await session.execute(
-            _select(_OddsSnapshot.implied_yes)
-            .where(
-                _OddsSnapshot.market_slug == slug,
-                _OddsSnapshot.captured_at >= now - timedelta(hours=1),
-                _OddsSnapshot.captured_at <= now,
+        # latest-minus-oldest over the 1h window (not the two oldest rows).
+        window = (
+            _OddsSnapshot.market_slug == slug,
+            _OddsSnapshot.captured_at >= now - timedelta(hours=1),
+            _OddsSnapshot.captured_at <= now,
+        )
+        oldest = (
+            await session.execute(
+                _select(_OddsSnapshot.implied_yes, _OddsSnapshot.captured_at)
+                .where(*window)
+                .order_by(_OddsSnapshot.captured_at.asc())
+                .limit(1)
             )
-            .order_by(_OddsSnapshot.captured_at.asc())
-            .limit(2)
-        )).scalars().all()
-        delta = float(prices[-1] - prices[0]) if len(prices) >= 2 else None
+        ).first()
+        newest = (
+            await session.execute(
+                _select(_OddsSnapshot.implied_yes, _OddsSnapshot.captured_at)
+                .where(*window)
+                .order_by(_OddsSnapshot.captured_at.desc())
+                .limit(1)
+            )
+        ).first()
+        if (
+            oldest is not None
+            and newest is not None
+            and oldest[1] != newest[1]
+        ):
+            delta = float(newest[0] - oldest[0])
+        else:
+            delta = None
         pressure = await whale_service.pressure_for(slug)
         candidates.append(NewsRefreshCandidate(
             slug=slug,
