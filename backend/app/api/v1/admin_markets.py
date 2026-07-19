@@ -4,7 +4,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import market_detail_cache, markets_cache
@@ -100,11 +100,15 @@ async def _settle_paper_orders(
             winner_credits[user_id] = winner_credits.get(user_id, Decimal("0")) + credit
 
     if winner_credits:
-        users = (
-            await db.scalars(select(User).where(User.id.in_(list(winner_credits))))
-        ).all()
-        for user in users:
-            user.paper_balance += winner_credits[user.id]
+        for user_id, credit in winner_credits.items():
+            result = await db.execute(
+                update(User)
+                .where(User.id == user_id)
+                .values(paper_balance=User.paper_balance + credit)
+                .returning(User.paper_balance)
+                .execution_options(synchronize_session=False)
+            )
+            result.scalar_one()
 
     await db.flush()
     return len(orders)
