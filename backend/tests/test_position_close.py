@@ -208,14 +208,12 @@ async def test_portfolio_nets_out_sold_shares(db_session):
 
 @pytest.mark.asyncio
 async def test_rebuy_after_partial_close_nets_into_one_weighted_position(db_session):
-    """O02 regression: buy -> partial sell -> re-buy must collapse to a SINGLE
-    net position keyed by (slug, side, outcome), with a BUY-weighted average
-    cost — not one row per order, and not reset by the intervening sell.
+    """A partial close consumes the oldest BUY lot before a re-buy.
 
     Sequence: buy 10 @ 0.40 (cost 4.0); sell 4 @ 0.50 (realized +0.40);
-    buy 10 @ 0.60 (cost 6.0). Net = 16 shares; weighted avg over both BUYs =
-    (4.0 + 6.0) / (10 + 10) = 0.50; remaining cost basis 16 * 0.50 = 8.0;
-    realized P&L from the partial sell (0.40) is preserved."""
+    buy 10 @ 0.60 (cost 6.0). Net = 16 shares; FIFO leaves 6 @ 0.40 and
+    10 @ 0.60, for an open basis of 8.40 and average cost 0.525. Realized P&L
+    from the partial sell (0.40) is preserved."""
     _override_db(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         token = await _signup_token(client, "rebuy-net@example.com")
@@ -238,10 +236,70 @@ async def test_rebuy_after_partial_close_nets_into_one_weighted_position(db_sess
     assert len(matches) == 1, "re-buy after partial close must not split into multiple rows"
     position = matches[0]
     assert position["shares"] == pytest.approx(16.0)
-    assert position["avg_cost"] == pytest.approx(0.5)
-    assert position["cost"] == pytest.approx(8.0)
+    assert position["avg_cost"] == pytest.approx(0.525)
+    assert position["cost"] == pytest.approx(8.4)
     assert position["realized_pnl"] == pytest.approx(0.4)
     assert position["settled"] is False
+
+
+@pytest.mark.asyncio
+async def test_full_close_then_rebuy_keeps_only_reopened_fifo_lot(db_session):
+    """A fully closed BUY cycle must not dilute the later open basis."""
+    _override_db(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "full-reopen@example.com")
+        await MarketService(db_session).seed_catalog_markets()
+        await _buy_yes(client, token, shares=10, price=0.4)
+        close = await client.post(
+            "/api/v1/positions/close",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "outcome": "yes", "shares": 10, "price": 0.6},
+        )
+        assert close.status_code == 200
+        await _buy_yes(client, token, shares=10, price=0.8)
+        portfolio = await client.get(
+            "/api/v1/portfolio",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    app.dependency_overrides.clear()
+
+    position = next(p for p in portfolio.json()["positions"] if p["market_slug"] == CANONICAL_SLUG)
+    assert position["shares"] == pytest.approx(10.0)
+    assert position["avg_cost"] == pytest.approx(0.8)
+    assert position["cost"] == pytest.approx(8.0)
+    assert position["realized_pnl"] == pytest.approx(2.0)
+    assert position["settled"] is False
+
+
+@pytest.mark.asyncio
+async def test_void_refund_uses_reopened_fifo_lot_basis(db_session):
+    """VOID refunds only the remaining FIFO BUY lots after a close/reopen."""
+    _override_db(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "void-reopen@example.com")
+        await MarketService(db_session).seed_catalog_markets()
+        await _buy_yes(client, token, shares=10, price=0.4)
+        close = await client.post(
+            "/api/v1/positions/close",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "outcome": "yes", "shares": 10, "price": 0.6},
+        )
+        assert close.status_code == 200
+        await _buy_yes(client, token, shares=10, price=0.8)
+        resolve = await client.post(
+            f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
+            headers=ADMIN_HEADERS,
+            json={"winning_outcome": "VOID"},
+        )
+        me = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    app.dependency_overrides.clear()
+
+    assert resolve.status_code == 200
+    # 100000 - 4.0 + 6.0 - 8.0 + 8.0 refund = 100002.
+    assert me.json()["paper_balance"] == pytest.approx(100002.0)
 
 
 @pytest.mark.asyncio
