@@ -53,6 +53,7 @@ from app.schemas.signals import (
     CLVTrackRecordResponse,
     PaperPnlSummaryResponse,
     SignalFeedItemResponse,
+    SignalFeedOutcome,
     SignalFeedResponse,
     SignalsDashboardResponse,
 )
@@ -60,6 +61,7 @@ from app.services.forecast_dashboard_service import (
     CLV_PROVISIONAL_SAMPLE,
     CLVTrackingService,
     SIGNAL_DISCLAIMER,
+    SignalFeedItem,
 )
 from app.services.signals_service import InvalidSignalRequest, SignalsService
 from app.services.wallet_service import WalletService
@@ -286,6 +288,36 @@ async def get_forecast_signal(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+def _signal_feed_item_response(item: SignalFeedItem) -> SignalFeedItemResponse:
+    """Single mapper for the signal-feed response shape (Loop V78 N1 folded the
+    additive display fields in; /signals/feed, /signals and /signals/dashboard
+    all share it)."""
+    return SignalFeedItemResponse(
+        id=item.id,
+        signal_type=item.signal_type,
+        platform=item.platform,
+        market_id=item.market_id,
+        market_name=item.market_name,
+        implied_edge=item.implied_edge,
+        sample_size=item.sample_size,
+        is_edge=item.is_edge,
+        provisional=item.sample_size < CLV_PROVISIONAL_SAMPLE,
+        created_at=item.created_at,
+        resolved=item.resolved,
+        market_title=item.market_title,
+        category=item.category,
+        icon=item.icon,
+        image_url=item.image_url,
+        volume=item.volume,
+        traders=item.traders,
+        market_count=item.market_count,
+        outcomes=[
+            SignalFeedOutcome(name=o.name, price=o.price, image_url=o.image_url)
+            for o in item.outcomes
+        ],
+    )
+
+
 @router.get("/signals/feed", response_model=SignalFeedResponse)
 async def get_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
     """Public signal feed with short in-process TTL cache (Loop V21 P2)."""
@@ -315,22 +347,7 @@ async def list_signal_feed(limit: int = 50, db: AsyncSession = Depends(get_db)):
     return SignalFeedResponse(
         paper_trading_only=settings.paper_trading_only,
         disclaimer=SIGNAL_DISCLAIMER,
-        signals=[
-            SignalFeedItemResponse(
-                id=item.id,
-                signal_type=item.signal_type,
-                platform=item.platform,
-                market_id=item.market_id,
-                market_name=item.market_name,
-                implied_edge=item.implied_edge,
-                sample_size=item.sample_size,
-                is_edge=item.is_edge,
-                provisional=item.sample_size < CLV_PROVISIONAL_SAMPLE,
-                created_at=item.created_at,
-                resolved=item.resolved,
-            )
-            for item in items
-        ],
+        signals=[_signal_feed_item_response(item) for item in items],
         cached=False,
     )
 
@@ -369,22 +386,7 @@ async def get_signals_dashboard(
     return SignalsDashboardResponse(
         paper_trading_only=settings.paper_trading_only,
         disclaimer=SIGNAL_DISCLAIMER,
-        signals=[
-            SignalFeedItemResponse(
-                id=item.id,
-                signal_type=item.signal_type,
-                platform=item.platform,
-                market_id=item.market_id,
-                market_name=item.market_name,
-                implied_edge=item.implied_edge,
-                sample_size=item.sample_size,
-                is_edge=item.is_edge,
-                provisional=item.sample_size < CLV_PROVISIONAL_SAMPLE,
-                created_at=item.created_at,
-                resolved=item.resolved,
-            )
-            for item in feed
-        ],
+        signals=[_signal_feed_item_response(item) for item in feed],
         clv_records=[
             CLVRecordResponse(
                 market_slug=record.market_slug,

@@ -28,6 +28,19 @@ class PaperPnlSummaryResponse(BaseModel):
     paper_trading_only: bool = True
 
 
+class SignalFeedOutcome(BaseModel):
+    """One outcome row for the Polymarket-style alert card (Loop V78 N1).
+
+    ``price`` is a REAL stored odds-snapshot probability (never fabricated);
+    ``image_url`` is the venue's own image for the market subject, or None —
+    the UI falls back to the glyph token when it is absent. Never a
+    fabricated face."""
+
+    name: str
+    price: float
+    image_url: Optional[str] = None
+
+
 class SignalFeedItemResponse(BaseModel):
     id: str
     signal_type: str
@@ -40,6 +53,17 @@ class SignalFeedItemResponse(BaseModel):
     provisional: bool
     created_at: datetime
     resolved: bool
+    # Loop V78 (N1) — additive display enrichment composed from stored rows
+    # (markets + odds_snapshots). All None/empty when the signal's market is
+    # not mirrored locally: honest omission, never invented numbers/imagery.
+    market_title: Optional[str] = None
+    category: Optional[str] = None
+    icon: Optional[str] = None
+    image_url: Optional[str] = None
+    volume: Optional[int] = None
+    traders: Optional[int] = None
+    market_count: Optional[int] = None
+    outcomes: list[SignalFeedOutcome] = []
 
 
 class SignalFeedResponse(BaseModel):
