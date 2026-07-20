@@ -180,3 +180,49 @@ This is the default source of "what to build next" for this repo.
   Gates, AutoLab loop); they do not replace them. Never weaken `PAPER_TRADING_ONLY`,
   the `RiskService -> OrderIntent -> OrderBookService` path, or a deploy gate to
   close a goal.
+
+## Cursor Cloud specific instructions
+
+This section is for future cloud agents. Dependency install (`uv sync
+--directory backend --extra dev` and `npm install --prefix frontend`) is handled
+by the environment update script; do not repeat it here.
+
+### Layout & tooling
+- Two runnable apps: **backend** (FastAPI, package manager `uv`, Python 3.12) and
+  **frontend** (Next.js 15 / React 19, package manager `npm`, Node 22). `uv` is
+  installed at `~/.local/bin/uv` and is on PATH in login shells only.
+- Standard lint/test/build commands are already documented above under
+  `## Verification` and in `local.config.json` `verificationCommands`. Backend
+  tests use in-memory SQLite (`aiosqlite`) + `respx`, so **pytest/ruff need no
+  Postgres or Redis**.
+
+### Running the stack locally (no Docker needed)
+Docker is NOT installed in the cloud VM; the repo's `docker compose up` path does
+not apply. Instead Postgres 16 and Redis 7 run as native services. Non-obvious
+startup caveats:
+- Start services with `sudo pg_ctlcluster 16 main start` and `sudo service
+  redis-server start` (there is no systemd; `service`/`pg_ctlcluster` work).
+- A local Postgres role+db `alphaedge`/`alphaedge` (password `alphaedge`) and a
+  gitignored `backend/.env` (localhost `DATABASE_URL`/`DATABASE_URL_SYNC`/
+  `REDIS_URL`, `PAPER_TRADING_ONLY=true`, `ADMIN_API_KEY=dev-admin-key`) are what
+  the API expects. Recreate them if the snapshot is fresh.
+- Backend: from `backend/`, `uv run alembic upgrade head` then `uv run uvicorn
+  app.main:app --host 0.0.0.0 --port 8000`. Migrations + system account + the
+  canonical `nba-2025-01-15-lal-bos` market are seeded automatically on boot.
+  Health at `GET /health`, Swagger at `/docs`, admin routes need header
+  `X-Admin-API-Key: dev-admin-key`.
+- Frontend: set `frontend/.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:8000`
+  (otherwise `next.config.ts` proxies `/api/*` and `/health` to the hardcoded
+  prod backend), then `npm run dev` (port 3000).
+- The ARQ worker (`docker compose --profile full`) is optional: the API mirrors
+  its cron jobs in-process, so it is not needed for local end-to-end.
+
+### Hello-world / smoke check
+The core loop is a paper trade on the canonical market. Human paper orders require
+a JWT user: `POST /api/v1/auth/signup` -> `POST /api/v1/auth/login` -> `POST
+/api/v1/orders` with `{"slug":"nba-2025-01-15-lal-bos","side":"YES","outcome":"yes",
+"shares":10,"price":0.65}`; verify with `GET /api/v1/portfolio`. In the UI: sign up
+at `/auth/signup`, trade at `/trade?slug=nba-2025-01-15-lal-bos`, confirm the
+position at `/portfolio`. Note the two order paths are intentionally separate: this
+human paper-ledger path is guard-gated (not model-risk-gated); the agent/CLOB path
+in `routes.py` is the `RiskService -> OrderIntent -> OrderBookService` one.
