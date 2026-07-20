@@ -235,8 +235,14 @@ async def _news_scan_loop() -> None:
     while True:
         await asyncio.sleep(300)
         try:
-            await news_scan_task({})
-            record_heartbeat("news_scan")
+            summary = await news_scan_task({})
+            detail = None
+            if isinstance(summary, dict):
+                if summary.get("skipped"):
+                    detail = f"skipped:{summary.get('reason')}"
+                else:
+                    detail = f"scanned={summary.get('scanned', 0)}"
+            record_heartbeat("news_scan", detail=detail)
         except Exception:
             logger.error("News scan loop failed", exc_info=True)
             record_heartbeat("news_scan", status="error", detail="news scan pass failed")

@@ -1,4 +1,4 @@
-"""Loop V39 — data retention sweeps (odds_snapshots / signal_events / notifications).
+"""Loop V39/V70 — data retention sweeps.
 
 Consumer-aware policy (see goals/loop-v39-retention/STATE.md R1 audit):
 
@@ -12,6 +12,13 @@ Consumer-aware policy (see goals/loop-v39-retention/STATE.md R1 audit):
 * ``notifications``: delete only **read** rows older than
   ``NOTIFICATION_RETENTION_DAYS`` (default 90); unread kept forever.
 
+Loop V70 high-growth tables (age + row-cap, FK-safe batch deletes):
+
+* ``whale_events``, ``market_sentiment_snapshots``, ``heartbeat_decision_logs``,
+  ``pod_trades``: retain at most 14 days and at most 500k newest rows per table
+  (age prune then row-cap prune). Batched deletes; no inbound FKs on these
+  tables so deletes are FK-safe.
+
 Flag-gated (``DATA_RETENTION_ENABLED``, default on). Batched, idempotent
 deletes. Dual-wired: ARQ cron in ``workers/tasks.py`` + in-process loop in
 ``main.py``. Heartbeat name: ``data_retention``.
@@ -24,15 +31,19 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    HeartbeatDecisionLog,
     JobRun,
+    MarketSentimentSnapshot,
     Notification,
     OddsSnapshot,
+    PodTrade,
     PredictionLog,
     SignalEvent,
+    WhaleEvent,
 )
 
 DATA_RETENTION_JOB_NAME = "data_retention_task"
@@ -40,6 +51,8 @@ DATA_RETENTION_JOB_NAME = "data_retention_task"
 DEFAULT_FULL_RES_DAYS = 90
 DEFAULT_SIGNAL_EVENT_DAYS = 30
 DEFAULT_NOTIFICATION_DAYS = 90
+DEFAULT_HIGH_GROWTH_DAYS = 14
+DEFAULT_HIGH_GROWTH_MAX_ROWS = 500_000
 DEFAULT_BATCH_SIZE = 500
 MAX_BATCH_SIZE = 2000
 MAX_BATCHES_PER_PASS = 20
@@ -269,17 +282,220 @@ async def sweep_notifications(
     }
 
 
+async def _batch_delete_ids(
+    session: AsyncSession,
+    model: type,
+    id_col: Any,
+    id_select,
+    *,
+    bound: int,
+    batches: int,
+    batches_run: int,
+    deleted: int,
+) -> tuple[int, int]:
+    """Run up to remaining batches of id-selected deletes. Returns (deleted, batches_run)."""
+    remaining = batches - batches_run
+    for _ in range(remaining):
+        ids = list((await session.execute(id_select.limit(bound))).scalars().all())
+        if not ids:
+            break
+        result = await session.execute(delete(model).where(id_col.in_(ids)))
+        deleted += int(result.rowcount or 0)
+        batches_run += 1
+        await session.flush()
+        if len(ids) < bound:
+            break
+    return deleted, batches_run
+
+
+async def sweep_age_and_row_cap(
+    session: AsyncSession,
+    model: type,
+    *,
+    ts_column_name: str = "created_at",
+    retention_days: int = DEFAULT_HIGH_GROWTH_DAYS,
+    max_rows: int = DEFAULT_HIGH_GROWTH_MAX_ROWS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    now: datetime | None = None,
+    max_batches: int = MAX_BATCHES_PER_PASS,
+) -> dict[str, Any]:
+    """Age-prune then row-cap prune for a high-growth append-only table.
+
+    1. Delete rows with timestamp < now - retention_days (batched).
+    2. If row count still exceeds max_rows, delete oldest until under the cap.
+
+    FK-safe for observation tables with no inbound foreign keys.
+    """
+    now = _as_utc(now or datetime.now(UTC))
+    days = max(1, int(retention_days))
+    cap = max(1, int(max_rows))
+    bound = min(max(int(batch_size), 1), MAX_BATCH_SIZE)
+    batches = min(max(int(max_batches), 1), MAX_BATCHES_PER_PASS)
+    cutoff = now - timedelta(days=days)
+
+    id_col = model.id
+    ts_col = getattr(model, ts_column_name)
+
+    deleted = 0
+    batches_run = 0
+
+    age_select = (
+        select(id_col).where(ts_col < cutoff).order_by(ts_col.asc(), id_col.asc())
+    )
+    deleted, batches_run = await _batch_delete_ids(
+        session,
+        model,
+        id_col,
+        age_select,
+        bound=bound,
+        batches=batches,
+        batches_run=batches_run,
+        deleted=deleted,
+    )
+
+    age_deleted = deleted
+
+    if batches_run < batches:
+        total_rows = int(
+            await session.scalar(select(func.count()).select_from(model)) or 0
+        )
+        if total_rows > cap:
+            # Oldest first until at most `cap` remain.
+            # Delete ids that would rank beyond the newest `cap` rows.
+            cap_select = select(id_col).order_by(ts_col.asc(), id_col.asc())
+            # Only delete the excess: we keep selecting from the oldest end.
+            excess = total_rows - cap
+            while batches_run < batches and excess > 0:
+                chunk = min(bound, excess)
+                ids = list(
+                    (
+                        await session.execute(cap_select.limit(chunk))
+                    )
+                    .scalars()
+                    .all()
+                )
+                if not ids:
+                    break
+                result = await session.execute(delete(model).where(id_col.in_(ids)))
+                n = int(result.rowcount or 0)
+                deleted += n
+                batches_run += 1
+                excess -= n
+                await session.flush()
+                if n < chunk:
+                    break
+
+    return {
+        "deleted": deleted,
+        "age_deleted": age_deleted,
+        "cap_deleted": deleted - age_deleted,
+        "batches": batches_run,
+        "cutoff": cutoff.isoformat().replace("+00:00", "Z"),
+        "retention_days": days,
+        "max_rows": cap,
+        "batch_size": bound,
+        "table": getattr(model, "__tablename__", getattr(model, "__name__", "unknown")),
+    }
+
+
+async def sweep_whale_events(
+    session: AsyncSession,
+    *,
+    retention_days: int = DEFAULT_HIGH_GROWTH_DAYS,
+    max_rows: int = DEFAULT_HIGH_GROWTH_MAX_ROWS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    now: datetime | None = None,
+    max_batches: int = MAX_BATCHES_PER_PASS,
+) -> dict[str, Any]:
+    return await sweep_age_and_row_cap(
+        session,
+        WhaleEvent,
+        ts_column_name="captured_at",
+        retention_days=retention_days,
+        max_rows=max_rows,
+        batch_size=batch_size,
+        now=now,
+        max_batches=max_batches,
+    )
+
+
+async def sweep_market_sentiment_snapshots(
+    session: AsyncSession,
+    *,
+    retention_days: int = DEFAULT_HIGH_GROWTH_DAYS,
+    max_rows: int = DEFAULT_HIGH_GROWTH_MAX_ROWS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    now: datetime | None = None,
+    max_batches: int = MAX_BATCHES_PER_PASS,
+) -> dict[str, Any]:
+    return await sweep_age_and_row_cap(
+        session,
+        MarketSentimentSnapshot,
+        ts_column_name="captured_at",
+        retention_days=retention_days,
+        max_rows=max_rows,
+        batch_size=batch_size,
+        now=now,
+        max_batches=max_batches,
+    )
+
+
+async def sweep_heartbeat_decision_logs(
+    session: AsyncSession,
+    *,
+    retention_days: int = DEFAULT_HIGH_GROWTH_DAYS,
+    max_rows: int = DEFAULT_HIGH_GROWTH_MAX_ROWS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    now: datetime | None = None,
+    max_batches: int = MAX_BATCHES_PER_PASS,
+) -> dict[str, Any]:
+    return await sweep_age_and_row_cap(
+        session,
+        HeartbeatDecisionLog,
+        ts_column_name="created_at",
+        retention_days=retention_days,
+        max_rows=max_rows,
+        batch_size=batch_size,
+        now=now,
+        max_batches=max_batches,
+    )
+
+
+async def sweep_pod_trades(
+    session: AsyncSession,
+    *,
+    retention_days: int = DEFAULT_HIGH_GROWTH_DAYS,
+    max_rows: int = DEFAULT_HIGH_GROWTH_MAX_ROWS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    now: datetime | None = None,
+    max_batches: int = MAX_BATCHES_PER_PASS,
+) -> dict[str, Any]:
+    return await sweep_age_and_row_cap(
+        session,
+        PodTrade,
+        ts_column_name="created_at",
+        retention_days=retention_days,
+        max_rows=max_rows,
+        batch_size=batch_size,
+        now=now,
+        max_batches=max_batches,
+    )
+
+
 async def run_data_retention_sweeps(
     session: AsyncSession,
     *,
     full_res_days: int = DEFAULT_FULL_RES_DAYS,
     signal_event_days: int = DEFAULT_SIGNAL_EVENT_DAYS,
     notification_days: int = DEFAULT_NOTIFICATION_DAYS,
+    high_growth_days: int = DEFAULT_HIGH_GROWTH_DAYS,
+    high_growth_max_rows: int = DEFAULT_HIGH_GROWTH_MAX_ROWS,
     batch_size: int = DEFAULT_BATCH_SIZE,
     now: datetime | None = None,
     odds_enabled: bool = True,
     signals_enabled: bool = True,
     notifications_enabled: bool = True,
+    high_growth_enabled: bool = True,
 ) -> dict[str, Any]:
     """Run all enabled table sweeps; returns a combined summary."""
     now = _as_utc(now or datetime.now(UTC))
@@ -287,6 +503,10 @@ async def run_data_retention_sweeps(
         "odds_snapshots": None,
         "signal_events": None,
         "notifications": None,
+        "whale_events": None,
+        "market_sentiment_snapshots": None,
+        "heartbeat_decision_logs": None,
+        "pod_trades": None,
         "deleted_total": 0,
     }
     if odds_enabled:
@@ -316,6 +536,22 @@ async def run_data_retention_sweeps(
         )
         summary["notifications"] = notes
         summary["deleted_total"] += int(notes.get("deleted") or 0)
+    if high_growth_enabled:
+        for key, sweep_fn in (
+            ("whale_events", sweep_whale_events),
+            ("market_sentiment_snapshots", sweep_market_sentiment_snapshots),
+            ("heartbeat_decision_logs", sweep_heartbeat_decision_logs),
+            ("pod_trades", sweep_pod_trades),
+        ):
+            result = await sweep_fn(
+                session,
+                retention_days=high_growth_days,
+                max_rows=high_growth_max_rows,
+                batch_size=batch_size,
+                now=now,
+            )
+            summary[key] = result
+            summary["deleted_total"] += int(result.get("deleted") or 0)
     return summary
 
 

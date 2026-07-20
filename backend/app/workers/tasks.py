@@ -251,6 +251,7 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
         HOT_INTERVAL_SEC,
         NewsRefreshCandidate,
         eligible_candidates,
+        fallback_eligible_candidates,
         record_refresh_failure,
         record_refresh_success,
         refresh_interval_sec,
@@ -317,7 +318,12 @@ async def run_news_scan(session, *, settings=None, now=None) -> dict[str, str]:
         ))
         titles[slug] = title
     if not settings.news_cadence_enabled:
-        selected = candidates[:_NEWS_SCAN_TOP_N]
+        # Restore pre-V61 hourly-equivalent volume: 5-min loop + no cooldown
+        # would 12x external news calls. Per-slug 60min cooldown keeps cadence.
+        selected = fallback_eligible_candidates(
+            candidates,
+            budget=_NEWS_SCAN_TOP_N,
+        )
     else:
         selected = eligible_candidates(
             candidates,

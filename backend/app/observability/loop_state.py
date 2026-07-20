@@ -22,19 +22,23 @@ _heartbeats: dict[str, dict[str, Any]] = {}
 # Canonical interval (seconds) for each known loop, used by the loops endpoint
 # to surface "expected cadence" alongside the last heartbeat. Kept in sync with
 # the sleep() calls in app/main.py.
+# Canonical expected cadence (seconds) for each known loop. Values must match
+# the effective default sleep() / _paced_sleep(fast_sec) in app/main.py (not
+# the idle slowdown). Config floors (e.g. max(5, LIVE_TICK_INTERVAL_SEC)) use
+# the settings default as the advertised cadence when that is higher.
 LOOP_INTERVALS: dict[str, int] = {
-    "price_feed": 3600,
-    "live_ingest": 300,
-    "live_tick": 5,
-    "eval": 900,
-    "kalshi_ws": 0,
-    "polymarket_ws": 0,
-    "news_scan": 3600,
+    "price_feed": 3600,  # asyncio.sleep(3600)
+    "live_ingest": 1800,  # max(300, LIVE_INGEST_INTERVAL_SEC=1800)
+    "live_tick": 15,  # max(5, LIVE_TICK_INTERVAL_SEC=15)
+    "eval": 900,  # _paced_sleep(900, ...)
+    "kalshi_ws": 0,  # continuous stream
+    "polymarket_ws": 0,  # continuous stream
+    "news_scan": 300,  # asyncio.sleep(300) — V61 5-min adaptive scan
     "weather_scan": 3600,
     "morning_research": 86400,
-    "whale_refresh": 604800,
-    "whale_flow": 60,
-    "venue_gap": 60,
+    "whale_refresh": 604800,  # 7 * 86400
+    "whale_flow": 60,  # max(30, WHALE_FLOW_INTERVAL_SEC=60)
+    "venue_gap": 60,  # max(30, VENUE_GAP_INTERVAL_SEC=60)
     "wc2026_resolve": 600,
     "external_resolve": 900,
     "external_market_bridge": 900,
@@ -45,7 +49,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "daily_digest": 21600,
     "jobrun_retention": 86400,
     "data_retention": 86400,
-    "heartbeat_manager": 45,
+    "heartbeat_manager": 45,  # max(30, HEARTBEAT_MANAGER_INTERVAL_SEC=45)
     "pod_runner": 60,
 }
 

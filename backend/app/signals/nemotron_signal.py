@@ -17,15 +17,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.core.resilience import CircuitBreaker, TtlLruCache
+
 logger = logging.getLogger(__name__)
 
-_CACHE: dict[str, tuple[float, "NemotronSignal"]] = {}
 _TTL_SECONDS = 3600  # 1 hour, same pattern as news_signal
+_CACHE: TtlLruCache[str, "NemotronSignal"] = TtlLruCache(
+    maxsize=2048, ttl_sec=_TTL_SECONDS
+)
 
 # Forbidden keys in the *input* context — presence is a leakage hard-fail.
 FORBIDDEN_INPUT_KEYS = frozenset(
@@ -51,11 +54,7 @@ _DIRECTIONS = frozenset({"yes", "no", "neutral"})
 DEFAULT_PROMPT_VERSION = "v1"
 _PROMPTS_DIR = Path(__file__).resolve().parent / "nemotron_prompts"
 
-# Circuit breaker (module-level, process-local).
-_FAILURE_THRESHOLD = 3
-_COOLDOWN_SEC = 300.0
-_consecutive_failures = 0
-_circuit_open_until: float | None = None
+_breaker = CircuitBreaker()
 
 
 @dataclass(frozen=True)
@@ -96,14 +95,11 @@ class NemotronSignal:
 
 
 def get_cached_signal(market_key: str) -> NemotronSignal | None:
-    entry = _CACHE.get(market_key)
-    if entry and (time.monotonic() - entry[0]) < _TTL_SECONDS:
-        return entry[1]
-    return None
+    return _CACHE.get(market_key)
 
 
 def cache_signal(signal: NemotronSignal) -> None:
-    _CACHE[signal.market_key] = (time.monotonic(), signal)
+    _CACHE.set(signal.market_key, signal)
 
 
 def clear_cache() -> None:
@@ -113,37 +109,24 @@ def clear_cache() -> None:
 
 def reset_circuit_breaker() -> None:
     """Test helper."""
-    global _consecutive_failures, _circuit_open_until
-    _consecutive_failures = 0
-    _circuit_open_until = None
+    _breaker.reset()
 
 
 def _circuit_is_open() -> bool:
-    global _circuit_open_until, _consecutive_failures
-    if _circuit_open_until is None:
-        return False
-    if time.monotonic() >= _circuit_open_until:
-        _circuit_open_until = None
-        _consecutive_failures = 0
-        return False
-    return True
+    return _breaker.is_open()
 
 
 def _record_success() -> None:
-    global _consecutive_failures, _circuit_open_until
-    _consecutive_failures = 0
-    _circuit_open_until = None
+    _breaker.record_success()
 
 
 def _record_failure() -> None:
-    global _consecutive_failures, _circuit_open_until
-    _consecutive_failures += 1
-    if _consecutive_failures >= _FAILURE_THRESHOLD:
-        _circuit_open_until = time.monotonic() + _COOLDOWN_SEC
+    _breaker.record_failure()
+    if _breaker.is_open():
         logger.warning(
             "nemotron_signal circuit open for %.0fs after %d failures",
-            _COOLDOWN_SEC,
-            _consecutive_failures,
+            _breaker.cooldown_sec,
+            _breaker.consecutive_failures,
         )
 
 

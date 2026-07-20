@@ -13,6 +13,31 @@ from app.signals.news_cadence import HOT_INTERVAL_SEC, NewsRefreshCandidate, ref
 LENSES = ("news-bull", "news-bear", "base-rate-skeptic")
 _FORBIDDEN_KEYS = frozenset({"prob", "probability", "predicted_prob", "p_yes", "stake", "side"})
 
+# Module-level NIM client (Loop V70) — avoid per-call AsyncOpenAI construction.
+_nim_client: Any | None = None
+_nim_client_key: tuple[str, str] | None = None
+
+
+def _get_nim_client(settings: Any) -> Any:
+    """Reuse one AsyncOpenAI client per (base_url, api_key) process-local pair."""
+    global _nim_client, _nim_client_key
+    from openai import AsyncOpenAI
+
+    base_url = (getattr(settings, "nim_base_url", "") or "").rstrip("/")
+    api_key = getattr(settings, "nim_api_key", "") or ""
+    key = (base_url, api_key)
+    if _nim_client is None or _nim_client_key != key:
+        _nim_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        _nim_client_key = key
+    return _nim_client
+
+
+def reset_nim_client() -> None:
+    """Test helper — drop the shared client so the next call rebuilds."""
+    global _nim_client, _nim_client_key
+    _nim_client = None
+    _nim_client_key = None
+
 
 @dataclass(frozen=True)
 class DebateVerdict:
@@ -65,13 +90,9 @@ async def run_news_debate(
         return []
     if not (getattr(settings, "nim_api_key", "") or "").strip():
         return []
-    from openai import AsyncOpenAI
 
     if client is None:
-        client = AsyncOpenAI(
-            base_url=(getattr(settings, "nim_base_url", "") or "").rstrip("/"),
-            api_key=getattr(settings, "nim_api_key", ""),
-        )
+        client = _get_nim_client(settings)
     model_id = getattr(settings, "nemotron_model", "") or "nvidia/nemotron-3-nano-30b-a3b"
     prompt_version = "v61-s3"
     context = {

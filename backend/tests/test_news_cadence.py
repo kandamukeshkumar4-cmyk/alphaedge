@@ -4,11 +4,13 @@ from datetime import UTC, datetime, timedelta
 
 from app.signals.news_cadence import (
     BASELINE_INTERVAL_SEC,
+    FALLBACK_COOLDOWN_SEC,
     HOT_INTERVAL_SEC,
     WARM_INTERVAL_SEC,
     NewsRefreshCandidate,
     circuit_is_open,
     eligible_candidates,
+    fallback_eligible_candidates,
     record_refresh_failure,
     record_refresh_success,
     refresh_interval_sec,
@@ -66,3 +68,36 @@ def test_cadence_circuit_opens_after_three_fetch_failures():
         record_refresh_failure(monotonic_now=10)
     assert circuit_is_open(monotonic_now=11) is True
     assert eligible_candidates([_candidate()], now=datetime.now(UTC), budget=10, monotonic_now=11) == []
+
+
+def test_fallback_flag_off_enforces_60min_per_slug_cooldown():
+    """NEWS_CADENCE_ENABLED=false must not 12x hourly volume on a 5-min loop."""
+    reset_news_cadence_state()
+    assert FALLBACK_COOLDOWN_SEC == BASELINE_INTERVAL_SEC == 3600
+    cands = [
+        _candidate(slug="a", volume=100),
+        _candidate(slug="b", volume=50),
+        _candidate(slug="c", volume=10),
+    ]
+    first = fallback_eligible_candidates(cands, budget=2, monotonic_now=1000.0)
+    assert [c.slug for c in first] == ["a", "b"]
+    record_refresh_success("a", monotonic_now=1000.0)
+    record_refresh_success("b", monotonic_now=1000.0)
+    # 5 minutes later: a/b still cooling; c was never refreshed so it is due.
+    second = fallback_eligible_candidates(cands, budget=2, monotonic_now=1000.0 + 300)
+    assert [c.slug for c in second] == ["c"]
+    record_refresh_success("c", monotonic_now=1000.0 + 300)
+    # Still within cooldown for everyone.
+    assert (
+        fallback_eligible_candidates(cands, budget=3, monotonic_now=1000.0 + 600) == []
+    )
+    # After full hour from a/b refresh: a/b due; c still within its own cooldown.
+    third = fallback_eligible_candidates(
+        cands, budget=3, monotonic_now=1000.0 + FALLBACK_COOLDOWN_SEC
+    )
+    assert [c.slug for c in third] == ["a", "b"]
+    # After full hour from c's refresh: all due again in input order.
+    fourth = fallback_eligible_candidates(
+        cands, budget=3, monotonic_now=1000.0 + 300 + FALLBACK_COOLDOWN_SEC
+    )
+    assert [c.slug for c in fourth] == ["a", "b", "c"]

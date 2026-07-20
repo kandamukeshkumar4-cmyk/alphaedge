@@ -15,16 +15,24 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from app.core.resilience import CircuitBreaker, TtlLruCache
+
 DEFAULT_STALE_AFTER_SEC = 300.0  # 5 minutes — same order as arb TTL
+DEFAULT_GAP_CACHE_TTL_SEC = 600.0  # 10 min; longer than stale TTL for graph reads
 
 # Process-local gap cache for the sync prediction graph node (D4).
 # Keyed by both pm_slug and ks_slug so either market can look up.
-_GAP_CACHE: dict[str, "VenueGapResult"] = {}
+# Bounded + TTL (Loop V70) — replaces the unbounded dict.
+_GAP_CACHE: TtlLruCache[str, "VenueGapResult"] = TtlLruCache(
+    maxsize=2048, ttl_sec=DEFAULT_GAP_CACHE_TTL_SEC
+)
+_breaker = CircuitBreaker()
 
 
 def cache_venue_gap(result: "VenueGapResult") -> None:
-    _GAP_CACHE[result.pm_slug] = result
-    _GAP_CACHE[result.ks_slug] = result
+    _GAP_CACHE.set(result.pm_slug, result)
+    _GAP_CACHE.set(result.ks_slug, result)
+    _breaker.record_success()
 
 
 def get_cached_venue_gap(market_slug: str) -> "VenueGapResult | None":
@@ -33,6 +41,15 @@ def get_cached_venue_gap(market_slug: str) -> "VenueGapResult | None":
 
 def reset_venue_gap_cache() -> None:
     _GAP_CACHE.clear()
+    _breaker.reset()
+
+
+def circuit_is_open(*, now: float | None = None) -> bool:
+    return _breaker.is_open(now=now)
+
+
+def record_gap_failure(*, now: float | None = None) -> None:
+    _breaker.record_failure(now=now)
 
 
 @dataclass(frozen=True)
