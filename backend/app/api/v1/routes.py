@@ -516,6 +516,12 @@ async def place_order(
             lock_at = lock_at.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) >= lock_at:
             raise HTTPException(status_code=400, detail="Market is locked; trading has closed")
+    if body.expires_at is not None:
+        expires_at = body.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="order expiry must be in the future")
     _verify_paper_account_token(body.account_id, x_paper_account_token)
     account_result = await db.execute(select(Account).where(Account.id == body.account_id))
     account = account_result.scalar_one_or_none()
