@@ -54,6 +54,7 @@ _ALL_LOOPS: tuple[str, ...] = (
     "venue_gap",
     "wc2026_resolve",
     "external_resolve",
+    "catalog_market_resolve",
     "external_market_bridge",
     "forecast_autolock",
     "drift_detect",

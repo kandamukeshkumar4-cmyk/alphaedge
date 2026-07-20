@@ -47,6 +47,7 @@ export type OrderHistoryItem = {
   price: number;
   cost: number;
   settled: boolean;
+  settlement_status?: "open" | "locked_unsettled" | "settled";
   created_at: string;
 };
 

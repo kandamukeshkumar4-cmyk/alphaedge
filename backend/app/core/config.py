@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     external_resolve_batch: int = Field(
         default=25, alias="EXTERNAL_RESOLVE_BATCH"
     )
+    scheduler_catalog_market_resolve_enabled: bool = Field(
+        default=True, alias="SCHEDULER_CATALOG_MARKET_RESOLVE_ENABLED"
+    )
+    catalog_market_resolve_batch: int = Field(
+        default=25, alias="CATALOG_MARKET_RESOLVE_BATCH"
+    )
     # V14 F04: auto-lock a LIVE model forecast on OPEN external markets nearing
     # close that lack one, so a genuine pre-close prediction exists to score.
     scheduler_external_autolock_enabled: bool = Field(

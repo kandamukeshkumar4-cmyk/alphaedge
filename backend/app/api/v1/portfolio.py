@@ -93,7 +93,7 @@ def _enrich_live_pnl(
     mark_to_market = 0.0
 
     for pos in positions:
-        if pos.settled:
+        if pos.settled or pos.settlement_status == "locked_unsettled":
             pos.current_price = None
             pos.unrealized_pnl = 0.0
             pos.pnl_pct = 0.0
@@ -125,7 +125,7 @@ async def _load_paper_orders(
 ) -> list[PortfolioPositionResponse]:
     user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
     statement = (
-        select(PaperOrder, Market.title, MarketResolution.outcome)
+        select(PaperOrder, Market.title, Market.status, MarketResolution.outcome)
         .outerjoin(Market, Market.slug == PaperOrder.slug)
         .outerjoin(MarketResolution, MarketResolution.slug == PaperOrder.slug)
         .where(PaperOrder.user_id == user_uuid)
@@ -133,11 +133,11 @@ async def _load_paper_orders(
     statement = statement.order_by(PaperOrder.created_at.asc(), PaperOrder.id.asc())
     result = await db.execute(statement)
     rows = result.all()
-    grouped: dict[tuple[str, str, str], list[tuple[PaperOrder, str | None, str | None]]] = {}
+    grouped: dict[tuple[str, str, str], list[tuple[PaperOrder, str | None, object, str | None]]] = {}
     group_order: dict[tuple[str, str, str], int] = {}
-    for index, (order, market_title, resolution_outcome) in enumerate(rows):
+    for index, (order, market_title, market_status, resolution_outcome) in enumerate(rows):
         key = (order.slug, order.side, order.outcome)
-        grouped.setdefault(key, []).append((order, market_title, resolution_outcome))
+        grouped.setdefault(key, []).append((order, market_title, market_status, resolution_outcome))
         group_order[key] = index
 
     positions: list[PortfolioPositionResponse] = []
@@ -155,7 +155,8 @@ async def _load_paper_orders(
         realized_pnl = sum(
             (Decimal(str(order.realized_pnl or 0)) for order in order_rows), Decimal("0")
         )
-        resolution_outcome = group[0][2]
+        resolution_outcome = group[0][3]
+        locked_unsettled = not settled and getattr(group[0][2], "value", group[0][2]) == "locked"
         if settled and order_position.net_shares > 0:
             if resolution_outcome and outcome.upper() == str(resolution_outcome).upper():
                 realized_pnl += order_position.net_shares - open_cost_basis
@@ -174,6 +175,7 @@ async def _load_paper_orders(
                 cost=max(float(open_cost_basis), 0.0),
                 realized_pnl=float(realized_pnl),
                 settled=settled,
+                settlement_status="locked_unsettled" if locked_unsettled else ("settled" if settled else "open"),
             )
         )
     return positions

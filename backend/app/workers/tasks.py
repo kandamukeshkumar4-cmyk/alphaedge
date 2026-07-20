@@ -23,6 +23,7 @@ from app.workers.portfolio_equity import portfolio_equity_snapshot_task
 from app.workers.drift_detect import drift_detect_task
 from app.workers.model_retrain import model_retrain_task
 from app.workers.external_market_bridge import external_market_bridge_task
+from app.workers.catalog_market_resolver import catalog_market_resolve_task
 from app.workers.forecast_autolock import forecast_autolock_task
 from app.workers.daily_digest import daily_digest_task
 from app.workers.jobrun_retention import jobrun_retention_task
@@ -1182,6 +1183,7 @@ class WorkerSettings:
         unusual_flow_scan_task,
         wc2026_resolve_task,
         resolve_external_markets_task,
+        catalog_market_resolve_task,
         refresh_whales_task,
         snapshot_whale_positions_task,
         whale_flow_task,
@@ -1215,6 +1217,7 @@ class WorkerSettings:
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # V14 F02/F03: resolve past-close external markets from venue data + score
         cron(resolve_external_markets_task, minute={10, 40}),
+        cron(catalog_market_resolve_task, minute={15, 45}),
         # V33 B2': supply the autolock funnel by registering eligible ingested
         # venue markets. Runs 10 min ahead of autolock so a freshly bridged
         # market is available to the very next lock pass.

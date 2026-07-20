@@ -400,6 +400,20 @@ async def _external_resolve_loop() -> None:
             )
 
 
+async def _catalog_market_resolve_loop() -> None:
+    """Resolve locked live catalog markets from terminal venue outcomes."""
+    from app.workers.catalog_market_resolver import catalog_market_resolve_task
+
+    while True:
+        await _paced_sleep(900, settings.scheduler_idle_interval_sec)
+        try:
+            await catalog_market_resolve_task({})
+            record_heartbeat("catalog_market_resolve")
+        except Exception:
+            logger.error("Catalog market resolution loop failed", exc_info=True)
+            record_heartbeat("catalog_market_resolve", status="error", detail="catalog resolve pass failed")
+
+
 async def _external_market_bridge_loop() -> None:
     """Loop V33 B2': register eligible INGESTED venue markets as ExternalMarket
     rows so the autolock funnel has input at all (V33 B1 measured 99 ingested
@@ -654,6 +668,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.scheduler_external_resolve_enabled:
         asyncio.create_task(_external_resolve_loop())
+    if settings.scheduler_catalog_market_resolve_enabled:
+        asyncio.create_task(_catalog_market_resolve_loop())
     if settings.scheduler_external_market_bridge_enabled:
         asyncio.create_task(_external_market_bridge_loop())
     if settings.scheduler_external_autolock_enabled:
