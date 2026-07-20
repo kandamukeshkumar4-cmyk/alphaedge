@@ -4,7 +4,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import market_detail_cache, markets_cache
@@ -30,6 +30,7 @@ from app.services.market_service import CATALOG_SLUGS, MarketService
 from app.services.forecast_service import ForecastService
 from app.services.memory_service import store_resolution
 from app.services.order_book_service import OrderBookService
+from app.services.paper_position_service import fifo_open_position
 from app.services.settlement_service import settle_market
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-markets"])
@@ -68,11 +69,11 @@ async def _settle_paper_orders(
     winning_outcome: str,
 ) -> int:
     """Credit JWT user paper balances for resolved paper orders."""
-    orders = (
-        await db.scalars(
-            select(PaperOrder).where(PaperOrder.slug == slug, PaperOrder.settled.is_(False))
-        )
-    ).all()
+    statement = select(PaperOrder).where(
+        PaperOrder.slug == slug, PaperOrder.settled.is_(False)
+    )
+    statement = statement.order_by(PaperOrder.created_at.asc(), PaperOrder.id.asc())
+    orders = (await db.scalars(statement)).all()
 
     groups: dict[tuple[uuid.UUID, str], list[PaperOrder]] = {}
     for order in orders:
@@ -81,28 +82,17 @@ async def _settle_paper_orders(
 
     winner_credits: dict[uuid.UUID, Decimal] = {}
     for (user_id, outcome), group_orders in groups.items():
-        net_shares = Decimal("0")
-        net_buy_cost = Decimal("0")
         for order in group_orders:
-            if order.action == "SELL":
-                net_shares -= Decimal(str(order.shares))
-            else:
-                net_shares += Decimal(str(order.shares))
-                net_buy_cost += Decimal(str(order.cost))
             order.settled = True
 
-        if net_shares <= 0:
+        position = fifo_open_position(group_orders)
+        if position.net_shares <= 0:
             continue
 
-        buy_shares = sum(
-            Decimal(str(o.shares)) for o in group_orders if o.action != "SELL"
-        )
         if winning_outcome == "VOID":
-            credit = (
-                net_buy_cost * (net_shares / buy_shares) if buy_shares > 0 else Decimal("0")
-            )
+            credit = position.open_cost_basis
         elif outcome.upper() == winning_outcome:
-            credit = net_shares * Decimal("1.0")
+            credit = position.net_shares * Decimal("1.0")
         else:
             credit = Decimal("0")
 
@@ -110,11 +100,15 @@ async def _settle_paper_orders(
             winner_credits[user_id] = winner_credits.get(user_id, Decimal("0")) + credit
 
     if winner_credits:
-        users = (
-            await db.scalars(select(User).where(User.id.in_(list(winner_credits))))
-        ).all()
-        for user in users:
-            user.paper_balance += winner_credits[user.id]
+        for user_id, credit in winner_credits.items():
+            result = await db.execute(
+                update(User)
+                .where(User.id == user_id)
+                .values(paper_balance=User.paper_balance + credit)
+                .returning(User.paper_balance)
+                .execution_options(synchronize_session=False)
+            )
+            result.scalar_one()
 
     await db.flush()
     return len(orders)

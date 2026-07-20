@@ -263,6 +263,7 @@ async def place_paper_order(
         cost=cost,
         action="BUY",
         idempotency_key=idempotency_key,
+        created_at=datetime.now(timezone.utc),
     )
     db.add(order)
     try:
@@ -526,6 +527,8 @@ async def close_paper_position(
         realized_pnl=realized,
 
         idempotency_key=idempotency_key,
+
+        created_at=datetime.now(timezone.utc),
 
     )
 

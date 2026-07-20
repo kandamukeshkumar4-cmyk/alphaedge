@@ -1,5 +1,8 @@
+from decimal import Decimal
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +35,7 @@ from app.services.analytics_attribution import (
     compute_attribution,
 )
 from app.services.exposure_service import PositionInput, compute_exposure
+from app.services.paper_position_service import fifo_open_position
 from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_metrics
 
 import logging
@@ -117,70 +121,58 @@ def _enrich_live_pnl(
 
 async def _load_paper_orders(
     db: AsyncSession,
-    user_id: str,
+    user_id: str | UUID,
 ) -> list[PortfolioPositionResponse]:
-    result = await db.execute(
-        text(
-            """
-            SELECT po.slug, po.side, po.outcome,
-                   -- MAX() because m.title is not in GROUP BY: SQLite tolerates the
-                   -- bare column but PostgreSQL raises GroupingError, which the
-                   -- caller's except used to swallow into "0 positions" (real bug).
-                   COALESCE(MAX(m.title), po.slug) AS market_title,
-                   SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS shares,
-                   CASE WHEN SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) > 0
-                        THEN CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
-                             / CAST(SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) AS REAL)
-                        ELSE 0 END                                                    AS avg_cost,
-                   SUM(CASE WHEN po.action='SELL' THEN -po.cost ELSE po.cost END)     AS cost,
-                   MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) AS settled,
-                   SUM(COALESCE(po.realized_pnl, 0.0)) +
-                   CASE
-                     WHEN MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) = 1
-                          AND SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) > 0
-                          AND UPPER(po.outcome) = COALESCE(MAX(mr.outcome),'')
-                     THEN CAST(SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS REAL)
-                          - CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
-                            * CAST(SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS REAL)
-                            / NULLIF(CAST(SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) AS REAL), 0)
-                     WHEN MAX(CASE WHEN po.settled THEN 1 ELSE 0 END) = 1
-                          AND SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) > 0
-                     THEN 0.0 - CAST(SUM(CASE WHEN po.action='BUY' THEN po.cost ELSE 0 END) AS REAL)
-                                * CAST(SUM(CASE WHEN po.action='SELL' THEN -po.shares ELSE po.shares END) AS REAL)
-                                / NULLIF(CAST(SUM(CASE WHEN po.action='BUY' THEN po.shares ELSE 0 END) AS REAL), 0)
-                     ELSE 0.0
-                   END                                                             AS realized_pnl
-            FROM paper_orders po
-            LEFT JOIN markets m ON m.slug=po.slug
-            LEFT JOIN market_resolutions mr ON mr.slug=po.slug
-            WHERE po.user_id=:user_id
-            GROUP BY po.slug, po.side, po.outcome
-            ORDER BY MAX(po.created_at) DESC
-            """
-        ),
-        {"user_id": user_id},
+    user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+    statement = (
+        select(PaperOrder, Market.title, MarketResolution.outcome)
+        .outerjoin(Market, Market.slug == PaperOrder.slug)
+        .outerjoin(MarketResolution, MarketResolution.slug == PaperOrder.slug)
+        .where(PaperOrder.user_id == user_uuid)
     )
-    rows = result.mappings().all()
+    statement = statement.order_by(PaperOrder.created_at.asc(), PaperOrder.id.asc())
+    result = await db.execute(statement)
+    rows = result.all()
+    grouped: dict[tuple[str, str, str], list[tuple[PaperOrder, str | None, str | None]]] = {}
+    group_order: dict[tuple[str, str, str], int] = {}
+    for index, (order, market_title, resolution_outcome) in enumerate(rows):
+        key = (order.slug, order.side, order.outcome)
+        grouped.setdefault(key, []).append((order, market_title, resolution_outcome))
+        group_order[key] = index
+
     positions: list[PortfolioPositionResponse] = []
-    for row in rows:
-        slug = str(row["slug"])
-        side = str(row["side"])
-        outcome = str(row["outcome"])
-        shares = float(row["shares"])
-        settled = bool(row["settled"])
+    for key in sorted(grouped, key=group_order.__getitem__, reverse=True):
+        group = grouped[key]
+        order_rows = [item[0] for item in group]
+        order_position = fifo_open_position(order_rows)
+        slug, side, outcome = key
+        shares = float(order_position.net_shares)
+        settled = any(order.settled for order in order_rows)
         if shares <= 0 and not settled:
             settled = True
+
+        open_cost_basis = order_position.open_cost_basis
+        realized_pnl = sum(
+            (Decimal(str(order.realized_pnl or 0)) for order in order_rows), Decimal("0")
+        )
+        resolution_outcome = group[0][2]
+        if settled and order_position.net_shares > 0:
+            if resolution_outcome and outcome.upper() == str(resolution_outcome).upper():
+                realized_pnl += order_position.net_shares - open_cost_basis
+            else:
+                realized_pnl -= open_cost_basis
+
         positions.append(
             PortfolioPositionResponse(
                 id=f"{slug}:{side}:{outcome}",
                 market_slug=slug,
                 side=side,
                 outcome=outcome,
-                market_title=str(row["market_title"]),
+                market_title=str(group[0][1] or slug),
                 shares=max(shares, 0.0),
-                avg_cost=float(row["avg_cost"]),
-                cost=max(float(row["cost"]), 0.0),
-                realized_pnl=float(row["realized_pnl"]),
+                avg_cost=float(order_position.avg_cost),
+                cost=max(float(open_cost_basis), 0.0),
+                realized_pnl=float(realized_pnl),
                 settled=settled,
             )
         )

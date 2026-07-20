@@ -1,7 +1,7 @@
 """Loop V26 Z2 — social + notification multi-step API journeys.
 
 Covers: follow → trade → social/feed + notification; opt-out hides profile/feed;
-read / read-all; WS notifications frame (fake-WS pattern from test_ws_feed.py).
+read / read-all; notification frames stay off the public feed socket.
 
 Loop V27 closed SEC-Z2-01 / SEC-Z2-02; these journeys assert the fixed behavior.
 """
@@ -15,7 +15,6 @@ from uuid import UUID
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from starlette.websockets import WebSocketDisconnect
 
 from app.api.v1 import ws as ws_mod
 from app.db.models import User
@@ -274,16 +273,14 @@ class _FakeWS:
 
     async def send_json(self, data: dict) -> None:
         self.sent.append(data)
-        if data.get("channel") == "notifications":
-            raise WebSocketDisconnect()
 
     async def close(self, code: int | None = None) -> None:
         pass
 
 
 @pytest.mark.asyncio
-async def test_z2_ws_notifications_frame_on_new_notification(monkeypatch, db_session):
-    """Fake-WS pattern: hub publish on notifications topic reaches the multiplex."""
+async def test_z2_ws_never_exposes_new_notification_frames(monkeypatch, db_session):
+    """Public feed subscribers cannot receive private notification payloads."""
     monkeypatch.setattr(
         ws_mod, "get_settings", lambda: SimpleNamespace(paper_trading_only=True)
     )
@@ -306,10 +303,10 @@ async def test_z2_ws_notifications_frame_on_new_notification(monkeypatch, db_ses
     from app.services.notification_service import _publish_new_notification
 
     await _publish_new_notification(row)
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
-    frame = next(m for m in fake.sent if m.get("channel") == "notifications")
-    assert frame["type"] == "notification"
-    assert frame["notification_type"] == "order_filled"
-    assert frame["title"] == "WS fill"
-    assert "notifications" in ws_mod._FEED_TOPICS
+    assert not any(frame.get("channel") == "notifications" for frame in fake.sent)
+    assert "notifications" not in ws_mod._FEED_TOPICS
