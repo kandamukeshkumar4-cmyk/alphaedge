@@ -16,10 +16,25 @@ const shownToastIds = new Set<string>();
 type VisibleToast = SignalAlert & { dismissing: boolean };
 
 function formatSignalType(value: string): string {
-  return value
-    .split(/[-_]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  // Raw enums arrive like "delta:price_jump" — keep only the meaningful tail
+  // and humanize it ("Price jump"), never leak the namespace prefix.
+  const tail = value.split(":").pop() ?? value;
+  const words = tail.split(/[-_]/).filter(Boolean);
+  const label = words.join(" ").toLowerCase();
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function formatMarketTitle(value: string): string {
+  // Backend may send a raw slug (pm-foo-bar-2027 / ks-foo-30). Detect and
+  // humanize it; leave real titles untouched.
+  if (!/^(pm|ks)-/.test(value) && value.includes(" ")) return value;
+  const words = value
+    .replace(/^(pm|ks)-/, "")
+    .replace(/-\d{6,}$/, "") // trailing numeric ids
+    .split("-")
+    .filter(Boolean);
+  const text = words.join(" ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 type AlertToastProps = {
@@ -83,17 +98,19 @@ export function AlertToast({ alerts }: AlertToastProps) {
         <article
           key={toast.id}
           className={cn(
-            "alert-toast-enter pointer-events-auto rounded-xl border border-danger/35 bg-surface-2 p-3 shadow-lift",
+            "alert-toast-enter pointer-events-auto rounded-xl border border-primary/30 bg-surface-2 p-3 shadow-lift",
             toast.dismissing && "alert-toast-exit",
           )}
         >
           <div className="flex items-start gap-2">
-            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-danger" aria-hidden />
+            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold uppercase tracking-[0.06em] text-danger">
-                New {formatSignalType(toast.signalType)} signal
+              <p className="text-xs font-bold uppercase tracking-[0.06em] text-primary">
+                {formatSignalType(toast.signalType)} signal
               </p>
-              <p className="mt-0.5 truncate text-sm font-semibold text-text">{toast.marketTitle}</p>
+              <p className="mt-0.5 truncate text-sm font-semibold text-text">
+                {formatMarketTitle(toast.marketTitle)}
+              </p>
               {toast.confidencePct !== null ? (
                 <p className="mt-0.5 text-xs text-muted">
                   Confidence{" "}

@@ -2,7 +2,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import PodsPage, { formatLastDecisionAt } from "./page";
+import PodsPage from "./page";
+import { formatLastDecisionAt } from "@/lib/alerts-api";
 
 // Loop V60 (U2) — the /pods shell must always carry the honest paper banner,
 // even in the first (loading) paint, and must never pre-render fleet numbers.
