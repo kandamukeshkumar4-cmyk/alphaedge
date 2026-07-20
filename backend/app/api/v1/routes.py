@@ -20,7 +20,6 @@ from app.db.models import (
 )
 from app.db.models import Position
 from app.db.session import get_db
-from app.risk.rules import OrderIntent, RiskService
 from app.schemas.market import (
     MarketActivityItem,
     MarketEvaluationSnapshot,
@@ -498,10 +497,25 @@ async def place_order(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=64),
     db: AsyncSession = Depends(get_db),
 ):
+    """Place a paper CLOB order using server-enforced cash/position controls.
+
+    Client risk payloads are accepted only for backwards-compatible decoding
+    and are intentionally ignored. Model gates belong to the agent pipeline;
+    this endpoint's enforceable controls are account ownership, OrderBookService
+    cash reservation/position limits, market lifecycle, and PAPER_TRADING_ONLY.
+    """
     svc = MarketService(db)
     market = await svc.get_market_by_slug(slug)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
+    if market.status.value != "open":
+        raise HTTPException(status_code=400, detail="Market is not open for trading")
+    if market.lock_at is not None:
+        lock_at = market.lock_at
+        if lock_at.tzinfo is None:
+            lock_at = lock_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) >= lock_at:
+            raise HTTPException(status_code=400, detail="Market is locked; trading has closed")
     _verify_paper_account_token(body.account_id, x_paper_account_token)
     account_result = await db.execute(select(Account).where(Account.id == body.account_id))
     account = account_result.scalar_one_or_none()
@@ -513,30 +527,6 @@ async def place_order(
         existing = await obs.get_order_by_idempotency_key(body.account_id, idempotency_key)
         if existing is not None:
             return existing
-
-    intent = OrderIntent(
-        market_slug=slug,
-        side=body.side.value,
-        outcome=body.outcome.value,
-        quantity=body.quantity,
-        price=body.price,
-        predicted_prob=body.risk.predicted_prob,
-        confidence=body.risk.confidence,
-        edge=body.risk.edge,
-        bankroll=account.cash_balance,
-        current_drawdown=body.risk.current_drawdown,
-        minutes_before_start=_minutes_before_market_lock(
-            market,
-            fallback=body.risk.minutes_before_start,
-        ),
-        expires_at=body.expires_at,
-    )
-    risk_ok, risk_failures = RiskService().validate(intent)
-    if not risk_ok:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Risk check failed: {'; '.join(risk_failures)}",
-        )
 
     try:
         order = await obs.submit_order(
