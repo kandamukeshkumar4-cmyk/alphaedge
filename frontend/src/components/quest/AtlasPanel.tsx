@@ -3,6 +3,9 @@
 /**
  * QuestFlow ATLAS right rail — persistent AI placement.
  * Analysis-only: never places orders. Paper-trading simulation only.
+ *
+ * Loop V77 A1: scroll the panel container (never window/scrollIntoView),
+ * pin the newest answer at the top of the panel viewport, highlight briefly.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +16,12 @@ import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import { getAccessToken } from "@/lib/portfolio-api";
 import { useDialog } from "@/hooks/useDialog";
 import { cn } from "@/lib/cn";
+import {
+  ATLAS_ANSWER_HIGHLIGHT_MS,
+  isHighlightedAnswer,
+  prefersReducedMotion,
+  scrollPanelAnchorToTop,
+} from "./atlas-panel-scroll";
 
 const AGENT_ID = "ATLAS-9-e4c1";
 const ANALYSIS_BANNER = "Analysis only — this assistant cannot place trades.";
@@ -36,18 +45,59 @@ export function AtlasPanel() {
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState<string[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const answerAnchorRef = useRef<HTMLDivElement>(null);
   const seededRef = useRef<string | null>(null);
+  const lastAssistantCountRef = useRef(0);
   // H-A11Y-01: trap focus in the mobile ATLAS sheet while it is open.
   const mobileSheetRef = useDialog<HTMLDivElement>(closePanel, open);
 
+  // Desktop + mobile both mount when open; bind refs only to the visible tree.
+  const bindScrollRef = (el: HTMLDivElement | null) => {
+    if (el && (el.offsetParent !== null || el.getClientRects().length > 0)) {
+      scrollRef.current = el;
+    }
+  };
+  const bindAnswerAnchorRef = (el: HTMLDivElement | null) => {
+    if (el && (el.offsetParent !== null || el.getClientRects().length > 0)) {
+      answerAnchorRef.current = el;
+    }
+  };
+
+  // A1: when a new assistant answer arrives, pin it to the top of the PANEL
+  // scrollport and flash a brief highlight. Never scroll the page.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, thinking, busy]);
+    const assistantCount = messages.filter((m) => m.role === "assistant").length;
+    if (assistantCount <= lastAssistantCountRef.current) return;
+    lastAssistantCountRef.current = assistantCount;
+
+    const newestIdx = messages.length - 1;
+    if (newestIdx < 0 || messages[newestIdx]?.role !== "assistant") return;
+    setHighlightIndex(newestIdx);
+
+    const run = () => {
+      const container = scrollRef.current;
+      const anchor = answerAnchorRef.current;
+      if (container && anchor) scrollPanelAnchorToTop(container, anchor);
+    };
+    // Wait a frame so the panel (and mobile sheet) finish opening/layout.
+    requestAnimationFrame(() => requestAnimationFrame(run));
+
+    const ms = prefersReducedMotion() ? 0 : ATLAS_ANSWER_HIGHLIGHT_MS;
+    if (ms === 0) {
+      setHighlightIndex(null);
+      return;
+    }
+    const t = window.setTimeout(() => setHighlightIndex(null), ms);
+    return () => window.clearTimeout(t);
+  }, [messages, open]);
 
   useEffect(() => {
     if (!seedPrompt || seededRef.current === seedPrompt) return;
     seededRef.current = seedPrompt;
+    // Analyze entry points call openPanel; re-assert open so a collapsed rail expands.
+    openPanel({ mode: "analyze" });
     void send(seedPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per prompt
   }, [seedPrompt]);
@@ -156,7 +206,9 @@ export function AtlasPanel() {
                 thinking={thinking}
                 busy={busy}
                 marketTitle={marketTitle}
-                bottomRef={bottomRef}
+                highlightIndex={highlightIndex}
+                scrollRef={bindScrollRef}
+                answerAnchorRef={bindAnswerAnchorRef}
                 onSuggest={(p) => void send(p)}
               />
               <AtlasComposer
@@ -209,7 +261,9 @@ export function AtlasPanel() {
               thinking={thinking}
               busy={busy}
               marketTitle={marketTitle}
-              bottomRef={bottomRef}
+              highlightIndex={highlightIndex}
+              scrollRef={bindScrollRef}
+              answerAnchorRef={bindAnswerAnchorRef}
               onSuggest={(p) => void send(p)}
             />
             <AtlasComposer
@@ -257,18 +311,23 @@ function AtlasBody({
   thinking,
   busy,
   marketTitle,
-  bottomRef,
+  highlightIndex,
+  scrollRef,
+  answerAnchorRef,
   onSuggest,
 }: {
   messages: Msg[];
   thinking: string[];
   busy: boolean;
   marketTitle: string | null;
-  bottomRef: React.RefObject<HTMLDivElement | null>;
+  highlightIndex: number | null;
+  scrollRef: (el: HTMLDivElement | null) => void;
+  answerAnchorRef: (el: HTMLDivElement | null) => void;
   onSuggest: (prompt: string) => void;
 }) {
+  const reduceMotion = prefersReducedMotion();
   return (
-    <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+    <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
       <p className="rounded-lg border border-accent/25 bg-accent-dim/40 px-3 py-2 text-[11px] leading-relaxed text-accent">
         {ANALYSIS_BANNER}
       </p>
@@ -299,45 +358,53 @@ function AtlasBody({
         </div>
       ) : null}
 
-      {messages.map((m, i) => (
-        <motion.div
-          key={`${m.role}-${i}`}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className={cn(
-            "rounded-xl px-3 py-2.5 text-[13px] leading-relaxed",
-            m.role === "user"
-              ? "ml-6 bg-primary-dim text-text"
-              : "mr-2 border border-border bg-surface-2 text-muted",
-          )}
-        >
-          {m.role === "assistant" && m.tools && m.tools.length > 0 ? (
-            <div className="mb-2 space-y-1">
-              {m.tools.map((t, idx) => (
-                <div
-                  key={`${t.name}-${idx}`}
-                  className="flex items-center gap-2 rounded-md border border-border bg-bg/50 px-2 py-1 font-mono text-[10px] text-muted"
-                >
-                  <span className="text-primary">✓</span>
-                  <span className="text-text">{t.name}</span>
-                  {t.target ? <span className="truncate text-muted-2">{t.target}</span> : null}
-                </div>
-              ))}
+      {messages.map((m, i) => {
+        const isLatestAssistant = m.role === "assistant" && i === messages.length - 1;
+        const highlighted = isHighlightedAnswer(m.role, i, highlightIndex);
+        return (
+          <motion.div
+            key={`${m.role}-${i}`}
+            ref={isLatestAssistant ? answerAnchorRef : undefined}
+            data-atlas-answer={isLatestAssistant ? "latest" : undefined}
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2 }}
+            className={cn(
+              "rounded-xl px-3 py-2.5 text-[13px] leading-relaxed",
+              m.role === "user"
+                ? "ml-6 bg-primary-dim text-text"
+                : "mr-2 border border-border bg-surface-2 text-muted",
+              highlighted &&
+                "border-primary/50 bg-primary-dim/40 ring-2 ring-primary/35 transition-[box-shadow,background-color] duration-500",
+            )}
+          >
+            {m.role === "assistant" && m.tools && m.tools.length > 0 ? (
+              <div className="mb-2 space-y-1">
+                {m.tools.map((t, idx) => (
+                  <div
+                    key={`${t.name}-${idx}`}
+                    className="flex items-center gap-2 rounded-md border border-border bg-bg/50 px-2 py-1 font-mono text-[10px] text-muted"
+                  >
+                    <span className="text-primary">✓</span>
+                    <span className="text-text">{t.name}</span>
+                    {t.target ? <span className="truncate text-muted-2">{t.target}</span> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="whitespace-pre-wrap text-text [&_strong]:font-bold [&_strong]:text-primary">
+              {renderLiteMarkdown(m.content)}
             </div>
-          ) : null}
-          <div className="whitespace-pre-wrap text-text [&_strong]:font-bold [&_strong]:text-primary">
-            {renderLiteMarkdown(m.content)}
-          </div>
-          {m.role === "assistant" && i === messages.length - 1 && busy ? (
-            <span className="mt-1 inline-block h-3.5 w-1.5 animate-pulse rounded-sm bg-primary" />
-          ) : null}
-        </motion.div>
-      ))}
+            {m.role === "assistant" && i === messages.length - 1 && busy ? (
+              <span className="mt-1 inline-block h-3.5 w-1.5 animate-pulse rounded-sm bg-primary" />
+            ) : null}
+          </motion.div>
+        );
+      })}
 
       {busy && thinking.length > 0 ? (
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-xl border border-border bg-surface-2 px-3 py-2.5"
         >
@@ -349,9 +416,9 @@ function AtlasBody({
             {thinking.map((step, si) => (
               <motion.li
                 key={step}
-                initial={{ opacity: 0, x: -4 }}
+                initial={reduceMotion ? false : { opacity: 0, x: -4 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: si * 0.08 }}
+                transition={{ delay: reduceMotion ? 0 : si * 0.08 }}
                 className="flex gap-2"
               >
                 <span className="text-primary">✓</span>
@@ -361,7 +428,6 @@ function AtlasBody({
           </ol>
         </motion.div>
       ) : null}
-      <div ref={bottomRef} />
     </div>
   );
 }
