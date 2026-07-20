@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import SignalEvent
@@ -16,6 +16,8 @@ from app.db.models import (
     ForecastLog,
     ForecastMode,
     ForecastScore,
+    Market,
+    OddsSnapshot,
 )
 from app.forecasting import (
     BRIER_MIN_SAMPLE,
@@ -55,6 +57,17 @@ class CLVRecord:
 
 
 @dataclass(frozen=True)
+class SignalFeedOutcome:
+    """Loop V78 (N1) — one outcome row for the alert card. ``price`` comes from
+    the latest stored OddsSnapshot; ``image_url`` is the venue's own market
+    image (None -> glyph fallback in the UI; never a fabricated face)."""
+
+    name: str
+    price: float
+    image_url: str | None = None
+
+
+@dataclass(frozen=True)
 class SignalFeedItem:
     id: str
     signal_type: str
@@ -66,6 +79,15 @@ class SignalFeedItem:
     is_edge: bool
     created_at: datetime
     resolved: bool
+    # Loop V78 (N1) — additive display enrichment from stored market rows.
+    market_title: str | None = None
+    category: str | None = None
+    icon: str | None = None
+    image_url: str | None = None
+    volume: int | None = None
+    traders: int | None = None
+    market_count: int | None = None
+    outcomes: tuple[SignalFeedOutcome, ...] = ()
 
 
 class CLVTrackingService:
@@ -111,7 +133,53 @@ class CLVTrackingService:
         result = await self.session.execute(
             select(SignalEvent).order_by(SignalEvent.created_at.desc()).limit(limit)
         )
-        return [_signal_feed_item(event) for event in result.scalars().all()]
+        events = list(result.scalars().all())
+        # Loop V78 (N1) — batch-compose display enrichment (two queries total,
+        # never N+1): local market rows + latest stored YES prices.
+        slugs = {event.market_id for event in events}
+        markets = await self._markets_by_slug(slugs)
+        yes_prices = await self._latest_yes_prices(slugs)
+        return [
+            _signal_feed_item(
+                event,
+                market=markets.get(event.market_id),
+                yes_price=yes_prices.get(event.market_id),
+            )
+            for event in events
+        ]
+
+    async def _markets_by_slug(self, slugs: set[str]) -> dict[str, Market]:
+        if not slugs:
+            return {}
+        rows = await self.session.execute(select(Market).where(Market.slug.in_(slugs)))
+        return {market.slug: market for market in rows.scalars().all()}
+
+    async def _latest_yes_prices(self, slugs: set[str]) -> dict[str, float]:
+        """Latest stored OddsSnapshot implied_yes per slug — the same source the
+        public catalog cards use. A slug with no snapshot is simply absent
+        (the alert card then omits outcome rows instead of inventing a price)."""
+        if not slugs:
+            return {}
+        latest_ts = (
+            select(
+                OddsSnapshot.market_slug,
+                func.max(OddsSnapshot.captured_at).label("ts"),
+            )
+            .where(OddsSnapshot.market_slug.in_(slugs))
+            .group_by(OddsSnapshot.market_slug)
+            .subquery()
+        )
+        rows = await self.session.execute(
+            select(OddsSnapshot.market_slug, OddsSnapshot.implied_yes).join(
+                latest_ts,
+                (OddsSnapshot.market_slug == latest_ts.c.market_slug)
+                & (OddsSnapshot.captured_at == latest_ts.c.ts),
+            )
+        )
+        prices: dict[str, float] = {}
+        for slug, implied in rows.all():
+            prices.setdefault(slug, float(implied))
+        return prices
 
 
 class _Row:
@@ -458,7 +526,12 @@ def _clv_record_from_event(event: SignalEvent, tracking: dict[str, Any]) -> CLVR
     )
 
 
-def _signal_feed_item(event: SignalEvent) -> SignalFeedItem:
+def _signal_feed_item(
+    event: SignalEvent,
+    *,
+    market: Market | None = None,
+    yes_price: float | None = None,
+) -> SignalFeedItem:
     payload = event.payload if isinstance(event.payload, dict) else {}
     signal = payload.get("signal") if isinstance(payload.get("signal"), dict) else payload
     tracking = _tracking_payload(event)
@@ -471,6 +544,22 @@ def _signal_feed_item(event: SignalEvent) -> SignalFeedItem:
         or signal.get("title")
         or event.market_id
     )
+    # Loop V78 (N1) — outcome rows only when a REAL stored YES price exists.
+    # The NO price is the binary complement (same arithmetic as market detail).
+    # The venue image rides the YES row (the market subject); the NO row gets
+    # no image and the UI falls back to the glyph token.
+    outcomes: tuple[SignalFeedOutcome, ...] = ()
+    if yes_price is not None:
+        yes = round(yes_price, 4)
+        no = round(1.0 - yes, 4)
+        outcomes = (
+            SignalFeedOutcome(
+                name="Yes",
+                price=yes,
+                image_url=market.image_url if market is not None else None,
+            ),
+            SignalFeedOutcome(name="No", price=no, image_url=None),
+        )
     return SignalFeedItem(
         id=str(event.id),
         signal_type=event.signal_type,
@@ -482,6 +571,14 @@ def _signal_feed_item(event: SignalEvent) -> SignalFeedItem:
         is_edge=is_edge,
         created_at=event.created_at,
         resolved=bool(tracking.get("resolved", False)),
+        market_title=market.title if market is not None else None,
+        category=market.category if market is not None else None,
+        icon=market.icon if market is not None else None,
+        image_url=market.image_url if market is not None else None,
+        volume=market.volume if market is not None else None,
+        traders=market.traders if market is not None else None,
+        market_count=market.market_count if market is not None else None,
+        outcomes=outcomes,
     )
 
 

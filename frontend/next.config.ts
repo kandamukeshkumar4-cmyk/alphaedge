@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { VENUE_IMAGE_HOSTS } from "./src/lib/venue-images";
+
 // `output: "export"` (static export for the Azure SWA deploy) requires every
 // dynamic route to be enumerated in generateStaticParams — impossible for the
 // live market catalog, and it 500s every /markets/[slug] page in normal dev/
@@ -19,6 +21,15 @@ const PROD_API =
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  images: {
+    // Loop V78 (N2) — only the venue CDNs we ingest from (see
+    // src/lib/venue-images.ts for the verification notes). Arbitrary payload
+    // URLs are never rendered.
+    remotePatterns: VENUE_IMAGE_HOSTS.map((hostname) => ({
+      protocol: "https" as const,
+      hostname,
+    })),
+  },
   ...(staticExport ? { output: "export" as const } : {}),
   ...(!staticExport
     ? {

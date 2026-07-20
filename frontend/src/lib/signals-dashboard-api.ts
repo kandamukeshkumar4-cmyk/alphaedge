@@ -3,6 +3,12 @@ import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "./alphaedge-api";
 export const SIGNALS_DISCLAIMER =
   "Research only — not financial advice. Verify resolution terms. Paper trading only.";
 
+export type SignalFeedOutcome = {
+  name: string;
+  price: number;
+  image_url: string | null;
+};
+
 export type SignalFeedItem = {
   id: string;
   signal_type: string;
@@ -15,6 +21,16 @@ export type SignalFeedItem = {
   provisional: boolean;
   created_at: string;
   resolved: boolean;
+  // Loop V78 (N1) — additive display enrichment composed from stored market
+  // rows; null/empty when the signal's market is not mirrored locally.
+  market_title?: string | null;
+  category?: string | null;
+  icon?: string | null;
+  image_url?: string | null;
+  volume?: number | null;
+  traders?: number | null;
+  market_count?: number | null;
+  outcomes?: SignalFeedOutcome[];
 };
 
 export type CLVRecord = {

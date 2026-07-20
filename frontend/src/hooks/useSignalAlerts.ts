@@ -11,12 +11,28 @@ const POLL_INTERVAL_MS = 30_000;
 // newest few after a reconnect / first poll with an old watermark.
 const MAX_TOAST_ALERTS = 2;
 
+export type SignalAlertOutcome = {
+  name: string;
+  price: number;
+  imageUrl: string | null;
+};
+
 export type SignalAlert = {
   id: string;
   signalType: string;
   marketTitle: string;
   confidencePct: number | null;
   createdAt: string;
+  // Loop V78 (N1) — real stored market context for the Polymarket-style card.
+  // All nullable: honest omission when the market is not mirrored locally.
+  marketSlug: string;
+  categoryLabel: string | null;
+  icon: string | null;
+  imageUrl: string | null;
+  volume: number | null;
+  traders: number | null;
+  marketCount: number | null;
+  outcomes: SignalAlertOutcome[];
 };
 
 type SignalFeedResponse = {
@@ -34,10 +50,24 @@ function toAlert(item: SignalFeedItem): SignalAlert {
   return {
     id: item.id,
     signalType: item.signal_type,
-    marketTitle: item.market_name,
+    // Prefer the real stored market title; fall back to the payload name
+    // (often a slug — the card humanizes it as a last resort).
+    marketTitle: item.market_title ?? item.market_name,
     confidencePct:
       item.implied_edge === null ? null : Math.round(item.implied_edge * 100),
     createdAt: item.created_at,
+    marketSlug: item.market_id,
+    categoryLabel: item.category ?? null,
+    icon: item.icon ?? null,
+    imageUrl: item.image_url ?? null,
+    volume: item.volume ?? null,
+    traders: item.traders ?? null,
+    marketCount: item.market_count ?? null,
+    outcomes: (item.outcomes ?? []).map((outcome) => ({
+      name: outcome.name,
+      price: outcome.price,
+      imageUrl: outcome.image_url ?? null,
+    })),
   };
 }
 
