@@ -22,7 +22,7 @@ Never push/merge.
 | # | Ticket | Status |
 |---|--------|--------|
 | F1 | provenanced_count=0 despite 30 scored — root-caused: pre-V56 vintage, not a write-path bug; 9-test chain e2e pins provenance riding the lock INSERT | DONE |
-| F2 | autolock/external_resolve "never" heartbeat — verified live in prod: both `status=ok`; "never" = in-memory boot grace (first pass only after initial sleep) + idle pacing; registration/flags/interval confirmed | DONE (verify) |
+| F2 | autolock/external_resolve "never" heartbeat — verified live in prod: both `status=ok`; "never" = in-memory boot grace (first pass only after initial sleep) + idle pacing; registration/flags/interval confirmed; semantics pinned in test_loop76_heartbeat_semantics.py (7 tests) | DONE (verify) |
 | F3 | Sentiment-into-forecast leakage tests (sentiment_trend/debate/nemotron pre-close only, V69 as_of plumbing) | PENDING |
 | F4 | Calibration honesty: rolling Brier/ECE vs hand-computed fixtures; drift series math | PENDING |
 | F5 | Full gate (CHECK COUNTS + ruff) + REPORT.md | PENDING |
