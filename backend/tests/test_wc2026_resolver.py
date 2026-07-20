@@ -6,7 +6,7 @@ import respx
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.db.models import Market, MarketStatus
+from app.db.models import Market, MarketResolution, MarketStatus
 from app.services.wc2026_resolver import (
     FOOTBALL_DATA_BASE,
     fetch_wc2026_results,
@@ -73,6 +73,14 @@ async def test_resolve_home_win_settles_correct_market(db_session, seeded_fixtur
     assert draw.winning_outcome.value == "no"
     assert away.status == MarketStatus.RESOLVED
     assert away.winning_outcome.value == "no"
+    resolutions = (
+        await db_session.scalars(
+            select(MarketResolution).where(
+                MarketResolution.slug.in_({home.slug, draw.slug, away.slug})
+            )
+        )
+    ).all()
+    assert {resolution.slug for resolution in resolutions} == {home.slug, draw.slug, away.slug}
 
 
 @respx.mock

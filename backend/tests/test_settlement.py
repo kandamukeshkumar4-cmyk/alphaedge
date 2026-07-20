@@ -14,6 +14,7 @@ from app.db.models import (
     LedgerEntry,
     LedgerEntryType,
     Market,
+    MarketResolution,
     MarketStatus,
     OrderOutcome,
     OrderSide,
@@ -229,6 +230,28 @@ async def test_settle_market_sets_resolved_status(db_session):
     assert market.status == MarketStatus.RESOLVED
     assert market.winning_outcome == OrderOutcome.YES
     assert market.resolved_at is not None
+    resolution = await db_session.scalar(
+        select(MarketResolution).where(MarketResolution.slug == "settle-status")
+    )
+    assert resolution is not None
+    assert resolution.outcome == "YES"
+
+
+@pytest.mark.asyncio
+async def test_settle_market_marks_zero_share_position_settled(db_session):
+    market = await MarketService(db_session).create_market(
+        slug="settle-zero-position", title="Zero position", question="Test?"
+    )
+    account = Account(name="Empty position account", cash_balance=Decimal("100"))
+    db_session.add(account)
+    await db_session.flush()
+    position = Position(account_id=account.id, market_id=market.id)
+    db_session.add(position)
+    await db_session.flush()
+
+    await settle_market(db_session, market.slug, "YES")
+
+    assert position.settled is True
 
 
 @pytest.mark.asyncio

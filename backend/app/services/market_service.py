@@ -16,12 +16,12 @@ from app.db.models import (
     MarketStatus,
     OddsSnapshot,
     OrderOutcome,
-    Position,
 )
 from app.services.price_snapshot_seed import seed_price_snapshots
 from app.events.bus import DomainEventBus
 from app.schemas.market import MarketResponse, UnifiedMarketSearchResult
 from app.services.ledger_service import LedgerService
+from app.services.settlement_service import settle_market
 
 CATALOG_SLUGS: frozenset[str] = frozenset(
     {
@@ -223,14 +223,9 @@ class MarketService:
         market = result.scalar_one()
         if market.status == MarketStatus.RESOLVED:
             raise ValueError("Market already resolved")
-        market.status = MarketStatus.RESOLVED
+        await settle_market(self.session, market.slug, winning_outcome.value)
         markets_cache.invalidate()
         market_detail_cache.invalidate()
-        market.winning_outcome = winning_outcome
-        market.resolved_at = datetime.now(timezone.utc)
-        await self.session.flush()
-
-        await self._settle_positions(market)
 
         await self.events.emit(
             "market_resolved",
@@ -241,46 +236,6 @@ class MarketService:
             },
         )
         return market
-
-    async def _settle_positions(self, market: Market) -> None:
-        result = await self.session.execute(
-            select(Position).where(Position.market_id == market.id)
-        )
-        positions = result.scalars().all()
-        winner = market.winning_outcome
-
-        for pos in positions:
-            payout = Decimal("0")
-            liability = Decimal("0")
-            if winner == OrderOutcome.YES and pos.yes_shares > 0:
-                payout = pos.yes_shares * Decimal("1")
-            elif winner == OrderOutcome.YES and pos.yes_shares < 0:
-                liability = -pos.yes_shares
-            elif winner == OrderOutcome.NO and pos.no_shares > 0:
-                payout = pos.no_shares * Decimal("1")
-            elif winner == OrderOutcome.NO and pos.no_shares < 0:
-                liability = -pos.no_shares
-
-            if payout > 0:
-                await self.ledger.credit(
-                    pos.account_id,
-                    payout,
-                    LedgerEntryType.SETTLEMENT,
-                    f"Settlement for {market.slug} ({winner.value})",
-                    market.id,
-                )
-            if liability > 0:
-                await self.ledger.debit(
-                    pos.account_id,
-                    liability,
-                    LedgerEntryType.SETTLEMENT,
-                    f"Settlement liability for {market.slug} ({winner.value})",
-                    market.id,
-                )
-            pos.yes_shares = Decimal("0")
-            pos.no_shares = Decimal("0")
-
-        await self.session.flush()
 
     async def list_markets(self) -> list[Market]:
         result = await self.session.execute(select(Market).order_by(Market.created_at.desc()))

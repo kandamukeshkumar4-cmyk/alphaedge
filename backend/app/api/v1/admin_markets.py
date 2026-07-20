@@ -1,10 +1,8 @@
-import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import market_detail_cache, markets_cache
@@ -12,7 +10,7 @@ from app.core.broadcast import hub
 from app.core.config import get_settings
 from app.core.security import verify_admin_api_key
 from app.data.connectors.catalog_map import CATALOG_MAP
-from app.db.models import JobRun, Market, MarketResolution, PaperOrder, User
+from app.db.models import JobRun, Market
 from app.db.session import get_db
 from app.events.bus import DomainEventBus
 from app.schemas.admin_markets import (
@@ -26,11 +24,10 @@ from app.schemas.admin_markets import (
     MarketResolveResponse,
     ResolveMarketRequest,
 )
-from app.services.market_service import CATALOG_SLUGS, MarketService
+from app.services.market_service import MarketService
 from app.services.forecast_service import ForecastService
 from app.services.memory_service import store_resolution
 from app.services.order_book_service import OrderBookService
-from app.services.paper_position_service import fifo_open_position
 from app.services.settlement_service import settle_market
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-markets"])
@@ -61,57 +58,6 @@ def _market_detail(market: Market) -> AdminMarketDetail:
         created_at=market.created_at,
         paper_trading_only=True,
     )
-
-
-async def _settle_paper_orders(
-    db: AsyncSession,
-    slug: str,
-    winning_outcome: str,
-) -> int:
-    """Credit JWT user paper balances for resolved paper orders."""
-    statement = select(PaperOrder).where(
-        PaperOrder.slug == slug, PaperOrder.settled.is_(False)
-    )
-    statement = statement.order_by(PaperOrder.created_at.asc(), PaperOrder.id.asc())
-    orders = (await db.scalars(statement)).all()
-
-    groups: dict[tuple[uuid.UUID, str], list[PaperOrder]] = {}
-    for order in orders:
-        key = (order.user_id, order.outcome)
-        groups.setdefault(key, []).append(order)
-
-    winner_credits: dict[uuid.UUID, Decimal] = {}
-    for (user_id, outcome), group_orders in groups.items():
-        for order in group_orders:
-            order.settled = True
-
-        position = fifo_open_position(group_orders)
-        if position.net_shares <= 0:
-            continue
-
-        if winning_outcome == "VOID":
-            credit = position.open_cost_basis
-        elif outcome.upper() == winning_outcome:
-            credit = position.net_shares * Decimal("1.0")
-        else:
-            credit = Decimal("0")
-
-        if credit > 0:
-            winner_credits[user_id] = winner_credits.get(user_id, Decimal("0")) + credit
-
-    if winner_credits:
-        for user_id, credit in winner_credits.items():
-            result = await db.execute(
-                update(User)
-                .where(User.id == user_id)
-                .values(paper_balance=User.paper_balance + credit)
-                .returning(User.paper_balance)
-                .execution_options(synchronize_session=False)
-            )
-            result.scalar_one()
-
-    await db.flush()
-    return len(orders)
 
 
 def _best_yes_price(book_side: dict, fallback: float) -> float:
@@ -318,12 +264,11 @@ async def resolve_market(
     _: str = Depends(verify_admin_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> MarketResolveResponse:
-    """Resolve a catalog market and settle paper orders (existing path; unchanged)."""
-    if slug not in CATALOG_SLUGS:
+    """Resolve any existing market through the single settlement entrypoint."""
+    market = await db.scalar(select(Market).where(Market.slug == slug))
+    if market is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Market not found")
-
-    existing = await db.scalar(select(MarketResolution).where(MarketResolution.slug == slug))
-    if existing is not None:
+    if market.status.value == "resolved":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Market already resolved",
@@ -336,15 +281,7 @@ async def resolve_market(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
-    paper_orders_settled = await _settle_paper_orders(db, slug, winning_outcome)
-
-    market = await db.scalar(select(Market).where(Market.slug == slug))
-    if market is not None:
-        await _remember_seed_resolution(db, market, winning_outcome)
-
-    resolution = MarketResolution(slug=slug, outcome=winning_outcome)
-    db.add(resolution)
-    await db.flush()
+    await _remember_seed_resolution(db, market, winning_outcome)
 
     markets_cache.invalidate()  # B01: resolution must be visible on /markets now
     market_detail_cache.invalidate()  # V43 P1: detail must not serve stale resolved flags
@@ -366,6 +303,6 @@ async def resolve_market(
         settled=int(summary["settled"]),
         skipped_already_settled=int(summary["skipped_already_settled"]),
         total_payout=str(summary["total_payout"]),
-        paper_orders_settled=paper_orders_settled,
+        paper_orders_settled=int(summary["paper_orders_settled"]),
         paper_trading_only=True,
     )
