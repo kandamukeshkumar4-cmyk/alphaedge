@@ -345,38 +345,76 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Loop V78 (N4) — Apple-grade notification motion: a soft spring settle on
+   enter (short travel + scale 0.96 -> 1 with a gentle overshoot easing, never
+   a harsh full-width slide), content sections fading up slightly staggered,
+   and a quiet fade/settle exit. All of it is zeroed by the reduced-motion
+   kill-switch below. */
 @keyframes alert-toast-in {
   0% {
     opacity: 0;
-    transform: translateX(110%);
+    transform: translateX(24px) translateY(-6px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) translateY(0) scale(1);
   }
 }
 
 @keyframes alert-toast-out {
   0% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateX(110%);
+    transform: translateY(-8px) scale(0.97);
   }
 }
 
 .alert-toast-enter {
-  animation: alert-toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: alert-toast-in 0.55s cubic-bezier(0.34, 1.35, 0.64, 1) both;
 }
 
 .alert-toast-exit {
   animation: alert-toast-out 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Staggered fade-up for the card's content sections (header -> question ->
+   outcome rows -> footer), like iOS notification content settling in. */
+@keyframes alert-toast-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alert-toast-rise-1 {
+  animation: alert-toast-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+.alert-toast-rise-2 {
+  animation: alert-toast-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.11s both;
+}
+
+.alert-toast-rise-3 {
+  animation: alert-toast-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.17s both;
+}
+
+.alert-toast-rise-4 {
+  animation: alert-toast-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.23s both;
+}
+
 /* Accent bar that drains left-to-right over the ~5s toast lifetime, giving a
-   visible "time remaining" cue like a premium notification. */
+   visible "time remaining" cue like a premium notification. Kept subtle via
+   the opacity utility on the element itself. */
 @keyframes alert-toast-drain {
   0% {
     transform: scaleX(1);
@@ -390,30 +428,15 @@ body {
   animation: alert-toast-drain 5s linear both;
 }
 
-/* Soft breathing glow on the signal glyph + status dot. */
-@keyframes alert-toast-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-.alert-toast-pulse {
-  animation: alert-toast-pulse 1.8s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    transition-delay: 0.001ms !important;
     scroll-behavior: auto !important;
   }
 }
