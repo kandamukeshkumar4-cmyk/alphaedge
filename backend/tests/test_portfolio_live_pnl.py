@@ -5,8 +5,9 @@ from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
-from app.db.models import OddsSnapshot
+from app.db.models import Market, MarketStatus, OddsSnapshot
 from app.db.session import get_db
 from app.main import app
 from app.services.market_service import MarketService
@@ -124,3 +125,23 @@ async def test_settled_position_has_zero_unrealized_pnl(db_session):
     pos = response.json()["positions"][0]
     assert pos["settled"] is True
     assert pos["unrealized_pnl"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_locked_unsettled_position_discloses_no_terminal_pnl(db_session):
+    await MarketService(db_session).seed_catalog_markets()
+    market = await db_session.scalar(select(Market).where(Market.slug == CANONICAL_SLUG))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup_token(client, "locked-unsettled@example.com")
+        order = await client.post(
+            "/api/v1/orders", headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 5, "price": 0.5},
+        )
+        assert order.status_code == 201
+        market.status = MarketStatus.LOCKED
+        response = await client.get("/api/v1/portfolio", headers={"Authorization": f"Bearer {token}"})
+
+    position = response.json()["positions"][0]
+    assert position["settlement_status"] == "locked_unsettled"
+    assert position["settled"] is False
+    assert position["unrealized_pnl"] == 0.0

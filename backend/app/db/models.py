@@ -1112,6 +1112,10 @@ class ForecastLog(Base):
         ),
         Index("ix_forecast_logs_forecaster_id", "forecaster_id"),
         Index("ix_forecast_logs_forecaster_locked", "forecaster_id", "locked_at"),
+        CheckConstraint(
+            "mode != 'live' OR locked_at IS NOT NULL",
+            name="ck_live_forecast_locked",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)

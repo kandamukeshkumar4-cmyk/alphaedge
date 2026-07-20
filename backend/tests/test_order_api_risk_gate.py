@@ -24,7 +24,7 @@ from app.services.order_book_service import OrderBookService
 
 
 @pytest.mark.asyncio
-async def test_order_api_rejects_low_edge_before_creating_order(db_session):
+async def test_order_api_ignores_client_model_risk_fields(db_session):
     market_service = MarketService(db_session)
     market = await market_service.create_market(
         slug="nba-risk-gated-market",
@@ -66,10 +66,9 @@ async def test_order_api_rejects_low_edge_before_creating_order(db_session):
     finally:
         app.dependency_overrides.clear()
 
-    assert response.status_code == 400
-    assert "edge" in response.json()["detail"]
+    assert response.status_code == 200
     orders = (await db_session.execute(select(Order))).scalars().all()
-    assert orders == []
+    assert len(orders) == 1
 
 
 @pytest.mark.asyncio
@@ -166,7 +165,7 @@ async def test_order_api_derives_start_window_from_market_lock_at(db_session):
         app.dependency_overrides.clear()
 
     assert response.status_code == 400
-    assert "too close to game start" in response.json()["detail"]
+    assert "locked" in response.json()["detail"]
     orders = (await db_session.execute(select(Order))).scalars().all()
     assert orders == []
 

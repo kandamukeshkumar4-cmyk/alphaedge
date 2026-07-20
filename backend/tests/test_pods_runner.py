@@ -59,7 +59,7 @@ async def test_runner_submits_only_through_risk_gated_clob_path(db_session):
     assert order.market_id == market.id
     trade = (await db_session.execute(select(PodTrade).where(PodTrade.order_id == order.id))).scalar_one()
     assert trade.action == "enter"
-    assert trade.fee > 0
+    assert trade.fee == Decimal("0")  # Fees debit only when a submitted order fills.
     assert trade.slippage > 0
     assert "submitted" == trade.decision["status"]
 

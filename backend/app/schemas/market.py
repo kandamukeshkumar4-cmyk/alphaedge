@@ -113,7 +113,10 @@ class OrderCreate(BaseModel):
     quantity: Decimal = Field(gt=0)
     price: Optional[Decimal] = Field(default=None, ge=0.01, le=0.99)
     expires_at: Optional[datetime] = None
-    risk: OrderRiskInput
+    # Deprecated compatibility payload. This public CLOB endpoint never trusts
+    # client-supplied model or drawdown values; cash and owned-position guards
+    # are enforced by OrderBookService.
+    risk: OrderRiskInput | None = None
 
 
 class OrderCancelRequest(BaseModel):

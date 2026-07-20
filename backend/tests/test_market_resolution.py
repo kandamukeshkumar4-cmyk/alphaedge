@@ -56,6 +56,21 @@ async def test_resolve_market_rejects_unknown_slug(db_session):
 
 
 @pytest.mark.asyncio
+async def test_resolve_market_accepts_existing_non_catalog_slug(db_session):
+    slug = "ad-hoc-settlement-market"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await MarketService(db_session).create_market(slug, "Ad hoc", "Can this resolve?")
+        response = await client.post(
+            f"/api/v1/admin/markets/{slug}/resolve",
+            headers=ADMIN_HEADERS,
+            json={"winning_outcome": "YES"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["slug"] == slug
+
+
+@pytest.mark.asyncio
 async def test_resolve_market_success(db_session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await MarketService(db_session).seed_catalog_markets()

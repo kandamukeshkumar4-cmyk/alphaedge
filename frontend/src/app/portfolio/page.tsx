@@ -351,7 +351,10 @@ function PortfolioPositionRow({ position }: { position: PortfolioPosition }) {
             {position.settled ? <span aria-hidden>✓</span> : null}
             {position.market_title}
           </span>
-          <span className="block text-[11px] text-muted">{position.outcome}</span>
+          <span className="block text-[11px] text-muted">
+            {position.outcome}
+            {position.settlement_status === "locked_unsettled" ? " · Locked, unsettled" : ""}
+          </span>
         </Link>
       </td>
       <td className="py-2">

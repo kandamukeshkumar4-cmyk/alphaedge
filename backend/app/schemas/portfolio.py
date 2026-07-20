@@ -42,6 +42,7 @@ class PortfolioPositionResponse(BaseModel):
     cost: float
     realized_pnl: float | None = None
     settled: bool = False
+    settlement_status: str = "open"
     current_price: float | None = None
     unrealized_pnl: float | None = None
     pnl_pct: float | None = None

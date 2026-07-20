@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,13 +14,65 @@ from app.db.models import (
     LedgerEntry,
     LedgerEntryType,
     Market,
+    MarketResolution,
     MarketStatus,
     OrderOutcome,
+    PaperOrder,
     Position,
+    User,
 )
+from app.services.paper_position_service import fifo_open_position
 from app.services.ledger_service import LedgerService
 
 VALID_WINNING_OUTCOMES = frozenset({"YES", "NO", "VOID"})
+
+
+async def _settle_paper_orders(
+    session: AsyncSession,
+    market_slug: str,
+    winning_outcome: str,
+) -> int:
+    """Settle JWT-user paper orders with the same outcome as CLOB positions."""
+    statement = (
+        select(PaperOrder)
+        .where(PaperOrder.slug == market_slug, PaperOrder.settled.is_(False))
+        .order_by(PaperOrder.created_at.asc(), PaperOrder.id.asc())
+    )
+    orders = (await session.scalars(statement)).all()
+
+    groups: dict[tuple[UUID, str], list[PaperOrder]] = {}
+    for order in orders:
+        groups.setdefault((order.user_id, order.outcome), []).append(order)
+
+    winner_credits: dict[UUID, Decimal] = {}
+    for (user_id, order_outcome), group_orders in groups.items():
+        for order in group_orders:
+            order.settled = True
+
+        position = fifo_open_position(group_orders)
+        if position.net_shares <= 0:
+            continue
+
+        if winning_outcome == "VOID":
+            credit = position.open_cost_basis
+        elif order_outcome.upper() == winning_outcome:
+            credit = position.net_shares
+        else:
+            credit = Decimal("0")
+
+        if credit > 0:
+            winner_credits[user_id] = winner_credits.get(user_id, Decimal("0")) + credit
+
+    for user_id, credit in winner_credits.items():
+        await session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(paper_balance=User.paper_balance + credit)
+            .execution_options(synchronize_session=False)
+        )
+
+    await session.flush()
+    return len(orders)
 
 
 def _leg_payout(
@@ -61,9 +114,12 @@ async def settle_market(
     market_slug: str,
     winning_outcome: str,
 ) -> dict[str, int | str]:
-    """Settle all open positions for *market_slug*.
+    """Resolve a market and settle every supported paper position ledger.
 
-    Idempotent: positions with an existing SETTLEMENT ledger entry are skipped.
+    This is the sole market-resolution entrypoint. It updates the market,
+    account-based CLOB positions, JWT-user paper orders, and the resolution
+    audit row in one session. Repeated calls are idempotent for settled money
+    paths while preserving a single ``MarketResolution`` record.
     """
     outcome = winning_outcome.upper()
     if outcome not in VALID_WINNING_OUTCOMES:
@@ -111,6 +167,7 @@ async def settle_market(
 
         has_shares = pos.yes_shares != 0 or pos.no_shares != 0
         if not has_shares:
+            pos.settled = True
             continue
 
         # Claim the position before issuing any ledger mutation. The compare-
@@ -164,6 +221,14 @@ async def settle_market(
         pos.settled = True
         settled += 1
 
+    paper_orders_settled = await _settle_paper_orders(session, market_slug, outcome)
+
+    resolution = await session.scalar(
+        select(MarketResolution).where(MarketResolution.slug == market_slug)
+    )
+    if resolution is None:
+        session.add(MarketResolution(slug=market_slug, outcome=outcome))
+
     await session.flush()
 
     get_event_bus().publish(
@@ -175,4 +240,5 @@ async def settle_market(
         "settled": settled,
         "skipped_already_settled": skipped_already_settled,
         "total_payout": str(total_payout),
+        "paper_orders_settled": paper_orders_settled,
     }

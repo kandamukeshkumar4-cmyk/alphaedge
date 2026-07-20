@@ -14,6 +14,7 @@ from app.backtesting.fill_model import compute_fill
 from app.core.config import get_settings
 from app.db.models import (
     Account,
+    LedgerEntryType,
     Market,
     MarketStatus,
     Order,
@@ -34,6 +35,7 @@ from app.pods.registry import registry
 from app.pods.scoring import load_preclose_history, record_score
 from app.risk.rules import OrderIntent, RiskService
 from app.services.order_book_service import OrderBookService
+from app.services.ledger_service import LedgerService
 
 # Importing the module registers the three explicitly declared pod types.
 from app.pods import strategies as _strategies  # noqa: F401
@@ -331,11 +333,26 @@ async def _submit_decision(
         price=limit_price,
         idempotency_key=f"pod:{pod_row.id}:{market.id}:{entries}",
     )
+    filled_fee = Decimal("0")
+    if order.filled_quantity > 0:
+        filled_fee = estimate_entry_fee(
+            source=market.source,
+            price=limit_price,
+            quantity=order.filled_quantity,
+            config=pod_row.config,
+        )
+        await LedgerService(session).debit(
+            account.id,
+            filled_fee,
+            LedgerEntryType.TRADE,
+            f"Estimated pod fee for {market.slug}",
+            market.id,
+        )
     trade.action = "enter"
     trade.outcome = decision.outcome
     trade.price = limit_price
     trade.quantity = quantity
-    trade.fee = fee
+    trade.fee = filled_fee
     trade.slippage = Decimal(str(fill.slippage_abs)).quantize(Decimal("0.0001"))
     trade.order_id = order.id
     trade.decision = {**trade.decision, "status": "submitted", "order_id": str(order.id)}
