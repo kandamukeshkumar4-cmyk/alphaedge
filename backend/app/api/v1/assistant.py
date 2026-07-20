@@ -497,6 +497,7 @@ async def _enrich_analyze_context(
         logger.debug("analyze brief lookup failed for %s: %s", slug, exc)
 
     # Drivers: model-vs-market gap + recent alert-family signals (read-only).
+    # Loop V77 A3: de-dupe by signal type — one line per label with net direction.
     drivers: list[dict[str, Any]] = []
     model_p = out.get("model_prob")
     market_p = out.get("market_price")
@@ -535,15 +536,15 @@ async def _enrich_analyze_context(
         from app.api.v1.alerts_feed import _build_alert_feed
 
         feed = await _build_alert_feed(
-            db, effective_slugs=[slug], scope="explicit", since=None, limit=3
+            db, effective_slugs=[slug], scope="explicit", since=None, limit=8
         )
-        signal_counts: dict[tuple[str, str, str], int] = {}
-        signal_order: list[tuple[str, str, str]] = []
+        # key = humanized signal type (never repeat the same label)
+        groups: dict[str, dict[str, Any]] = {}
+        order: list[str] = []
         for item in feed.items:
             citation = item.citation.model_dump()
             payload = dict(item.payload or {})
             human = _humanize_signal_type(item.signal_type)
-            label = citation.get("headline") or human
             payload_dir = _signal_payload_direction(payload)
             if payload_dir == "UP":
                 direction = "favors YES"
@@ -554,18 +555,62 @@ async def _enrich_analyze_context(
                     citation.get("model_p"), citation.get("market_p")
                 )
             magnitude = _signal_magnitude_label(payload, payload_dir)
-            note = f"{human} signal" + (f", {magnitude}" if magnitude else "")
-            key = (str(label), direction, note)
-            if key not in signal_counts:
-                signal_order.append(key)
-            signal_counts[key] = signal_counts.get(key, 0) + 1
-        for label, direction, note in signal_order:
-            count = signal_counts[(label, direction, note)]
+            mag_num = _finite(payload.get("magnitude"))
+            if mag_num is not None and payload_dir == "DOWN":
+                mag_num = -abs(mag_num)
+            elif mag_num is not None and payload_dir == "UP":
+                mag_num = abs(mag_num)
+
+            if human not in groups:
+                order.append(human)
+                groups[human] = {
+                    "up": 0,
+                    "down": 0,
+                    "neutral": 0,
+                    "count": 0,
+                    "mag_sum": 0.0,
+                    "mag_n": 0,
+                    "mag_labels": [],
+                }
+            g = groups[human]
+            g["count"] += 1
+            if direction == "favors YES":
+                g["up"] += 1
+            elif direction == "favors NO":
+                g["down"] += 1
+            else:
+                g["neutral"] += 1
+            if mag_num is not None:
+                g["mag_sum"] += float(mag_num)
+                g["mag_n"] += 1
+            elif magnitude:
+                g["mag_labels"].append(magnitude)
+
+        for human in order:
+            g = groups[human]
+            if g["up"] > g["down"] and g["up"] > g["neutral"]:
+                net_dir = "favors YES"
+            elif g["down"] > g["up"] and g["down"] > g["neutral"]:
+                net_dir = "favors NO"
+            else:
+                net_dir = "neutral"
+            note_bits = [f"{human} signal"]
+            if g["count"] > 1:
+                note_bits.append(f"{g['count']} events")
+            if g["mag_n"] > 0:
+                net_mag = g["mag_sum"]
+                # Present net magnitude in ¢ when values look like probabilities.
+                if abs(net_mag) <= g["mag_n"]:  # likely sum of ≤1 fractions
+                    note_bits.append(f"net {_signed_label(net_mag * 100, '¢')}")
+                else:
+                    note_bits.append(f"net {_signed_label(net_mag, '')}")
+            elif g["mag_labels"]:
+                note_bits.append(g["mag_labels"][0])
             drivers.append(
                 {
-                    "label": f"{count}x {label}" if count > 1 else label,
-                    "direction": direction,
-                    "note": note,
+                    "label": human,
+                    "direction": net_dir,
+                    "note": ", ".join(note_bits),
                 }
             )
     except Exception as exc:
@@ -578,7 +623,146 @@ async def _enrich_analyze_context(
     if out.get("model_prob") is not None and out.get("market_price") is not None:
         out["edge"] = round(float(out["model_prob"]) - float(out["market_price"]), 4)
 
+    # ── Loop V77 A3 decision-grade blocks (real stores only; omit if absent) ──
+    await _enrich_analyze_decision_blocks(slug, out, db)
+
     return out
+
+
+async def _enrich_analyze_decision_blocks(
+    slug: str, out: dict[str, Any], db: AsyncSession
+) -> None:
+    """Add price range / volume / master context / time / flip conditions."""
+
+    # 7d YES range from OddsSnapshot when enough points exist.
+    try:
+        now = datetime.now(UTC)
+        cutoff_7d = now - timedelta(days=7)
+        rows = (
+            await db.execute(
+                select(OddsSnapshot.implied_yes)
+                .where(
+                    OddsSnapshot.market_slug == slug,
+                    OddsSnapshot.captured_at >= cutoff_7d,
+                )
+                .order_by(OddsSnapshot.captured_at.asc())
+                .limit(500)
+            )
+        ).scalars().all()
+        vals = [float(v) for v in rows if v is not None]
+        if len(vals) >= 2:
+            out["price_7d_low"] = round(min(vals), 4)
+            out["price_7d_high"] = round(max(vals), 4)
+    except Exception as exc:
+        logger.debug("analyze 7d range failed for %s: %s", slug, exc)
+
+    # Master context: whale / venue gap / news tone / volume percentile.
+    try:
+        from app.services.master_context import build_market_context
+
+        master = await build_market_context(db, slug)
+        features = master.get("features") or {}
+        whale = _finite(features.get("whale_pressure"))
+        if whale is not None:
+            out["whale_pressure"] = round(whale, 4)
+        venue_gap = _finite(features.get("venue_gap"))
+        if venue_gap is not None:
+            out["venue_gap"] = round(venue_gap, 4)
+        news_tone = _finite(features.get("news_sentiment"))
+        if news_tone is None:
+            news_block = master.get("news") or {}
+            news_tone = _finite(news_block.get("sentiment_score"))
+        if news_tone is not None:
+            out["news_tone"] = round(news_tone, 4)
+        vol_pct = _finite(features.get("volume_percentile"))
+        if vol_pct is None:
+            vol_block = master.get("volume") or {}
+            vol_pct = _finite(vol_block.get("percentile"))
+        if vol_pct is not None:
+            out["volume_percentile"] = round(vol_pct, 1)
+        out["master_context_found"] = bool(master.get("found"))
+    except Exception as exc:
+        logger.debug("analyze master context failed for %s: %s", slug, exc)
+
+    # Time: hours to close from Market.lock_at; locked forecast when present.
+    try:
+        market = await db.scalar(select(Market).where(Market.slug == slug).limit(1))
+        if market is not None and market.lock_at is not None:
+            lock_at = market.lock_at
+            if lock_at.tzinfo is None:
+                lock_at = lock_at.replace(tzinfo=UTC)
+            out["hours_to_close"] = round(
+                (lock_at - datetime.now(UTC)).total_seconds() / 3600, 2
+            )
+            out["lock_at"] = lock_at.isoformat()
+    except Exception as exc:
+        logger.debug("analyze lock_at failed for %s: %s", slug, exc)
+
+    try:
+        from app.api.v1.market_locked_forecast import (
+            _latest_live_forecast,
+            _resolve_external_market,
+        )
+
+        external, _identity = await _resolve_external_market(db, slug)
+        if external is not None:
+            locked = await _latest_live_forecast(db, external.id)
+            if locked is not None:
+                out["locked_forecast"] = True
+                if locked.user_probability is not None:
+                    out["locked_forecast_prob"] = round(float(locked.user_probability), 4)
+                if locked.locked_at is not None:
+                    la = locked.locked_at
+                    if la.tzinfo is None:
+                        la = la.replace(tzinfo=UTC)
+                    out["locked_forecast_at"] = la.isoformat()
+            else:
+                out["locked_forecast"] = False
+        else:
+            out["locked_forecast"] = False
+    except Exception as exc:
+        logger.debug("analyze locked forecast failed for %s: %s", slug, exc)
+
+    flip = _what_would_change_conditions(out)
+    if flip:
+        out["what_would_change"] = flip
+
+
+def _what_would_change_conditions(ctx: dict[str, Any]) -> list[str]:
+    """Name 1–2 observable flip conditions from real thresholds already in code.
+
+    Uses the 2pp lean threshold from ``_lean_label`` and stored whale/move signs.
+    Never invents a number that is not derived from ctx.
+    """
+    conditions: list[str] = []
+    model_p = _finite(ctx.get("model_prob"))
+    market_p = _finite(ctx.get("market_price"))
+    if model_p is not None and market_p is not None:
+        gap = abs(model_p - market_p)
+        lean = _lean_label(model_p, market_p)
+        if lean != "neutral":
+            conditions.append(
+                f"model–market gap shrinking below 2pp (now {gap:.1%})"
+            )
+        else:
+            conditions.append(
+                f"model–market gap widening past 2pp (now {gap:.1%})"
+            )
+
+    whale = _finite(ctx.get("whale_pressure"))
+    if whale is not None and abs(whale) >= 0.1:
+        side = "YES" if whale > 0 else "NO"
+        conditions.append(
+            f"whale pressure flipping away from {side} (now {whale:+.2f})"
+        )
+
+    move = _finite(ctx.get("move_24h"))
+    if move is not None and abs(move) >= 0.01 and len(conditions) < 2:
+        conditions.append(
+            f"24h YES move reversing (now {move:+.1%})"
+        )
+
+    return conditions[:2]
 
 
 def _build_analyze_reply(
@@ -593,7 +777,7 @@ def _build_analyze_reply(
     title = ctx.get("title") or market_slug or "this market"
     parts.append(f"Paper-trade analysis for {title}.")
 
-    # Price + volume
+    # ── Price ──
     market_price = ctx.get("market_price")
     volume = ctx.get("volume")
     price_bits: list[str] = []
@@ -604,47 +788,53 @@ def _build_analyze_reply(
         citations.append(CitationChip(source="odds", label="Market price"))
     if volume is not None:
         price_bits.append(f"volume ${int(volume):,}")
+    vol_pct = _finite(ctx.get("volume_percentile"))
+    if vol_pct is not None:
+        price_bits.append(f"volume percentile {vol_pct:.0f}")
     if price_bits:
-        parts.append("Market: " + ", ".join(price_bits) + ".")
+        parts.append("**Price:** " + ", ".join(price_bits) + ".")
     else:
-        parts.append("Market price/volume: not available for this slug.")
+        parts.append("**Price:** not available for this slug — omitted.")
 
-    # 24h move — only when both sides exist
     move = ctx.get("move_24h")
     price_24h = ctx.get("price_24h_ago")
     if move is not None and market_price is not None and price_24h is not None:
         parts.append(
-            f"24h move: {float(move):+.1%} "
+            f"**24h move:** {float(move):+.1%} "
             f"(from {float(price_24h):.1%} → {float(market_price):.1%})."
         )
-    else:
-        parts.append("24h move: no snapshot pair available — omitted.")
+    # else: omit honestly — no "N/A" noise
 
-    # Model vs market
+    low_7d = _finite(ctx.get("price_7d_low"))
+    high_7d = _finite(ctx.get("price_7d_high"))
+    if low_7d is not None and high_7d is not None:
+        parts.append(f"**7d range:** {low_7d:.1%} – {high_7d:.1%}.")
+
+    # ── Model ──
     model_prob = ctx.get("model_prob")
     edge = ctx.get("edge")
     if model_prob is not None and market_price is not None:
         edge_s = f"{float(edge):+.1%}" if edge is not None else "n/a"
         parts.append(
-            f"Model vs market: model {float(model_prob):.1%} vs market "
+            f"**Model:** model {float(model_prob):.1%} vs market "
             f"{float(market_price):.1%} (edge {edge_s})."
         )
         citations.append(CitationChip(source="features", label="Model features"))
     elif model_prob is not None:
-        parts.append(f"Model probability: {float(model_prob):.1%} (market price absent).")
+        parts.append(f"**Model:** probability {float(model_prob):.1%} (market price absent).")
         citations.append(CitationChip(source="features", label="Model features"))
     else:
         reason = ctx.get("unscorable_reason")
         if reason:
-            parts.append(f"Model probability: not available — {reason}.")
+            parts.append(f"**Model:** not available — {reason}.")
         else:
-            parts.append("Model probability: not available — omitted.")
+            parts.append("**Model:** not available — omitted.")
 
     reason = ctx.get("forecast_reason")
     if reason:
-        parts.append(f"Model gate: {reason}.")
+        parts.append(f"**Model gate:** {reason}.")
 
-    # Drivers
+    # ── Drivers ──
     drivers = ctx.get("drivers") or []
     if drivers:
         driver_lines = []
@@ -653,17 +843,63 @@ def _build_analyze_reply(
                 f"- {d.get('label', 'driver')} ({d.get('direction', 'neutral')}): "
                 f"{d.get('note', '')}".rstrip()
             )
-        parts.append("Drivers:\n" + "\n".join(driver_lines))
+        parts.append("**Drivers:**\n" + "\n".join(driver_lines))
         citations.append(CitationChip(source="features", label="Forecast drivers"))
-    else:
-        parts.append("Drivers: none available for this market — omitted.")
+    # omit empty drivers block rather than "N/A"
+
+    # ── Market context (from /markets/{slug}/context) ──
+    ctx_bits: list[str] = []
+    whale = _finite(ctx.get("whale_pressure"))
+    if whale is not None:
+        ctx_bits.append(f"whale pressure {whale:+.2f}")
+    venue_gap = _finite(ctx.get("venue_gap"))
+    if venue_gap is not None:
+        ctx_bits.append(f"venue gap {venue_gap:+.1%}")
+    news_tone = _finite(ctx.get("news_tone"))
+    if news_tone is not None:
+        tone = (
+            "positive"
+            if news_tone > 0.1
+            else "negative"
+            if news_tone < -0.1
+            else "neutral"
+        )
+        ctx_bits.append(f"news tone {tone} ({news_tone:+.2f})")
+    if ctx_bits:
+        parts.append("**Market context:** " + ", ".join(ctx_bits) + ".")
+        citations.append(CitationChip(source="features", label="Market context"))
 
     # Analyst brief
     brief = ctx.get("brief_headline")
     if brief:
         tools_used.append("get_briefs")
-        parts.append(f'Latest analyst brief: "{brief}".')
+        parts.append(f'**Brief:** "{brief}".')
         citations.append(CitationChip(source="briefs", label="Analyst brief"))
+
+    # ── Time ──
+    time_bits: list[str] = []
+    hours_to_close = _finite(ctx.get("hours_to_close"))
+    if hours_to_close is not None:
+        if hours_to_close >= 0:
+            time_bits.append(f"{hours_to_close:.1f}h until stored lock time")
+        else:
+            time_bits.append(f"lock time passed {abs(hours_to_close):.1f}h ago")
+    locked = ctx.get("locked_forecast")
+    if locked is True:
+        lock_prob = _finite(ctx.get("locked_forecast_prob"))
+        if lock_prob is not None:
+            time_bits.append(f"locked forecast exists at {lock_prob:.1%}")
+        else:
+            time_bits.append("locked forecast exists")
+    elif locked is False:
+        time_bits.append("no locked forecast yet")
+    if time_bits:
+        parts.append("**Time:** " + "; ".join(time_bits) + ".")
+
+    # ── What would change this ──
+    flip = ctx.get("what_would_change") or []
+    if isinstance(flip, list) and flip:
+        parts.append("**What would change this:** " + "; ".join(flip) + ".")
 
     # Honest uncertainty + paper-only
     parts.append(
