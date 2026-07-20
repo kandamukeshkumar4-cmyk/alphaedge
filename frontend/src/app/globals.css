@@ -375,6 +375,38 @@ body {
   animation: alert-toast-out 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Accent bar that drains left-to-right over the ~5s toast lifetime, giving a
+   visible "time remaining" cue like a premium notification. */
+@keyframes alert-toast-drain {
+  0% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+.alert-toast-bar {
+  animation: alert-toast-drain 5s linear both;
+}
+
+/* Soft breathing glow on the signal glyph + status dot. */
+@keyframes alert-toast-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.alert-toast-pulse {
+  animation: alert-toast-pulse 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
