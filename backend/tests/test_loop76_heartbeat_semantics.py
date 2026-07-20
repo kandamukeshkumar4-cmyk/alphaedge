@@ -108,7 +108,11 @@ async def test_paced_sleep_idle_never_below_fast(monkeypatch):
     started = time.monotonic()
     await _paced_sleep(0.10, 0.01)
     elapsed = time.monotonic() - started
-    assert 0.10 <= elapsed < 1.0
+    # One fast chunk (idle clamps up to fast_sec), not a sub-ms bound: the OS
+    # timer can undersleep a few ms (Windows granularity ~15ms), so allow a
+    # 10% tolerance below fast_sec while still proving it did not skip the sleep
+    # (which would return ~0) and did not run a second chunk.
+    assert 0.09 <= elapsed < 1.0
 
 
 @pytest.mark.asyncio
