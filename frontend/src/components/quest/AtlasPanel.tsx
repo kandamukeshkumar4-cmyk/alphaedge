@@ -28,6 +28,7 @@ import {
   atlasThinkingPhaseAt,
   type AtlasThinkingPhase,
 } from "./atlas-thinking";
+import { AtlasAnalyzeReply } from "./AtlasAnalyzeReply";
 
 const AGENT_ID = "ATLAS-9-e4c1";
 const ANALYSIS_BANNER = "Analysis only — this assistant cannot place trades.";
@@ -478,7 +479,11 @@ function AtlasBody({
               </div>
             ) : null}
             <div className="whitespace-pre-wrap text-text [&_strong]:font-bold [&_strong]:text-primary">
-              {renderLiteMarkdown(m.content)}
+              {m.role === "assistant" ? (
+                <AtlasAnalyzeReply content={m.content} />
+              ) : (
+                renderLiteMarkdown(m.content)
+              )}
             </div>
             {m.error && m.retryPrompt ? (
               <button
