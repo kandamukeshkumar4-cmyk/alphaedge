@@ -82,3 +82,16 @@ Tool ergonomics (quota is the bottleneck, tokens are the cost):
   empty subscription (OpenCode credits incident, 2026-07-17).
 - No ultra/fan-out modes in runner prompts — capped rounds only (see
   token-budget law above).
+
+## Research routing (2026-07-18): hyperresearch skill
+
+Deep-research tasks (market analysis, strategy research, competitive intel,
+any "research X and report" loop) MUST use the hyperresearch pipeline
+(.claude/skills/hyperresearch*.md — 16-stage: decompose -> width sweep ->
+contradiction graph -> depth -> adversarial critics -> cite-check -> polish).
+Applies to ALL runners: Claude loads it via the Skill tool; Codex/Grok/Cursor/
+OpenCode runners are POINTED at the skill files in their loop prompt ("read
+.claude/skills/hyperresearch.md and follow the chain; invoke each step file in
+order"). Light tier for quick answers; full tier for reports. Outputs land in
+research/runs/<vault_tag>/. Tool: py -3.13 -m hyperresearch (vault/search/
+fetch CLI). Audited clone at E:/polymarket-reference/hyperresearch.
