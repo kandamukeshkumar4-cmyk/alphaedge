@@ -1,0 +1,1199 @@
+
+Running 69 tests using 1 worker
+
+[1/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › home
+  1) [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › home ──────────
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      95099 pixels (ratio 0.11 of all image pixels) are different.
+
+      Snapshot: home-dark-desktop.png
+
+    Call log:
+      - Expect "toHaveScreenshot(home-dark-desktop.png)" with timeout 20000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 95099 pixels (ratio 0.11 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 95099 pixels (ratio 0.11 of all image pixels) are different.
+
+
+      154 |             await surface.ready(page);
+      155 |             const mask = await prepareStableShot(page, theme);
+    > 156 |             await expect(page).toHaveScreenshot(
+          |                                ^
+      157 |               `${surface.id}-${theme}-${vp.name}.png`,
+      158 |               { ...SHOT_OPTIONS, mask },
+      159 |             );
+        at E:\polymarket-worktrees\_integration\frontend\e2e\visreg.spec.ts:156:32
+
+    attachment #1: home-dark-desktop (image/png) ───────────────────────────────────────────────────
+    Expected: e2e\visreg.spec.ts-snapshots\home-dark-desktop-visreg-win32.png
+    Received: test-results\visreg-V44-visual-regression-desktop-dark-home-visreg\home-dark-desktop-actual.png
+    Diff:     test-results\visreg-V44-visual-regression-desktop-dark-home-visreg\home-dark-desktop-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\visreg-V44-visual-regression-desktop-dark-home-visreg\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\visreg-V44-visual-regression-desktop-dark-home-visreg\error-context.md
+
+
+[2/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › market
+[3/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › portfolio-empty
+[4/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › leaderboard
+[5/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › eval
+[6/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › admin-observability
+[7/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / light › home
+[8/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / light › market
+[9/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / light › portfolio-empty
+[10/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / light › leaderboard
+[11/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / light › eval
+[12/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / light › admin-observability
+[13/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / dark › home
+[14/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / dark › market
+[15/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / dark › portfolio-empty
+[16/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / dark › leaderboard
+[17/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / dark › eval
+[18/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / dark › admin-observability
+[19/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / light › home
+[20/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / light › market
+[21/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / light › portfolio-empty
+[22/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / light › leaderboard
+[23/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / light › eval
+[24/69] [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › mobile375 / light › admin-observability
+[25/69] [chromium] › e2e\a11y.spec.ts:103:7 › Q8 a11y (@axe-core/playwright) › / discover has no serious/critical axe violations
+[26/69] [chromium] › e2e\a11y.spec.ts:108:7 › Q8 a11y (@axe-core/playwright) › market detail has no serious/critical axe violations
+[27/69] [chromium] › e2e\a11y.spec.ts:113:7 › Q8 a11y (@axe-core/playwright) › /portfolio (authed) has no serious/critical axe violations
+[28/69] [chromium] › e2e\a11y.spec.ts:155:7 › Q8 a11y (@axe-core/playwright) › /leaderboard has no serious/critical axe violations
+[29/69] [chromium] › e2e\a11y.spec.ts:160:7 › Q8 a11y (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo
+[30/69] [chromium] › e2e\admin-eval.spec.ts:67:7 › G3 admin + eval journeys › admin key via UI not in storage; stats; pause/unpause; eval empty
+  2) [chromium] › e2e\admin-eval.spec.ts:67:7 › G3 admin + eval journeys › admin key via UI not in storage; stats; pause/unpause; eval empty 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: locator.click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('#markets').locator('tr').filter({ hasText: 'nba-2025-01-15-lal-bos' }).getByRole('button', { name: /^Pause$/i })
+        - locator resolved to <button type="button" class="min-h-9 rounded-lg border border-accent/40 px-2.5 text-xs font-bold text-accent transition hover:border-accent disabled:opacity-50">Pause</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not stable
+        - retrying click action
+          - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      3 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      80 × retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span class="xb3r6kr xlyipyv xeuugli">Sign up</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span class="xb3r6kr xlyipyv xeuugli">Sign up</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span class="xb3r6kr xlyipyv xeuugli">Sign up</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      125 |     await expect(row.getByText(/^open$/i)).toBeVisible();
+      126 |
+    > 127 |     await row.getByRole("button", { name: /^Pause$/i }).click();
+          |                                                         ^
+      128 |     await expect(row.getByText(/^locked$/i)).toBeVisible({ timeout: 20_000 });
+      129 |     await expect(row.getByRole("button", { name: /^Unpause$/i })).toBeVisible();
+      130 |
+        at E:\polymarket-worktrees\_integration\frontend\e2e\admin-eval.spec.ts:127:57
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\admin-eval-G3-admin-eval-j-5fcb8-ts-pause-unpause-eval-empty-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\admin-eval-G3-admin-eval-j-5fcb8-ts-pause-unpause-eval-empty-chromium\error-context.md
+
+
+[31/69] [chromium] › e2e\app.spec.ts:13:7 › legacy mock-stub suite (retired by loop17) › placeholder
+[32/69] [chromium] › e2e\auth-edges.spec.ts:40:7 › Q7 auth edge journeys › wrong password shows honest error, stays on login
+[33/69] [chromium] › e2e\auth-edges.spec.ts:76:7 › Q7 auth edge journeys › duplicate signup shows honest error, stays on signup
+[34/69] [chromium] › e2e\auth-edges.spec.ts:129:7 › Q7 auth edge journeys › invalid token mid-session yields honest state, not crash
+[35/69] [chromium] › e2e\auth-edges.spec.ts:169:7 › Q7 auth edge journeys › protected /portfolio redirects unauthenticated users to login
+[36/69] [chromium] › e2e\chart-theme.spec.ts:13:7 › P3 chart theme tokens › html.light flips --chart-text and --chart-grid on market page
+[37/69] [chromium] › e2e\coverage.spec.ts:27:7 › Q4 coverage journeys › market detail renders chart (or chart region)
+[38/69] [chromium] › e2e\coverage.spec.ts:53:7 › Q4 coverage journeys › leaderboard loads with data or honest empty state
+[39/69] [chromium] › e2e\coverage.spec.ts:76:7 › Q4 coverage journeys › /signals loads with data or honest empty state
+[40/69] [chromium] › e2e\coverage.spec.ts:100:7 › Q4 coverage journeys › /macro loads with data or honest empty state
+[41/69] [chromium] › e2e\coverage.spec.ts:121:7 › Q4 coverage journeys › /alerts loads with data or honest empty state
+[42/69] [chromium] › e2e\decision-log.spec.ts:88:7 › T2 decision-log terminal › rows render from mocked GET /api/v1/heartbeat/decisions
+[43/69] [chromium] › e2e\decision-log.spec.ts:111:7 › T2 decision-log terminal › action colors use buy/sell trade tokens
+[44/69] [chromium] › e2e\decision-log.spec.ts:135:7 › T2 decision-log terminal › empty state when no decisions
+[45/69] [chromium] › e2e\discover.spec.ts:30:7 › Q2 discover freshness › trending contains no decided markets (≤1¢ / ≥99¢)
+[46/69] [chromium] › e2e\discover.spec.ts:56:7 › Q2 discover freshness › signals rail rows include market names (not bare delta:price_jump —)
+[47/69] [chromium] › e2e\discover.spec.ts:74:7 › Q2 discover freshness › ticker items are unique
+[48/69] [chromium] › e2e\discover.spec.ts:102:7 › Q2 discover freshness › discover page loads with zero console errors (always enforced)
+[49/69] [chromium] › e2e\loading-states.spec.ts:63:7 › Q2 notification bell + /eval loading › notification bell shows loading then honest empty
+[50/69] [chromium] › e2e\loading-states.spec.ts:106:7 › Q2 notification bell + /eval loading › /eval shows drift + ensemble loading then honest settle
+[51/69] [chromium] › e2e\locked-forecast.spec.ts:71:7 › Q1 locked-forecast panel › locked state renders user_probability + locked_at and provisional badge
+[52/69] [chromium] › e2e\locked-forecast.spec.ts:94:7 › Q1 locked-forecast panel › graceful absent (pre-lock) state — no fabricated probability
+[53/69] [chromium] › e2e\locked-forecast.spec.ts:112:7 › Q1 locked-forecast panel › graceful absent when locked-forecast API is unreachable
+[54/69] [chromium] › e2e\market-context.spec.ts:56:7 › T3 market context panel › whale gauge + venue gap render from mocked context
+[55/69] [chromium] › e2e\market-context.spec.ts:81:7 › T3 market context panel › absent state when context API returns 404
+[56/69] [chromium] › e2e\market-context.spec.ts:98:7 › T3 market context panel › absent state when context API is unreachable
+[57/69] [chromium] › e2e\mobile.spec.ts:73:7 › Q6 mobile viewport (375×812) › smoke: / grid, no overflow, zero console errors
+  3) [chromium] › e2e\mobile.spec.ts:73:7 › Q6 mobile viewport (375×812) › smoke: / grid, no overflow, zero console errors 
+
+    Test timeout of 90000ms exceeded.
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+      - waiting for locator('main a[href^="/markets/"]').first()
+        - locator resolved to <a class="flex items-start gap-2 pr-9" href="/markets/crypto-btc-friday-5pm">…</a>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      6 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/trade" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-muted hover:text-text">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="mx-auto flex max-w-[640px] items-stretch justify-around px-2 pb-[max(env(safe-area-inset-bottom),6px)] pt-2">…</div> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      9 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/trade" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-muted hover:text-text">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <svg width="22" height="22" fill="none" stroke-width="1.8" aria-hidden="true" viewBox="0 0 24 24" stroke="currentColor">…</svg> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      9 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/trade" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-muted hover:text-text">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="mx-auto flex max-w-[640px] items-stretch justify-around px-2 pb-[max(env(safe-area-inset-bottom),6px)] pt-2">…</div> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      9 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/trade" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-muted hover:text-text">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <svg width="22" height="22" fill="none" stroke-width="1.8" aria-hidden="true" viewBox="0 0 24 24" stroke="currentColor">…</svg> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      3 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/trade" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-muted hover:text-text">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[12px] font-bold text-text">Intelligence & AI</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <a href="/trade" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-muted hover:text-text">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[11px] leading-snug text-muted-2">Browse markets and place simulated paper trades.</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="mx-auto flex h-[56px] max-w-[1600px] items-center gap-1.5 overflow-x-hidden px-3 sm:gap-2.5 sm:px-4">…</div> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      84 |     const first = cards.first();
+      85 |     await assertTapTarget(first, "first market card");
+    > 86 |     await first.click();
+         |                 ^
+      87 |     await page.waitForURL(/\/markets\//, { timeout: 20_000 });
+      88 |
+      89 |     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+        at E:\polymarket-worktrees\_integration\frontend\e2e\mobile.spec.ts:86:17
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\mobile-Q6-mobile-viewport--051bd-verflow-zero-console-errors-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\mobile-Q6-mobile-viewport--051bd-verflow-zero-console-errors-chromium\error-context.md
+
+
+[58/69] [chromium] › e2e\mobile.spec.ts:95:7 › Q6 mobile viewport (375×812) › discover: loads, taps work, zero console errors (mobile)
+  4) [chromium] › e2e\mobile.spec.ts:95:7 › Q6 mobile viewport (375×812) › discover: loads, taps work, zero console errors (mobile) 
+
+    Test timeout of 90000ms exceeded.
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /^Trending$/i }).first()
+        - locator resolved to <button type="button" class="min-h-8 shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold transition border-primary/60 bg-primary-dim text-primary">Trending</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not stable
+        - retrying click action
+          - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-current="page" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-primary">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      6 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-current="page" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-primary">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <svg width="13" height="13" fill="none" stroke-width="1.8" aria-hidden="true" viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">…</svg> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      9 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-current="page" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-primary">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <nextjs-portal></nextjs-portal> from <script data-nextjs-dev-overlay="true">…</script> subtree intercepts pointer events
+      9 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-current="page" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-primary">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="mx-auto flex max-w-[640px] items-stretch justify-around px-2 pb-[max(env(safe-area-inset-bottom),6px)] pt-2">…</div> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      9 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-current="page" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-primary">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <nextjs-portal></nextjs-portal> from <script data-nextjs-dev-overlay="true">…</script> subtree intercepts pointer events
+      5 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <li class="flex items-start gap-2.5">…</li> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-label="AE AlphaEdge home" class="flex shrink-0 items-center gap-2.5">…</a> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <a href="/" aria-current="page" class="flex flex-col items-center gap-1 rounded-lg px-5 py-1 text-xs font-semibold transition text-primary">…</a> from <nav aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 backdrop-blur-xl lg:hidden">…</nav> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      104 |     if (await trending.isVisible().catch(() => false)) {
+      105 |       await assertTapTarget(trending, "Trending pill");
+    > 106 |       await trending.click();
+          |                      ^
+      107 |     }
+      108 |
+      109 |     await expect(marketCards(page).first()).toBeVisible({ timeout: 30_000 });
+        at E:\polymarket-worktrees\_integration\frontend\e2e\mobile.spec.ts:106:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\mobile-Q6-mobile-viewport--27b1e-zero-console-errors-mobile--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\mobile-Q6-mobile-viewport--27b1e-zero-console-errors-mobile--chromium\error-context.md
+
+
+[59/69] [chromium] › e2e\mobile.spec.ts:125:7 › Q6 mobile viewport (375×812) › discover / has no horizontal overflow (mobile)
+[60/69] [chromium] › e2e\mobile.spec.ts:134:7 › Q6 mobile viewport (375×812) › trade: signup, buy, portfolio on mobile
+  5) [chromium] › e2e\mobile.spec.ts:134:7 › Q6 mobile viewport (375×812) › trade: signup, buy, portfolio on mobile 
+
+    Error: locator.check: Clicking the checkbox did not change its state
+    Call log:
+      - waiting for locator('input[type="checkbox"]')
+        - locator resolved to <input type="checkbox" class="jsx-6f9fb930eab0d03b mt-0.5 accent-[#14B8A6]"/>
+      - attempting click action
+        - scrolling into view if needed
+        - done scrolling
+        - forcing action
+        - performing click action
+        - click action done
+        - waiting for scheduled navigations to finish
+        - navigations have finished
+
+
+       at helpers\session.ts:71
+
+      69 |
+      70 |   const agree = page.locator('input[type="checkbox"]');
+    > 71 |   await agree.check({ force: true });
+         |               ^
+      72 |   // Ensure React controlled `agree` flipped (canSubmit requires it).
+      73 |   await page.waitForFunction(() => {
+      74 |     const box = document.querySelector(
+        at signupPaperUser (E:\polymarket-worktrees\_integration\frontend\e2e\helpers\session.ts:71:15)
+        at E:\polymarket-worktrees\_integration\frontend\e2e\mobile.spec.ts:138:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\mobile-Q6-mobile-viewport--dd6c5-nup-buy-portfolio-on-mobile-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\mobile-Q6-mobile-viewport--dd6c5-nup-buy-portfolio-on-mobile-chromium\error-context.md
+
+
+[61/69] [chromium] › e2e\notifications.spec.ts:60:7 › G2 notification journeys › unread badge after followed-trade; mark-one/mark-all; badge clears
+  6) [chromium] › e2e\notifications.spec.ts:60:7 › G2 notification journeys › unread badge after followed-trade; mark-one/mark-all; badge clears 
+
+    Test timeout of 300000ms exceeded.
+
+    Error: locator.click: Test ended.
+    Browser logs:
+
+    <launching> C:\Users\Windows 11\AppData\Local\ms-playwright\chromium_headless_shell-1228\chrome-headless-shell-win64\chrome-headless-shell.exe --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=C:\Users\WINDOW~1\AppData\Local\Temp\playwright_chromiumdev_profile-Q9pkDE --remote-debugging-pipe --no-startup-window
+    <launched> pid=20076
+    [pid=20076][err] [0717/203433.236:INFO:CONSOLE:25631] "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js (25631)
+    [pid=20076][err] [0717/203436.334:INFO:CONSOLE:16] "Detected `scroll-behavior: smooth` on the `<html>` element. In a future version, Next.js will no longer automatically disable smooth scrolling during route transitions. To prepare for this change, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/utils/warn-once.js (16)
+    [pid=20076][err] [0717/203437.241:INFO:CONSOLE:25631] "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js (25631)
+    [pid=20076][err] [0717/203440.261:INFO:CONSOLE:16] "Detected `scroll-behavior: smooth` on the `<html>` element. In a future version, Next.js will no longer automatically disable smooth scrolling during route transitions. To prepare for this change, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/utils/warn-once.js (16)
+    [pid=20076][err] [0717/203441.090:INFO:CONSOLE:197] "[Fast Refresh] rebuilding", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/dev/hot-reloader/app/hot-reloader-app.js (197)
+    [pid=20076][err] [0717/203441.091:INFO:CONSOLE:197] "[Fast Refresh] rebuilding", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/dev/hot-reloader/app/hot-reloader-app.js (197)
+    [pid=20076][err] [0717/203442.708:INFO:CONSOLE:14] "[Fast Refresh] done in 1617ms", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/dev/report-hmr-latency.js (14)
+    [pid=20076][err] [0717/203442.708:INFO:CONSOLE:14] "[Fast Refresh] done in 1617ms", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/dev/report-hmr-latency.js (14)
+    [pid=20076][err] [0717/203445.217:INFO:CONSOLE:25631] "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js (25631)
+    [pid=20076][err] [0717/203446.994:INFO:CONSOLE:25631] "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold", source: webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js (25631)
+    [pid=20076] <gracefully close start>
+    Call log:
+      - waiting for getByRole('button', { name: /Buy YES/i }).first()
+        - locator resolved to <button type="button" aria-pressed="true" class="rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 bg-primary text-bg">Buy YES</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[12px] font-bold text-text">Intelligence & AI</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span class="block text-[12px] font-bold text-text">Intelligence & AI</span> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 100ms
+        4 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+        127 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <span title="loop28-nb+1784334872339_246690@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <span title="loop28-nb+1784334872339_246690@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span title="loop28-nb+1784334872339_246690@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+
+
+       at helpers\local-api.ts:99
+
+       97 |   const buyYes = page.getByRole("button", { name: /Buy YES/i }).first();
+       98 |   await buyYes.waitFor({ state: "visible", timeout: 30_000 });
+    >  99 |   await buyYes.click();
+          |                ^
+      100 |   const sharesInput = page.locator(`#trading-shares-${CANONICAL_SLUG}`);
+      101 |   await sharesInput.waitFor({ state: "visible", timeout: 10_000 });
+      102 |   await sharesInput.fill(String(shares));
+        at paperBuyCanonical (E:\polymarket-worktrees\_integration\frontend\e2e\helpers\local-api.ts:99:16)
+        at E:\polymarket-worktrees\_integration\frontend\e2e\notifications.spec.ts:95:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\notifications-G2-notificat-bc009-k-one-mark-all-badge-clears-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\notifications-G2-notificat-bc009-k-one-mark-all-badge-clears-chromium\test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\notifications-G2-notificat-bc009-k-one-mark-all-badge-clears-chromium\error-context.md
+
+
+[62/69] [chromium] › e2e\pods.spec.ts:82:7 › T1 /pods page › pod cards render from mocked GET /api/v1/pods
+[63/69] [chromium] › e2e\pods.spec.ts:104:7 › T1 /pods page › honest paper-trading banner is visible
+[64/69] [chromium] › e2e\pods.spec.ts:120:7 › T1 /pods page › empty state when no pods
+[65/69] [chromium] › e2e\resolved-count-contract.spec.ts:11:7 › Q3 resolved-count API contract › GET /api/v1/system/resolved-count exposes cluster + population.verdict
+[66/69] [chromium] › e2e\smoke.spec.ts:9:7 › Q1 smoke › / renders with non-empty markets grid and zero console errors
+[67/69] [chromium] › e2e\social.spec.ts:30:7 › G1 social journeys › A follows B, Following tab, profile stats, unfollow, opt-out hide
+  7) [chromium] › e2e\social.spec.ts:30:7 › G1 social journeys › A follows B, Following tab, profile stats, unfollow, opt-out hide 
+
+    Test timeout of 240000ms exceeded.
+
+    Error: locator.click: Test ended.
+    Call log:
+      - waiting for getByRole('button', { name: /Buy YES/i }).first()
+        - locator resolved to <button type="button" aria-pressed="true" class="rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 bg-primary text-bg">Buy YES</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not stable
+        - retrying click action
+          - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      3 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      71 × retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <p class="text-[13px] leading-relaxed text-muted">Everything AlphaEdge does is grouped in the top n…</p> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      6 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+        - retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      2 × retrying click action
+          - waiting 500ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <ul class="mt-2.5 flex flex-col gap-1.5">…</ul> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <p class="text-[13px] leading-relaxed text-muted">Everything AlphaEdge does is grouped in the top n…</p> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      22 × retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <span title="loop28-b+1784335188685_780664@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop28…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+       at helpers\local-api.ts:99
+
+       97 |   const buyYes = page.getByRole("button", { name: /Buy YES/i }).first();
+       98 |   await buyYes.waitFor({ state: "visible", timeout: 30_000 });
+    >  99 |   await buyYes.click();
+          |                ^
+      100 |   const sharesInput = page.locator(`#trading-shares-${CANONICAL_SLUG}`);
+      101 |   await sharesInput.waitFor({ state: "visible", timeout: 10_000 });
+      102 |   await sharesInput.fill(String(shares));
+        at paperBuyCanonical (E:\polymarket-worktrees\_integration\frontend\e2e\helpers\local-api.ts:99:16)
+        at E:\polymarket-worktrees\_integration\frontend\e2e\social.spec.ts:46:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\social-G1-social-journeys--86bd7-stats-unfollow-opt-out-hide-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\social-G1-social-journeys--86bd7-stats-unfollow-opt-out-hide-chromium\error-context.md
+
+
+[68/69] [chromium] › e2e\trade.spec.ts:41:7 › Q3 trade journey › signup, buy open market, portfolio updates, cancel path
+  8) [chromium] › e2e\trade.spec.ts:41:7 › Q3 trade journey › signup, buy open market, portfolio updates, cancel path 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: locator.click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /Buy YES/i }).first()
+        - locator resolved to <button type="button" aria-pressed="true" class="rounded-lg py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 bg-primary text-bg">Buy YES</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - element is outside of the viewport
+      - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not stable
+        - retrying click action
+          - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - element is outside of the viewport
+      77 × retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span title="loop17+1784335430392_132185@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop17…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <span title="loop17+1784335430392_132185@example.com" class="hidden max-w-[140px] truncate text-sm font-semibold text-muted sm:inline">loop17…@example.com</span> from <header class="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">…</header> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="px-4 py-3">…</div> from <aside aria-label="Getting started" class="fixed bottom-24 right-3 z-40 w-[min(92vw,340px)] animate-fade-up overflow-hidden rounded-2xl border border-primary/30 bg-surface shadow-lift lg:bottom-4 lg:right-4">…</aside> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+
+
+      70 |     const buyYes = page.getByRole("button", { name: /Buy YES/i }).first();
+      71 |     await expect(buyYes).toBeVisible({ timeout: 30_000 });
+    > 72 |     await buyYes.click();
+         |                  ^
+      73 |
+      74 |     const shares = page.locator(`#trading-shares-${CANONICAL_SLUG}`);
+      75 |     await expect(shares).toBeVisible({ timeout: 10_000 });
+        at E:\polymarket-worktrees\_integration\frontend\e2e\trade.spec.ts:72:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\trade-Q3-trade-journey-sig-bc2c7-rtfolio-updates-cancel-path-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\trade-Q3-trade-journey-sig-bc2c7-rtfolio-updates-cancel-path-chromium\error-context.md
+
+
+[69/69] [chromium] › e2e\trade.spec.ts:160:7 › Q3 trade journey › login path works for existing paper user
+  Slow test file: [chromium] › e2e\notifications.spec.ts (5.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  8 failed
+    [visreg] › e2e\visreg.spec.ts:152:15 › V44 visual regression › desktop / dark › home ───────────
+    [chromium] › e2e\admin-eval.spec.ts:67:7 › G3 admin + eval journeys › admin key via UI not in storage; stats; pause/unpause; eval empty 
+    [chromium] › e2e\mobile.spec.ts:73:7 › Q6 mobile viewport (375×812) › smoke: / grid, no overflow, zero console errors 
+    [chromium] › e2e\mobile.spec.ts:95:7 › Q6 mobile viewport (375×812) › discover: loads, taps work, zero console errors (mobile) 
+    [chromium] › e2e\mobile.spec.ts:134:7 › Q6 mobile viewport (375×812) › trade: signup, buy, portfolio on mobile 
+    [chromium] › e2e\notifications.spec.ts:60:7 › G2 notification journeys › unread badge after followed-trade; mark-one/mark-all; badge clears 
+    [chromium] › e2e\social.spec.ts:30:7 › G1 social journeys › A follows B, Following tab, profile stats, unfollow, opt-out hide 
+    [chromium] › e2e\trade.spec.ts:41:7 › Q3 trade journey › signup, buy open market, portfolio updates, cancel path 
+  1 skipped
+  23 did not run
+  37 passed (22.1m)

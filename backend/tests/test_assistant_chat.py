@@ -231,7 +231,7 @@ def test_keyless_analyze_returns_real_analysis_not_menu() -> None:
     assert "54.0%" in reply or "54¢" in reply or "~54" in reply
     assert "2,413,000" in reply
     assert "+2.0%" in reply or "24h move" in reply.lower()
-    assert "Drivers:" in reply
+    assert "**Drivers:**" in reply or "Drivers:" in reply
     assert "Lakers slight model lean" in reply
     assert ANALYSIS_ONLY_BANNER in reply
     assert PAPER_ONLY_DISCLAIMER in reply
@@ -435,8 +435,8 @@ def test_anonymous_market_exposure_is_honest_about_missing_user_data() -> None:
 
 
 def test_analyze_drivers_are_humanized_deduped_with_magnitude(monkeypatch) -> None:
-    """Signal drivers: humanized labels, dedupe with counts, payload direction/
-    magnitude when present — never raw 'delta:price_jump (neutral)' repeats."""
+    """Signal drivers: humanized labels, dedupe by signal type with net direction/
+    magnitude — never raw 'delta:price_jump' repeats or duplicate labels."""
     import asyncio
     from types import SimpleNamespace
     from unittest.mock import MagicMock
@@ -464,7 +464,14 @@ def test_analyze_drivers_are_humanized_deduped_with_magnitude(monkeypatch) -> No
     async def fake_feed(db, effective_slugs, scope, since, limit):
         return SimpleNamespace(items=items[:limit])
 
+    async def fake_decision_blocks(slug, out, db):
+        return None
+
     monkeypatch.setattr(alerts_feed, "_build_alert_feed", fake_feed)
+    monkeypatch.setattr(
+        "app.api.v1.assistant._enrich_analyze_decision_blocks",
+        fake_decision_blocks,
+    )
 
     out = asyncio.run(
         _enrich_analyze_context("nba-2025-01-15-lal-bos", {}, MagicMock())
@@ -472,11 +479,15 @@ def test_analyze_drivers_are_humanized_deduped_with_magnitude(monkeypatch) -> No
     drivers = out.get("drivers") or []
     assert len(drivers) == 1, drivers
     d = drivers[0]
-    assert d["label"] == "3x Price Jump"
+    assert d["label"] == "Price Jump"
     assert d["direction"] == "favors YES"
     assert "Price Jump signal" in d["note"]
-    assert "+4¢" in d["note"]
+    assert "3 events" in d["note"]
+    assert "+12¢" in d["note"] or "net +" in d["note"]
     assert "delta:price_jump" not in (d["label"] + d["note"])
+    # Same label must never appear twice
+    labels = [x["label"] for x in drivers]
+    assert len(labels) == len(set(labels))
 
 
 def test_analyze_driver_magnitude_omitted_when_absent(monkeypatch) -> None:
@@ -498,7 +509,14 @@ def test_analyze_driver_magnitude_omitted_when_absent(monkeypatch) -> None:
     async def fake_feed(db, effective_slugs, scope, since, limit):
         return SimpleNamespace(items=[item])
 
+    async def fake_decision_blocks(slug, out, db):
+        return None
+
     monkeypatch.setattr(alerts_feed, "_build_alert_feed", fake_feed)
+    monkeypatch.setattr(
+        "app.api.v1.assistant._enrich_analyze_decision_blocks",
+        fake_decision_blocks,
+    )
 
     out = asyncio.run(
         _enrich_analyze_context("nba-2025-01-15-lal-bos", {}, MagicMock())
@@ -507,8 +525,80 @@ def test_analyze_driver_magnitude_omitted_when_absent(monkeypatch) -> None:
     assert len(drivers) == 1
     d = drivers[0]
     assert d["label"] == "Momentum"
-    assert d["note"] == "Momentum signal"
+    assert "Momentum signal" in d["note"]
     assert d["direction"] == "neutral"
+
+
+def test_what_would_change_uses_real_lean_threshold() -> None:
+    """Flip conditions cite the 2pp lean threshold already used by _lean_label."""
+    from app.api.v1.assistant import _what_would_change_conditions
+
+    conditions = _what_would_change_conditions(
+        {"model_prob": 0.58, "market_price": 0.54, "whale_pressure": 0.4}
+    )
+    assert len(conditions) == 2
+    assert any("2pp" in c for c in conditions)
+    assert any("whale" in c for c in conditions)
+    # Never advice language
+    joined = " ".join(conditions).lower()
+    assert "recommend" not in joined
+    assert "should" not in joined
+    assert "bet" not in joined
+
+
+def test_build_analyze_reply_sections_omit_absent_fields() -> None:
+    """A3 reply uses section labels; absent blocks are omitted (no N/A noise)."""
+    from app.api.v1.assistant import (
+        ANALYSIS_ONLY_BANNER,
+        PAPER_ONLY_DISCLAIMER,
+        _build_analyze_reply,
+    )
+
+    reply, _citations, _tools = _build_analyze_reply(
+        {
+            "title": "Lakers vs Celtics",
+            "model_prob": 0.58,
+            "market_price": 0.54,
+            "edge": 0.04,
+            "volume": 1000,
+            "move_24h": 0.02,
+            "price_24h_ago": 0.52,
+            "price_7d_low": 0.48,
+            "price_7d_high": 0.56,
+            "volume_percentile": 72.0,
+            "whale_pressure": 0.3,
+            "venue_gap": 0.015,
+            "news_tone": 0.2,
+            "hours_to_close": 12.5,
+            "locked_forecast": False,
+            "what_would_change": [
+                "model–market gap shrinking below 2pp (now 4.0%)",
+            ],
+            "drivers": [
+                {
+                    "label": "Price Jump",
+                    "direction": "favors YES",
+                    "note": "Price Jump signal, 3 events, net +12¢",
+                }
+            ],
+        },
+        "nba-2025-01-15-lal-bos",
+    )
+    assert "**Price:**" in reply
+    assert "**Model:**" in reply
+    assert "**Drivers:**" in reply
+    assert "**Market context:**" in reply
+    assert "whale pressure" in reply
+    assert "**Time:**" in reply
+    assert "no locked forecast yet" in reply
+    assert "**What would change this:**" in reply
+    assert "7d range" in reply
+    assert "N/A" not in reply
+    assert ANALYSIS_ONLY_BANNER in reply
+    assert PAPER_ONLY_DISCLAIMER in reply
+    assert "recommend" not in reply.lower()
+    assert "bet size" not in reply.lower()
+
 
 
 def test_signal_humanize_helpers_mirror_frontend() -> None:

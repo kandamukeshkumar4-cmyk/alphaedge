@@ -259,8 +259,3 @@ export async function fetchWatchlistAlerts(
   }
 }
 
-/** "—" for missing/unparseable timestamps, else a relative time. */
-export function formatLastDecisionAt(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return relativeTime(iso) || "—";
-}

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { DecisionLogTerminal } from "@/components/DecisionLogTerminal";
 import { PodEquitySparkline } from "@/components/PodEquitySparkline";
 import { PageHeader, PageShell } from "@/components/ui/kit";
-import { formatLastDecisionAt } from "@/lib/alerts-api";
 import { cn } from "@/lib/cn";
 import { formatUSD } from "@/lib/mock-data";
 import {
@@ -15,6 +14,7 @@ import {
   type PodsResponse,
   type PodSummary,
 } from "@/lib/pods-api";
+import { formatLastDecisionAt } from "@/lib/pods-format";
 
 /**
  * Loop V60 (U2) — /pods fleet dashboard. Read-only paper-trading telemetry:
@@ -25,8 +25,6 @@ import {
 
 const PAPER_BANNER =
   "Simulated funds — no execution. Pod balances, equity curves, and decisions are paper-trading telemetry only.";
-
-/** Last-decision label: em-dash when missing or unparseable. */
 
 type LoadState =
   | { phase: "loading" }

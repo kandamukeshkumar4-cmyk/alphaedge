@@ -3,6 +3,10 @@
 /**
  * QuestFlow ATLAS right rail — persistent AI placement.
  * Analysis-only: never places orders. Paper-trading simulation only.
+ *
+ * Loop V77 A1: scroll the panel container (never window/scrollIntoView),
+ * pin the newest answer at the top of the panel viewport, highlight briefly.
+ * Loop V77 A2: staged in-flight thinking phases + answer skeleton + retry.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +17,18 @@ import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 import { getAccessToken } from "@/lib/portfolio-api";
 import { useDialog } from "@/hooks/useDialog";
 import { cn } from "@/lib/cn";
+import {
+  ATLAS_ANSWER_HIGHLIGHT_MS,
+  isHighlightedAnswer,
+  prefersReducedMotion,
+  scrollPanelAnchorToTop,
+} from "./atlas-panel-scroll";
+import {
+  atlasNextPhaseBoundaryMs,
+  atlasThinkingPhaseAt,
+  type AtlasThinkingPhase,
+} from "./atlas-thinking";
+import { AtlasAnalyzeReply } from "./AtlasAnalyzeReply";
 
 const AGENT_ID = "ATLAS-9-e4c1";
 const ANALYSIS_BANNER = "Analysis only — this assistant cannot place trades.";
@@ -21,6 +37,8 @@ type Msg = {
   role: "user" | "assistant";
   content: string;
   tools?: { name: string; status: "complete" | "running" | "pending"; target?: string }[];
+  error?: boolean;
+  retryPrompt?: string;
 };
 
 const SUGGESTIONS = [
@@ -35,19 +53,99 @@ export function AtlasPanel() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [thinking, setThinking] = useState<string[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [thinkingPhase, setThinkingPhase] = useState<AtlasThinkingPhase | null>(null);
+  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const answerAnchorRef = useRef<HTMLDivElement>(null);
+  const thinkingAnchorRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
+  const lastAssistantCountRef = useRef(0);
   // H-A11Y-01: trap focus in the mobile ATLAS sheet while it is open.
   const mobileSheetRef = useDialog<HTMLDivElement>(closePanel, open);
 
+  // Desktop + mobile both mount when open; bind refs only to the visible tree.
+  const bindScrollRef = (el: HTMLDivElement | null) => {
+    if (el && (el.offsetParent !== null || el.getClientRects().length > 0)) {
+      scrollRef.current = el;
+    }
+  };
+  const bindAnswerAnchorRef = (el: HTMLDivElement | null) => {
+    if (el && (el.offsetParent !== null || el.getClientRects().length > 0)) {
+      answerAnchorRef.current = el;
+    }
+  };
+  const bindThinkingAnchorRef = (el: HTMLDivElement | null) => {
+    if (el && (el.offsetParent !== null || el.getClientRects().length > 0)) {
+      thinkingAnchorRef.current = el;
+    }
+  };
+
+  // A1: when a new assistant answer arrives, pin it to the top of the PANEL
+  // scrollport and flash a brief highlight. Never scroll the page.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, thinking, busy]);
+    const assistantCount = messages.filter((m) => m.role === "assistant").length;
+    if (assistantCount <= lastAssistantCountRef.current) return;
+    lastAssistantCountRef.current = assistantCount;
+
+    const newestIdx = messages.length - 1;
+    if (newestIdx < 0 || messages[newestIdx]?.role !== "assistant") return;
+    setHighlightIndex(newestIdx);
+
+    const run = () => {
+      const container = scrollRef.current;
+      const anchor = answerAnchorRef.current;
+      if (container && anchor) scrollPanelAnchorToTop(container, anchor);
+    };
+    // Wait a frame so the panel (and mobile sheet) finish opening/layout.
+    requestAnimationFrame(() => requestAnimationFrame(run));
+
+    const ms = prefersReducedMotion() ? 0 : ATLAS_ANSWER_HIGHLIGHT_MS;
+    if (ms === 0) {
+      setHighlightIndex(null);
+      return;
+    }
+    const t = window.setTimeout(() => setHighlightIndex(null), ms);
+    return () => window.clearTimeout(t);
+  }, [messages, open]);
+
+  // A2: advance staged thinking labels by elapsed time while the request flies.
+  useEffect(() => {
+    if (!busy || thinkingStartedAt === null) {
+      setThinkingPhase(null);
+      return;
+    }
+    const tick = () => {
+      const elapsed = Date.now() - thinkingStartedAt;
+      setThinkingPhase(atlasThinkingPhaseAt(elapsed));
+      const nextAt = atlasNextPhaseBoundaryMs(elapsed);
+      return nextAt === null ? null : nextAt - elapsed;
+    };
+    const firstDelay = tick();
+    if (firstDelay === null) return;
+    let timer = window.setTimeout(function advance() {
+      const delay = tick();
+      if (delay !== null) timer = window.setTimeout(advance, delay);
+    }, firstDelay);
+    return () => window.clearTimeout(timer);
+  }, [busy, thinkingStartedAt]);
+
+  // A2: while thinking, keep the in-flight block at the top of the panel viewport.
+  useEffect(() => {
+    if (!busy || !thinkingPhase) return;
+    const run = () => {
+      const container = scrollRef.current;
+      const anchor = thinkingAnchorRef.current;
+      if (container && anchor) scrollPanelAnchorToTop(container, anchor);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }, [busy, thinkingPhase, open]);
 
   useEffect(() => {
     if (!seedPrompt || seededRef.current === seedPrompt) return;
     seededRef.current = seedPrompt;
+    // Analyze entry points call openPanel; re-assert open so a collapsed rail expands.
+    openPanel({ mode: "analyze" });
     void send(seedPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per prompt
   }, [seedPrompt]);
@@ -58,11 +156,8 @@ export function AtlasPanel() {
     setInput("");
     setMessages((m) => [...m, { role: "user", content: trimmed }]);
     setBusy(true);
-    setThinking([
-      "1. Read market odds & recent moves",
-      "2. Pull briefs / news context",
-      "3. Write analysis (no order placement)",
-    ]);
+    setThinkingStartedAt(Date.now());
+    setThinkingPhase(atlasThinkingPhaseAt(0));
 
     try {
       const base = await ensureApiBase();
@@ -73,11 +168,10 @@ export function AtlasPanel() {
           {
             role: "assistant",
             content: marketTitle
-              ? `**${marketTitle}**\n\n**Recommended side:** Hold / watch\n**Confidence:** medium\n**Suggested size:** paper only — size after risk check\n\nConnect \`NEXT_PUBLIC_API_URL\` for live ATLAS briefs. ${ANALYSIS_BANNER}`
+              ? `**${marketTitle}**\n\nConnect \`NEXT_PUBLIC_API_URL\` for live ATLAS analysis. ${ANALYSIS_BANNER}`
               : `Ready to analyze paper markets. ${ANALYSIS_BANNER}`,
             tools: [
               { name: "read", status: "complete", target: marketSlug ?? "markets" },
-              { name: "bash", status: "complete", target: "risk_check --paper" },
             ],
           },
         ]);
@@ -126,12 +220,15 @@ export function AtlasPanel() {
         ...m,
         {
           role: "assistant",
-          content: `${detail} ${ANALYSIS_BANNER}`,
+          content: detail,
+          error: true,
+          retryPrompt: trimmed,
         },
       ]);
     } finally {
       setBusy(false);
-      setThinking([]);
+      setThinkingStartedAt(null);
+      setThinkingPhase(null);
     }
   }
 
@@ -153,11 +250,15 @@ export function AtlasPanel() {
               <AtlasHeader onClose={closePanel} />
               <AtlasBody
                 messages={messages}
-                thinking={thinking}
+                thinkingPhase={thinkingPhase}
                 busy={busy}
                 marketTitle={marketTitle}
-                bottomRef={bottomRef}
+                highlightIndex={highlightIndex}
+                scrollRef={bindScrollRef}
+                answerAnchorRef={bindAnswerAnchorRef}
+                thinkingAnchorRef={bindThinkingAnchorRef}
                 onSuggest={(p) => void send(p)}
+                onRetry={(p) => void send(p)}
               />
               <AtlasComposer
                 input={input}
@@ -206,11 +307,15 @@ export function AtlasPanel() {
             <AtlasHeader onClose={closePanel} />
             <AtlasBody
               messages={messages}
-              thinking={thinking}
+              thinkingPhase={thinkingPhase}
               busy={busy}
               marketTitle={marketTitle}
-              bottomRef={bottomRef}
+              highlightIndex={highlightIndex}
+              scrollRef={bindScrollRef}
+              answerAnchorRef={bindAnswerAnchorRef}
+              thinkingAnchorRef={bindThinkingAnchorRef}
               onSuggest={(p) => void send(p)}
+              onRetry={(p) => void send(p)}
             />
             <AtlasComposer
               input={input}
@@ -254,21 +359,30 @@ function AtlasHeader({ onClose }: { onClose: () => void }) {
 
 function AtlasBody({
   messages,
-  thinking,
+  thinkingPhase,
   busy,
   marketTitle,
-  bottomRef,
+  highlightIndex,
+  scrollRef,
+  answerAnchorRef,
+  thinkingAnchorRef,
   onSuggest,
+  onRetry,
 }: {
   messages: Msg[];
-  thinking: string[];
+  thinkingPhase: AtlasThinkingPhase | null;
   busy: boolean;
   marketTitle: string | null;
-  bottomRef: React.RefObject<HTMLDivElement | null>;
+  highlightIndex: number | null;
+  scrollRef: (el: HTMLDivElement | null) => void;
+  answerAnchorRef: (el: HTMLDivElement | null) => void;
+  thinkingAnchorRef: (el: HTMLDivElement | null) => void;
   onSuggest: (prompt: string) => void;
+  onRetry: (prompt: string) => void;
 }) {
+  const reduceMotion = prefersReducedMotion();
   return (
-    <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+    <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
       <p className="rounded-lg border border-accent/25 bg-accent-dim/40 px-3 py-2 text-[11px] leading-relaxed text-accent">
         {ANALYSIS_BANNER}
       </p>
@@ -299,69 +413,91 @@ function AtlasBody({
         </div>
       ) : null}
 
-      {messages.map((m, i) => (
+      {busy && thinkingPhase ? (
         <motion.div
-          key={`${m.role}-${i}`}
-          initial={{ opacity: 0, y: 8 }}
+          ref={thinkingAnchorRef}
+          data-atlas-thinking="in-flight"
+          initial={reduceMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className={cn(
-            "rounded-xl px-3 py-2.5 text-[13px] leading-relaxed",
-            m.role === "user"
-              ? "ml-6 bg-primary-dim text-text"
-              : "mr-2 border border-border bg-surface-2 text-muted",
-          )}
+          className="rounded-xl border border-primary/30 bg-surface-2 px-3 py-2.5"
+          aria-live="polite"
+          aria-busy="true"
         >
-          {m.role === "assistant" && m.tools && m.tools.length > 0 ? (
-            <div className="mb-2 space-y-1">
-              {m.tools.map((t, idx) => (
-                <div
-                  key={`${t.name}-${idx}`}
-                  className="flex items-center gap-2 rounded-md border border-border bg-bg/50 px-2 py-1 font-mono text-[10px] text-muted"
-                >
-                  <span className="text-primary">✓</span>
-                  <span className="text-text">{t.name}</span>
-                  {t.target ? <span className="truncate text-muted-2">{t.target}</span> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <div className="whitespace-pre-wrap text-text [&_strong]:font-bold [&_strong]:text-primary">
-            {renderLiteMarkdown(m.content)}
-          </div>
-          {m.role === "assistant" && i === messages.length - 1 && busy ? (
-            <span className="mt-1 inline-block h-3.5 w-1.5 animate-pulse rounded-sm bg-primary" />
-          ) : null}
-        </motion.div>
-      ))}
-
-      {busy && thinking.length > 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-border bg-surface-2 px-3 py-2.5"
-        >
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-primary">
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-            Thinking…
+          <p className="mb-3 flex items-center gap-2 text-[12px] font-semibold text-primary">
+            <span
+              className={cn(
+                "inline-block h-1.5 w-1.5 rounded-full bg-primary",
+                !reduceMotion && "animate-pulse",
+              )}
+            />
+            {thinkingPhase.label}
           </p>
-          <ol className="space-y-1.5 text-[12px] text-muted">
-            {thinking.map((step, si) => (
-              <motion.li
-                key={step}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: si * 0.08 }}
-                className="flex gap-2"
-              >
-                <span className="text-primary">✓</span>
-                {step}
-              </motion.li>
-            ))}
-          </ol>
+          <div className="space-y-2" aria-hidden>
+            <div className="skeleton h-3 w-4/5 rounded" />
+            <div className="skeleton h-3 w-full rounded" />
+            <div className="skeleton h-3 w-3/5 rounded" />
+            <div className="skeleton mt-2 h-16 w-full rounded-lg" />
+          </div>
         </motion.div>
       ) : null}
-      <div ref={bottomRef} />
+
+      {messages.map((m, i) => {
+        const isLatestAssistant =
+          m.role === "assistant" && i === messages.length - 1 && !busy;
+        const highlighted = isHighlightedAnswer(m.role, i, highlightIndex);
+        return (
+          <motion.div
+            key={`${m.role}-${i}`}
+            ref={isLatestAssistant ? answerAnchorRef : undefined}
+            data-atlas-answer={isLatestAssistant ? "latest" : undefined}
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2 }}
+            className={cn(
+              "rounded-xl px-3 py-2.5 text-[13px] leading-relaxed",
+              m.role === "user"
+                ? "ml-6 bg-primary-dim text-text"
+                : m.error
+                  ? "mr-2 border border-danger/40 bg-danger-dim/30 text-text"
+                  : "mr-2 border border-border bg-surface-2 text-muted",
+              highlighted &&
+                "border-primary/50 bg-primary-dim/40 ring-2 ring-primary/35 transition-[box-shadow,background-color] duration-500",
+            )}
+          >
+            {m.role === "assistant" && m.tools && m.tools.length > 0 ? (
+              <div className="mb-2 space-y-1">
+                {m.tools.map((t, idx) => (
+                  <div
+                    key={`${t.name}-${idx}`}
+                    className="flex items-center gap-2 rounded-md border border-border bg-bg/50 px-2 py-1 font-mono text-[10px] text-muted"
+                  >
+                    <span className="text-primary">✓</span>
+                    <span className="text-text">{t.name}</span>
+                    {t.target ? <span className="truncate text-muted-2">{t.target}</span> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="whitespace-pre-wrap text-text [&_strong]:font-bold [&_strong]:text-primary">
+              {m.role === "assistant" ? (
+                <AtlasAnalyzeReply content={m.content} />
+              ) : (
+                renderLiteMarkdown(m.content)
+              )}
+            </div>
+            {m.error && m.retryPrompt ? (
+              <button
+                type="button"
+                onClick={() => onRetry(m.retryPrompt!)}
+                disabled={busy}
+                className="mt-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-primary transition hover:border-primary disabled:opacity-40"
+              >
+                Retry analysis
+              </button>
+            ) : null}
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
