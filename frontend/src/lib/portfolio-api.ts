@@ -23,6 +23,7 @@ export type PortfolioPosition = {
   price: number | null;
   realized_pnl?: number | null;
   settled?: boolean;
+  settlement_status?: "open" | "locked_unsettled" | "settled";
   current_price?: number | null;
   unrealized_pnl?: number | null;
   pnl_pct?: number | null;
