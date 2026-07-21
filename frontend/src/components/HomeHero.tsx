@@ -87,10 +87,10 @@ export function HomeHero() {
               Explore markets
             </Link>
             <Link
-              href="/features"
+              href="/terminal"
               className="rounded-lg border border-border-light bg-bg/35 px-4 py-2 text-[13px] font-semibold text-text transition duration-200 hover:border-primary hover:text-primary"
             >
-              See everything it does
+              Ask the research terminal
             </Link>
           </div>
         </MotionReveal>

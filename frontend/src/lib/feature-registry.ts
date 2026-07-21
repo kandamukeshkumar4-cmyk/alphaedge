@@ -92,6 +92,14 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     icon: "intel",
     features: [
       {
+        id: "terminal",
+        label: "Research Terminal",
+        href: "/terminal",
+        badge: "NEW",
+        blurb:
+          "Ask a market question — streamed research steps, confluence scoreboard, bull/bear case. Paper only.",
+      },
+      {
         id: "signals",
         label: "Signals",
         href: "/signals",

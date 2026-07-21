@@ -18,7 +18,7 @@ import { useSignalAlerts } from "@/hooks/useSignalAlerts";
 import { cn } from "@/lib/cn";
 
 /*
- * QuestFlow nav: Discover | Trade | Markets | Signals | Portfolio | Features
+ * QuestFlow nav: Discover | Trade | Markets | Signals | Terminal | Portfolio | Features
  * with icon+text labels (Loop V62 R1 — no icon-only mystery meat). Home and
  * Clones defer to xl to keep the 1280 row tight; Features (the full map) and
  * every secondary surface stay ≤1 click away via the grouped More menu.
@@ -29,6 +29,7 @@ const NAV: { label: string; href: string; icon: NavIconKey }[] = [
   { label: "Trade", href: "/trade", icon: "bolt" },
   { label: "Markets", href: "/markets", icon: "grid" },
   { label: "Signals", href: "/signals", icon: "signal" },
+  { label: "Terminal", href: "/terminal", icon: "intel" },
   { label: "Clones", href: "/clones", icon: "clone" },
   { label: "Portfolio", href: "/portfolio", icon: "wallet" },
   { label: "Features", href: "/features", icon: "map" },
@@ -104,10 +105,11 @@ export function SiteHeader() {
                 item.href === "/"
                   ? pathname === "/"
                   : pathname === base || pathname.startsWith(`${base}/`);
-              // PC10: at 1280, Home/Clones/Features compete with search — defer
-              // them to xl. Every one stays ≤1 click away via the More map.
-              const deferWide =
-                item.label === "Home" || item.label === "Clones" || item.label === "Features";
+              // PC10: at 1280, Home/Clones compete with search — defer them to
+              // xl. Features lives in the More map (its own surface) so the bar
+              // stays ≤8 items now that Terminal (V79 A7) is always visible.
+              const deferWide = item.label === "Home" || item.label === "Clones";
+              const hideInBar = item.label === "Features";
               return (
                 <Link
                   key={item.label}
@@ -117,6 +119,7 @@ export function SiteHeader() {
                   className={cn(
                     "relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition",
                     deferWide && "hidden xl:flex",
+                    hideInBar && "hidden",
                     active ? "text-text" : "text-muted hover:text-text",
                   )}
                 >
