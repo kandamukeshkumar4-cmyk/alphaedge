@@ -102,6 +102,7 @@ async def test_lifespan_registers_heartbeat_when_enabled(monkeypatch):
     monkeypatch.setattr(main_mod, "MarketService", _FakeMarketService)
     monkeypatch.setattr("app.db.session.warmup_db", _noop)
     monkeypatch.setattr("app.services.signal_event_seed.seed_signal_events", _noop)
+    monkeypatch.setattr("app.services.skill_seed_service.seed_default_skills", _noop)
     monkeypatch.setattr("app.data.streams.runner.background_loop_plan", lambda s: [])
     monkeypatch.setattr(main_mod.settings, "live_feed_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_news_scan_enabled", False)
@@ -185,6 +186,7 @@ async def test_lifespan_skips_heartbeat_when_disabled(monkeypatch):
     monkeypatch.setattr(main_mod, "MarketService", _FakeMarketService)
     monkeypatch.setattr("app.db.session.warmup_db", _noop)
     monkeypatch.setattr("app.services.signal_event_seed.seed_signal_events", _noop)
+    monkeypatch.setattr("app.services.skill_seed_service.seed_default_skills", _noop)
     monkeypatch.setattr("app.data.streams.runner.background_loop_plan", lambda s: [])
     monkeypatch.setattr(main_mod.settings, "live_feed_enabled", False)
     for attr in (
