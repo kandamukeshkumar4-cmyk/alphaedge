@@ -3,6 +3,6 @@
 | Ticket | Status | Proof |
 |--------|--------|-------|
 | C1 | DONE | 1 passed in 34.32s |
-| C2 | PENDING | |
+| C2 | DONE | 3 passed in 5.73s |
 | C3 | PENDING | |
 | C4 | PENDING | |
