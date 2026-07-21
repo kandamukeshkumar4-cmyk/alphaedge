@@ -14,9 +14,13 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.14.27",
     "@astryxdesign/core": "^0.1.3",
     "@astryxdesign/theme-neutral": "^0.1.3",
+    "@types/dagre": "^0.7.54",
+    "@xyflow/react": "^12.11.2",
     "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
     "framer-motion": "^12.40.0",
     "lightweight-charts": "^5.2.0",
     "next": "^15.1.0",

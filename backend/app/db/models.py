@@ -965,6 +965,74 @@ class AgentRunStep(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ResearchSession(Base):
+    """A user-owned, read-only terminal research session.
+
+    Sessions capture questions and rendered research steps only.  They do not
+    contain an order intent and are deliberately outside every execution path.
+    """
+
+    __tablename__ = "research_sessions"
+    __table_args__ = (
+        Index("ix_research_sessions_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    market_slug: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
+    summary: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ResearchStep(Base):
+    """One ordered, evidence-backed terminal output within a session."""
+
+    __tablename__ = "research_steps"
+    __table_args__ = (
+        UniqueConstraint("session_id", "sequence", name="uq_research_steps_sequence"),
+        Index("ix_research_steps_session_sequence", "session_id", "sequence"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("research_sessions.id"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    citations: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Skill(Base):
+    """A named, parameterized research step-plan template (skills library).
+
+    Running a skill creates a ResearchSession from ``template`` and executes it
+    read-only via the terminal research executor. No order path.
+    """
+
+    __tablename__ = "skills"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    icon: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    template: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    params_schema: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    run_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class PromptVersion(Base):
     __tablename__ = "prompt_versions"
 
