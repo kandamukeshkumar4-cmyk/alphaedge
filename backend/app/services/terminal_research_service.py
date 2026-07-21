@@ -228,9 +228,56 @@ _STEP_RUNNERS = {
     "Model vs market": _step_model_vs_market,
 }
 
+SCOREBOARD_TITLE = "Confluence scoreboard"
 
-async def execute_session(db: AsyncSession, session: ResearchSession) -> list[ResearchStep]:
-    """Execute the deterministic research plan and persist ResearchStep rows."""
+# Skill / seed step ids → executor titles (do not invent new step kinds).
+STEP_ID_TO_DESCRIPTOR: dict[str, dict[str, str]] = {
+    "market_snapshot": {"title": "Market snapshot", "kind": "table"},
+    "price_history": {"title": "Price history", "kind": "chart"},
+    "whale_flow": {"title": "Whale & venue flow", "kind": "table"},
+    "news_sentiment": {"title": "News & sentiment", "kind": "table"},
+    "model_vs_market": {"title": "Model vs market", "kind": "table"},
+    "scoreboard": {"title": SCOREBOARD_TITLE, "kind": "table"},
+}
+
+
+def normalize_plan(template: list[Any]) -> list[dict[str, str]]:
+    """Map skill template entries to executor ``{title, kind}`` descriptors."""
+    out: list[dict[str, str]] = []
+    for item in template or []:
+        if isinstance(item, str):
+            desc = STEP_ID_TO_DESCRIPTOR.get(item)
+            if desc is None:
+                # Allow raw executor titles as a convenience.
+                if item in _STEP_RUNNERS or item == SCOREBOARD_TITLE:
+                    kind = "chart" if item == "Price history" else "table"
+                    out.append({"title": item, "kind": kind})
+                continue
+            out.append(dict(desc))
+            continue
+        if isinstance(item, dict):
+            title = item.get("title")
+            kind = item.get("kind")
+            step_id = item.get("id") or item.get("step") or item.get("kind_id")
+            if title and kind:
+                out.append({"title": str(title), "kind": str(kind)})
+            elif isinstance(step_id, str) and step_id in STEP_ID_TO_DESCRIPTOR:
+                out.append(dict(STEP_ID_TO_DESCRIPTOR[step_id]))
+    return out
+
+
+async def execute_session(
+    db: AsyncSession,
+    session: ResearchSession,
+    *,
+    plan: list[dict[str, str]] | None = None,
+) -> list[ResearchStep]:
+    """Execute the deterministic research plan and persist ResearchStep rows.
+
+    When ``plan`` is provided (skills library), use that step list instead of
+    ``plan_research``. Scoreboard is always appended for the default planner;
+    for an explicit plan it is appended only when the plan includes it.
+    """
     if not session.market_slug:
         raise ValueError("A market_slug is required to execute terminal research")
 
@@ -241,7 +288,14 @@ async def execute_session(db: AsyncSession, session: ResearchSession) -> list[Re
     session.status = "running"
     await db.execute(delete(ResearchStep).where(ResearchStep.session_id == session.id))
 
-    planned = plan_research(session.question)
+    if plan is None:
+        planned = plan_research(session.question)
+        include_scoreboard = True
+    else:
+        planned = list(plan)
+        include_scoreboard = any(item.get("title") == SCOREBOARD_TITLE for item in planned)
+        planned = [item for item in planned if item.get("title") != SCOREBOARD_TITLE]
+
     include_whale = await _market_has_whale_or_venue_signals(db, session.market_slug)
 
     steps: list[ResearchStep] = []
@@ -281,6 +335,22 @@ async def execute_session(db: AsyncSession, session: ResearchSession) -> list[Re
         )
         db.add(step)
         steps.append(step)
+
+    if not include_scoreboard:
+        session.status = "completed"
+        session.summary = {
+            "market_slug": session.market_slug,
+            "steps_completed": len(steps),
+            "verdict": None,
+            "executed_at": datetime.now(UTC).isoformat(),
+            "paper_trading_only": True,
+            "analysis_only": True,
+        }
+        await db.flush()
+        for step in steps:
+            await db.refresh(step)
+        await db.refresh(session)
+        return steps
 
     # A3 — confluence scoreboard as the final table step.
     sequence += 1
