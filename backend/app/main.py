@@ -50,6 +50,7 @@ from app.api.v1.feed import router as feed_router
 from app.api.v1.agent_trace import router as agent_trace_router
 from app.api.v1.terminal import router as terminal_router
 from app.api.v1.skills import router as skills_router
+from app.api.v1.scanners import router as scanners_router
 from app.api.v1.assistant import router as assistant_router
 from app.api.v1.clones import router as clones_router
 from app.api.v1.backtest import router as backtest_router
@@ -946,6 +947,7 @@ app.include_router(feed_router)
 app.include_router(agent_trace_router)
 app.include_router(terminal_router)
 app.include_router(skills_router)
+app.include_router(scanners_router)
 app.include_router(assistant_router)
 app.include_router(clones_router)
 app.include_router(backtest_router)
