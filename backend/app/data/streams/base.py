@@ -96,6 +96,15 @@ class MarketStream:
         self._state = ConnectionState.IDLE
         self._stopped = asyncio.Event()
         self._last_latency_ms: float | None = None
+        self._reconnect_attempt = 0
+        self._session_received_message = False
+
+    def _reconnect_log(self, msg: str, *args: Any) -> None:
+        """WARNING on attempt 1 and every 10th; DEBUG otherwise."""
+        if self._reconnect_attempt == 1 or self._reconnect_attempt % 10 == 0:
+            logger.warning(msg, *args)
+        else:
+            logger.debug(msg, *args)
 
     @property
     def state(self) -> ConnectionState:
@@ -138,19 +147,25 @@ class MarketStream:
         """Consume the stream forever, dispatching parsed events to ``callback``."""
         while not self._stopped.is_set():
             self._state = ConnectionState.CONNECTING
+            self._session_received_message = False
             try:
                 await self._run_session(callback)
                 self._backoff.reset()
+                if self._session_received_message:
+                    self._reconnect_attempt = 0
             except asyncio.CancelledError:
                 self.stop()
                 raise
             except Exception as error:  # noqa: BLE001 - resilience is the whole point
-                logger.warning("[%s] stream session ended: %s", self.source, error)
+                if self._session_received_message:
+                    self._reconnect_attempt = 0
+                self._reconnect_attempt += 1
+                self._reconnect_log("[%s] stream session ended: %s", self.source, error)
             if self._stopped.is_set():
                 break
             self._state = ConnectionState.RECONNECTING
             delay = self._backoff.next_delay()
-            logger.info("[%s] reconnecting in %.1fs", self.source, delay)
+            self._reconnect_log("[%s] reconnecting in %.1fs", self.source, delay)
             try:
                 await asyncio.wait_for(self._stopped.wait(), timeout=delay)
             except asyncio.TimeoutError:
@@ -170,6 +185,7 @@ class MarketStream:
                     )
                 except asyncio.TimeoutError as exc:
                     raise ConnectionError("heartbeat timeout") from exc
+                self._session_received_message = True
                 await self._dispatch(raw, callback)
         finally:
             close = getattr(conn, "close", None)
