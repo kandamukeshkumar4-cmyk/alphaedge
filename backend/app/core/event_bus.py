@@ -50,11 +50,11 @@ class Subscription:
         except asyncio.QueueEmpty:  # pragma: no cover - queue drained concurrently
             pass
         self.dropped += 1
-        logger.warning(
-            "event_bus: dropped oldest on '%s' (slow subscriber, %d total)",
-            self._topic,
-            self.dropped,
-        )
+        msg = "event_bus: dropped oldest on '%s' (slow subscriber, %d total)"
+        if self.dropped == 1 or self.dropped % 1000 == 0:
+            logger.warning(msg, self._topic, self.dropped)
+        else:
+            logger.debug(msg, self._topic, self.dropped)
         try:
             self._queue.put_nowait(payload)
         except asyncio.QueueFull:  # pragma: no cover - would require concurrent fill
