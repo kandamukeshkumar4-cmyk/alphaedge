@@ -48,6 +48,7 @@ from app.api.v1.sports import router as sports_router
 from app.api.v1.sports import sources_router as system_sources_router
 from app.api.v1.feed import router as feed_router
 from app.api.v1.agent_trace import router as agent_trace_router
+from app.api.v1.terminal import router as terminal_router
 from app.api.v1.assistant import router as assistant_router
 from app.api.v1.clones import router as clones_router
 from app.api.v1.backtest import router as backtest_router
@@ -940,6 +941,7 @@ app.include_router(sports_router)
 app.include_router(system_sources_router)
 app.include_router(feed_router)
 app.include_router(agent_trace_router)
+app.include_router(terminal_router)
 app.include_router(assistant_router)
 app.include_router(clones_router)
 app.include_router(backtest_router)
