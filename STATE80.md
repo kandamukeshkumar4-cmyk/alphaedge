@@ -6,7 +6,7 @@ Charter: `backend/**` + this file only.
 |--------|--------|-------|
 | H1 | DONE | 3 passed in 51.97s |
 | H2 | DONE | 1 passed in 14.08s |
-| H3 | PENDING | — |
+| H3 | DONE | 1 passed in 12.73s |
 | H4 | PENDING | — |
 
 ## Notes
