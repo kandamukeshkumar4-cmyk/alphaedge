@@ -673,6 +673,8 @@ async def lifespan(app: FastAPI):
         await svc.seed_catalog_markets()
         from app.services.signal_event_seed import seed_signal_events
         await seed_signal_events(session)
+        from app.services.skill_seed_service import seed_default_skills
+        await seed_default_skills(session)
         await session.commit()
     from app.data.streams.runner import background_loop_plan
 
