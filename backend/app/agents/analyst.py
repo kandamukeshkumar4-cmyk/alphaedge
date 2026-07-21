@@ -10,7 +10,9 @@ Research output only — never an order.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import random
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -26,6 +28,9 @@ try:
     LANGGRAPH_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dep
     LANGGRAPH_AVAILABLE = False
+
+# NIM free tier rejects bursts (503 ResourceExhausted); cap in-flight LLM calls app-wide
+_LLM_SEMAPHORE = asyncio.Semaphore(2)
 
 # Per-market cooldown state (in-process): market_slug -> last run monotonic ts.
 _last_run: dict[str, float] = {}
@@ -364,15 +369,30 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
     use_case_model = settings.llm_model_analyst_deep if state.deep else settings.llm_model_analyst
     client, model_id = resolve_routed_client(settings, route, use_case_model=use_case_model)
     try:
-        response = await client.chat.completions.create(
-            model=model_id,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.3,
-            max_tokens=600,
-        )
+        async with _LLM_SEMAPHORE:
+            try:
+                response = await client.chat.completions.create(
+                    model=model_id,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=600,
+                )
+            except Exception as exc:  # noqa: BLE001 - classify 503 for one retry
+                if not _is_llm_503(exc):
+                    raise
+                await asyncio.sleep(2 + random.uniform(0, 2))
+                response = await client.chat.completions.create(
+                    model=model_id,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=600,
+                )
         content = (response.choices[0].message.content or "").strip()
         if not content:
             raise ValueError("empty LLM response")
@@ -391,6 +411,19 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
         state.headline, state.body_markdown = _fallback_brief(state)
         state.generator = "fallback"
     return state
+
+
+def _is_llm_503(exc: BaseException) -> bool:
+    """True when NIM/OpenAI signals resource exhaustion (retryable once)."""
+    msg = str(exc)
+    if "503" in msg or "ResourceExhausted" in msg:
+        return True
+    try:
+        from openai import InternalServerError
+    except ImportError:  # pragma: no cover - openai is a runtime dep
+        return False
+    status = getattr(exc, "status_code", None)
+    return isinstance(exc, InternalServerError) and status == 503
 
 
 _SYSTEM_PROMPT = (
