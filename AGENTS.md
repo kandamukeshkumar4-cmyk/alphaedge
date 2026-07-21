@@ -57,6 +57,11 @@ When rules conflict, the earlier section wins.
   only: do not self-delegate, do not skip verification, and keep every Codex
   prompt scoped to this repo, exact paths, constraints, non-goals, and proof
   commands.
+- Read `.agents/skills/loop-design/SKILL.md` before authoring any loop
+  (`goals/loop-vNN/GOAL.md`), runner brief, or multi-step/parallel/long-running
+  plan. Design the loop — goal+rubric, plan, parallel workers, independent
+  verifier, model-per-step, state, stop condition — instead of writing one-off
+  prompts. Binds every agent in any thread or IDE.
 - Repo-local skills live in `.agents/skills/<skill-name>/SKILL.md`; Claude
   Code shims live in `.claude/skills/<skill-name>` and point back to the same
   folders.
