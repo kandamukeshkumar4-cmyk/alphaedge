@@ -441,6 +441,109 @@ body {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Loop V79 (A8) — Terminal motion system (goals/loop-v79/UI-DIRECTION.md).
+   Springs, not linear; nothing longer than 400ms except 500ms counters;
+   reduced-motion keeps opacity fades but kills every transform/delay.
+   ------------------------------------------------------------------------ */
+
+/* Step-card body expand: 260ms spring, scale 0.985 -> 1, no overshoot. */
+@keyframes t-card-open {
+  0% {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.t-card-open {
+  transform-origin: top center;
+  animation: t-card-open 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Thin mint indeterminate progress sweep under a running step's header. */
+@keyframes t-progress-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.t-progress {
+  animation: t-progress-sweep 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Enter spring: translateY(8px) + opacity 0 -> 1 (stiffness ~260/damping ~28
+   approximated by the shared ease-swift curve; never overshoots). */
+@keyframes t-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.t-rise {
+  animation: t-rise 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Stagger: siblings 40ms apart, max 5 staggered items (base + 4 delays). */
+.t-stagger-1 {
+  animation-delay: 40ms;
+}
+.t-stagger-2 {
+  animation-delay: 80ms;
+}
+.t-stagger-3 {
+  animation-delay: 120ms;
+}
+.t-stagger-4 {
+  animation-delay: 160ms;
+}
+
+/* Subtle 1.2s skeleton shimmer with reserved height (no CLS). */
+.t-skeleton {
+  background: linear-gradient(90deg, #101915 0%, #1a2620 20%, #101915 40%, #101915 100%);
+  background-size: 936px 100%;
+  animation: shimmer 1.2s linear infinite;
+  border-radius: 0.5rem;
+}
+
+/* Reduced motion: keep opacity fades, kill ALL transforms and delays. */
+@keyframes t-fade-only {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-rise,
+  .t-card-open {
+    animation: t-fade-only 120ms ease-out both !important;
+  }
+  .t-stagger-1,
+  .t-stagger-2,
+  .t-stagger-3,
+  .t-stagger-4 {
+    animation-delay: 0ms !important;
+  }
+  .t-progress,
+  .t-skeleton {
+    animation: none !important;
+  }
+}
+
 /* M-A11Y-02: a consistent keyboard focus ring for anything that doesn't
    define its own. focus-visible only, so mouse clicks stay ring-free. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {

@@ -71,6 +71,8 @@ export type ResearchStep = {
   payload: StepPayload;
   citations: Citation[];
   created_at: string;
+  /** Optional execution time; UI shows it on the card's right when present. */
+  duration_ms?: number | null;
 };
 
 export type LensRead = "bullish" | "bearish" | "neutral" | "cautious";
@@ -257,6 +259,11 @@ function normalizeStep(raw: unknown, fallbackIndex: number): ResearchStep {
     citations: Array.isArray(rec.citations) ? rec.citations.map(normalizeCitation) : [],
     created_at:
       typeof rec.created_at === "string" ? rec.created_at : new Date(0).toISOString(),
+    ...(typeof rec.duration_ms === "number" && Number.isFinite(rec.duration_ms)
+      ? { duration_ms: rec.duration_ms }
+      : typeof rec.durationMs === "number" && Number.isFinite(rec.durationMs)
+        ? { duration_ms: rec.durationMs }
+        : {}),
   };
 }
 
@@ -398,6 +405,7 @@ function buildMockSteps(): ResearchStep[] {
       } satisfies ChartPayload,
       citations: [{ source: "odds", label: "CLOB mid · nba-2025-01-15-lal-bos" }],
       created_at: MOCK_NOW,
+      duration_ms: 1180,
     },
     {
       id: "step-02",
@@ -416,6 +424,7 @@ function buildMockSteps(): ResearchStep[] {
       } satisfies TablePayload,
       citations: [{ source: "whale", label: "Smart-money feed" }],
       created_at: MOCK_NOW,
+      duration_ms: 940,
     },
     {
       id: "step-03",
@@ -431,6 +440,7 @@ function buildMockSteps(): ResearchStep[] {
         { source: "sentiment", label: "Tone model" },
       ],
       created_at: MOCK_NOW,
+      duration_ms: 1420,
     },
     {
       id: "step-04",
@@ -450,6 +460,7 @@ function buildMockSteps(): ResearchStep[] {
       } satisfies TablePayload,
       citations: [{ source: "model", label: "Feature store · XGBoost" }],
       created_at: MOCK_NOW,
+      duration_ms: 1660,
     },
     {
       id: "step-05",
@@ -462,6 +473,7 @@ function buildMockSteps(): ResearchStep[] {
       } satisfies TextPayload,
       citations: [{ source: "arb", label: "Arb matcher" }],
       created_at: MOCK_NOW,
+      duration_ms: 720,
     },
   ];
 }

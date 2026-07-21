@@ -93,6 +93,7 @@ export function TerminalShell() {
   const [apiSource, setApiSource] = useState<"live" | "mock">("mock");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
+  const [hideSteps, setHideSteps] = useState(false);
 
   const refreshList = useCallback(async () => {
     setListLoading(true);
@@ -419,9 +420,20 @@ export function TerminalShell() {
                   className="space-y-3"
                   data-testid="terminal-session-body"
                 >
-                  <h2 className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-muted">
-                    Steps {running ? "· streaming" : ""}
-                  </h2>
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+                      Steps {running ? "· streaming" : ""}
+                    </h2>
+                    <button
+                      type="button"
+                      data-testid="terminal-hide-steps"
+                      aria-pressed={hideSteps}
+                      onClick={() => setHideSteps((v) => !v)}
+                      className="rounded-md px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-muted transition hover:bg-surface-2 hover:text-text focus-visible:outline-none active:scale-95"
+                    >
+                      {hideSteps ? "Show steps" : "Hide steps"}
+                    </button>
+                  </div>
                   {steps.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
                       {running
@@ -429,7 +441,14 @@ export function TerminalShell() {
                         : "Resume a session or ask a question to stream numbered step cards."}
                     </p>
                   ) : (
-                    steps.map((step) => <TerminalStepCard key={step.id} step={step} />)
+                    steps.map((step, i) => (
+                      <TerminalStepCard
+                        key={step.id}
+                        step={step}
+                        hideSteps={hideSteps}
+                        active={running && i === steps.length - 1}
+                      />
+                    ))
                   )}
                 </section>
 
