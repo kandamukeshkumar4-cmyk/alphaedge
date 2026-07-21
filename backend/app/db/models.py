@@ -1033,6 +1033,50 @@ class Skill(Base):
     )
 
 
+class Scanner(Base):
+    """Versioned alert/scanner specification (Scanner Studio phase 1).
+
+    Research-only: stores universe/schedule/steps/delivery JSON. Never places
+    orders or touches RiskService / OrderBookService.
+    """
+
+    __tablename__ = "scanners"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    owner: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    spec: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    runs: Mapped[list["ScannerRun"]] = relationship(back_populates="scanner")
+
+
+class ScannerRun(Base):
+    """One checkpointed execution of a scanner over mirrored markets."""
+
+    __tablename__ = "scanner_runs"
+    __table_args__ = (Index("ix_scanner_runs_scanner_id", "scanner_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scanner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scanners.id"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    checkpoint: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    result: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    scanner: Mapped["Scanner"] = relationship(back_populates="runs")
+
+
 class PromptVersion(Base):
     __tablename__ = "prompt_versions"
 
