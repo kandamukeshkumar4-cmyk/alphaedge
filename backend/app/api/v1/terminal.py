@@ -11,9 +11,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
-from app.db.models import ResearchSession, ResearchStep, User
+from app.db.models import ResearchSession, ResearchStep, Skill, User
 from app.db.session import get_db
-from app.schemas.terminal import ResearchSessionCreate, ResearchSessionOut, ResearchStepOut
+from app.schemas.skills import SkillOut
+from app.schemas.terminal import (
+    ResearchSessionCreate,
+    ResearchSessionOut,
+    ResearchStepOut,
+    SaveAsSkillRequest,
+)
 from app.services.terminal_research_service import execute_session as run_terminal_research
 
 router = APIRouter(prefix="/api/v1/terminal", tags=["terminal"])
@@ -166,6 +172,63 @@ async def stream_session(
         },
     )
 
+
+
+
+@router.post(
+    "/sessions/{session_id}/save-as-skill",
+    response_model=SkillOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def save_session_as_skill(
+    session_id: UUID,
+    body: SaveAsSkillRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SkillOut:
+    """Derive a private skill template from an executed session's step titles."""
+    session = await _owned_session(db, session_id, user.id)
+    steps = (
+        await db.scalars(
+            select(ResearchStep)
+            .where(ResearchStep.session_id == session.id)
+            .order_by(ResearchStep.sequence.asc())
+        )
+    ).all()
+    if not steps:
+        raise HTTPException(status_code=400, detail="Session has no steps to save as a skill")
+
+    existing = await db.scalar(select(Skill).where(Skill.name == body.name.strip()))
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Skill name already exists")
+
+    template = [{"title": step.title, "kind": step.kind} for step in steps]
+    skill = Skill(
+        name=body.name.strip(),
+        description=body.description.strip(),
+        icon=None,
+        template=template,
+        params_schema=None,
+        run_count=0,
+        is_public=False,
+        created_by=str(user.id),
+    )
+    db.add(skill)
+    await db.flush()
+    await db.refresh(skill)
+    return SkillOut(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        icon=skill.icon,
+        template=list(skill.template or []),
+        params_schema=skill.params_schema,
+        run_count=int(skill.run_count or 0),
+        is_public=bool(skill.is_public),
+        created_by=skill.created_by,
+        created_at=skill.created_at,
+        updated_at=skill.updated_at,
+    )
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(

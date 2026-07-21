@@ -5,4 +5,4 @@
 | B0 | DONE | 1 passed in 32.08s |
 | B1 | DONE | 1 passed in 9.69s |
 | B2 | DONE | 1 passed in 5.11s |
-| B3 | PENDING | |
+| B3 | DONE | 2 passed in 7.73s |

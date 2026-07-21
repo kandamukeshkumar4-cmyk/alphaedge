@@ -33,3 +33,9 @@ class ResearchSessionOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     steps: list[ResearchStepOut] = Field(default_factory=list)
+
+
+class SaveAsSkillRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+
