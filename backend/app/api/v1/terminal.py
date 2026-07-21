@@ -1,9 +1,12 @@
 """Authenticated persistence API for read-only terminal research sessions."""
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -130,6 +133,38 @@ async def execute_session(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await _session_out(db, session)
+
+
+@router.get("/sessions/{session_id}/stream")
+async def stream_session(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """SSE stream of ResearchStepOut events, then a final done/verdict event."""
+    session = await _owned_session(db, session_id, user.id)
+
+    async def event_gen() -> AsyncIterator[str]:
+        try:
+            steps = await run_terminal_research(db, session)
+        except ValueError as exc:
+            yield f"data: {json.dumps({'event': 'error', 'detail': str(exc)})}\n\n"
+            return
+        verdict = (session.summary or {}).get("verdict")
+        for step in steps:
+            payload = _step_out(step).model_dump(mode="json")
+            yield f"data: {json.dumps(payload)}\n\n"
+        yield f"data: {json.dumps({'event': 'done', 'verdict': verdict})}\n\n"
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

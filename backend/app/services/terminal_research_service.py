@@ -311,5 +311,7 @@ async def execute_session(db: AsyncSession, session: ResearchSession) -> list[Re
         "analysis_only": True,
     }
     await db.flush()
+    for step in steps:
+        await db.refresh(step)
     await db.refresh(session)
     return steps

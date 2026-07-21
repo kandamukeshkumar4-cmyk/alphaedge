@@ -7,8 +7,8 @@ When rules conflict, the earlier section wins.
 
 ## 1. Precedence — non-negotiables that override everything below
 
-- This is a **paper-trading** prediction market platform (NBA, broader sports,
-  election markets). All funds are simulated. Never add cash funding, payment
+- This is a **paper-trading** prediction market platform (NBA, broader sports, and election
+  markets). All funds are simulated. Never add cash funding, payment
   rails, or external execution language.
 - `PAPER_TRADING_ONLY=true` is required in local, CI, and deploy contexts.
 - LLM/agent code cannot submit raw orders. The only allowed path is
