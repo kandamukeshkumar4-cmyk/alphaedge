@@ -400,6 +400,7 @@ async def write_brief(state: AnalystState, settings) -> AnalystState:
         state.headline = lines[0].strip("# ").strip()[:120]
         state.body_markdown = ("\n".join(lines[1:]).strip() or lines[0])[:1200]
         state.generator = "llm"
+        state.model_version = model_id
     except Exception:  # noqa: BLE001 - fall back to deterministic brief
         logger.warning(
             "analyst LLM write_brief failed (provider=%s model=%s), falling back "
