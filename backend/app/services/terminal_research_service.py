@@ -19,6 +19,7 @@ from app.api.v1.market_candles import _build_market_candles
 from app.db.models import Market, ResearchSession, ResearchStep
 from app.services.forecast_service import ForecastService
 from app.services.market_service import MarketService
+from app.services.terminal_scoreboard_service import build_scoreboard
 from app.services.venue_gap_service import VenueGapService
 from app.services.whale_flow_service import WhaleFlowService
 from app.signals.news_signal import fetch_news_signal
@@ -281,10 +282,30 @@ async def execute_session(db: AsyncSession, session: ResearchSession) -> list[Re
         db.add(step)
         steps.append(step)
 
+    # A3 — confluence scoreboard as the final table step.
+    sequence += 1
+    started = time.perf_counter()
+    scoreboard = await build_scoreboard(db, market)
+    duration_ms = _elapsed_ms(started)
+    scoreboard_payload = dict(scoreboard)
+    scoreboard_payload["duration_ms"] = duration_ms
+    score_step = ResearchStep(
+        session_id=session.id,
+        sequence=sequence,
+        title="Confluence scoreboard",
+        kind="table",
+        status="completed",
+        payload=scoreboard_payload,
+        citations=[_cite("terminal_scoreboard_service", "build_scoreboard")],
+    )
+    db.add(score_step)
+    steps.append(score_step)
+
     session.status = "completed"
     session.summary = {
         "market_slug": session.market_slug,
         "steps_completed": len(steps),
+        "verdict": scoreboard.get("verdict"),
         "executed_at": datetime.now(UTC).isoformat(),
         "paper_trading_only": True,
         "analysis_only": True,
