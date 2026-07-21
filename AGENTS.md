@@ -57,6 +57,10 @@ When rules conflict, the earlier section wins.
   only: do not self-delegate, do not skip verification, and keep every Codex
   prompt scoped to this repo, exact paths, constraints, non-goals, and proof
   commands.
+- Read `.agents/skills/karpathy-guidelines/SKILL.md` before writing, reviewing,
+  or refactoring code: surface assumptions, simplicity first, surgical changes
+  only, and verifiable success criteria. Binds every agent and every runner
+  brief in this repo.
 - Read `.agents/skills/loop-design/SKILL.md` before authoring any loop
   (`goals/loop-vNN/GOAL.md`), runner brief, or multi-step/parallel/long-running
   plan. Design the loop — goal+rubric, plan, parallel workers, independent
