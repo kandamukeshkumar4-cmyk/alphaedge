@@ -37,8 +37,18 @@ export function TerminalScoreboard({
           </tr>
         </thead>
         <tbody>
-          {lenses.map((row) => (
-            <tr key={row.lens} className="border-t border-border">
+          {lenses.map((row, i) => (
+            <tr
+              key={row.lens}
+              className={cn(
+                "border-t border-border",
+                "t-rise",
+                i === 1 && "t-stagger-1",
+                i === 2 && "t-stagger-2",
+                i === 3 && "t-stagger-3",
+                i === 4 && "t-stagger-4",
+              )}
+            >
               <td className="px-3 py-2.5 font-semibold capitalize text-text">{row.lens}</td>
               <td className="px-3 py-2.5">
                 <span

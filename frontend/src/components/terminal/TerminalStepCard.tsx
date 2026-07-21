@@ -144,6 +144,7 @@ export function TerminalStepCard({
   hideSteps,
   active,
   expandNonce,
+  stagger,
 }: {
   step: ResearchStep;
   /** "Hide steps" stream toggle — collapse every body, keep the numbered rail. */
@@ -152,6 +153,8 @@ export function TerminalStepCard({
   active?: boolean;
   /** Canvas node click: bumping this nonce force-expands the card. */
   expandNonce?: number;
+  /** Enter-stagger slot 0–4 (40ms apart, max 5 staggered items). */
+  stagger?: number;
 }) {
   const summary = stepSummaryText(step);
   const hasChart = step.kind === "chart" && isChartPayload(step.payload);
@@ -177,7 +180,14 @@ export function TerminalStepCard({
       id={`terminal-step-${step.id}`}
       data-testid="terminal-step-card"
       data-step-index={step.sequence}
-      className="rounded-xl border border-border bg-surface"
+      className={cn(
+        "rounded-xl border border-border bg-surface",
+        "t-rise",
+        stagger === 1 && "t-stagger-1",
+        stagger === 2 && "t-stagger-2",
+        stagger === 3 && "t-stagger-3",
+        stagger === 4 && "t-stagger-4",
+      )}
     >
       <button
         type="button"

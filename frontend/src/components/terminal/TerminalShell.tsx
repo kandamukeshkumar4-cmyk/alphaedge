@@ -20,6 +20,7 @@ import { TerminalStepCard } from "@/components/terminal/TerminalStepCard";
 import { EMPTY_STATE_TEMPLATES } from "@/components/terminal/terminal-templates";
 import { cn } from "@/lib/cn";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
+import { useCountUp } from "@/lib/use-count-up";
 import {
   createSession,
   getSession,
@@ -240,6 +241,8 @@ export function TerminalShell() {
   );
 
   const viewIndex = VIEWS.indexOf(view);
+  const stepCount = useCountUp(steps.length);
+  const lensCount = useCountUp(scoreboard.length);
 
   return (
     <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6" data-testid="terminal-page">
@@ -422,7 +425,9 @@ export function TerminalShell() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-muted">
-                      Steps {running ? "· streaming" : ""}
+                      Steps{" "}
+                      {steps.length > 0 ? <span className="tabular-nums">· {stepCount}</span> : ""}{" "}
+                      {running ? "· streaming" : ""}
                     </h2>
                     <button
                       type="button"
@@ -447,15 +452,35 @@ export function TerminalShell() {
                         step={step}
                         hideSteps={hideSteps}
                         active={running && i === steps.length - 1}
+                        stagger={i < 5 ? i : undefined}
                       />
                     ))
                   )}
+                  {/* Reserved height for the next streamed step — no CLS. */}
+                  {running ? (
+                    <div
+                      aria-hidden="true"
+                      className="t-skeleton h-[76px] w-full rounded-xl border border-border"
+                    />
+                  ) : null}
                 </section>
 
                 <section aria-label="Confluence scoreboard" className="mt-6 space-y-3">
                   <h2 className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-muted">
-                    Confluence scoreboard
+                    Confluence scoreboard{" "}
+                    {scoreboard.length > 0 ? (
+                      <span className="tabular-nums">· {lensCount} lenses</span>
+                    ) : (
+                      ""
+                    )}
                   </h2>
+                  {running && scoreboard.length === 0 ? (
+                    /* Reserved height until the scoreboard event lands. */
+                    <div
+                      aria-hidden="true"
+                      className="t-skeleton h-[190px] w-full rounded-xl border border-border"
+                    />
+                  ) : null}
                   <TerminalScoreboard lenses={scoreboard} verdict={session?.summary.verdict} />
                   <TerminalBullBear bullCase={bull} bearCase={bear} />
                 </section>
