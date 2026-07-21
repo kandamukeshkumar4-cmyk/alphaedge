@@ -128,7 +128,9 @@ class MarketStream:
         """Open the socket. Split out so tests can inject a fake connector."""
         import websockets
 
-        return await websockets.connect(self._ws_url(), open_timeout=15)
+        return await websockets.connect(
+            self._ws_url(), open_timeout=15, max_size=8 * 1024 * 1024
+        )
 
     # --- run loop -------------------------------------------------------
 

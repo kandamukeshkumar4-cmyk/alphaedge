@@ -5,7 +5,7 @@ Charter: `backend/**` + this file only.
 | Ticket | Status | Proof |
 |--------|--------|-------|
 | H1 | DONE | 3 passed in 51.97s |
-| H2 | PENDING | — |
+| H2 | DONE | 1 passed in 14.08s |
 | H3 | PENDING | — |
 | H4 | PENDING | — |
 
