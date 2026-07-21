@@ -32,4 +32,28 @@ test.describe("V79 terminal", () => {
     await page.waitForTimeout(1000);
     assertNoConsoleErrors(errors, "/terminal");
   });
+
+  test("A6 canvas view renders the session node graph", async ({ page }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/terminal", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await dismissOnboardingIfPresent(page);
+
+    // Wait for the auto-loaded session so step nodes exist.
+    await expect(page.getByTestId("terminal-step-card").first()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await page.getByTestId("terminal-view-canvas").click();
+    await expect(page.getByTestId("terminal-canvas")).toBeVisible({ timeout: 15_000 });
+
+    // 5 mock steps + 1 Final Results node.
+    await expect(page.locator(".react-flow__node")).toHaveCount(6, { timeout: 15_000 });
+    await expect(page.getByText(/Final results/i)).toBeVisible();
+
+    // Node click returns to the Dashboard tab.
+    await page.locator(".react-flow__node").first().click();
+    await expect(page.getByTestId("terminal-session-body")).toBeVisible();
+
+    assertNoConsoleErrors(errors, "/terminal canvas");
+  });
 });

@@ -6,6 +6,7 @@
  * Fetch lives in `@/lib/terminal-api` (swap via setTerminalFetch).
  */
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
 import { TerminalBullBear } from "@/components/terminal/TerminalBullBear";
@@ -29,6 +30,19 @@ import {
   type SessionSummary,
   TERMINAL_CANONICAL_MARKET,
 } from "@/lib/terminal-api";
+
+/** A6 — React Flow canvas is client-only (no SSR). */
+const TerminalCanvas = dynamic(
+  () => import("@/components/terminal/TerminalCanvas").then((m) => m.TerminalCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid h-[520px] w-full place-items-center rounded-xl border border-border bg-bg/60 text-sm text-muted">
+        Loading canvas…
+      </div>
+    ),
+  },
+);
 
 export function TerminalShell() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -167,6 +181,16 @@ export function TerminalShell() {
     setComposerKey((k) => k + 1);
   }, []);
 
+  /** Canvas node click → back to Dashboard with that step in view. */
+  const onSelectStep = useCallback((stepId: string) => {
+    setView("dashboard");
+    window.setTimeout(() => {
+      document
+        .getElementById(`terminal-step-${stepId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 60);
+  }, []);
+
   return (
     <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6" data-testid="terminal-page">
       <PageHeader
@@ -277,20 +301,13 @@ export function TerminalShell() {
               </section>
             </div>
           ) : (
-            <div
-              data-testid="terminal-canvas-placeholder"
-              className="rounded-xl border border-dashed border-border bg-surface/40 px-4 py-12 text-center"
-            >
-              <p className="text-sm font-semibold text-text">Canvas view</p>
-              <p className="mt-1 text-xs text-muted">
-                Node graph arrives in ticket A6. Dashboard stays available meanwhile.
-              </p>
-              {session ? (
-                <p className="mt-3 font-mono text-[11px] text-muted-2">
-                  Session {session.id} · {steps.length} steps
-                </p>
-              ) : null}
-            </div>
+            <TerminalCanvas
+              steps={steps}
+              scoreboard={scoreboard}
+              verdict={session?.summary.verdict ?? null}
+              running={running}
+              onSelectStep={onSelectStep}
+            />
           )}
         </div>
       </div>

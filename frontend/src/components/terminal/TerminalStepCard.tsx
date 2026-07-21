@@ -36,6 +36,7 @@ export function TerminalStepCard({ step }: { step: ResearchStep }) {
 
   return (
     <article
+      id={`terminal-step-${step.id}`}
       data-testid="terminal-step-card"
       data-step-index={step.sequence}
       className="rounded-xl border border-border bg-surface"
