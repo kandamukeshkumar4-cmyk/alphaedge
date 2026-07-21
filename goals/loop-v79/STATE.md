@@ -2,6 +2,4 @@
 
 | Ticket | Date | Result | Proof |
 | --- | --- | --- | --- |
-| A1 | 2026-07-21 | BLOCKED | Planner route is authenticated (`firstParty`, `claude-fable-5`, planner seat) but `create_plan` returned: `Claude Fable 5 plan creation omitted the required PLAN_DRAFT signal.` Per orchestration policy, executor work did not start. No pytest command was run. |
-
-Stop condition reached: A1 is BLOCKED; A2-A4 were not started.
+| A1 | 2026-07-21 | DONE | `uv run --extra dev pytest -q tests/test_terminal_sessions_api.py` -> `2 passed in 9.72s`; `uv run --extra dev ruff check app tests` -> `All checks passed!` |
