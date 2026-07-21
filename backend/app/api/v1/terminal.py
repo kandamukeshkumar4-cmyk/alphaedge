@@ -11,6 +11,7 @@ from app.api.v1.deps import get_current_user
 from app.db.models import ResearchSession, ResearchStep, User
 from app.db.session import get_db
 from app.schemas.terminal import ResearchSessionCreate, ResearchSessionOut, ResearchStepOut
+from app.services.terminal_research_service import execute_session as run_terminal_research
 
 router = APIRouter(prefix="/api/v1/terminal", tags=["terminal"])
 
@@ -113,6 +114,21 @@ async def resume_session(
     if session.status in {"completed", "failed"}:
         session.status = "draft"
         await db.flush()
+    return await _session_out(db, session)
+
+
+@router.post("/sessions/{session_id}/execute", response_model=ResearchSessionOut)
+async def execute_session(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ResearchSessionOut:
+    """Run the fixed read-only research plan and persist its evidence steps."""
+    session = await _owned_session(db, session_id, user.id)
+    try:
+        await run_terminal_research(db, session)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await _session_out(db, session)
 
 
