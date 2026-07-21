@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -286,12 +287,41 @@ async def _weather_scan_loop() -> None:
             record_heartbeat("weather_scan", status="error", detail="weather scan pass failed")
 
 
+def _seconds_until_next_utc_hour(now: datetime, hour: int = 6) -> float:
+    """Seconds from ``now`` until the next occurrence of ``hour``:00:00 UTC.
+
+    If ``now`` is at or past today's target hour, the next occurrence is tomorrow.
+    """
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    else:
+        now = now.astimezone(timezone.utc)
+    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if now >= target:
+        target = target + timedelta(days=1)
+    return (target - now).total_seconds()
+
+
 async def _morning_research_loop() -> None:
-    """Daily research digest (mirrors ``cron(morning_research_task, hour={6})``)."""
+    """Daily research digest (mirrors ``cron(morning_research_task, hour={6})``).
+
+    Wall-clock aligned to 06:00 UTC. Boot catch-up is safe because
+    ``ResearchDigestService.run_daily`` is idempotent per day via
+    ``_has_digest_today``.
+    """
     from app.workers.tasks import morning_research_task
 
+    # Boot-time catch-up: skip if digest already exists today (idempotent).
+    try:
+        await morning_research_task({})
+        record_heartbeat("morning_research")
+    except Exception:
+        logger.error("Morning research boot catch-up failed", exc_info=True)
+        record_heartbeat("morning_research", status="error", detail="morning research boot catch-up failed")
+
     while True:
-        await asyncio.sleep(86400)
+        delay = _seconds_until_next_utc_hour(datetime.now(timezone.utc), hour=6)
+        await asyncio.sleep(delay)
         try:
             await morning_research_task({})
             record_heartbeat("morning_research")
