@@ -1,0 +1,24 @@
+# STATE87B — Graph V87, node P-B (backend, loop87-selfheal worktree)
+
+Scope charter: `backend/**` + this file ONLY. Paper-trading simulation only —
+no orders, no payment rails; scanners are research artifacts (RiskService →
+OrderIntent → OrderBookService is untouched). No new migrations (P-A owns them).
+
+## Tickets
+
+- **H1 — error classifier**: `scanner_heal_service.classify_step_error` → 8 classes.
+- **H2 — bounded repairs**: deterministic repair map in step runner; `result.repairs`.
+- **H3 — healing visibility**: runs list `repairs_count`; detail payload `repairs` list.
+
+## Proof log
+
+### H1 — error classifier
+
+```
+$ cd backend && uv run --extra dev pytest -q tests/test_scanner_heal.py --basetemp=E:/polymarket-worktrees/loop87-selfheal/.ptf
+...............                                                          [100%]
+15 passed in ~1s (after venv bootstrap)
+
+$ uv run --extra dev ruff check app/services/scanner_heal_service.py tests/test_scanner_heal.py
+All checks passed!
+```
