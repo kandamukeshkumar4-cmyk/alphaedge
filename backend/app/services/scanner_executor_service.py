@@ -5,6 +5,8 @@ Never creates paper orders or calls RiskService / OrderBookService.
 """
 from __future__ import annotations
 
+import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -19,7 +21,13 @@ from app.services.whale_flow_service import WhaleFlowService
 from app.signals.news_signal import fetch_news_signal
 from app.signals.sentiment_trend import load_sentiment_trend
 
+logger = logging.getLogger(__name__)
+
 _SIGNAL_TYPES = frozenset({"WHALE_FLOW", "PRICE_TREND", "NEWS_SENTIMENT", "MODEL_EDGE"})
+
+DEFAULT_MAX_EXECUTION_SECONDS = 120
+DEFAULT_MAX_MARKETS = 200
+CONSECUTIVE_FAILURE_ALARM = 3
 
 
 def _category_match(market: Market, categories: list[str]) -> bool:
@@ -35,6 +43,22 @@ def _category_match(market: Market, categories: list[str]) -> bool:
         if w == cat or w in cat or w in slug or w in title:
             return True
     return False
+
+
+def _max_execution_seconds(spec: dict[str, Any]) -> float:
+    raw = spec.get("max_execution_seconds", DEFAULT_MAX_EXECUTION_SECONDS)
+    try:
+        return max(float(raw), 0.0)
+    except (TypeError, ValueError):
+        return float(DEFAULT_MAX_EXECUTION_SECONDS)
+
+
+def _max_markets(spec: dict[str, Any]) -> int:
+    raw = spec.get("max_markets", DEFAULT_MAX_MARKETS)
+    try:
+        return max(int(raw), 0)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_MARKETS
 
 
 async def _load_universe(db: AsyncSession, spec: dict[str, Any]) -> list[Market]:
@@ -56,6 +80,42 @@ async def _load_universe(db: AsyncSession, spec: dict[str, Any]) -> list[Market]
         if _category_match(m, categories) and int(m.volume or 0) >= min_vol
     ]
     return list(filtered[: max(limit, 0)])
+
+
+async def _running_run(db: AsyncSession, scanner_id: Any) -> ScannerRun | None:
+    return await db.scalar(
+        select(ScannerRun)
+        .where(ScannerRun.scanner_id == scanner_id, ScannerRun.status == "running")
+        .order_by(ScannerRun.started_at.desc())
+        .limit(1)
+    )
+
+
+async def _maybe_deadletter_after_failure(db: AsyncSession, scanner: Scanner) -> None:
+    """After 3 consecutive failed runs, mark scanner failed + feed alarm."""
+    recent = (
+        await db.scalars(
+            select(ScannerRun)
+            .where(ScannerRun.scanner_id == scanner.id)
+            .order_by(ScannerRun.started_at.desc())
+            .limit(CONSECUTIVE_FAILURE_ALARM)
+        )
+    ).all()
+    if len(recent) < CONSECUTIVE_FAILURE_ALARM:
+        return
+    if not all(r.status == "failed" for r in recent):
+        return
+    already_failed = scanner.status == "failed"
+    scanner.status = "failed"
+    await db.flush()
+    if already_failed:
+        return
+    try:
+        from app.services.scanner_alert_service import record_scanner_failing_alert
+
+        await record_scanner_failing_alert(db, scanner, recent[0])
+    except Exception:  # noqa: BLE001 — alarm must not mask the failed run
+        logger.warning("scanner failing alarm hook failed", exc_info=True)
 
 
 def _direction_from_pressure(pressure: float) -> str | None:
@@ -291,6 +351,10 @@ async def _run_step(
 
 async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
     """Execute ``scanner.spec`` steps with per-node checkpoints. Research only."""
+    existing = await _running_run(db, scanner.id)
+    if existing is not None:
+        return existing
+
     run = ScannerRun(
         scanner_id=scanner.id,
         status="running",
@@ -308,8 +372,23 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         align_present = any(
             str(s.get("type") or "").upper() == "DIRECTION_ALIGNMENT" for s in steps
         )
+        max_seconds = _max_execution_seconds(spec)
+        max_markets = _max_markets(spec)
+        deadline = time.monotonic() + max_seconds
 
         markets = await _load_universe(db, spec)
+        truncated = False
+        pre_cap = len(markets)
+        if max_markets >= 0 and len(markets) > max_markets:
+            markets = markets[:max_markets]
+            truncated = True
+            logger.info(
+                "scanner %s universe truncated %s -> %s (max_markets)",
+                scanner.id,
+                pre_cap,
+                max_markets,
+            )
+
         candidates: list[dict[str, Any]] = [
             {
                 "market_slug": m.slug,
@@ -321,24 +400,64 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         ]
         universe_count = len(candidates)
 
+        def _counts(*, candidates_n: int, aligned_n: int) -> dict[str, Any]:
+            counts: dict[str, Any] = {
+                "universe": universe_count,
+                "candidates": candidates_n,
+                "aligned": aligned_n,
+            }
+            if truncated:
+                counts["truncated"] = True
+                counts["truncated_from"] = pre_cap
+                counts["max_markets"] = max_markets
+            return counts
+
         if universe_count == 0:
             run.status = "empty"
             run.finished_at = datetime.now(UTC)
             run.result = {
                 "candidates": [],
                 "top_pick": None,
-                "counts": {"universe": 0, "candidates": 0, "aligned": 0},
+                "counts": _counts(candidates_n=0, aligned_n=0),
             }
             await db.flush()
             await db.refresh(run)
             return run
 
         for index, step in enumerate(steps):
+            if time.monotonic() > deadline:
+                run.status = "failed"
+                run.error = "timeout"
+                run.finished_at = datetime.now(UTC)
+                run.result = {
+                    "candidates": candidates,
+                    "top_pick": None,
+                    "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                }
+                await db.flush()
+                await _maybe_deadletter_after_failure(db, scanner)
+                await db.refresh(run)
+                return run
+
             candidates = await _run_step(
                 db, step, candidates, align_present=align_present
             )
             run.checkpoint = {"node": index}
             await db.flush()
+
+            if time.monotonic() > deadline:
+                run.status = "failed"
+                run.error = "timeout"
+                run.finished_at = datetime.now(UTC)
+                run.result = {
+                    "candidates": candidates,
+                    "top_pick": None,
+                    "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                }
+                await db.flush()
+                await _maybe_deadletter_after_failure(db, scanner)
+                await db.refresh(run)
+                return run
 
         # Final alignment flag for candidates that never hit DIRECTION_ALIGNMENT.
         for cand in candidates:
@@ -350,11 +469,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         run.result = {
             "candidates": candidates,
             "top_pick": top_pick,
-            "counts": {
-                "universe": universe_count,
-                "candidates": len(candidates),
-                "aligned": len(aligned),
-            },
+            "counts": _counts(candidates_n=len(candidates), aligned_n=len(aligned)),
         }
         run.status = "empty" if not candidates else "completed"
         run.finished_at = datetime.now(UTC)
@@ -376,5 +491,6 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         run.finished_at = datetime.now(UTC)
         # checkpoint preserved as last successful node
         await db.flush()
+        await _maybe_deadletter_after_failure(db, scanner)
         await db.refresh(run)
         return run

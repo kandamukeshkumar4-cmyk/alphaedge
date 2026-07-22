@@ -80,12 +80,30 @@ describe("fetchMarkets shared cache", () => {
   });
 
   it("does not cache failures", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     fetchMock.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
-    await expect(fetchMarkets({})).rejects.toThrow("Markets HTTP 429");
+    // Soft-fail: resolve empty so header/ticker probes never throw pageerrors.
+    await expect(fetchMarkets({})).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      "Markets HTTP 429 — using empty catalog",
+    );
+    warn.mockRestore();
 
+    // Empty/degraded results are TTL-cached like successes; advance past TTL.
+    vi.advanceTimersByTime(4100);
     fetchMock.mockResolvedValueOnce(okResponse());
     const markets = await fetchMarkets({});
     expect(markets.length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves empty on Markets HTTP 503 without throwing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+    await expect(fetchMarkets({})).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      "Markets HTTP 503 — using empty catalog",
+    );
+    warn.mockRestore();
   });
 });

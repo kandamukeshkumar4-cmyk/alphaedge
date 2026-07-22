@@ -571,7 +571,10 @@ async function fetchMarketsUncached(params?: MarketFilterParams): Promise<CardMa
   const href = apiBase ? url.toString() : `${url.pathname}${url.search}`;
   const response = await fetch(href, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Markets HTTP ${response.status}`);
+    // Degraded API (e.g. HF free-tier 503) must never surface as an uncaught
+    // pageerror on every route that probes markets from the shared header/ticker.
+    console.warn(`Markets HTTP ${response.status} — using empty catalog`);
+    return [];
   }
   const markets = (await response.json()) as ApiMarketCatalogItem[];
   return apiCatalogToMarkets(markets);
