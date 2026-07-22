@@ -19,10 +19,12 @@ from app.schemas.scanners import (
     ScannerOut,
     ScannerRunOut,
     ScannerTestEmailOut,
+    ScannerUpdate,
 )
 from app.services.scanner_compiler_service import compile_scanner_spec
 from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
+from app.services.scanner_version_service import apply_spec_change, rollback_scanner_spec
 
 router = APIRouter(prefix="/api/v1/scanners", tags=["scanners"])
 
@@ -190,6 +192,52 @@ async def get_scanner(
         latest_run=latest,
         last_error=await _last_error_for(db, scanner.id),
     )
+
+
+@router.patch("/{scanner_id}", response_model=ScannerOut)
+async def update_scanner(
+    scanner_id: UUID,
+    body: ScannerUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerOut:
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None or scanner.owner != str(user.id):
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if body.name is not None:
+        scanner.name = body.name.strip()
+    if body.description is not None:
+        scanner.description = body.description.strip() or None
+    if body.is_public is not None:
+        scanner.is_public = body.is_public
+    if body.cooldown_minutes is not None:
+        scanner.cooldown_minutes = body.cooldown_minutes
+    if body.spec is not None:
+        spec = dict(body.spec)
+        if not isinstance(spec.get("steps"), list):
+            raise HTTPException(status_code=400, detail="spec.steps must be a list")
+        await apply_spec_change(db, scanner, spec)
+    else:
+        await db.flush()
+        await db.refresh(scanner)
+    return _scanner_out(scanner, latest_run=await _latest_run(db, scanner.id))
+
+
+@router.post("/{scanner_id}/rollback", response_model=ScannerOut)
+async def rollback_scanner(
+    scanner_id: UUID,
+    version: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerOut:
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None or scanner.owner != str(user.id):
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    try:
+        await rollback_scanner_spec(db, scanner, version)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _scanner_out(scanner, latest_run=await _latest_run(db, scanner.id))
 
 
 @router.post("/{scanner_id}/run", response_model=ScannerRunOut)

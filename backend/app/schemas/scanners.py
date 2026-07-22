@@ -24,6 +24,14 @@ class ScannerCreate(BaseModel):
     cooldown_minutes: int = Field(default=120, ge=0, le=10080)
 
 
+class ScannerUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    spec: dict[str, Any] | None = None
+    is_public: bool | None = None
+    cooldown_minutes: int | None = Field(default=None, ge=0, le=10080)
+
+
 class ScannerRunOut(BaseModel):
     id: UUID
     scanner_id: UUID
