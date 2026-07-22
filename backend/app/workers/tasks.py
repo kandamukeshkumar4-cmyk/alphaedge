@@ -1003,6 +1003,30 @@ async def _attach_distribution_metadata(session, now, distribution: dict) -> Non
         digest.citations = citations
 
 
+
+SCANNER_SCHEDULER_JOB_NAME = "scanner_scheduler_task"
+
+
+async def scanner_scheduler_task(ctx: dict) -> dict:
+    """Every 5 min: run due active scanners (interval + fired cooldown).
+
+    Research-only — delegates to ``run_due_scanners`` / ``run_scanner``.
+    Never places orders or calls RiskService / OrderBookService.
+    """
+    from app.core.config import get_settings
+    from app.db.session import AsyncSessionLocal
+    from app.services.scanner_scheduler_service import run_due_scanners
+
+    settings = get_settings()
+    if not settings.scheduler_scanners_enabled:
+        return {"skipped": True, "reason": "disabled", "active": 0, "due": 0, "ran": 0}
+
+    async with AsyncSessionLocal() as session:
+        summary = await run_due_scanners(session)
+        await session.commit()
+    return summary
+
+
 NIGHTLY_BACKTEST_JOB_NAME = "nightly_backtest_task"
 
 
@@ -1191,6 +1215,7 @@ class WorkerSettings:
         score_claims_task,
         analyst_aggregates_task,
         morning_research_task,
+        scanner_scheduler_task,
         nightly_backtest_task,
         nightly_profile_refresh_task,
         weather_scan_task,
@@ -1236,6 +1261,8 @@ class WorkerSettings:
         cron(analyst_aggregates_task, minute={50}),
         # daily research digest at 06:00 — "the desk runs while you sleep"
         cron(morning_research_task, hour={6}, minute={0}),
+        # Loop V82 C5: Scanner Studio due-scanner sweep every 5 min
+        cron(scanner_scheduler_task, minute=set(range(0, 60, 5))),
         # nightly backtest replay at 02:00 — flag-gated (BACKTEST_NIGHTLY_ENABLED=false)
         cron(nightly_backtest_task, hour={2}, minute={0}),
         # nightly trader profile refresh at 03:30 — flag-gated (TRADER_PROFILE_ENABLED=true)

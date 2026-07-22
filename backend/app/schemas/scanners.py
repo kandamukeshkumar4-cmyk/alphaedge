@@ -33,6 +33,7 @@ class ScannerRunOut(BaseModel):
     checkpoint: dict[str, Any] | None
     result: dict[str, Any] | None
     error: str | None
+    duration_ms: int | None = None
 
 
 class ScannerOut(BaseModel):
@@ -48,3 +49,5 @@ class ScannerOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     latest_run: ScannerRunOut | None = None
+    next_run_at: datetime | None = None
+    last_error: str | None = None

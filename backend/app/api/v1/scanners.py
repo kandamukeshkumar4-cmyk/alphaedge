@@ -1,6 +1,7 @@
 """Scanner Studio API — compile / CRUD / run / pause (research-only)."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +24,18 @@ from app.services.scanner_executor_service import run_scanner
 router = APIRouter(prefix="/api/v1/scanners", tags=["scanners"])
 
 
+def _duration_ms(run: ScannerRun) -> int | None:
+    if run.started_at is None or run.finished_at is None:
+        return None
+    start = run.started_at
+    end = run.finished_at
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
+    return max(int((end - start).total_seconds() * 1000), 0)
+
+
 def _run_out(run: ScannerRun) -> ScannerRunOut:
     return ScannerRunOut(
         id=run.id,
@@ -33,10 +46,38 @@ def _run_out(run: ScannerRun) -> ScannerRunOut:
         checkpoint=run.checkpoint,
         result=run.result,
         error=run.error,
+        duration_ms=_duration_ms(run),
     )
 
 
-def _scanner_out(scanner: Scanner, latest_run: ScannerRun | None = None) -> ScannerOut:
+def _interval_minutes(spec: dict) -> int:
+    schedule = (spec or {}).get("schedule") or {}
+    try:
+        return max(int(schedule.get("interval_minutes") or 60), 0)
+    except (TypeError, ValueError):
+        return 60
+
+
+def _next_run_at(scanner: Scanner, latest_run: ScannerRun | None) -> datetime | None:
+    """Next eligible start from schedule interval + last run started_at."""
+    interval = _interval_minutes(dict(scanner.spec or {}))
+    if latest_run is None or latest_run.started_at is None:
+        return None
+    start = latest_run.started_at
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    return start + timedelta(minutes=interval)
+
+
+def _scanner_out(
+    scanner: Scanner,
+    latest_run: ScannerRun | None = None,
+    *,
+    last_error: str | None = None,
+) -> ScannerOut:
+    err = last_error
+    if err is None and latest_run is not None:
+        err = latest_run.error
     return ScannerOut(
         id=scanner.id,
         name=scanner.name,
@@ -50,6 +91,8 @@ def _scanner_out(scanner: Scanner, latest_run: ScannerRun | None = None) -> Scan
         created_at=scanner.created_at,
         updated_at=scanner.updated_at,
         latest_run=_run_out(latest_run) if latest_run is not None else None,
+        next_run_at=_next_run_at(scanner, latest_run),
+        last_error=err,
     )
 
 
@@ -120,6 +163,16 @@ async def list_scanners(
     return [_scanner_out(s) for s in scanners]
 
 
+async def _last_error_for(db: AsyncSession, scanner_id: UUID) -> str | None:
+    failed = await db.scalar(
+        select(ScannerRun)
+        .where(ScannerRun.scanner_id == scanner_id, ScannerRun.error.is_not(None))
+        .order_by(ScannerRun.started_at.desc())
+        .limit(1)
+    )
+    return failed.error if failed is not None else None
+
+
 @router.get("/{scanner_id}", response_model=ScannerOut)
 async def get_scanner(
     scanner_id: UUID,
@@ -128,7 +181,11 @@ async def get_scanner(
 ) -> ScannerOut:
     scanner = await _get_visible_scanner(db, scanner_id, user)
     latest = await _latest_run(db, scanner.id)
-    return _scanner_out(scanner, latest_run=latest)
+    return _scanner_out(
+        scanner,
+        latest_run=latest,
+        last_error=await _last_error_for(db, scanner.id),
+    )
 
 
 @router.post("/{scanner_id}/run", response_model=ScannerRunOut)

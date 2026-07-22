@@ -333,6 +333,41 @@ async def _morning_research_loop() -> None:
             record_heartbeat("morning_research", status="error", detail="morning research pass failed")
 
 
+
+async def _scanner_scheduler_loop() -> None:
+    """Every 5 min run due Scanner Studio scanners (mirrors
+    ``cron(scanner_scheduler_task, minute=set(range(0, 60, 5)))``).
+
+    Interval + cooldown eligibility lives in
+    ``scanner_scheduler_service.pick_due_scanners``; this loop only paces
+    the ARQ-mirror tick so uvicorn-only deploys still schedule scanners.
+    """
+    from app.workers.tasks import scanner_scheduler_task
+
+    while True:
+        await asyncio.sleep(300)
+        try:
+            summary = await scanner_scheduler_task({})
+            detail = None
+            if isinstance(summary, dict):
+                if summary.get("skipped"):
+                    detail = f"skipped:{summary.get('reason')}"
+                else:
+                    detail = (
+                        f"active={summary.get('active', 0)} "
+                        f"due={summary.get('due', 0)} "
+                        f"ran={summary.get('ran', 0)}"
+                    )
+            record_heartbeat("scanner_scheduler", detail=detail)
+        except Exception:
+            logger.error("Scanner scheduler loop failed", exc_info=True)
+            record_heartbeat(
+                "scanner_scheduler",
+                status="error",
+                detail="scanner scheduler pass failed",
+            )
+
+
 async def _whale_refresh_loop() -> None:
     """Weekly whale re-qualification (mirrors
     ``cron(refresh_whales_task, weekday={0}, hour={3})``)."""
@@ -693,6 +728,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_weather_scan_loop())
     if settings.scheduler_morning_research_enabled:
         asyncio.create_task(_morning_research_loop())
+    if settings.scheduler_scanners_enabled:
+        asyncio.create_task(_scanner_scheduler_loop())
     if settings.scheduler_whale_refresh_enabled:
         asyncio.create_task(_whale_refresh_loop())
     if settings.scheduler_whale_flow_enabled:

@@ -359,6 +359,15 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         run.status = "empty" if not candidates else "completed"
         run.finished_at = datetime.now(UTC)
         await db.flush()
+
+        # C6: surface fired runs on the signals/toast feed (cooldown-gated).
+        try:
+            from app.services.scanner_alert_service import record_scanner_fired_alert
+
+            await record_scanner_fired_alert(db, scanner, run)
+        except Exception:  # noqa: BLE001 — alert failure must not fail the run
+            pass
+
         await db.refresh(run)
         return run
     except Exception as exc:

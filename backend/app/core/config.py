@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     scheduler_morning_research_enabled: bool = Field(
         default=True, alias="SCHEDULER_MORNING_RESEARCH_ENABLED"
     )
+    scheduler_scanners_enabled: bool = Field(
+        default=True, alias="SCHEDULER_SCANNERS_ENABLED"
+    )
     scheduler_whale_refresh_enabled: bool = Field(
         default=True, alias="SCHEDULER_WHALE_REFRESH_ENABLED"
     )
@@ -178,6 +181,13 @@ class Settings(BaseSettings):
     notification_admin_emails: str = Field(
         default="", alias="NOTIFICATION_ADMIN_EMAILS"
     )
+    # Loop V82 C7: optional SMTP for scanner fired summaries (empty = skip).
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_pass: str = Field(default="", alias="SMTP_PASS")
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
+    alert_email_to: str = Field(default="", alias="ALERT_EMAIL_TO")
     external_autolock_window_sec: int = Field(
         default=86400, alias="EXTERNAL_AUTOLOCK_WINDOW_SEC"
     )
