@@ -128,7 +128,11 @@ async def compile_scanner(body: ScannerCompileRequest) -> ScannerCompileOut:
     """Preview NL→spec compile (deterministic, optional LLM assist). Does not persist."""
     settings = get_settings()
     result = await compile_scanner_flow(body.text, settings)
-    return ScannerCompileOut(spec=result["spec"], compiler=result["compiler"])
+    return ScannerCompileOut(
+        spec=result["spec"],
+        compiler=result["compiler"],
+        warnings=list(result.get("warnings") or []),
+    )
 
 
 @router.post("/", response_model=ScannerOut, status_code=status.HTTP_201_CREATED)

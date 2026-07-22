@@ -11,6 +11,7 @@ from app.services.scanner_compiler_service import (
     compile_scanner_flow,
     compile_scanner_spec,
     is_valid_compiled_spec,
+    validate_spec,
 )
 
 
@@ -134,3 +135,41 @@ async def test_no_llm_config_path_unchanged():
     result2 = await compile_scanner_flow(text, None)
     assert result2["compiler"] == "deterministic"
     assert result2["spec"] == det
+
+
+def test_validate_spec_empty_universe():
+    spec = compile_scanner_spec("xyzzy plugh")
+    warnings = validate_spec(spec)
+    assert "empty universe" in warnings
+    assert "no signal steps" in warnings
+
+
+def test_validate_spec_spend_warning_and_cooldown():
+    spec = {
+        "name": "busy",
+        "universe": {"categories": ["nba"], "minimum_volume": 0},
+        "schedule": {"timezone": "UTC", "market_hours_only": False, "interval_minutes": 10},
+        "steps": [
+            {"type": "WHALE_FLOW"},
+            {"type": "PRICE_TREND", "window_days": 7},
+            {"type": "NEWS_SENTIMENT"},
+            {"type": "MODEL_EDGE"},
+        ],
+        "delivery": {"email": False, "in_app": True, "cooldown_minutes": 5},
+        "limit": 10,
+        "notes": [],
+    }
+    warnings = validate_spec(spec)
+    assert any("spend warning" in w for w in warnings)
+    assert "cooldown less than interval" in warnings
+    assert "empty universe" not in warnings
+    assert "no signal steps" not in warnings
+
+
+@pytest.mark.asyncio
+async def test_compile_flow_includes_warnings():
+    result = await compile_scanner_flow("xyzzy plugh", None)
+    assert "warnings" in result
+    assert isinstance(result["warnings"], list)
+    assert "empty universe" in result["warnings"]
+    assert result["compiler"] == "deterministic"

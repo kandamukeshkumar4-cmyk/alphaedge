@@ -293,12 +293,52 @@ async def _llm_plan_spec(text: str, settings: Settings) -> dict[str, Any] | None
     return _parse_llm_spec_json(content)
 
 
+
+def validate_spec(spec: dict[str, Any]) -> list[str]:
+    """Deterministic post-compile warnings (never blocks compile)."""
+    warnings: list[str] = []
+    if not isinstance(spec, dict):
+        return ["invalid spec"]
+
+    universe = spec.get("universe") if isinstance(spec.get("universe"), dict) else {}
+    categories = universe.get("categories") if isinstance(universe.get("categories"), list) else []
+    if not categories:
+        warnings.append("empty universe")
+
+    schedule = spec.get("schedule") if isinstance(spec.get("schedule"), dict) else {}
+    try:
+        interval = int(schedule.get("interval_minutes") or 0)
+    except (TypeError, ValueError):
+        interval = 0
+
+    steps = spec.get("steps") if isinstance(spec.get("steps"), list) else []
+    if interval < 15 and len(steps) > 3:
+        warnings.append("spend warning: interval under 15 minutes with more than 3 steps")
+
+    signal_steps = [
+        s for s in steps
+        if isinstance(s, dict) and s.get("type") in _SIGNAL_TYPES
+    ]
+    if not signal_steps:
+        warnings.append("no signal steps")
+
+    delivery = spec.get("delivery") if isinstance(spec.get("delivery"), dict) else {}
+    try:
+        cooldown = int(delivery.get("cooldown_minutes") or 0)
+    except (TypeError, ValueError):
+        cooldown = 0
+    if cooldown < interval:
+        warnings.append("cooldown less than interval")
+
+    return warnings
+
+
 async def compile_scanner_flow(
     text: str, settings: Settings | None = None
 ) -> dict[str, Any]:
     """Full compile path: deterministic first, optional validated LLM assist.
 
-    Returns {"spec": dict, "compiler": "deterministic"|"llm-assisted"}.
+    Returns {"spec": dict, "compiler": ..., "warnings": list[str]}.
     Never returns an unvalidated LLM spec.
     """
     deterministic = compile_scanner_spec(text)
@@ -329,4 +369,5 @@ async def compile_scanner_flow(
                 deterministic = merged
                 compiler = "llm-assisted"
 
-    return {"spec": deterministic, "compiler": compiler}
+    warnings = validate_spec(deterministic)
+    return {"spec": deterministic, "compiler": compiler, "warnings": warnings}

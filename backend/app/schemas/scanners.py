@@ -15,6 +15,7 @@ class ScannerCompileRequest(BaseModel):
 class ScannerCompileOut(BaseModel):
     spec: dict[str, Any]
     compiler: Literal["deterministic", "llm-assisted"] = "deterministic"
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ScannerCreate(BaseModel):
