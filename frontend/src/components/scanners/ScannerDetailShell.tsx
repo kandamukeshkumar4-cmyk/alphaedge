@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScannerCanvas } from "@/components/scanners/ScannerCanvas";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
@@ -29,6 +29,7 @@ import {
   type ScannerCandidate,
   type ScannerReads,
   type ScannerRun,
+  type ScannerStep,
   type ScannerStepType,
   type ScannerVersion,
   type StepDirection,
@@ -188,6 +189,7 @@ function PrePublishPanel({
   token,
   onPublished,
   onTested,
+  onBuildStart,
 }: {
   scanner: Scanner;
   stepTypes: ScannerStepType[];
@@ -195,6 +197,7 @@ function PrePublishPanel({
   token: string | null;
   onPublished: (scanner: Scanner) => void;
   onTested: () => void;
+  onBuildStart: () => void;
 }) {
   const { toast } = useToast();
   const [testing, setTesting] = useState(false);
@@ -210,6 +213,7 @@ function PrePublishPanel({
   async function handleTest() {
     setTesting(true);
     setPublishMsg(null);
+    onBuildStart();
     try {
       const { run } = await testRunScanner(scanner.id, token);
       if (!run) {
@@ -620,6 +624,125 @@ function VersionChip({
   );
 }
 
+// Loop V86 (X3) — build narration rail. A small staged list of messages that
+// appear 400ms apart while a run/compile is in-flight, derived from the spec's
+// step names. Purely presentational: it never gates the real result, which
+// renders from the API independently. Reduced-motion collapses the stagger to
+// an instant list (global kill-switch also zeroes the pulse).
+
+function narrationForStep(step: ScannerStep): string {
+  switch (step.type) {
+    case "WHALE_FLOW":
+      return "Fetching whale flow";
+    case "PRICE_TREND":
+      return "Reading price trend";
+    case "NEWS_SENTIMENT":
+      return "Scanning news sentiment";
+    case "MODEL_EDGE":
+      return "Computing model edge";
+    case "DIRECTION_ALIGNMENT":
+      return "Scoring alignment";
+  }
+}
+
+function buildNarrationMessages(steps: ScannerStep[]): string[] {
+  const messages = ["Reading configuration"];
+  for (const step of steps) messages.push(narrationForStep(step));
+  messages.push("Filtering candidates", "Rendering dashboard");
+  return messages;
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function BuildNarration({
+  steps,
+  onDone,
+}: {
+  steps: ScannerStep[];
+  onDone: () => void;
+}) {
+  const messages = useMemo(() => buildNarrationMessages(steps), [steps]);
+  const reduced = useRef(prefersReducedMotion());
+  const [revealed, setRevealed] = useState(1);
+  const onDoneRef = useRef(onDone);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    // Reduced motion: collapse the 400ms stagger to an instant full list.
+    if (reduced.current && revealed < messages.length) {
+      setRevealed(messages.length);
+      return;
+    }
+    if (revealed >= messages.length) {
+      // Hold the completed rail briefly, then hand control back.
+      const hold = window.setTimeout(() => onDoneRef.current(), 350);
+      return () => window.clearTimeout(hold);
+    }
+    const tick = window.setTimeout(
+      () => setRevealed((r) => Math.min(messages.length, r + 1)),
+      400,
+    );
+    return () => window.clearTimeout(tick);
+  }, [revealed, messages]);
+
+  return (
+    <section
+      data-testid="scanner-build-narration"
+      aria-label="Build narration"
+      className="t-rise mt-5 min-h-[96px] rounded-xl border border-border bg-surface p-4"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
+        />
+        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+          Building · paper research
+        </p>
+      </div>
+      <ol className="mt-3 flex flex-col gap-1.5">
+        {messages.map((message, index) => {
+          const state =
+            index < revealed - 1 ? "done" : index === revealed - 1 ? "active" : "pending";
+          return (
+            <li
+              key={`${index}-${message}`}
+              data-testid="scanner-build-narration-step"
+              data-state={state}
+              className={cn(
+                "flex items-center gap-2 font-mono text-[12px] transition-colors duration-250 ease-swift",
+                state === "pending" && "text-muted-2 opacity-50",
+                state === "active" && "text-text",
+                state === "done" && "text-muted",
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "grid h-4 w-4 shrink-0 place-items-center rounded text-[10px] font-bold",
+                  state === "done" && "bg-primary/15 text-primary",
+                  state === "active" && "bg-primary/25 text-primary animate-pulse",
+                  state === "pending" && "bg-surface-2 text-muted-2",
+                )}
+              >
+                {state === "done" ? "✓" : state === "active" ? "●" : "○"}
+              </span>
+              {message}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 function DetailSkeleton() {
   return (
     <div aria-busy="true">
@@ -643,6 +766,14 @@ export function ScannerDetailShell({ id }: { id: string }) {
   const [running, setRunning] = useState(false);
   // X1: spring the status pill the moment a draft publishes to active.
   const [popStatus, setPopStatus] = useState(false);
+  // X3: build narration rail — visible while a run is in flight.
+  const [narrating, setNarrating] = useState(false);
+  const [narrationKey, setNarrationKey] = useState(0);
+  const startNarration = useCallback(() => {
+    setNarrationKey((k) => k + 1);
+    setNarrating(true);
+  }, []);
+  const stopNarration = useCallback(() => setNarrating(false), []);
 
   useEffect(() => {
     if (!isReady) return;
@@ -673,6 +804,7 @@ export function ScannerDetailShell({ id }: { id: string }) {
 
   async function handleRun() {
     setRunning(true);
+    startNarration();
     try {
       await runScannerNow(id, token);
       await refresh();
@@ -822,6 +954,7 @@ export function ScannerDetailShell({ id }: { id: string }) {
             token={token}
             onPublished={handlePublished}
             onTested={refresh}
+            onBuildStart={startNarration}
           />
         ) : null}
 
@@ -835,6 +968,14 @@ export function ScannerDetailShell({ id }: { id: string }) {
           </div>
           <ScannerCanvas steps={scanner.spec.steps} latestRun={latestRun} />
         </section>
+
+        {narrating ? (
+          <BuildNarration
+            key={narrationKey}
+            steps={scanner.spec.steps}
+            onDone={stopNarration}
+          />
+        ) : null}
 
         {/* Latest run result + runs history. */}
         <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
