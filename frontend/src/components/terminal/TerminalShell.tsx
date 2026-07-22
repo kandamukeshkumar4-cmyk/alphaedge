@@ -95,6 +95,9 @@ export function TerminalShell() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
   const [hideSteps, setHideSteps] = useState(false);
+  /** Canvas node click → force-expand that step card in Dashboard. */
+  const [expandStepId, setExpandStepId] = useState<string | null>(null);
+  const [expandNonce, setExpandNonce] = useState(0);
 
   const refreshList = useCallback(async () => {
     setListLoading(true);
@@ -212,8 +215,11 @@ export function TerminalShell() {
     setComposerKey((k) => k + 1);
   }, []);
 
-  /** Canvas node click → back to Dashboard with that step in view. */
+  /** Canvas node click → back to Dashboard with that step expanded. */
   const onSelectStep = useCallback((stepId: string) => {
+    setHideSteps(false);
+    setExpandStepId(stepId);
+    setExpandNonce((n) => n + 1);
     setView("dashboard");
     window.setTimeout(() => {
       document
@@ -453,6 +459,9 @@ export function TerminalShell() {
                         hideSteps={hideSteps}
                         active={running && i === steps.length - 1}
                         stagger={i < 5 ? i : undefined}
+                        expandNonce={
+                          expandStepId === step.id ? expandNonce : undefined
+                        }
                       />
                     ))
                   )}
