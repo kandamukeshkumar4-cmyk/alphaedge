@@ -1077,6 +1077,26 @@ class ScannerRun(Base):
     scanner: Mapped["Scanner"] = relationship(back_populates="runs")
 
 
+class Subscription(Base):
+    """User subscription to a public skill or scanner (notify/track only).
+
+    Research-only: never places orders or touches RiskService / OrderBookService.
+    ``user`` stores ``str(user.id)`` to match Scanner.owner / Skill.created_by.
+    """
+
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        UniqueConstraint("user", "ref_type", "ref_id", name="uq_subscriptions_user_ref"),
+        Index("ix_subscriptions_user", "user"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user: Mapped[str] = mapped_column(String(64), nullable=False)
+    ref_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    ref_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class PromptVersion(Base):
     __tablename__ = "prompt_versions"
 
