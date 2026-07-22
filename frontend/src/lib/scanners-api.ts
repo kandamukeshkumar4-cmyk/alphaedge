@@ -31,7 +31,7 @@
  * is the sole order path and scanners never call it).
  */
 
-import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
+import { apiUrl, ensureApiBase, formatApiDetail, hasLiveApi } from "@/lib/alphaedge-api";
 
 // ---------------------------------------------------------------------------
 // Types (backend contract)
@@ -155,6 +155,10 @@ export type ScannerRun = {
   checkpoint: { node: number } | null;
   result: ScannerRunResult | null;
   error: string | null;
+  /** Wall-clock duration in ms (backend `_duration_ms`); null while running. */
+  duration_ms: number | null;
+  /** True for test-run snapshots (never trigger delivery / never publish). */
+  is_test: boolean;
 };
 
 export type Scanner = {
@@ -170,6 +174,18 @@ export type Scanner = {
   created_at: string;
   updated_at: string;
   latest_run: ScannerRun | null;
+  /** Next scheduled run ISO (scheduler); null for draft / paused. */
+  next_run_at: string | null;
+  /** Last failure message across recent runs (dead-letter surface). */
+  last_error: string | null;
+};
+
+/** One row of spec version history (GET /{id}/versions; mock-derived). */
+export type ScannerVersion = {
+  version: number;
+  created_at: string;
+  /** True when this is the scanner's current live version. */
+  current: boolean;
 };
 
 export type ApiSource = "live" | "mock";
@@ -342,11 +358,23 @@ export function normalizeScannerRun(raw: unknown): ScannerRun | null {
       ? status
       : "running";
   const checkpoint = asRecord(rec.checkpoint);
+  const finishedAt = typeof rec.finished_at === "string" ? rec.finished_at : null;
+  const startedAt = typeof rec.started_at === "string" ? rec.started_at : new Date(0).toISOString();
+  // Prefer the backend's duration_ms; fall back to computing it from timestamps.
+  const durationMs =
+    typeof rec.duration_ms === "number" && Number.isFinite(rec.duration_ms)
+      ? rec.duration_ms
+      : finishedAt
+        ? (() => {
+            const ms = Date.parse(finishedAt) - Date.parse(startedAt);
+            return Number.isFinite(ms) && ms >= 0 ? ms : null;
+          })()
+        : null;
   return {
     id: rec.id,
     scanner_id: typeof rec.scanner_id === "string" ? rec.scanner_id : "",
-    started_at: typeof rec.started_at === "string" ? rec.started_at : new Date(0).toISOString(),
-    finished_at: typeof rec.finished_at === "string" ? rec.finished_at : null,
+    started_at: startedAt,
+    finished_at: finishedAt,
     status: runStatus,
     checkpoint:
       typeof checkpoint.node === "number" && Number.isFinite(checkpoint.node)
@@ -354,6 +382,8 @@ export function normalizeScannerRun(raw: unknown): ScannerRun | null {
         : null,
     result: rec.result !== null && rec.result !== undefined ? normalizeRunResult(rec.result) : null,
     error: typeof rec.error === "string" ? rec.error : null,
+    duration_ms: durationMs,
+    is_test: rec.is_test === true,
   };
 }
 
@@ -378,6 +408,8 @@ export function normalizeScanner(raw: unknown): Scanner | null {
     created_at: typeof rec.created_at === "string" ? rec.created_at : new Date(0).toISOString(),
     updated_at: typeof rec.updated_at === "string" ? rec.updated_at : new Date(0).toISOString(),
     latest_run: rec.latest_run ? normalizeScannerRun(rec.latest_run) : null,
+    next_run_at: typeof rec.next_run_at === "string" ? rec.next_run_at : null,
+    last_error: typeof rec.last_error === "string" && rec.last_error ? rec.last_error : null,
   };
 }
 
@@ -556,6 +588,8 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
       checkpoint: null,
       result: { candidates: [], top_pick: null, counts: { universe: 0, candidates: 0, aligned: 0 } },
       error: null,
+      duration_ms: 0,
+      is_test: false,
     };
   }
 
@@ -595,11 +629,12 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
   );
   const aligned = candidates.filter((c) => c.aligned);
   const started = Date.parse(startedAt);
+  const finishedAt = new Date(started + 4200).toISOString();
   return {
     id: runId,
     scanner_id: "",
     started_at: startedAt,
-    finished_at: new Date(started + 4200).toISOString(),
+    finished_at: finishedAt,
     status: "completed",
     checkpoint: { node: Math.max(0, spec.steps.length - 1) },
     result: {
@@ -608,6 +643,8 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
       counts: { universe: universe.length, candidates: candidates.length, aligned: aligned.length },
     },
     error: null,
+    duration_ms: 4200,
+    is_test: false,
   };
 }
 
@@ -666,13 +703,15 @@ function seedMockStore(): { scanners: Scanner[]; runs: Record<string, ScannerRun
       description: "Whale flow, price trend, news and model agreement on NBA markets.",
       owner: "mock-user",
       spec: MOCK_WHALE_SPEC,
-      version: 1,
+      version: 3,
       status: "active",
       is_public: true,
       cooldown_minutes: 120,
-      created_at: "2026-07-20T12:00:00.000Z",
+      created_at: "2026-07-18T12:00:00.000Z",
       updated_at: MOCK_NOW,
       latest_run: whaleRuns[0] ?? null,
+      next_run_at: "2026-07-21T15:15:00.000Z",
+      last_error: null,
     },
     {
       id: "scn-mock-daily",
@@ -680,13 +719,15 @@ function seedMockStore(): { scanners: Scanner[]; runs: Record<string, ScannerRun
       description: "Once-a-day sentiment + model read on election markets.",
       owner: "mock-user",
       spec: MOCK_DAILY_SPEC,
-      version: 1,
+      version: 2,
       status: "paused",
       is_public: true,
       cooldown_minutes: 240,
       created_at: "2026-07-19T09:00:00.000Z",
       updated_at: "2026-07-21T07:00:00.000Z",
       latest_run: dailyRuns[0] ?? null,
+      next_run_at: null,
+      last_error: null,
     },
     {
       id: "scn-mock-draft",
@@ -701,6 +742,8 @@ function seedMockStore(): { scanners: Scanner[]; runs: Record<string, ScannerRun
       created_at: MOCK_NOW,
       updated_at: MOCK_NOW,
       latest_run: null,
+      next_run_at: null,
+      last_error: null,
     },
   ];
   return {
@@ -919,6 +962,8 @@ export async function createScanner(
     created_at: now,
     updated_at: now,
     latest_run: null,
+    next_run_at: null,
+    last_error: null,
   };
   mockStore = {
     scanners: [local, ...mockStore.scanners],
@@ -1047,4 +1092,252 @@ export async function listScannerRuns(
     if (runs.length > 0) return { runs, source: "live" };
   }
   return { runs: mockStore.runs[id] ?? [], source: "mock" };
+}
+
+// ---------------------------------------------------------------------------
+// Pre-publish + versioning endpoints (Loop V86 — X1/X2).
+// test-run / test-email / publish / rollback / versions. Live first, mock
+// fallback. publish surfaces the backend's 409 "run a test first" so the UI
+// can disable the button until a test run exists.
+// ---------------------------------------------------------------------------
+
+/** Live fetch that returns status + body so business errors (409) surface. */
+async function tryLiveResponse(
+  path: string,
+  token: string | null,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; body: unknown } | null> {
+  const base = await liveBase();
+  if (!base) return null;
+  try {
+    const res = await scannersFetch(apiUrl(path, base), {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+    const text = await res.text();
+    let body: unknown = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+    }
+    return { ok: res.ok, status: res.status, body };
+  } catch {
+    return null;
+  }
+}
+
+/** Human-readable message from a FastAPI error body (detail string/array). */
+function errorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === "object") {
+    const detail = (body as { detail?: unknown }).detail;
+    const formatted = formatApiDetail(detail, "");
+    if (formatted) return formatted;
+  }
+  if (typeof body === "string" && body.trim()) return body;
+  return fallback;
+}
+
+export type TestEmailResult = {
+  /** True when an email was actually dispatched. */
+  sent: boolean;
+  /** False when email delivery is not configured for this scanner. */
+  configured: boolean;
+  source: ApiSource;
+};
+
+/** Send a test email preview. POST /{id}/test-email (auth). */
+export async function testEmailScanner(
+  id: string,
+  token: string | null = null,
+): Promise<TestEmailResult> {
+  const live = await tryLiveResponse(
+    `/api/v1/scanners/${encodeURIComponent(id)}/test-email`,
+    token,
+    { method: "POST" },
+  );
+  if (live) {
+    const rec = asRecord(live.body);
+    return {
+      sent: live.ok && rec.sent === true,
+      configured: live.ok ? rec.configured !== false : rec.configured === true,
+      source: "live",
+    };
+  }
+  // Mock: email is "configured" only when the spec opts into email delivery.
+  const scanner = mockStore.scanners.find((s) => s.id === id);
+  const configured = scanner?.spec.delivery.email === true;
+  return { sent: configured, configured, source: "mock" };
+}
+
+/** Execute a one-off test run over the current universe. POST /{id}/test-run. */
+export async function testRunScanner(
+  id: string,
+  token: string | null = null,
+): Promise<{ run: ScannerRun | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/test-run`,
+    token,
+    { method: "POST" },
+  );
+  const run = live ? normalizeScannerRun(live) : null;
+  if (run) return { run, source: "live" };
+
+  // Mock: execute the spec as a test snapshot (is_test=true) without
+  // publishing — the scanner stays in draft until an explicit publish.
+  const scanner = mockStore.scanners.find((s) => s.id === id);
+  if (!scanner) return { run: null, source: "mock" };
+  const startedAt = new Date().toISOString();
+  const started = Date.parse(startedAt);
+  const executed = mockExecute(scanner.spec, nextMockId("run-test"), startedAt);
+  const testRun: ScannerRun = {
+    ...executed,
+    scanner_id: scanner.id,
+    is_test: true,
+    finished_at: new Date(started + 4200).toISOString(),
+    duration_ms: 4200,
+  };
+  const updated: Scanner = {
+    ...scanner,
+    updated_at: startedAt,
+    latest_run: testRun,
+  };
+  mockStore = {
+    scanners: mockStore.scanners.map((s) => (s.id === id ? updated : s)),
+    runs: { ...mockStore.runs, [id]: [testRun, ...(mockStore.runs[id] ?? [])] },
+  };
+  return { run: testRun, source: "mock" };
+}
+
+export type PublishResult =
+  | { ok: true; scanner: Scanner; source: ApiSource }
+  | { ok: false; reason: "no_test_run"; message: string; source: ApiSource };
+
+/** Has this scanner logged at least one test run? (publish gate, mock parity). */
+function mockHasTestRun(id: string): boolean {
+  return (mockStore.runs[id] ?? []).some((r) => r.is_test);
+}
+
+/** Publish a scanner (draft → active). POST /{id}/publish (auth).
+ *  409 until a test run exists — surfaced as `{ok:false, reason:"no_test_run"}`. */
+export async function publishScanner(
+  id: string,
+  token: string | null = null,
+): Promise<PublishResult> {
+  const live = await tryLiveResponse(
+    `/api/v1/scanners/${encodeURIComponent(id)}/publish`,
+    token,
+    { method: "POST" },
+  );
+  if (live) {
+    if (live.ok) {
+      const scanner = normalizeScanner(live.body);
+      if (scanner) return { ok: true, scanner, source: "live" };
+    }
+    if (live.status === 409) {
+      return {
+        ok: false,
+        reason: "no_test_run",
+        message: errorMessage(live.body, "Run a test before publishing."),
+        source: "live",
+      };
+    }
+  }
+  // Mock: require a prior test run, else mirror the 409 contract.
+  if (!mockHasTestRun(id)) {
+    return {
+      ok: false,
+      reason: "no_test_run",
+      message: "Run a test first before publishing this scanner.",
+      source: "mock",
+    };
+  }
+  const scanner = setMockStatus(id, "active");
+  if (!scanner) return { ok: false, reason: "no_test_run", message: "Scanner not found.", source: "mock" };
+  return { ok: true, scanner, source: "mock" };
+}
+
+/** Roll back the live spec to a historical version. POST /{id}/rollback?version=N. */
+export async function rollbackScanner(
+  id: string,
+  version: number,
+  token: string | null = null,
+): Promise<{ scanner: Scanner | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/rollback?version=${Number(version)}`,
+    token,
+    { method: "POST" },
+  );
+  const scanner = live ? normalizeScanner(live) : null;
+  if (scanner) return { scanner, source: "live" };
+
+  const existing = mockStore.scanners.find((s) => s.id === id);
+  if (!existing) return { scanner: null, source: "mock" };
+  const target = Math.max(1, Math.floor(Number(version) || existing.version));
+  const updated: Scanner = {
+    ...existing,
+    version: target,
+    status: "active",
+    updated_at: new Date().toISOString(),
+  };
+  mockStore = {
+    scanners: mockStore.scanners.map((s) => (s.id === id ? updated : s)),
+    runs: mockStore.runs,
+  };
+  return { scanner: updated, source: "mock" };
+}
+
+/** Spec version history. GET /{id}/versions (live first; mock-derived fallback). */
+export async function listScannerVersions(
+  id: string,
+  token: string | null = null,
+): Promise<{ versions: ScannerVersion[]; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/versions`,
+    token,
+  );
+  const rawList = asList(live);
+  if (rawList && rawList.length > 0) {
+    const versions = rawList
+      .map((raw) => {
+        const rec = asRecord(raw);
+        const v = asNumber(rec.version, 0);
+        if (v <= 0) return null;
+        return {
+          version: v,
+          created_at:
+            typeof rec.created_at === "string" ? rec.created_at : new Date(0).toISOString(),
+          current: rec.current === true,
+        };
+      })
+      .filter((v): v is ScannerVersion => v !== null)
+      .sort((a, b) => b.version - a.version);
+    if (versions.length > 0) return { versions, source: "live" };
+  }
+  // Mock: synthesize v1..current from the scanner's version count, marking
+  // the live version current so the popover can offer rollback to older rows.
+  const scanner = mockStore.scanners.find((s) => s.id === id);
+  if (!scanner) return { versions: [], source: "mock" };
+  const current = Math.max(1, scanner.version);
+  const created = Date.parse(scanner.created_at);
+  const versions: ScannerVersion[] = [];
+  for (let v = current; v >= 1; v -= 1) {
+    const offset = (v - 1) * 86_400_000;
+    versions.push({
+      version: v,
+      created_at: Number.isFinite(created)
+        ? new Date(created + offset).toISOString()
+        : scanner.created_at,
+      current: v === current,
+    });
+  }
+  return { versions, source: "mock" };
 }

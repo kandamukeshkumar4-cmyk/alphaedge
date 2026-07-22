@@ -1,28 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScannerCanvas } from "@/components/scanners/ScannerCanvas";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
 import { PageShell } from "@/components/ui/kit";
+import { useToast } from "@/components/ToastProvider";
+import { useDialog } from "@/hooks/useDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 import {
   getScanner,
   listScannerRuns,
+  listScannerVersions,
   pauseScanner,
+  publishScanner,
   relativeTimeLabel,
   resumeScanner,
+  rollbackScanner,
   runDurationLabel,
   runScannerNow,
   scheduleLabel,
+  testEmailScanner,
+  testRunScanner,
   type ApiSource,
   type Scanner,
   type ScannerCandidate,
   type ScannerReads,
   type ScannerRun,
+  type ScannerStep,
   type ScannerStepType,
+  type ScannerVersion,
   type StepDirection,
 } from "@/lib/scanners-api";
 
@@ -167,6 +176,573 @@ function RunStatusChip({ status }: { status: ScannerRun["status"] }) {
 // Detail shell
 // ---------------------------------------------------------------------------
 
+// Loop V86 (X1) — pre-publish flow for draft scanners. A "Test & publish"
+// panel: run a test snapshot (amber-tinted candidates table + TEST RUN badge),
+// send a test email (sent / not-configured toast), then publish — disabled
+// until a test run exists, surfacing the backend's 409 "run a test first"
+// when clicked early. Never red; amber (gold) is the test accent.
+
+function PrePublishPanel({
+  scanner,
+  stepTypes,
+  runs,
+  token,
+  onPublished,
+  onTested,
+  onBuildStart,
+}: {
+  scanner: Scanner;
+  stepTypes: ScannerStepType[];
+  runs: ScannerRun[];
+  token: string | null;
+  onPublished: (scanner: Scanner) => void;
+  onTested: () => void;
+  onBuildStart: () => void;
+}) {
+  const { toast } = useToast();
+  const [testing, setTesting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState<string | null>(null);
+
+  // Newest test run (is_test) across history + any just-run local snapshot.
+  const testRun = runs.find((r) => r.is_test) ?? null;
+  const testResult = testRun?.result ?? null;
+  const canPublish = Boolean(testRun);
+
+  async function handleTest() {
+    setTesting(true);
+    setPublishMsg(null);
+    onBuildStart();
+    try {
+      const { run } = await testRunScanner(scanner.id, token);
+      if (!run) {
+        toast({ title: "Test run failed", tone: "error" });
+      } else {
+        await onTested();
+      }
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function handleEmail() {
+    setEmailing(true);
+    try {
+      const res = await testEmailScanner(scanner.id, token);
+      if (res.configured && res.sent) {
+        toast({ title: "Test email sent", body: "Check the inbox wired to delivery.", tone: "success" });
+      } else if (res.configured) {
+        toast({ title: "Email configured", body: "Delivery is wired but the test dispatch did not confirm.", tone: "info" });
+      } else {
+        toast({ title: "Email not configured", body: "Enable email delivery in the spec to send previews.", tone: "info" });
+      }
+    } finally {
+      setEmailing(false);
+    }
+  }
+
+  async function handlePublish() {
+    setPublishing(true);
+    setPublishMsg(null);
+    try {
+      const res = await publishScanner(scanner.id, token);
+      if (res.ok) {
+        onPublished(res.scanner);
+        toast({ title: "Published", body: "Scanner is now active and scheduled.", tone: "success" });
+      } else {
+        // 409 path — surface the backend's "run a test first" verbatim.
+        setPublishMsg(res.message);
+      }
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  return (
+    <section
+      className="t-rise t-stagger-1 mt-5 rounded-xl border border-gold/40 bg-gold/5 p-4"
+      aria-label="Test and publish"
+      data-testid="scanner-prepublish"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-black tracking-tight text-text">
+          Test &amp; publish
+        </h2>
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-gold">
+          draft · not scheduled
+        </span>
+      </div>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
+        Run a paper snapshot over the current universe, preview the email, then
+        publish to flip this scanner active. Test runs never fire delivery or
+        create orders — paper research only.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void handleTest()}
+          disabled={testing}
+          data-testid="scanner-test-run"
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gold/45 bg-gold/10 px-4 text-[13px] font-bold text-gold shadow-glow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M6 4.5v15l13-7.5-13-7.5z" />
+          </svg>
+          {testing ? "Testing…" : "Run test"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleEmail()}
+          disabled={emailing}
+          data-testid="scanner-test-email"
+          className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-[13px] font-semibold text-muted transition hover:border-border-light hover:text-text active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+        >
+          {emailing ? "Sending…" : "Send test email"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handlePublish()}
+          disabled={publishing}
+          data-testid="scanner-publish"
+          aria-disabled={!canPublish}
+          title={canPublish ? "Publish — flip this scanner active" : "Run a test first to enable publish"}
+          className={cn(
+            "inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-bold transition active:scale-95",
+            "motion-reduce:transform-none disabled:cursor-not-allowed",
+            canPublish
+              ? "bg-primary text-bg shadow-glow hover:brightness-110 disabled:opacity-40"
+              : "border border-border bg-surface-2/60 text-muted-2 opacity-70",
+          )}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M12 2l2.39 4.84L20 7.27l-3.5 3.41.83 4.82L12 13l-5.33 2.5L7.5 10.68 4 7.27l5.61-.43L12 2z" />
+          </svg>
+          {publishing ? "Publishing…" : "Publish"}
+        </button>
+      </div>
+
+      {!canPublish ? (
+        <p className="mt-3 text-[11.5px] text-muted-2">
+          Run a test to enable publish{publishMsg ? " — " : ""}{publishMsg ?? ""}
+        </p>
+      ) : null}
+      {publishMsg && canPublish ? (
+        <p className="mt-3 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[11.5px] text-gold">
+          {publishMsg}
+        </p>
+      ) : null}
+
+      {/* Test result — candidates table, TEST RUN badge, amber tint. */}
+      {testRun && testResult ? (
+        <div
+          data-testid="scanner-test-result"
+          className="mt-4 rounded-xl border border-gold/35 bg-gold/5 p-3.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/45 bg-gold/15 px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-gold">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gold" />
+              Test run
+            </span>
+            <span className="font-mono text-[11px] text-muted-2">
+              {relativeTimeLabel(testRun.started_at)} · {runDurationLabel(testRun)}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em]">
+            <span className="rounded border border-border bg-bg/60 px-2 py-1 text-muted">
+              universe {testResult.counts.universe}
+            </span>
+            <span className="rounded border border-border bg-bg/60 px-2 py-1 text-muted">
+              candidates {testResult.counts.candidates}
+            </span>
+            <span className="rounded border border-gold/30 bg-gold/10 px-2 py-1 text-gold">
+              aligned {testResult.counts.aligned}
+            </span>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table
+              data-testid="scanner-test-candidates"
+              className="w-full min-w-[420px] border-collapse text-left"
+            >
+              <thead>
+                <tr className="border-b border-border font-mono text-[9.5px] font-bold uppercase tracking-[0.14em] text-muted-2">
+                  <th className="pb-2 pr-3">Market</th>
+                  <th className="pb-2 pr-3">Step reads</th>
+                  <th className="pb-2 text-center">Aligned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {testResult.candidates.map((cand) => (
+                  <tr
+                    key={cand.market_slug}
+                    className="border-b border-border/50 align-top transition hover:bg-surface-2/40"
+                  >
+                    <td className="max-w-[200px] py-2.5 pr-3">
+                      <span className="block truncate text-[12.5px] font-bold text-text">
+                        {cand.title}
+                      </span>
+                      <span className="block truncate font-mono text-[9.5px] text-muted-2">
+                        {cand.market_slug}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <ReadPills stepTypes={stepTypes} candidate={cand} />
+                    </td>
+                    <td className="py-2.5 text-center">
+                      <AlignedCheck aligned={cand.aligned} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+// Loop V86 (X2) — branded confirm dialog for destructive-ish actions
+// (rollback). Focus-trapped via useDialog; Escape / backdrop dismiss. Never
+// red — the warning accent is amber (gold).
+function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useDialog<HTMLDivElement>(onCancel);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 px-4 backdrop-blur-sm"
+      onClick={onCancel}
+      role="presentation"
+    >
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        data-testid="scanner-confirm-dialog"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-lift"
+      >
+        <div className="flex items-center gap-2">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/15 font-mono text-gold">
+            ↺
+          </span>
+          <h3 className="text-[15px] font-black tracking-tight text-text">{title}</h3>
+        </div>
+        <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted">{body}</p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="h-9 rounded-lg border border-border px-4 text-[13px] font-semibold text-muted transition hover:border-border-light hover:text-text active:scale-95 disabled:opacity-40 motion-reduce:transform-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            data-testid="scanner-confirm-rollback"
+            className="h-9 rounded-lg bg-gold px-4 text-[13px] font-bold text-bg shadow-glow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+          >
+            {busy ? "Rolling back…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Loop V86 (X2) — version chip in the header. Click opens a history popover
+// listing every spec version with a Rollback button per older version; rolling
+// back calls POST /{id}/rollback?version=N behind a branded confirm dialog.
+function VersionChip({
+  scanner,
+  token,
+  onRolledBack,
+}: {
+  scanner: Scanner;
+  token: string | null;
+  onRolledBack: (scanner: Scanner) => void;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<ScannerVersion[] | null>(null);
+  const [confirmVersion, setConfirmVersion] = useState<number | null>(null);
+  const [rolling, setRolling] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open || versions !== null) return;
+    let dead = false;
+    void (async () => {
+      const res = await listScannerVersions(scanner.id, token);
+      if (!dead) setVersions(res.versions);
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [open, versions, scanner.id, token]);
+
+  // Close on outside click / Escape (defer to the confirm dialog when open).
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (confirmVersion !== null) return;
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && confirmVersion === null) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, confirmVersion]);
+
+  async function handleConfirm() {
+    if (confirmVersion === null) return;
+    setRolling(true);
+    try {
+      const { scanner: updated } = await rollbackScanner(scanner.id, confirmVersion, token);
+      if (updated) {
+        onRolledBack(updated);
+        toast({ title: `Rolled back to v${confirmVersion}`, body: "Live spec restored from history.", tone: "success" });
+      } else {
+        toast({ title: "Rollback failed", tone: "error" });
+      }
+    } finally {
+      setRolling(false);
+      setConfirmVersion(null);
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="relative" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        data-testid="scanner-version-chip"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-surface px-2.5 font-mono text-[11px] font-bold text-muted transition hover:border-border-light hover:text-text"
+      >
+        v{scanner.version}
+        <svg width="9" height="9" viewBox="0 0 12 12" fill="currentColor" aria-hidden className={cn("transition", open && "rotate-180")}>
+          <path d="M6 8L2 4h8L6 8z" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Version history"
+          data-testid="scanner-version-popover"
+          className="absolute right-0 top-9 z-30 w-72 rounded-xl border border-border bg-surface-2 p-3 shadow-lift"
+        >
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">
+              Version history
+            </p>
+            <span className="font-mono text-[10px] text-muted-2">{versions?.length ?? "…"} versions</span>
+          </div>
+          <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+            {versions === null ? (
+              <li className="px-2 py-3 text-center font-mono text-[11px] text-muted-2">Loading…</li>
+            ) : versions.length === 0 ? (
+              <li className="px-2 py-3 text-center font-mono text-[11px] text-muted-2">No versions recorded.</li>
+            ) : (
+              versions.map((v) => (
+                <li
+                  key={v.version}
+                  data-testid="scanner-version-row"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-surface"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      v.current ? "bg-primary" : "bg-muted-2",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[11.5px] font-bold text-text">v{v.version}</p>
+                    <p className="font-mono text-[9.5px] text-muted-2">
+                      {relativeTimeLabel(v.created_at)}
+                    </p>
+                  </div>
+                  {v.current ? (
+                    <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wide text-primary">
+                      current
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmVersion(v.version)}
+                      data-testid="scanner-rollback"
+                      className="rounded border border-border px-2 py-0.5 font-mono text-[10px] font-semibold text-muted transition hover:border-gold/50 hover:text-gold active:scale-95 motion-reduce:transform-none"
+                    >
+                      Rollback
+                    </button>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      ) : null}
+      {confirmVersion !== null ? (
+        <ConfirmDialog
+          title={`Roll back to v${confirmVersion}?`}
+          body={`This restores the v${confirmVersion} spec as the live version (archiving the current v${scanner.version}). Scheduled runs resume immediately. Paper research only — never an order.`}
+          confirmLabel={`Roll back to v${confirmVersion}`}
+          busy={rolling}
+          onConfirm={() => void handleConfirm()}
+          onCancel={() => setConfirmVersion(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Loop V86 (X3) — build narration rail. A small staged list of messages that
+// appear 400ms apart while a run/compile is in-flight, derived from the spec's
+// step names. Purely presentational: it never gates the real result, which
+// renders from the API independently. Reduced-motion collapses the stagger to
+// an instant list (global kill-switch also zeroes the pulse).
+
+function narrationForStep(step: ScannerStep): string {
+  switch (step.type) {
+    case "WHALE_FLOW":
+      return "Fetching whale flow";
+    case "PRICE_TREND":
+      return "Reading price trend";
+    case "NEWS_SENTIMENT":
+      return "Scanning news sentiment";
+    case "MODEL_EDGE":
+      return "Computing model edge";
+    case "DIRECTION_ALIGNMENT":
+      return "Scoring alignment";
+  }
+}
+
+function buildNarrationMessages(steps: ScannerStep[]): string[] {
+  const messages = ["Reading configuration"];
+  for (const step of steps) messages.push(narrationForStep(step));
+  messages.push("Filtering candidates", "Rendering dashboard");
+  return messages;
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function BuildNarration({
+  steps,
+  onDone,
+}: {
+  steps: ScannerStep[];
+  onDone: () => void;
+}) {
+  const messages = useMemo(() => buildNarrationMessages(steps), [steps]);
+  const reduced = useRef(prefersReducedMotion());
+  const [revealed, setRevealed] = useState(1);
+  const onDoneRef = useRef(onDone);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    // Reduced motion: collapse the 400ms stagger to an instant full list.
+    if (reduced.current && revealed < messages.length) {
+      setRevealed(messages.length);
+      return;
+    }
+    if (revealed >= messages.length) {
+      // Hold the completed rail briefly, then hand control back.
+      const hold = window.setTimeout(() => onDoneRef.current(), 350);
+      return () => window.clearTimeout(hold);
+    }
+    const tick = window.setTimeout(
+      () => setRevealed((r) => Math.min(messages.length, r + 1)),
+      400,
+    );
+    return () => window.clearTimeout(tick);
+  }, [revealed, messages]);
+
+  return (
+    <section
+      data-testid="scanner-build-narration"
+      aria-label="Build narration"
+      className="t-rise mt-5 min-h-[96px] rounded-xl border border-border bg-surface p-4"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
+        />
+        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+          Building · paper research
+        </p>
+      </div>
+      <ol className="mt-3 flex flex-col gap-1.5">
+        {messages.map((message, index) => {
+          const state =
+            index < revealed - 1 ? "done" : index === revealed - 1 ? "active" : "pending";
+          return (
+            <li
+              key={`${index}-${message}`}
+              data-testid="scanner-build-narration-step"
+              data-state={state}
+              className={cn(
+                "flex items-center gap-2 font-mono text-[12px] transition-colors duration-250 ease-swift",
+                state === "pending" && "text-muted-2 opacity-50",
+                state === "active" && "text-text",
+                state === "done" && "text-muted",
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "grid h-4 w-4 shrink-0 place-items-center rounded text-[10px] font-bold",
+                  state === "done" && "bg-primary/15 text-primary",
+                  state === "active" && "bg-primary/25 text-primary animate-pulse",
+                  state === "pending" && "bg-surface-2 text-muted-2",
+                )}
+              >
+                {state === "done" ? "✓" : state === "active" ? "●" : "○"}
+              </span>
+              {message}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 function DetailSkeleton() {
   return (
     <div aria-busy="true">
@@ -188,6 +764,16 @@ export function ScannerDetailShell({ id }: { id: string }) {
   const [runs, setRuns] = useState<ScannerRun[]>([]);
   const [source, setSource] = useState<ApiSource>("mock");
   const [running, setRunning] = useState(false);
+  // X1: spring the status pill the moment a draft publishes to active.
+  const [popStatus, setPopStatus] = useState(false);
+  // X3: build narration rail — visible while a run is in flight.
+  const [narrating, setNarrating] = useState(false);
+  const [narrationKey, setNarrationKey] = useState(0);
+  const startNarration = useCallback(() => {
+    setNarrationKey((k) => k + 1);
+    setNarrating(true);
+  }, []);
+  const stopNarration = useCallback(() => setNarrating(false), []);
 
   useEffect(() => {
     if (!isReady) return;
@@ -218,6 +804,7 @@ export function ScannerDetailShell({ id }: { id: string }) {
 
   async function handleRun() {
     setRunning(true);
+    startNarration();
     try {
       await runScannerNow(id, token);
       await refresh();
@@ -234,6 +821,15 @@ export function ScannerDetailShell({ id }: { id: string }) {
   async function handleResume() {
     const { scanner: updated } = await resumeScanner(id, token);
     if (updated) setScanner(updated);
+  }
+
+  // X1: publish flips draft -> active; spring the pill once on success.
+  function handlePublished(updated: Scanner) {
+    setScanner(updated);
+    if (updated.status === "active") {
+      setPopStatus(true);
+      window.setTimeout(() => setPopStatus(false), 600);
+    }
   }
 
   if (scanner === undefined) {
@@ -288,7 +884,7 @@ export function ScannerDetailShell({ id }: { id: string }) {
             <h1 className="min-w-0 flex-1 truncate text-2xl font-black tracking-tight text-text sm:text-3xl">
               {scanner.name}
             </h1>
-            <ScannerStatusPill status={scanner.status} />
+            <ScannerStatusPill status={scanner.status} className={popStatus ? "scanner-status-pop" : undefined} />
             <span
               data-testid="scanner-detail-source"
               className="rounded-full border border-border bg-surface px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted"
@@ -328,12 +924,17 @@ export function ScannerDetailShell({ id }: { id: string }) {
             >
               {paused ? "Resume" : "Pause"}
             </button>
-            <span className="ml-auto font-mono text-[11px] font-bold text-muted">
+            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] font-bold text-muted">
               {scheduleLabel(scanner.spec)} · {scanner.spec.schedule.timezone} ·{" "}
               {scanner.spec.universe.categories.length > 0
                 ? scanner.spec.universe.categories.join(" · ")
                 : "all markets"}{" "}
-              · v{scanner.version}
+              ·{" "}
+              <VersionChip
+                scanner={scanner}
+                token={token}
+                onRolledBack={(updated) => void handlePublished(updated)}
+              />
             </span>
           </div>
         </header>
@@ -345,6 +946,18 @@ export function ScannerDetailShell({ id }: { id: string }) {
           Paper research only — reads are simulated signals, never orders.
         </p>
 
+        {scanner.status === "draft" ? (
+          <PrePublishPanel
+            scanner={scanner}
+            stepTypes={stepTypes}
+            runs={runs}
+            token={token}
+            onPublished={handlePublished}
+            onTested={refresh}
+            onBuildStart={startNarration}
+          />
+        ) : null}
+
         {/* THE CANVAS — spec pipeline, TerminalCanvas styling. */}
         <section className="t-rise t-stagger-1 mt-5" aria-label="Scanner pipeline">
           <div className="mb-2 flex items-end justify-between gap-3">
@@ -355,6 +968,14 @@ export function ScannerDetailShell({ id }: { id: string }) {
           </div>
           <ScannerCanvas steps={scanner.spec.steps} latestRun={latestRun} />
         </section>
+
+        {narrating ? (
+          <BuildNarration
+            key={narrationKey}
+            steps={scanner.spec.steps}
+            onDone={stopNarration}
+          />
+        ) : null}
 
         {/* Latest run result + runs history. */}
         <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -370,6 +991,19 @@ export function ScannerDetailShell({ id }: { id: string }) {
                   <RunStatusChip status={latestRun.status} />
                   <span>{relativeTimeLabel(latestRun.started_at)}</span>
                   <span className="text-muted-2">{runDurationLabel(latestRun)}</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleRun()}
+                    disabled={running || paused}
+                    data-testid="scanner-run-again"
+                    title={paused ? "Resume the scanner to run it" : "Run the pipeline again (paper)"}
+                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-border px-2.5 text-[11px] font-semibold text-muted transition hover:border-primary/45 hover:text-primary active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <path d="M17.65 6.35A8 8 0 1 0 19.5 14h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.7 4.2 1.8L13 11h7V4l-2.35 2.35z" />
+                    </svg>
+                    {running ? "Running…" : "Run again"}
+                  </button>
                 </div>
               ) : null}
             </div>

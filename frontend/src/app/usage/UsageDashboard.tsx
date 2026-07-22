@@ -79,6 +79,154 @@ function StatCard({
 }
 
 // ---------------------------------------------------------------------------
+// Loop V86 (X4) — "Paper research usage" card: a Runs-by-surface breakdown
+// of the four activity metrics from the existing usage API, each with a
+// per-day sparkline. Same no-red rule as the rest of the page — every series
+// uses its metric token color (mint / blue / amber / gray).
+// ---------------------------------------------------------------------------
+
+function Sparkline({ values, hex }: { values: number[]; hex: string }) {
+  const w = 132;
+  const h = 30;
+  const pad = 3;
+  const max = Math.max(1, ...values);
+  const n = values.length;
+  const pts = values
+    .map((v, i) => {
+      const x = n <= 1 ? w / 2 : pad + (i / (n - 1)) * (w - 2 * pad);
+      const y = h - pad - (v / max) * (h - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg
+      data-testid="usage-sparkline"
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      role="img"
+      aria-label={`per-day sparkline`}
+      className="block w-full max-w-[140px]"
+      preserveAspectRatio="none"
+    >
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={hex}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        opacity={0.9}
+      />
+    </svg>
+  );
+}
+
+function SurfaceCard({
+  metric,
+  total,
+  dayCount,
+  values,
+  index,
+}: {
+  metric: UsageMetric;
+  total: number;
+  dayCount: number;
+  values: number[];
+  index: number;
+}) {
+  const shown = useCountUp(total, 500);
+  const peak = values.length ? Math.max(...values) : 0;
+  const perDay = dayCount > 0 ? (total / dayCount).toFixed(1) : "0.0";
+  return (
+    <div
+      data-testid="usage-surface-card"
+      className={cn(
+        "t-rise group relative overflow-hidden rounded-lg border border-border bg-surface/40 p-4",
+        "transition duration-250 ease-swift hover:-translate-y-0.5 hover:border-border-light hover:bg-surface-2/60 hover:shadow-card",
+        index === 1 && "t-stagger-1",
+        index === 2 && "t-stagger-2",
+        index === 3 && "t-stagger-3",
+      )}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-0.5 opacity-70"
+        style={{ backgroundColor: metric.hex }}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="h-2 w-2 rounded-[3px]"
+            style={{ backgroundColor: metric.hex }}
+          />
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-muted">
+            {metric.label}
+          </p>
+        </div>
+        <p className="font-mono text-[10px] tabular-nums text-muted-2">
+          peak {peak}/day
+        </p>
+      </div>
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <p
+          data-testid={`usage-surface-${metric.key}-value`}
+          className="font-mono text-3xl font-semibold tabular-nums leading-none text-text"
+        >
+          {shown}
+        </p>
+        <Sparkline values={values} hex={metric.hex} />
+      </div>
+      <p className="mt-2 font-mono text-[11px] tabular-nums text-muted-2">
+        ≈ {perDay} / day
+      </p>
+    </div>
+  );
+}
+
+function UsageBySurface({
+  days,
+  totals,
+}: {
+  days: UsageDay[];
+  totals: UsageSummary["totals"];
+}) {
+  return (
+    <section
+      aria-label="Runs by surface"
+      className="t-rise t-stagger-3 rounded-lg border border-border bg-surface/40 p-4"
+    >
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-base font-bold tracking-tight text-text">
+            Paper research usage
+          </h2>
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-muted">
+            Runs by surface
+          </p>
+        </div>
+        <p className="font-mono text-[11px] text-muted-2">
+          {days.length}-day series · paper only
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="usage-by-surface">
+        {USAGE_METRICS.map((m, i) => (
+          <SurfaceCard
+            key={m.key}
+            metric={m}
+            total={totals[m.key]}
+            dayCount={days.length}
+            values={days.map((d) => d[m.key])}
+            index={i}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Loading skeleton — reserved heights everywhere (no CLS); the t-skeleton
 // shimmer is killed by the global reduced-motion switch.
 // ---------------------------------------------------------------------------
@@ -96,6 +244,7 @@ function UsageSkeleton() {
         ))}
       </div>
       <div className="t-skeleton h-[348px]" />
+      <div className="t-skeleton h-[268px]" />
       <div className="t-skeleton h-[464px]" />
     </div>
   );
@@ -186,6 +335,9 @@ export function UsageDashboard() {
         </div>
         <UsageActivityChart days={days} totals={totals} />
       </section>
+
+      {/* Runs by surface — per-metric sparklines (Loop V86 X4). */}
+      <UsageBySurface days={days} totals={totals} />
 
       {/* 14-day log */}
       <section
