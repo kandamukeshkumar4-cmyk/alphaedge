@@ -9,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
+from app.core.config import get_settings
 from app.db.models import Scanner, ScannerRun, User
 from app.db.session import get_db
 from app.schemas.scanners import (
@@ -17,9 +18,11 @@ from app.schemas.scanners import (
     ScannerCreate,
     ScannerOut,
     ScannerRunOut,
+    ScannerTestEmailOut,
     ScannerUpdate,
 )
 from app.services.scanner_compiler_service import compile_scanner_spec
+from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
 from app.services.scanner_version_service import apply_spec_change, rollback_scanner_spec
 
@@ -49,6 +52,7 @@ def _run_out(run: ScannerRun) -> ScannerRunOut:
         result=run.result,
         error=run.error,
         duration_ms=_duration_ms(run),
+        is_test=bool(run.is_test),
     )
 
 
@@ -254,6 +258,86 @@ async def run_scanner_now(
         scanner.status = "active"
         await db.flush()
     return _run_out(run)
+
+
+@router.post("/{scanner_id}/test-run", response_model=ScannerRunOut)
+async def test_run_scanner_now(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerRunOut:
+    """Pre-publish dry run (loop86 F-B): same pipeline, capped at 20 markets,
+    flagged ``is_test``, and silent — never writes feed rows or emails.
+    Never changes scanner status (publishing goes through ``/{id}/publish``).
+    """
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if scanner.owner != str(user.id) and not scanner.is_public:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    run = await run_scanner(db, scanner, test_mode=True)
+    return _run_out(run)
+
+
+@router.post("/{scanner_id}/test-email", response_model=ScannerTestEmailOut)
+async def test_email_scanner(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerTestEmailOut:
+    """Pre-publish email check (loop86 F-B): sends exactly ONE configuration
+    check email via the C7 SMTP helper when SMTP is configured; otherwise
+    returns HTTP 200 with ``{"sent": false, "reason": "smtp not configured"}``.
+    """
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if scanner.owner != str(user.id) and not scanner.is_public:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    settings = get_settings()
+    if not smtp_configured(settings):
+        return ScannerTestEmailOut(sent=False, reason="smtp not configured")
+    sent = send_scanner_test_email(scanner, settings=settings)
+    return ScannerTestEmailOut(sent=sent, reason=None if sent else "send failed")
+
+
+@router.post("/{scanner_id}/publish", response_model=ScannerOut)
+async def publish_scanner(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerOut:
+    """Publish gate (loop86 F-B): flip draft→active ONLY when at least one
+    pre-publish test run (``is_test=true``, status completed/empty) exists for
+    the current spec version. Otherwise HTTP 409 ``{"detail": "run a test first"}``.
+    """
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None or scanner.owner != str(user.id):
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if scanner.status != "draft":
+        raise HTTPException(status_code=400, detail="Scanner is not a draft")
+
+    current_version = int(scanner.version or 1)
+    test_runs = (
+        await db.scalars(
+            select(ScannerRun).where(
+                ScannerRun.scanner_id == scanner.id,
+                ScannerRun.is_test.is_(True),
+                ScannerRun.status.in_(("completed", "empty")),
+            )
+        )
+    ).all()
+    qualified = any(
+        isinstance(r.result, dict) and r.result.get("spec_version") == current_version
+        for r in test_runs
+    )
+    if not qualified:
+        raise HTTPException(status_code=409, detail="run a test first")
+
+    scanner.status = "active"
+    await db.flush()
+    await db.refresh(scanner)
+    return _scanner_out(scanner, latest_run=await _latest_run(db, scanner.id))
 
 
 @router.post("/{scanner_id}/pause", response_model=ScannerOut)

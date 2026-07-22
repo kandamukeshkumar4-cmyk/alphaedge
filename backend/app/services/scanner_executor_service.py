@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 _SIGNAL_TYPES = frozenset({"WHALE_FLOW", "PRICE_TREND", "NEWS_SENTIMENT", "MODEL_EDGE"})
 
+# loop86 F-B: pre-publish test runs cap the universe so a test can never fan out
+# over the full market list.
+TEST_MODE_UNIVERSE_CAP = 20
 DEFAULT_MAX_EXECUTION_SECONDS = 120
 DEFAULT_MAX_MARKETS = 200
 CONSECUTIVE_FAILURE_ALARM = 3
@@ -92,11 +95,18 @@ async def _running_run(db: AsyncSession, scanner_id: Any) -> ScannerRun | None:
 
 
 async def _maybe_deadletter_after_failure(db: AsyncSession, scanner: Scanner) -> None:
-    """After 3 consecutive failed runs, mark scanner failed + feed alarm."""
+    """After 3 consecutive failed runs, mark scanner failed + feed alarm.
+
+    Dead-letter counting ignores ``is_test`` runs — a failing test must not trip
+    the alarm.
+    """
     recent = (
         await db.scalars(
             select(ScannerRun)
-            .where(ScannerRun.scanner_id == scanner.id)
+            .where(
+                ScannerRun.scanner_id == scanner.id,
+                ScannerRun.is_test.is_(False),
+            )
             .order_by(ScannerRun.started_at.desc())
             .limit(CONSECUTIVE_FAILURE_ALARM)
         )
@@ -349,11 +359,32 @@ async def _run_step(
     return candidates
 
 
-async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
-    """Execute ``scanner.spec`` steps with per-node checkpoints. Research only."""
-    existing = await _running_run(db, scanner.id)
-    if existing is not None:
-        return existing
+def _test_mode_result_fields(scanner: Scanner, test_mode: bool) -> dict[str, Any]:
+    """Result markers for pre-publish test runs (loop86 F-B).
+
+    ``spec_version`` stamps which scanner spec version the test exercised, so
+    the publish gate can require a test run for the CURRENT spec version.
+    """
+    if not test_mode:
+        return {}
+    return {"test_mode": True, "spec_version": int(scanner.version or 1)}
+
+
+async def run_scanner(
+    db: AsyncSession, scanner: Scanner, test_mode: bool = False
+) -> ScannerRun:
+    """Execute ``scanner.spec`` steps with per-node checkpoints. Research only.
+
+    With ``test_mode=True`` the same pipeline runs, but (a) the universe is
+    capped at ``min(TEST_MODE_UNIVERSE_CAP, max_markets)``, (b) the run is
+    flagged ``is_test``, (c) NO alert feed rows are written and NO email is
+    sent, and (d) the result JSON carries ``{"test_mode": true}``.
+    """
+    # Test runs bypass the idempotency skip (still respect deadline + caps).
+    if not test_mode:
+        existing = await _running_run(db, scanner.id)
+        if existing is not None:
+            return existing
 
     run = ScannerRun(
         scanner_id=scanner.id,
@@ -362,6 +393,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         checkpoint=None,
         result=None,
         error=None,
+        is_test=bool(test_mode),
     )
     db.add(run)
     await db.flush()
@@ -375,18 +407,22 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         max_seconds = _max_execution_seconds(spec)
         max_markets = _max_markets(spec)
         deadline = time.monotonic() + max_seconds
+        # Test mode takes the tighter of the test-universe cap and max_markets.
+        effective_max = (
+            min(TEST_MODE_UNIVERSE_CAP, max_markets) if test_mode else max_markets
+        )
 
         markets = await _load_universe(db, spec)
         truncated = False
         pre_cap = len(markets)
-        if max_markets >= 0 and len(markets) > max_markets:
-            markets = markets[:max_markets]
+        if effective_max >= 0 and len(markets) > effective_max:
+            markets = markets[:effective_max]
             truncated = True
             logger.info(
                 "scanner %s universe truncated %s -> %s (max_markets)",
                 scanner.id,
                 pre_cap,
-                max_markets,
+                effective_max,
             )
 
         candidates: list[dict[str, Any]] = [
@@ -409,7 +445,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
             if truncated:
                 counts["truncated"] = True
                 counts["truncated_from"] = pre_cap
-                counts["max_markets"] = max_markets
+                counts["max_markets"] = effective_max
             return counts
 
         if universe_count == 0:
@@ -419,6 +455,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
                 "candidates": [],
                 "top_pick": None,
                 "counts": _counts(candidates_n=0, aligned_n=0),
+                **_test_mode_result_fields(scanner, test_mode),
             }
             await db.flush()
             await db.refresh(run)
@@ -433,9 +470,11 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
                     "candidates": candidates,
                     "top_pick": None,
                     "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                    **_test_mode_result_fields(scanner, test_mode),
                 }
                 await db.flush()
-                await _maybe_deadletter_after_failure(db, scanner)
+                if not test_mode:
+                    await _maybe_deadletter_after_failure(db, scanner)
                 await db.refresh(run)
                 return run
 
@@ -453,9 +492,11 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
                     "candidates": candidates,
                     "top_pick": None,
                     "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                    **_test_mode_result_fields(scanner, test_mode),
                 }
                 await db.flush()
-                await _maybe_deadletter_after_failure(db, scanner)
+                if not test_mode:
+                    await _maybe_deadletter_after_failure(db, scanner)
                 await db.refresh(run)
                 return run
 
@@ -470,18 +511,22 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
             "candidates": candidates,
             "top_pick": top_pick,
             "counts": _counts(candidates_n=len(candidates), aligned_n=len(aligned)),
+            **_test_mode_result_fields(scanner, test_mode),
         }
         run.status = "empty" if not candidates else "completed"
         run.finished_at = datetime.now(UTC)
         await db.flush()
 
         # C6: surface fired runs on the signals/toast feed (cooldown-gated).
-        try:
-            from app.services.scanner_alert_service import record_scanner_fired_alert
+        # Test-mode runs must stay silent: no alert feed rows and no email
+        # (the fired-email hook only runs inside record_scanner_fired_alert).
+        if not test_mode:
+            try:
+                from app.services.scanner_alert_service import record_scanner_fired_alert
 
-            await record_scanner_fired_alert(db, scanner, run)
-        except Exception:  # noqa: BLE001 — alert failure must not fail the run
-            pass
+                await record_scanner_fired_alert(db, scanner, run)
+            except Exception:  # noqa: BLE001 — alert failure must not fail the run
+                pass
 
         await db.refresh(run)
         return run
@@ -491,6 +536,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         run.finished_at = datetime.now(UTC)
         # checkpoint preserved as last successful node
         await db.flush()
-        await _maybe_deadletter_after_failure(db, scanner)
+        if not test_mode:
+            await _maybe_deadletter_after_failure(db, scanner)
         await db.refresh(run)
         return run
