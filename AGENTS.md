@@ -61,6 +61,10 @@ When rules conflict, the earlier section wins.
   or refactoring code: surface assumptions, simplicity first, surgical changes
   only, and verifiable success criteria. Binds every agent and every runner
   brief in this repo.
+- Read `.agents/skills/graph-design/SKILL.md` before authoring any multi-agent
+  plan or wave: draw the graph (nodes/real edges/state), delete fake edges,
+  default to the diamond topology, put verifiers on edges, cap cycles, tier
+  models per node. Loops are the inside of a node.
 - Read `.agents/skills/loop-design/SKILL.md` before authoring any loop
   (`goals/loop-vNN/GOAL.md`), runner brief, or multi-step/parallel/long-running
   plan. Design the loop — goal+rubric, plan, parallel workers, independent
