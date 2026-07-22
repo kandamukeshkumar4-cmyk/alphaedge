@@ -71,4 +71,92 @@ test.describe("V84 Scanner Studio", () => {
 
     assertNoConsoleErrors(errors, "/scanners/[id]");
   });
+
+  test("draft scanner shows the Test & publish panel and version chip", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/scanners/scn-mock-draft", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await dismissOnboardingIfPresent(page);
+    await expect(page.getByTestId("scanner-detail-page")).toBeVisible({ timeout: 30_000 });
+
+    // X1 — pre-publish panel on a draft scanner.
+    await expect(page.getByTestId("scanner-prepublish")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("scanner-test-run")).toBeVisible();
+    await expect(page.getByTestId("scanner-test-email")).toBeVisible();
+    await expect(page.getByTestId("scanner-publish")).toBeVisible();
+    // Publish is locked until a test run exists.
+    await expect(page.getByTestId("scanner-publish")).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByTestId("scanner-test-result")).toHaveCount(0);
+
+    // Run a test -> the test result appears with the TEST RUN badge.
+    await page.getByTestId("scanner-test-run").click();
+    await expect(page.getByTestId("scanner-test-result")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("scanner-test-candidates")).toBeVisible();
+    await expect(page.getByTestId("scanner-publish")).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    // Send a test email -> not-configured toast (the draft spec has email off).
+    await page.getByTestId("scanner-test-email").click();
+    await expect(page.getByText("Email not configured")).toBeVisible({ timeout: 10_000 });
+
+    // Publish -> status flips to active (status pill carries data-status).
+    await page.getByTestId("scanner-publish").click();
+    await expect(page.getByTestId("scanner-status-pill")).toHaveAttribute(
+      "data-status",
+      "active",
+      { timeout: 15_000 },
+    );
+
+    assertNoConsoleErrors(errors, "/scanners/[id] draft");
+  });
+
+  test("active scanner shows the version chip with rollback history", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/scanners/scn-mock-whale", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await dismissOnboardingIfPresent(page);
+    await expect(page.getByTestId("scanner-detail-page")).toBeVisible({ timeout: 30_000 });
+
+    // X2 — version chip opens a history popover with older-version rollback.
+    await expect(page.getByTestId("scanner-version-chip")).toBeVisible();
+    await page.getByTestId("scanner-version-chip").click();
+    await expect(page.getByTestId("scanner-version-popover")).toBeVisible({ timeout: 10_000 });
+    const versionRows = page.getByTestId("scanner-version-row");
+    await expect(versionRows.first()).toBeVisible();
+    expect(await versionRows.count()).toBeGreaterThan(1);
+    await expect(page.getByTestId("scanner-rollback").first()).toBeVisible();
+
+    // X2 — Run-again affordance on the latest-run result panel.
+    await expect(page.getByTestId("scanner-run-again")).toBeVisible();
+
+    assertNoConsoleErrors(errors, "/scanners/[id] versions");
+  });
+
+  test("Run now shows the build narration rail (X3)", async ({ page }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/scanners/scn-mock-whale", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await dismissOnboardingIfPresent(page);
+    await expect(page.getByTestId("scanner-detail-page")).toBeVisible({ timeout: 30_000 });
+
+    // No narration before a run.
+    await expect(page.getByTestId("scanner-build-narration")).toHaveCount(0);
+    await page.getByTestId("scanner-detail-run").click();
+    await expect(page.getByTestId("scanner-build-narration")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("scanner-build-narration-step").first()).toBeVisible();
+
+    assertNoConsoleErrors(errors, "/scanners/[id] narration");
+  });
 });

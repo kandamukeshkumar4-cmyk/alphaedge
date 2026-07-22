@@ -51,6 +51,16 @@ test.describe("V85 usage dashboard", () => {
     // Stacked chart canvas shell is present with reserved height.
     await expect(page.getByTestId("usage-chart")).toBeVisible();
 
+    // Loop V86 X4 — "Paper research usage" / Runs-by-surface breakdown card:
+    // 4 per-metric surface cards, each with a sparkline and a count-up value.
+    await expect(page.getByTestId("usage-by-surface")).toBeVisible();
+    const surfaceCards = page.getByTestId("usage-surface-card");
+    await expect(surfaceCards).toHaveCount(4);
+    for (const key of ["sessions", "skill_runs", "scanner_runs", "briefs"]) {
+      await expect(page.getByTestId(`usage-surface-${key}-value`)).toBeVisible();
+    }
+    await expect(page.getByTestId("usage-sparkline").first()).toBeVisible();
+
     await page.waitForTimeout(500);
     assertNoConsoleErrors(
       errors.filter((e) => !PREEXISTING_MARKETS_PROBE_NOISE.test(e)),
