@@ -78,7 +78,7 @@ function normalizeStep(raw: unknown): SkillStep | null {
   return { title: rec.title, kind: normalizeKind(rec.kind) };
 }
 
-function normalizeSkill(raw: unknown): Skill | null {
+export function normalizeSkill(raw: unknown): Skill | null {
   const rec = asRecord(raw);
   if (typeof rec.id !== "string" && typeof rec.name !== "string") return null;
   const id = typeof rec.id === "string" ? rec.id : String(rec.name).toLowerCase();
@@ -177,6 +177,16 @@ let mockSkills: Skill[] = MOCK_SKILLS.map((s) => ({ ...s }));
 /** Test / wiring hook — reset the in-memory mock catalog. */
 export function resetSkillsMockStore(): void {
   mockSkills = MOCK_SKILLS.map((s) => ({ ...s }));
+}
+
+/** Mock-store read — used by community-api fork parity (no live backend). */
+export function findMockSkill(id: string): Skill | null {
+  return mockSkills.find((s) => s.id === id) ?? null;
+}
+
+/** Mock-store write — a forked/created skill appears in the gallery mock. */
+export function insertMockSkill(skill: Skill): void {
+  mockSkills = [skill, ...mockSkills.filter((s) => s.id !== skill.id)];
 }
 
 // ---------------------------------------------------------------------------

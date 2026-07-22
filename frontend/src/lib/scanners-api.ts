@@ -726,6 +726,19 @@ export function resetScannersMockStore(): void {
   mockCounter = 0;
 }
 
+/** Mock-store read — used by community-api fork parity (no live backend). */
+export function findMockScanner(id: string): Scanner | null {
+  return mockStore.scanners.find((s) => s.id === id) ?? null;
+}
+
+/** Mock-store write — a forked scanner appears in the studio mock. */
+export function insertMockScanner(scanner: Scanner): void {
+  mockStore = {
+    scanners: [scanner, ...mockStore.scanners.filter((s) => s.id !== scanner.id)],
+    runs: { ...mockStore.runs, [scanner.id]: [] },
+  };
+}
+
 /**
  * Mock NL→spec compile mirroring the backend's deterministic keyword parser
  * (`scanner_compiler_service.py`) — same signal keywords, interval phrases,
