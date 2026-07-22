@@ -8,9 +8,12 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.db.models import MarketSentimentSnapshot, OddsSnapshot, Scanner, SignalEvent
+from app.db.session import get_db
+from app.main import app
 from app.services.market_service import MarketService
 from app.services.scanner_alert_service import SCANNER_FIRED_SIGNAL_TYPE
 from app.services.scanner_executor_service import run_scanner
@@ -173,3 +176,191 @@ async def test_test_mode_run_caps_universe_at_20(db_session):
     normal = await run_scanner(db_session, scanner)
     assert normal.is_test is False
     assert normal.result["counts"]["universe"] == 25
+
+
+# --- T2: pre-publish endpoints (test-run / test-email) ----------------------
+
+
+async def _client_for(db_session):
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+async def _signup_and_create_scanner(client, *, email, name, spec):
+    signup = await client.post(
+        "/api/v1/auth/signup",
+        json={"email": email, "password": "correct-horse-battery-staple"},
+    )
+    assert signup.status_code == 201, signup.text
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    created = await client.post(
+        "/api/v1/scanners/",
+        headers=headers,
+        json={"name": name, "spec": spec},
+    )
+    assert created.status_code == 201, created.text
+    return headers, created.json()
+
+
+class _FakeSMTP:
+    sent: list = []
+
+    def __init__(self, host, port, timeout=10):
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def ehlo(self):
+        return True
+
+    def starttls(self):
+        return True
+
+    def login(self, user, password):
+        self.user = user
+        self.password = password
+
+    def send_message(self, msg):
+        _FakeSMTP.sent.append(msg)
+
+
+@pytest.fixture
+def _reset_fake_smtp():
+    _FakeSMTP.sent = []
+    yield _FakeSMTP.sent
+    _FakeSMTP.sent = []
+
+
+@pytest.mark.asyncio
+async def test_test_run_endpoint_returns_flagged_run(db_session):
+    await _seed_markets(db_session, 3)
+    client = await _client_for(db_session)
+    try:
+        headers, scanner = await _signup_and_create_scanner(
+            client,
+            email="testmode-run@example.com",
+            name="Pre-publish run",
+            spec=_spec([{"type": "WHALE_FLOW"}]),
+        )
+        assert scanner["status"] == "draft"
+        scanner_id = scanner["id"]
+
+        ran = await client.post(
+            f"/api/v1/scanners/{scanner_id}/test-run", headers=headers
+        )
+        assert ran.status_code == 200, ran.text
+        body = ran.json()
+        assert body["is_test"] is True
+        assert body["scanner_id"] == scanner_id
+        assert body["result"]["test_mode"] is True
+        assert body["status"] in {"completed", "empty"}
+        # No feed row from the pre-publish run.
+        rows = (
+            await db_session.scalars(
+                select(SignalEvent).where(
+                    SignalEvent.signal_type == SCANNER_FIRED_SIGNAL_TYPE
+                )
+            )
+        ).all()
+        assert rows == []
+
+        # A test run must NOT publish the scanner.
+        detail = await client.get(f"/api/v1/scanners/{scanner_id}", headers=headers)
+        assert detail.status_code == 200
+        assert detail.json()["status"] == "draft"
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()
+
+
+def _configure_smtp(monkeypatch, *, configured):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(
+        settings, "smtp_host", "smtp.example.com" if configured else ""
+    )
+    monkeypatch.setattr(settings, "smtp_port", 587)
+    monkeypatch.setattr(settings, "smtp_user", "user" if configured else "")
+    monkeypatch.setattr(settings, "smtp_pass", "pass" if configured else "")
+    monkeypatch.setattr(
+        settings, "smtp_from", "alerts@example.com" if configured else ""
+    )
+    monkeypatch.setattr(
+        settings, "alert_email_to", "desk@example.com" if configured else ""
+    )
+    monkeypatch.setattr(
+        "app.services.scanner_email_service.smtplib.SMTP", _FakeSMTP
+    )
+
+
+@pytest.mark.asyncio
+async def test_test_email_endpoint_sends_one_when_configured(
+    db_session, monkeypatch, _reset_fake_smtp
+):
+    _configure_smtp(monkeypatch, configured=True)
+    await _seed_markets(db_session, 1)
+    client = await _client_for(db_session)
+    try:
+        headers, scanner = await _signup_and_create_scanner(
+            client,
+            email="testmode-mail@example.com",
+            name="Email check",
+            spec=_spec([{"type": "WHALE_FLOW"}]),
+        )
+        scanner_id = scanner["id"]
+
+        resp = await client.post(
+            f"/api/v1/scanners/{scanner_id}/test-email", headers=headers
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"sent": True, "reason": None}
+        # Exactly ONE message captured by the monkeypatched smtplib.
+        assert len(_FakeSMTP.sent) == 1
+        msg = _FakeSMTP.sent[0]
+        assert (
+            msg["Subject"]
+            == "Test alert from Email check — configuration check, paper research only"
+        )
+        assert msg["To"] == "desk@example.com"
+        assert "Paper research only" in msg.get_content()
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_test_email_endpoint_skips_when_unconfigured(
+    db_session, monkeypatch, _reset_fake_smtp
+):
+    _configure_smtp(monkeypatch, configured=False)
+    await _seed_markets(db_session, 1)
+    client = await _client_for(db_session)
+    try:
+        headers, scanner = await _signup_and_create_scanner(
+            client,
+            email="testmode-nomail@example.com",
+            name="Email check off",
+            spec=_spec([{"type": "WHALE_FLOW"}]),
+        )
+        scanner_id = scanner["id"]
+
+        resp = await client.post(
+            f"/api/v1/scanners/{scanner_id}/test-email", headers=headers
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"sent": False, "reason": "smtp not configured"}
+        # Nothing captured by the monkeypatched smtplib.
+        assert _FakeSMTP.sent == []
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()

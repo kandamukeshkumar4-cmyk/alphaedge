@@ -47,3 +47,19 @@ $ uv run --extra dev pytest -q tests/test_scanner_testmode.py --basetemp=E:/poly
 $ uv run --extra dev ruff check app tests
 All checks passed!
 ```
+
+### T2 — pre-publish endpoints (test-run / test-email)
+
+```
+$ uv run --extra dev pytest -q tests/test_scanner_testmode.py --basetemp=E:/polymarket-worktrees/loop86-testmode/.pt
+......                                                                   [100%]
+6 passed in 8.64s
+
+# Regression: C7 email helper refactor (send_scanner_fired_email unchanged behavior)
+$ uv run --extra dev pytest -q tests/test_scanner_email.py --basetemp=E:/polymarket-worktrees/loop86-testmode/.pt
+..                                                                       [100%]
+2 passed in 5.76s
+
+$ uv run --extra dev ruff check app tests
+All checks passed!
+```

@@ -9,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
+from app.core.config import get_settings
 from app.db.models import Scanner, ScannerRun, User
 from app.db.session import get_db
 from app.schemas.scanners import (
@@ -17,8 +18,10 @@ from app.schemas.scanners import (
     ScannerCreate,
     ScannerOut,
     ScannerRunOut,
+    ScannerTestEmailOut,
 )
 from app.services.scanner_compiler_service import compile_scanner_spec
+from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
 
 router = APIRouter(prefix="/api/v1/scanners", tags=["scanners"])
@@ -47,6 +50,7 @@ def _run_out(run: ScannerRun) -> ScannerRunOut:
         result=run.result,
         error=run.error,
         duration_ms=_duration_ms(run),
+        is_test=bool(run.is_test),
     )
 
 
@@ -206,6 +210,47 @@ async def run_scanner_now(
         scanner.status = "active"
         await db.flush()
     return _run_out(run)
+
+
+@router.post("/{scanner_id}/test-run", response_model=ScannerRunOut)
+async def test_run_scanner_now(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerRunOut:
+    """Pre-publish dry run (loop86 F-B): same pipeline, capped at 20 markets,
+    flagged ``is_test``, and silent — never writes feed rows or emails.
+    Never changes scanner status (publishing goes through ``/{id}/publish``).
+    """
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if scanner.owner != str(user.id) and not scanner.is_public:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    run = await run_scanner(db, scanner, test_mode=True)
+    return _run_out(run)
+
+
+@router.post("/{scanner_id}/test-email", response_model=ScannerTestEmailOut)
+async def test_email_scanner(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerTestEmailOut:
+    """Pre-publish email check (loop86 F-B): sends exactly ONE configuration
+    check email via the C7 SMTP helper when SMTP is configured; otherwise
+    returns HTTP 200 with ``{"sent": false, "reason": "smtp not configured"}``.
+    """
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if scanner.owner != str(user.id) and not scanner.is_public:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    settings = get_settings()
+    if not smtp_configured(settings):
+        return ScannerTestEmailOut(sent=False, reason="smtp not configured")
+    sent = send_scanner_test_email(scanner, settings=settings)
+    return ScannerTestEmailOut(sent=sent, reason=None if sent else "send failed")
 
 
 @router.post("/{scanner_id}/pause", response_model=ScannerOut)

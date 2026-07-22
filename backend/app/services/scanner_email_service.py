@@ -43,18 +43,10 @@ def build_fired_email_body(scanner: Scanner, run: ScannerRun) -> str:
     return "\n".join(lines)
 
 
-def send_scanner_fired_email(
-    scanner: Scanner,
-    run: ScannerRun,
-    *,
-    settings=None,
-    smtp_factory=None,
-) -> bool:
-    """Send a plain-text fired summary. Returns True if sent, False if skipped."""
-    settings = settings or get_settings()
+def _resolve_smtp(settings):
+    """Return (host, port, user, password, from_addr, to_addr) or None."""
     if not smtp_configured(settings):
-        return False
-
+        return None
     host = str(settings.smtp_host).strip()
     port = int(getattr(settings, "smtp_port", 587) or 587)
     user = (getattr(settings, "smtp_user", "") or "").strip()
@@ -63,18 +55,19 @@ def send_scanner_fired_email(
         user or "noreply@localhost"
     )
     to_addr = str(settings.alert_email_to).strip()
+    return host, port, user, password, from_addr, to_addr
 
-    result = run.result if isinstance(run.result, dict) else {}
-    top = result.get("top_pick") if isinstance(result.get("top_pick"), dict) else {}
-    pick_title = str(top.get("title") or top.get("market_slug") or "alert")
-    subject = f"{scanner.name}: {pick_title}"
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = from_addr
-    msg["To"] = to_addr
-    msg.set_content(build_fired_email_body(scanner, run))
-
+def _deliver(
+    msg: EmailMessage,
+    *,
+    host: str,
+    port: int,
+    user: str,
+    password: str,
+    smtp_factory=None,
+) -> bool:
+    """Open one SMTP session and send exactly one message."""
     factory = smtp_factory or smtplib.SMTP
     try:
         with factory(host, port, timeout=10) as smtp:
@@ -89,8 +82,78 @@ def send_scanner_fired_email(
             smtp.send_message(msg)
         return True
     except Exception:  # noqa: BLE001 — email must never break the run
-        logger.warning("scanner fired email failed", exc_info=True)
+        logger.warning("scanner email send failed", exc_info=True)
         return False
+
+
+def send_scanner_fired_email(
+    scanner: Scanner,
+    run: ScannerRun,
+    *,
+    settings=None,
+    smtp_factory=None,
+) -> bool:
+    """Send a plain-text fired summary. Returns True if sent, False if skipped."""
+    settings = settings or get_settings()
+    resolved = _resolve_smtp(settings)
+    if resolved is None:
+        return False
+    host, port, user, password, from_addr, to_addr = resolved
+
+    result = run.result if isinstance(run.result, dict) else {}
+    top = result.get("top_pick") if isinstance(result.get("top_pick"), dict) else {}
+    pick_title = str(top.get("title") or top.get("market_slug") or "alert")
+    subject = f"{scanner.name}: {pick_title}"
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg.set_content(build_fired_email_body(scanner, run))
+
+    return _deliver(
+        msg, host=host, port=port, user=user, password=password, smtp_factory=smtp_factory
+    )
+
+
+def build_test_email_body(scanner: Scanner) -> str:
+    lines = [
+        f"This is a test alert from {scanner.name}.",
+        "If you received this, scanner email delivery is configured correctly.",
+        "",
+        PAPER_FOOTER,
+    ]
+    return "\n".join(lines)
+
+
+def send_scanner_test_email(
+    scanner: Scanner,
+    *,
+    settings=None,
+    smtp_factory=None,
+) -> bool:
+    """Send exactly ONE pre-publish configuration-check email (loop86 F-B).
+
+    Returns True if sent, False if SMTP is unconfigured or delivery failed.
+    Paper research only — never tied to a run or an alert.
+    """
+    settings = settings or get_settings()
+    resolved = _resolve_smtp(settings)
+    if resolved is None:
+        return False
+    host, port, user, password, from_addr, to_addr = resolved
+
+    msg = EmailMessage()
+    msg["Subject"] = (
+        f"Test alert from {scanner.name} — configuration check, paper research only"
+    )
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg.set_content(build_test_email_body(scanner))
+
+    return _deliver(
+        msg, host=host, port=port, user=user, password=password, smtp_factory=smtp_factory
+    )
 
 
 def maybe_email_scanner_fired(

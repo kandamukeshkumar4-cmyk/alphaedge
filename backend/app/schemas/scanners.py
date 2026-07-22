@@ -34,6 +34,15 @@ class ScannerRunOut(BaseModel):
     result: dict[str, Any] | None
     error: str | None
     duration_ms: int | None = None
+    # loop86 F-B: True for pre-publish test-mode runs (never alerts/emails).
+    is_test: bool = False
+
+
+class ScannerTestEmailOut(BaseModel):
+    """Result of POST /scanners/{id}/test-email (loop86 F-B)."""
+
+    sent: bool
+    reason: str | None = None
 
 
 class ScannerOut(BaseModel):
