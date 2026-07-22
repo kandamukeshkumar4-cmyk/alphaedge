@@ -18,6 +18,7 @@ from app.services.signals_service import SignalsService
 logger = logging.getLogger(__name__)
 
 SCANNER_FIRED_SIGNAL_TYPE = "scanner:fired"
+SCANNER_FAILING_SIGNAL_TYPE = "scanner:failing"
 
 
 def _aligned_count(result: dict[str, Any] | None) -> int:
@@ -130,6 +131,42 @@ async def record_scanner_fired_alert(
         .where(
             SignalEvent.signal_type == SCANNER_FIRED_SIGNAL_TYPE,
             SignalEvent.market_id == market_slug[:128],
+        )
+        .order_by(SignalEvent.created_at.desc())
+        .limit(1)
+    )
+    return event
+
+
+async def record_scanner_failing_alert(
+    db: AsyncSession,
+    scanner: Scanner,
+    run: ScannerRun,
+) -> SignalEvent | None:
+    """Persist one ``scanner:failing`` feed row after repeated failures."""
+    scanner_id = str(scanner.id)
+    market_id = f"scanner:{scanner_id}"[:128]
+    payload: dict[str, Any] = {
+        "title": f"{scanner.name}: repeated failures",
+        "scanner_name": scanner.name,
+        "scanner_id": scanner_id,
+        "run_id": str(run.id),
+        "error": run.error,
+        "status": scanner.status,
+    }
+    svc = SignalsService(db)
+    await svc._persist_signal(
+        SCANNER_FAILING_SIGNAL_TYPE,
+        "scanner",
+        market_id,
+        True,
+        payload,
+    )
+    event = await db.scalar(
+        select(SignalEvent)
+        .where(
+            SignalEvent.signal_type == SCANNER_FAILING_SIGNAL_TYPE,
+            SignalEvent.market_id == market_id,
         )
         .order_by(SignalEvent.created_at.desc())
         .limit(1)

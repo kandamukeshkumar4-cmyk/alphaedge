@@ -1057,6 +1057,25 @@ class Scanner(Base):
     )
 
     runs: Mapped[list["ScannerRun"]] = relationship(back_populates="scanner")
+    versions: Mapped[list["ScannerVersion"]] = relationship(back_populates="scanner")
+
+
+class ScannerVersion(Base):
+    """Immutable snapshot of a scanner.spec at a given version number."""
+
+    __tablename__ = "scanner_versions"
+    __table_args__ = (
+        Index("ix_scanner_versions_scanner_id", "scanner_id"),
+        UniqueConstraint("scanner_id", "version", name="uq_scanner_versions_scanner_ver"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scanner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scanners.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    spec: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    scanner: Mapped["Scanner"] = relationship(back_populates="versions")
 
 
 class ScannerRun(Base):
