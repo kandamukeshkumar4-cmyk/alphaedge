@@ -50,4 +50,7 @@ each), edges (data dependencies ONLY), shared state (STATE files + commits).
 - [ ] Verifier edges placed (mandatory on Qwen output)
 - [ ] Cycles capped + dedupe-vs-seen
 - [ ] Model tier per node from routing matrix
+- [ ] Parallel BACKEND nodes: assign distinct alembic migration parents in the
+      briefs (or reserve migrations to ONE node) — two nodes branching the same
+      down_revision = multiple-heads deploy failure (V86 incident)
 - [ ] Orchestrator = reduce/merge/deploy; user = irreversible-only gate
