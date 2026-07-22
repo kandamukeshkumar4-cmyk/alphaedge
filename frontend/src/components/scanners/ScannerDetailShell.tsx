@@ -1,21 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ScannerCanvas } from "@/components/scanners/ScannerCanvas";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
 import { PageShell } from "@/components/ui/kit";
 import { useToast } from "@/components/ToastProvider";
+import { useDialog } from "@/hooks/useDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 import {
   getScanner,
   listScannerRuns,
+  listScannerVersions,
   pauseScanner,
   publishScanner,
   relativeTimeLabel,
   resumeScanner,
+  rollbackScanner,
   runDurationLabel,
   runScannerNow,
   scheduleLabel,
@@ -27,6 +30,7 @@ import {
   type ScannerReads,
   type ScannerRun,
   type ScannerStepType,
+  type ScannerVersion,
   type StepDirection,
 } from "@/lib/scanners-api";
 
@@ -395,6 +399,227 @@ function PrePublishPanel({
   );
 }
 
+// Loop V86 (X2) — branded confirm dialog for destructive-ish actions
+// (rollback). Focus-trapped via useDialog; Escape / backdrop dismiss. Never
+// red — the warning accent is amber (gold).
+function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useDialog<HTMLDivElement>(onCancel);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 px-4 backdrop-blur-sm"
+      onClick={onCancel}
+      role="presentation"
+    >
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        data-testid="scanner-confirm-dialog"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-lift"
+      >
+        <div className="flex items-center gap-2">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-gold/15 font-mono text-gold">
+            ↺
+          </span>
+          <h3 className="text-[15px] font-black tracking-tight text-text">{title}</h3>
+        </div>
+        <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted">{body}</p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="h-9 rounded-lg border border-border px-4 text-[13px] font-semibold text-muted transition hover:border-border-light hover:text-text active:scale-95 disabled:opacity-40 motion-reduce:transform-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            data-testid="scanner-confirm-rollback"
+            className="h-9 rounded-lg bg-gold px-4 text-[13px] font-bold text-bg shadow-glow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+          >
+            {busy ? "Rolling back…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Loop V86 (X2) — version chip in the header. Click opens a history popover
+// listing every spec version with a Rollback button per older version; rolling
+// back calls POST /{id}/rollback?version=N behind a branded confirm dialog.
+function VersionChip({
+  scanner,
+  token,
+  onRolledBack,
+}: {
+  scanner: Scanner;
+  token: string | null;
+  onRolledBack: (scanner: Scanner) => void;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<ScannerVersion[] | null>(null);
+  const [confirmVersion, setConfirmVersion] = useState<number | null>(null);
+  const [rolling, setRolling] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open || versions !== null) return;
+    let dead = false;
+    void (async () => {
+      const res = await listScannerVersions(scanner.id, token);
+      if (!dead) setVersions(res.versions);
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [open, versions, scanner.id, token]);
+
+  // Close on outside click / Escape (defer to the confirm dialog when open).
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (confirmVersion !== null) return;
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && confirmVersion === null) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, confirmVersion]);
+
+  async function handleConfirm() {
+    if (confirmVersion === null) return;
+    setRolling(true);
+    try {
+      const { scanner: updated } = await rollbackScanner(scanner.id, confirmVersion, token);
+      if (updated) {
+        onRolledBack(updated);
+        toast({ title: `Rolled back to v${confirmVersion}`, body: "Live spec restored from history.", tone: "success" });
+      } else {
+        toast({ title: "Rollback failed", tone: "error" });
+      }
+    } finally {
+      setRolling(false);
+      setConfirmVersion(null);
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="relative" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        data-testid="scanner-version-chip"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-surface px-2.5 font-mono text-[11px] font-bold text-muted transition hover:border-border-light hover:text-text"
+      >
+        v{scanner.version}
+        <svg width="9" height="9" viewBox="0 0 12 12" fill="currentColor" aria-hidden className={cn("transition", open && "rotate-180")}>
+          <path d="M6 8L2 4h8L6 8z" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Version history"
+          data-testid="scanner-version-popover"
+          className="absolute right-0 top-9 z-30 w-72 rounded-xl border border-border bg-surface-2 p-3 shadow-lift"
+        >
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">
+              Version history
+            </p>
+            <span className="font-mono text-[10px] text-muted-2">{versions?.length ?? "…"} versions</span>
+          </div>
+          <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+            {versions === null ? (
+              <li className="px-2 py-3 text-center font-mono text-[11px] text-muted-2">Loading…</li>
+            ) : versions.length === 0 ? (
+              <li className="px-2 py-3 text-center font-mono text-[11px] text-muted-2">No versions recorded.</li>
+            ) : (
+              versions.map((v) => (
+                <li
+                  key={v.version}
+                  data-testid="scanner-version-row"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-surface"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      v.current ? "bg-primary" : "bg-muted-2",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[11.5px] font-bold text-text">v{v.version}</p>
+                    <p className="font-mono text-[9.5px] text-muted-2">
+                      {relativeTimeLabel(v.created_at)}
+                    </p>
+                  </div>
+                  {v.current ? (
+                    <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wide text-primary">
+                      current
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmVersion(v.version)}
+                      data-testid="scanner-rollback"
+                      className="rounded border border-border px-2 py-0.5 font-mono text-[10px] font-semibold text-muted transition hover:border-gold/50 hover:text-gold active:scale-95 motion-reduce:transform-none"
+                    >
+                      Rollback
+                    </button>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      ) : null}
+      {confirmVersion !== null ? (
+        <ConfirmDialog
+          title={`Roll back to v${confirmVersion}?`}
+          body={`This restores the v${confirmVersion} spec as the live version (archiving the current v${scanner.version}). Scheduled runs resume immediately. Paper research only — never an order.`}
+          confirmLabel={`Roll back to v${confirmVersion}`}
+          busy={rolling}
+          onConfirm={() => void handleConfirm()}
+          onCancel={() => setConfirmVersion(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function DetailSkeleton() {
   return (
     <div aria-busy="true">
@@ -567,12 +792,17 @@ export function ScannerDetailShell({ id }: { id: string }) {
             >
               {paused ? "Resume" : "Pause"}
             </button>
-            <span className="ml-auto font-mono text-[11px] font-bold text-muted">
+            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] font-bold text-muted">
               {scheduleLabel(scanner.spec)} · {scanner.spec.schedule.timezone} ·{" "}
               {scanner.spec.universe.categories.length > 0
                 ? scanner.spec.universe.categories.join(" · ")
                 : "all markets"}{" "}
-              · v{scanner.version}
+              ·{" "}
+              <VersionChip
+                scanner={scanner}
+                token={token}
+                onRolledBack={(updated) => void handlePublished(updated)}
+              />
             </span>
           </div>
         </header>
@@ -620,6 +850,19 @@ export function ScannerDetailShell({ id }: { id: string }) {
                   <RunStatusChip status={latestRun.status} />
                   <span>{relativeTimeLabel(latestRun.started_at)}</span>
                   <span className="text-muted-2">{runDurationLabel(latestRun)}</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleRun()}
+                    disabled={running || paused}
+                    data-testid="scanner-run-again"
+                    title={paused ? "Resume the scanner to run it" : "Run the pipeline again (paper)"}
+                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-border px-2.5 text-[11px] font-semibold text-muted transition hover:border-primary/45 hover:text-primary active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <path d="M17.65 6.35A8 8 0 1 0 19.5 14h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.7 4.2 1.8L13 11h7V4l-2.35 2.35z" />
+                    </svg>
+                    {running ? "Running…" : "Run again"}
+                  </button>
                 </div>
               ) : null}
             </div>

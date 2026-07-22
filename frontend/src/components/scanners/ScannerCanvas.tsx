@@ -42,12 +42,13 @@ type StepFlowNode = Node<StepNodeData, "step">;
 const STEP_W = 240;
 const STEP_H = 86;
 
-/** Same dot semantics as TerminalCanvas (V79): blue for failed, never red. */
+/** Loop V86 (X2) dot contract — completed=mint, running=mint pulse,
+ *  pending=gray, failed=blue. Never red (blue carries failure). */
 function statusDot(status: string): string {
-  if (status === "running" || status === "pending") return "bg-primary animate-pulse";
-  if (status === "empty" || status === "waiting") return "bg-muted-2";
+  if (status === "running") return "bg-primary animate-pulse";
+  if (status === "pending" || status === "empty" || status === "waiting") return "bg-muted-2";
   if (status === "failed" || status === "error") return "bg-secondary";
-  return "bg-primary";
+  return "bg-primary"; // completed / done
 }
 
 function StepNode({ data }: NodeProps<StepFlowNode>) {
