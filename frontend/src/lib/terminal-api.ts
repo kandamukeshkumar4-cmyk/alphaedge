@@ -523,6 +523,32 @@ export function resetTerminalMockStore(): void {
   mockSessions = [makeMockSession()];
 }
 
+/**
+ * Register a completed mock session with a caller-chosen id (used by the
+ * Skills gallery mock run path: POST /skills/{id}/run creates a terminal
+ * session, so the offline mock mirrors that by seeding one here). No-op if a
+ * session with that id already exists. Live parity: the backend creates the
+ * real session; this only ever runs when there is no live API.
+ */
+export function seedMockTerminalSession(
+  id: string,
+  opts: { question?: string; market_slug?: string | null } = {},
+): ResearchSession {
+  const existing = mockSessions.find((s) => s.id === id);
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  const seeded = makeMockSession({
+    id,
+    question: opts.question ?? TERMINAL_CANONICAL_QUESTION,
+    market_slug: opts.market_slug ?? TERMINAL_CANONICAL_MARKET,
+    status: "completed",
+    created_at: now,
+    updated_at: now,
+  });
+  mockSessions = [seeded, ...mockSessions];
+  return seeded;
+}
+
 // ---------------------------------------------------------------------------
 // Fetch layer (the only place the UI talks to the terminal API)
 // ---------------------------------------------------------------------------
