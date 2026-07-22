@@ -47,3 +47,14 @@ $ cd backend && uv run --extra dev pytest -q tests/test_scanner_heal.py --basete
 $ uv run --extra dev ruff check app/schemas/scanners.py app/api/v1/scanners.py tests/test_scanner_heal.py
 All checks passed!
 ```
+
+### FULL suite (from `backend/`)
+
+```
+$ uv run --extra dev pytest -q --basetemp=E:/polymarket-worktrees/loop87-selfheal/.ptf
+1978 passed, 28 skipped in 341.36s (0:05:41)
+```
+
+AutoLab: not applicable (no iterative measure — one-shot H1–H3 feature tickets).
+
+STATUS: **DONE** (H1–H3 committed; no push/deploy).
