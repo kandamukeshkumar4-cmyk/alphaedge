@@ -119,6 +119,12 @@ async def record_scanner_fired_alert(
         True,
         payload,
     )
+    try:
+        from app.services.scanner_email_service import maybe_email_scanner_fired
+
+        maybe_email_scanner_fired(scanner, run)
+    except Exception:  # noqa: BLE001 — email must never break the alert path
+        logger.warning("scanner fired email hook failed", exc_info=True)
     event = await db.scalar(
         select(SignalEvent)
         .where(
