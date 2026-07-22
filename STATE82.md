@@ -12,4 +12,4 @@
 | C8 | DONE | 1 passed in 5.78s |
 
 ## Full suite
-`uv run --extra dev pytest -q --basetemp=.../.ptf` → **1923 passed, 28 skipped**; 1 unrelated flake (`test_backtest_cli_accepts_snapshot_feature_matrix` FileNotFound on Windows basetemp) **passed on retry**. Scanner tests 7/7 green. No ARQ scheduling (later ticket). AutoLab: not applicable (no iterative measure).
+`uv run --extra dev pytest -q --basetemp=.../.pt2f` → **1928 passed, 28 skipped** in 400.49s. C5–C8 scanner scheduler/alerts/email/API polish green. AutoLab: not applicable (no iterative measure).
