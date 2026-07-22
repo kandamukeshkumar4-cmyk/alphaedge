@@ -139,9 +139,24 @@ async def test_scanners_compile_create_run_pause_resume_history(db_session, monk
 
         detail = await client.get(f"/api/v1/scanners/{scanner_id}", headers=headers)
         assert detail.status_code == 200
-        assert detail.json()["latest_run"] is not None
-        assert detail.json()["latest_run"]["id"] == run_body["id"]
-        assert detail.json()["status"] == "active"
+        detail_body = detail.json()
+        assert detail_body["latest_run"] is not None
+        assert detail_body["latest_run"]["id"] == run_body["id"]
+        assert detail_body["status"] == "active"
+        assert "next_run_at" in detail_body
+        assert detail_body["next_run_at"] is not None
+        assert "last_error" in detail_body
+        from datetime import UTC, datetime as _dt
+
+        started = _dt.fromisoformat(
+            detail_body["latest_run"]["started_at"].replace("Z", "+00:00")
+        )
+        nxt = _dt.fromisoformat(detail_body["next_run_at"].replace("Z", "+00:00"))
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        if nxt.tzinfo is None:
+            nxt = nxt.replace(tzinfo=UTC)
+        assert abs((nxt - started).total_seconds() - 30 * 60) < 2
 
         paused = await client.post(f"/api/v1/scanners/{scanner_id}/pause", headers=headers)
         assert paused.status_code == 200
@@ -163,6 +178,15 @@ async def test_scanners_compile_create_run_pause_resume_history(db_session, monk
         runs = history.json()
         assert len(runs) >= 2
         assert all(r["scanner_id"] == scanner_id for r in runs)
+        assert all("duration_ms" in r for r in runs)
+        assert all(
+            r["duration_ms"] is None or isinstance(r["duration_ms"], int) for r in runs
+        )
+        finished = [r for r in runs if r.get("finished_at")]
+        assert finished
+        assert all(
+            isinstance(r["duration_ms"], int) and r["duration_ms"] >= 0 for r in finished
+        )
     finally:
         await client.aclose()
         app.dependency_overrides.clear()
