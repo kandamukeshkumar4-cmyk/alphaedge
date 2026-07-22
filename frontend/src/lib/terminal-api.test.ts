@@ -28,11 +28,11 @@ describe("terminal-api mock client", () => {
 
   it("exposes six sense chips", () => {
     expect(SENSE_CHIPS.map((c) => c.id)).toEqual([
-      "odds",
       "whale",
       "news",
       "sentiment",
       "model",
+      "odds",
       "arb",
     ]);
   });

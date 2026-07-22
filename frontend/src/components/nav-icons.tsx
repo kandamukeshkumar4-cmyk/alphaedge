@@ -40,7 +40,9 @@ export type NavIconKey =
   | "social"
   | "account"
   | "system"
-  | "radar";
+  | "radar"
+  | "library"
+  | "screener";
 
 const ICONS: Record<NavIconKey, (props: IconProps) => ReactElement> = {
   compass: (p) => (
@@ -128,6 +130,18 @@ const ICONS: Record<NavIconKey, (props: IconProps) => ReactElement> = {
       <circle cx="12" cy="12" r="4.5" />
       <path d="M12 12l6.4-6.4" />
       <circle cx="15.2" cy="8.8" r="0.4" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  library: (p) => (
+    <svg {...base(p)}>
+      <rect x="4" y="5" width="5" height="14" rx="1" />
+      <rect x="10" y="3.5" width="4" height="15.5" rx="1" />
+      <path d="M16 7l3.5 1-2.2 12-3.5-1z" />
+    </svg>
+  ),
+  screener: (p) => (
+    <svg {...base(p)}>
+      <path d="M3 5h18l-7 8v6l-4 2v-8z" />
     </svg>
   ),
 };
