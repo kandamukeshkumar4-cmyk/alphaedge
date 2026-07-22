@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * Loop V79 (A6) — Canvas view: the same research session rendered as a node
- * graph (step nodes → Final Results node) with dagre left→right layout.
- * Read-only paper research surface — no execution language anywhere.
+ * Loop V79 (A6/A8) — Canvas view per UI-DIRECTION: dotted 24px grid, compact
+ * step-card nodes with status dots, animated mint dashed edges while running,
+ * dagre left→right, minimap off, zoom controls bottom-right, larger Final
+ * Results node (verdict + sparkline). Node click → Dashboard step expand.
+ * Read-only paper research — no execution language.
  */
 
 import dagre from "dagre";
@@ -68,7 +70,8 @@ function StepNode({ data }: NodeProps<StepFlowNode>) {
       title="Open in Dashboard"
       className={cn(
         "h-full w-full cursor-pointer rounded-xl border border-border bg-surface px-3 py-2 text-left shadow-sm transition",
-        "hover:border-primary/45",
+        "hover:border-primary/45 hover:bg-surface-2/40 active:scale-[0.99]",
+        "focus-within:ring-2 focus-within:ring-primary/30",
       )}
     >
       <Handle type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-border" />
@@ -222,7 +225,12 @@ export function TerminalCanvas({
       source: `step-${step.id}`,
       target: "results",
       animated: running,
-      style: { stroke: "var(--color-primary, #2dd4bf)", strokeWidth: 1.4, opacity: 0.65 },
+      style: {
+        stroke: "var(--color-primary, #00E8B0)",
+        strokeWidth: 1.4,
+        opacity: running ? 0.85 : 0.55,
+        strokeDasharray: running ? "6 4" : undefined,
+      },
     }));
 
     const allNodes = [...stepNodes, resultsNode];
