@@ -42,7 +42,7 @@ function NavItem({
       onClick={soon ? undefined : onClick}
       className={cn(
         "group relative flex w-full items-center gap-2 rounded-lg py-1.5 pl-3 pr-2 text-left text-[12px] transition",
-        "focus-visible:outline-none active:scale-[0.99]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.99]",
         active
           ? "bg-primary-dim/50 font-semibold text-text"
           : "text-muted hover:bg-surface-2/70 hover:text-text",
@@ -116,7 +116,7 @@ export function TerminalSessionSidebar({
             type="button"
             onClick={onCollapse}
             aria-label="Hide sidebar"
-            className="rounded-md p-1 text-muted transition hover:bg-surface-2 hover:text-text focus-visible:outline-none active:scale-95"
+            className="rounded-md p-1 text-muted transition hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path
@@ -148,7 +148,7 @@ export function TerminalSessionSidebar({
               type="button"
               onClick={onNew}
               aria-label="New research session"
-              className="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary transition hover:bg-primary-dim/60 focus-visible:outline-none active:scale-95"
+              className="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary transition hover:bg-primary-dim/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95"
             >
               + New
             </button>
@@ -159,7 +159,7 @@ export function TerminalSessionSidebar({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search sessions…"
             aria-label="Search sessions"
-            className="w-full rounded-lg border border-border bg-bg/55 px-2.5 py-1.5 text-[12px] text-text outline-none transition placeholder:text-muted-2 focus:border-primary/50"
+            className="w-full rounded-lg border border-border bg-bg/55 px-2.5 py-1.5 text-[12px] text-text outline-none transition placeholder:text-muted-2 hover:border-border-light focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/30"
           />
           <ul className="space-y-0.5">
             {loading ? (

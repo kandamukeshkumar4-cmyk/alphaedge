@@ -130,7 +130,7 @@ function StepTable({ table }: { table: TablePayload }) {
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="mt-2 rounded-md px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-primary transition hover:bg-primary-dim/60 focus-visible:outline-none active:scale-95"
+          className="mt-2 rounded-md px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-primary transition hover:bg-primary-dim/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95"
         >
           {showAll ? "Show less" : `Show all ${table.rows.length} rows (+${hidden})`}
         </button>
@@ -145,6 +145,7 @@ export function TerminalStepCard({
   active,
   expandNonce,
   stagger,
+  fullBleed,
 }: {
   step: ResearchStep;
   /** "Hide steps" stream toggle — collapse every body, keep the numbered rail. */
@@ -155,6 +156,8 @@ export function TerminalStepCard({
   expandNonce?: number;
   /** Enter-stagger slot 0–4 (40ms apart, max 5 staggered items). */
   stagger?: number;
+  /** ≤768px: edge-to-edge cards (quality bar). */
+  fullBleed?: boolean;
 }) {
   const summary = stepSummaryText(step);
   const hasChart = step.kind === "chart" && isChartPayload(step.payload);
@@ -183,6 +186,7 @@ export function TerminalStepCard({
       className={cn(
         "rounded-xl border border-border bg-surface",
         "t-rise",
+        fullBleed && "max-md:rounded-none max-md:border-x-0",
         stagger === 1 && "t-stagger-1",
         stagger === 2 && "t-stagger-2",
         stagger === 3 && "t-stagger-3",
@@ -192,7 +196,7 @@ export function TerminalStepCard({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start gap-3 rounded-t-xl px-4 py-3 text-left transition hover:bg-surface-2/40 focus-visible:outline-none active:bg-surface-2/60"
+        className="flex w-full items-start gap-3 rounded-t-xl px-4 py-3 text-left transition hover:bg-surface-2/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:bg-surface-2/60"
         aria-expanded={effectiveOpen}
       >
         <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/15 font-mono text-[11px] font-black text-primary">
@@ -270,7 +274,7 @@ export function TerminalStepCard({
                     onClick={() => setTab(t.id)}
                     className={cn(
                       "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
-                      "focus-visible:outline-none active:scale-95",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95",
                       tab === t.id
                         ? "bg-primary/15 text-primary"
                         : "text-muted hover:bg-surface-2 hover:text-text",

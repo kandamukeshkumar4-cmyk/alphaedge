@@ -542,6 +542,19 @@ body {
   .t-skeleton {
     animation: none !important;
   }
+  /* Quality bar: kill interactive transforms/delays on the terminal surface. */
+  [data-testid="terminal-page"] *:active,
+  [data-testid="terminal-page"] .active\:scale-95:active,
+  [data-testid="terminal-composer"] *:active {
+    transform: none !important;
+  }
+  [data-testid="terminal-page"] .transition,
+  [data-testid="terminal-page"] .transition-transform,
+  [data-testid="terminal-page"] .transition-colors,
+  [data-testid="terminal-composer"] .transition {
+    transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
+  }
 }
 
 /* M-A11Y-02: a consistent keyboard focus ring for anything that doesn't

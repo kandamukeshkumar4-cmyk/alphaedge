@@ -201,7 +201,7 @@ export function TerminalComposer({
                     setPopover(null);
                     inputRef.current?.focus();
                   }}
-                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-surface-2 focus-visible:outline-none active:scale-[0.99]"
+                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.99]"
                 >
                   <span
                     aria-hidden="true"

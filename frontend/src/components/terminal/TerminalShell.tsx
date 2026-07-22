@@ -2,11 +2,10 @@
 
 /**
  * Loop V79 — Research Terminal shell.
- * A8 polish: Xynth layout per goals/loop-v79/UI-DIRECTION.md —
- * 240px collapsible sidebar, ~880px centered main column (session title row
- * → step stream → sticky composer), segmented Dashboard|Description|Canvas
- * tabs with a 200ms sliding thumb, and an empty state with template cards.
- * Fetch lives in `@/lib/terminal-api` (swap via setTerminalFetch).
+ * A8 polish: Xynth layout + quality bar per goals/loop-v79/UI-DIRECTION.md —
+ * 240px collapsible sidebar (sheet ≤768px), ~880px centered main, sliding-thumb
+ * tabs, sticky composer, full-bleed cards on mobile, no danger-red, reserved
+ * heights (no CLS). Fetch via `@/lib/terminal-api` (setTerminalFetch).
  */
 
 import dynamic from "next/dynamic";
@@ -221,11 +220,14 @@ export function TerminalShell() {
     setExpandStepId(stepId);
     setExpandNonce((n) => n + 1);
     setView("dashboard");
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => {
       document
         .getElementById(`terminal-step-${stepId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 60);
+        ?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    }, reduce ? 0 : 60);
   }, []);
 
   const sidebar = (
@@ -253,21 +255,21 @@ export function TerminalShell() {
   return (
     <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6" data-testid="terminal-page">
       <div className="flex items-start gap-4">
-        {/* Desktop sidebar (240px, collapsible) */}
+        {/* Desktop sidebar (240px, collapsible) — md+ (≥768px) */}
         {sidebarOpen ? (
-          <div className="hidden w-[240px] shrink-0 lg:block">
+          <div className="hidden w-[240px] shrink-0 md:block">
             <div className="sticky top-4 h-[calc(100dvh-7rem)] min-h-[480px]">{sidebar}</div>
           </div>
         ) : null}
 
-        {/* Mobile sidebar sheet (<=768px quality bar) */}
+        {/* Mobile sidebar sheet (≤768px quality bar) */}
         {mobileNav ? (
-          <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
+          <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
             <button
               type="button"
               aria-label="Close menu"
               onClick={() => setMobileNav(false)}
-              className="absolute inset-0 bg-bg/70"
+              className="absolute inset-0 bg-bg/70 transition hover:bg-bg/80 focus-visible:outline-none active:bg-bg/85"
             />
             <div className="absolute inset-y-0 left-0 w-[280px] max-w-[85vw] p-2">{sidebar}</div>
           </div>
@@ -277,11 +279,12 @@ export function TerminalShell() {
         <div className="min-w-0 flex-1">
           <div className="mx-auto w-full max-w-[880px]">
             {/* Session title row: icon + name + LIVE/timestamp ··· tabs */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
-                  if (window.matchMedia("(min-width: 1024px)").matches) {
+                  if (window.matchMedia("(min-width: 768px)").matches) {
                     setSidebarOpen(true);
                   } else {
                     setMobileNav(true);
@@ -290,8 +293,8 @@ export function TerminalShell() {
                 aria-label="Show sidebar"
                 className={cn(
                   "rounded-lg border border-border bg-surface p-2 text-muted transition",
-                  "hover:text-text focus-visible:outline-none active:scale-95",
-                  sidebarOpen ? "lg:hidden" : "",
+                  "hover:border-border-light hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95",
+                  sidebarOpen ? "md:hidden" : "",
                 )}
               >
                 <MenuIcon />
@@ -318,15 +321,16 @@ export function TerminalShell() {
                       : "· draft"}
                 </span>
               </p>
+              </div>
               <div
                 role="tablist"
                 aria-label="Session view"
-                className="no-scrollbar relative flex shrink-0 overflow-x-auto rounded-lg border border-border bg-surface p-0.5"
+                className="no-scrollbar relative flex w-full shrink-0 overflow-x-auto rounded-lg border border-border bg-surface p-0.5 sm:w-auto"
               >
                 {/* 200ms sliding thumb */}
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-0.5 top-0.5 rounded-md bg-primary-dim transition-transform duration-200 ease-swift"
+                  className="absolute bottom-0.5 top-0.5 rounded-md bg-primary-dim transition-transform duration-200 ease-swift motion-reduce:transition-none"
                   style={{
                     width: `calc((100% - 4px) / ${VIEWS.length})`,
                     left: "2px",
@@ -343,8 +347,8 @@ export function TerminalShell() {
                     onClick={() => setView(tab)}
                     className={cn(
                       "relative z-10 flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-bold capitalize transition-colors",
-                      "focus-visible:outline-none active:scale-[0.98]",
-                      view === tab ? "text-primary" : "text-muted hover:text-text",
+                      "hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
+                      view === tab ? "text-primary" : "text-muted",
                     )}
                   >
                     {tab}
@@ -419,7 +423,7 @@ export function TerminalShell() {
               /* In-session: step stream → sticky composer */
               <div data-testid="terminal-dashboard" className="mt-4">
                 {error ? (
-                  <p className="mb-4 rounded-lg border border-danger/30 bg-danger-dim/40 px-3 py-2 text-sm text-danger">
+                  <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
                     {error}
                   </p>
                 ) : null}
@@ -440,7 +444,7 @@ export function TerminalShell() {
                       data-testid="terminal-hide-steps"
                       aria-pressed={hideSteps}
                       onClick={() => setHideSteps((v) => !v)}
-                      className="rounded-md px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-muted transition hover:bg-surface-2 hover:text-text focus-visible:outline-none active:scale-95"
+                      className="rounded-md px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-muted transition hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95"
                     >
                       {hideSteps ? "Show steps" : "Hide steps"}
                     </button>
@@ -452,7 +456,8 @@ export function TerminalShell() {
                         : "Resume a session or ask a question to stream numbered step cards."}
                     </p>
                   ) : (
-                    steps.map((step, i) => (
+                    <div className="max-md:-mx-3 max-md:space-y-0 md:space-y-3">
+                    {steps.map((step, i) => (
                       <TerminalStepCard
                         key={step.id}
                         step={step}
@@ -462,8 +467,10 @@ export function TerminalShell() {
                         expandNonce={
                           expandStepId === step.id ? expandNonce : undefined
                         }
+                        fullBleed
                       />
-                    ))
+                    ))}
+                    </div>
                   )}
                   {/* Reserved height for the next streamed step — no CLS. */}
                   {running ? (
@@ -494,8 +501,8 @@ export function TerminalShell() {
                   <TerminalBullBear bullCase={bull} bearCase={bear} />
                 </section>
 
-                {/* Sticky composer at bottom of the stream */}
-                <div className="sticky bottom-3 z-10 mt-6">
+                {/* Sticky composer at bottom of the stream (mobile + desktop) */}
+                <div className="sticky bottom-0 z-10 mt-6 -mx-3 bg-gradient-to-t from-bg via-bg to-transparent px-3 pb-3 pt-4 sm:bottom-3 sm:mx-0 sm:bg-none sm:px-0 sm:pb-0 sm:pt-0">
                   <TerminalComposer
                     key={composerKey}
                     senses={senses}
@@ -537,7 +544,7 @@ export function TerminalShell() {
                       className={cn(
                         "rounded-xl border border-border bg-surface p-4 text-left transition",
                         "hover:border-primary/40 hover:bg-surface-2/50",
-                        "focus-visible:outline-none active:scale-[0.99]",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99]",
                       )}
                     >
                       <span className="flex items-center gap-2">
