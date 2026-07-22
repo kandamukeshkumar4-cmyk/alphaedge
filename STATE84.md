@@ -6,3 +6,4 @@ Charter: `frontend/**` + this file. Frontend-only tickets U1–U4.
 | --- | --- | --- |
 | U1 | DONE | `npx vitest run src/lib/scanners-api.test.ts` → `Test Files 1 passed (1)` / `Tests 4 passed (4)` (Duration 1.39s) — compile shape, create+run, pause/resume flips status, runs history list |
 | U2 | DONE | `npm run typecheck` → clean; `npm run lint` → clean (0 warnings); `npm run build` → `✓ Compiled successfully in 60s` · `├ ○ /scanners 11.8 kB / 127 kB first load` |
+| U3 | DONE | `npm run typecheck` → clean; `npm run lint` → clean (0 warnings); `npm run build` → `✓ Compiled successfully in 54s` · `├ ○ /scanners 4.66 kB / 128 kB` · `├ ƒ /scanners/[id] 86.7 kB / 210 kB first load` |
