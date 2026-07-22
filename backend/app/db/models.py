@@ -1073,6 +1073,9 @@ class ScannerRun(Base):
     checkpoint: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     result: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # loop86 F-B: pre-publish test runs are flagged; they never write alert feed
+    # rows or emails, and the publish gate requires one before draft->active.
+    is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     scanner: Mapped["Scanner"] = relationship(back_populates="runs")
 

@@ -21,6 +21,10 @@ from app.signals.sentiment_trend import load_sentiment_trend
 
 _SIGNAL_TYPES = frozenset({"WHALE_FLOW", "PRICE_TREND", "NEWS_SENTIMENT", "MODEL_EDGE"})
 
+# loop86 F-B: pre-publish test runs cap the universe so a test can never fan out
+# over the full market list.
+TEST_MODE_UNIVERSE_CAP = 20
+
 
 def _category_match(market: Market, categories: list[str]) -> bool:
     if not categories:
@@ -289,8 +293,27 @@ async def _run_step(
     return candidates
 
 
-async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
-    """Execute ``scanner.spec`` steps with per-node checkpoints. Research only."""
+def _test_mode_result_fields(scanner: Scanner, test_mode: bool) -> dict[str, Any]:
+    """Result markers for pre-publish test runs (loop86 F-B).
+
+    ``spec_version`` stamps which scanner spec version the test exercised, so
+    the publish gate can require a test run for the CURRENT spec version.
+    """
+    if not test_mode:
+        return {}
+    return {"test_mode": True, "spec_version": int(scanner.version or 1)}
+
+
+async def run_scanner(
+    db: AsyncSession, scanner: Scanner, test_mode: bool = False
+) -> ScannerRun:
+    """Execute ``scanner.spec`` steps with per-node checkpoints. Research only.
+
+    With ``test_mode=True`` the same pipeline runs, but (a) the universe is
+    capped at ``TEST_MODE_UNIVERSE_CAP`` markets, (b) the run is flagged
+    ``is_test``, (c) NO alert feed rows are written and NO email is sent, and
+    (d) the result JSON carries ``{"test_mode": true}``.
+    """
     run = ScannerRun(
         scanner_id=scanner.id,
         status="running",
@@ -298,6 +321,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         checkpoint=None,
         result=None,
         error=None,
+        is_test=bool(test_mode),
     )
     db.add(run)
     await db.flush()
@@ -310,6 +334,8 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
         )
 
         markets = await _load_universe(db, spec)
+        if test_mode:
+            markets = markets[:TEST_MODE_UNIVERSE_CAP]
         candidates: list[dict[str, Any]] = [
             {
                 "market_slug": m.slug,
@@ -328,6 +354,7 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
                 "candidates": [],
                 "top_pick": None,
                 "counts": {"universe": 0, "candidates": 0, "aligned": 0},
+                **_test_mode_result_fields(scanner, test_mode),
             }
             await db.flush()
             await db.refresh(run)
@@ -355,18 +382,22 @@ async def run_scanner(db: AsyncSession, scanner: Scanner) -> ScannerRun:
                 "candidates": len(candidates),
                 "aligned": len(aligned),
             },
+            **_test_mode_result_fields(scanner, test_mode),
         }
         run.status = "empty" if not candidates else "completed"
         run.finished_at = datetime.now(UTC)
         await db.flush()
 
         # C6: surface fired runs on the signals/toast feed (cooldown-gated).
-        try:
-            from app.services.scanner_alert_service import record_scanner_fired_alert
+        # Test-mode runs must stay silent: no alert feed rows and no email
+        # (the fired-email hook only runs inside record_scanner_fired_alert).
+        if not test_mode:
+            try:
+                from app.services.scanner_alert_service import record_scanner_fired_alert
 
-            await record_scanner_fired_alert(db, scanner, run)
-        except Exception:  # noqa: BLE001 — alert failure must not fail the run
-            pass
+                await record_scanner_fired_alert(db, scanner, run)
+            except Exception:  # noqa: BLE001 — alert failure must not fail the run
+                pass
 
         await db.refresh(run)
         return run
