@@ -254,3 +254,26 @@ async def list_scanner_runs(
         )
     ).all()
     return [_run_out(r) for r in runs]
+
+
+@router.post("/{scanner_id}/fork", response_model=ScannerOut, status_code=status.HTTP_201_CREATED)
+async def fork_scanner(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerOut:
+    source = await _get_visible_scanner(db, scanner_id, user)
+    forked = Scanner(
+        name=f"{source.name} (fork)",
+        description=source.description,
+        owner=str(user.id),
+        spec=dict(source.spec or {}),
+        version=1,
+        status="draft",
+        is_public=False,
+        cooldown_minutes=int(source.cooldown_minutes or 120),
+    )
+    db.add(forked)
+    await db.flush()
+    await db.refresh(forked)
+    return _scanner_out(forked)
