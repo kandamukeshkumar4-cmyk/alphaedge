@@ -6,17 +6,21 @@ import { useCallback, useEffect, useState } from "react";
 import { ScannerCanvas } from "@/components/scanners/ScannerCanvas";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
 import { PageShell } from "@/components/ui/kit";
+import { useToast } from "@/components/ToastProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 import {
   getScanner,
   listScannerRuns,
   pauseScanner,
+  publishScanner,
   relativeTimeLabel,
   resumeScanner,
   runDurationLabel,
   runScannerNow,
   scheduleLabel,
+  testEmailScanner,
+  testRunScanner,
   type ApiSource,
   type Scanner,
   type ScannerCandidate,
@@ -167,6 +171,230 @@ function RunStatusChip({ status }: { status: ScannerRun["status"] }) {
 // Detail shell
 // ---------------------------------------------------------------------------
 
+// Loop V86 (X1) — pre-publish flow for draft scanners. A "Test & publish"
+// panel: run a test snapshot (amber-tinted candidates table + TEST RUN badge),
+// send a test email (sent / not-configured toast), then publish — disabled
+// until a test run exists, surfacing the backend's 409 "run a test first"
+// when clicked early. Never red; amber (gold) is the test accent.
+
+function PrePublishPanel({
+  scanner,
+  stepTypes,
+  runs,
+  token,
+  onPublished,
+  onTested,
+}: {
+  scanner: Scanner;
+  stepTypes: ScannerStepType[];
+  runs: ScannerRun[];
+  token: string | null;
+  onPublished: (scanner: Scanner) => void;
+  onTested: () => void;
+}) {
+  const { toast } = useToast();
+  const [testing, setTesting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState<string | null>(null);
+
+  // Newest test run (is_test) across history + any just-run local snapshot.
+  const testRun = runs.find((r) => r.is_test) ?? null;
+  const testResult = testRun?.result ?? null;
+  const canPublish = Boolean(testRun);
+
+  async function handleTest() {
+    setTesting(true);
+    setPublishMsg(null);
+    try {
+      const { run } = await testRunScanner(scanner.id, token);
+      if (!run) {
+        toast({ title: "Test run failed", tone: "error" });
+      } else {
+        await onTested();
+      }
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function handleEmail() {
+    setEmailing(true);
+    try {
+      const res = await testEmailScanner(scanner.id, token);
+      if (res.configured && res.sent) {
+        toast({ title: "Test email sent", body: "Check the inbox wired to delivery.", tone: "success" });
+      } else if (res.configured) {
+        toast({ title: "Email configured", body: "Delivery is wired but the test dispatch did not confirm.", tone: "info" });
+      } else {
+        toast({ title: "Email not configured", body: "Enable email delivery in the spec to send previews.", tone: "info" });
+      }
+    } finally {
+      setEmailing(false);
+    }
+  }
+
+  async function handlePublish() {
+    setPublishing(true);
+    setPublishMsg(null);
+    try {
+      const res = await publishScanner(scanner.id, token);
+      if (res.ok) {
+        onPublished(res.scanner);
+        toast({ title: "Published", body: "Scanner is now active and scheduled.", tone: "success" });
+      } else {
+        // 409 path — surface the backend's "run a test first" verbatim.
+        setPublishMsg(res.message);
+      }
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  return (
+    <section
+      className="t-rise t-stagger-1 mt-5 rounded-xl border border-gold/40 bg-gold/5 p-4"
+      aria-label="Test and publish"
+      data-testid="scanner-prepublish"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-black tracking-tight text-text">
+          Test &amp; publish
+        </h2>
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-gold">
+          draft · not scheduled
+        </span>
+      </div>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
+        Run a paper snapshot over the current universe, preview the email, then
+        publish to flip this scanner active. Test runs never fire delivery or
+        create orders — paper research only.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void handleTest()}
+          disabled={testing}
+          data-testid="scanner-test-run"
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-gold/45 bg-gold/10 px-4 text-[13px] font-bold text-gold shadow-glow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M6 4.5v15l13-7.5-13-7.5z" />
+          </svg>
+          {testing ? "Testing…" : "Run test"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleEmail()}
+          disabled={emailing}
+          data-testid="scanner-test-email"
+          className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-[13px] font-semibold text-muted transition hover:border-border-light hover:text-text active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transform-none"
+        >
+          {emailing ? "Sending…" : "Send test email"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handlePublish()}
+          disabled={publishing}
+          data-testid="scanner-publish"
+          aria-disabled={!canPublish}
+          title={canPublish ? "Publish — flip this scanner active" : "Run a test first to enable publish"}
+          className={cn(
+            "inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-bold transition active:scale-95",
+            "motion-reduce:transform-none disabled:cursor-not-allowed",
+            canPublish
+              ? "bg-primary text-bg shadow-glow hover:brightness-110 disabled:opacity-40"
+              : "border border-border bg-surface-2/60 text-muted-2 opacity-70",
+          )}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M12 2l2.39 4.84L20 7.27l-3.5 3.41.83 4.82L12 13l-5.33 2.5L7.5 10.68 4 7.27l5.61-.43L12 2z" />
+          </svg>
+          {publishing ? "Publishing…" : "Publish"}
+        </button>
+      </div>
+
+      {!canPublish ? (
+        <p className="mt-3 text-[11.5px] text-muted-2">
+          Run a test to enable publish{publishMsg ? " — " : ""}{publishMsg ?? ""}
+        </p>
+      ) : null}
+      {publishMsg && canPublish ? (
+        <p className="mt-3 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[11.5px] text-gold">
+          {publishMsg}
+        </p>
+      ) : null}
+
+      {/* Test result — candidates table, TEST RUN badge, amber tint. */}
+      {testRun && testResult ? (
+        <div
+          data-testid="scanner-test-result"
+          className="mt-4 rounded-xl border border-gold/35 bg-gold/5 p-3.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/45 bg-gold/15 px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-gold">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gold" />
+              Test run
+            </span>
+            <span className="font-mono text-[11px] text-muted-2">
+              {relativeTimeLabel(testRun.started_at)} · {runDurationLabel(testRun)}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em]">
+            <span className="rounded border border-border bg-bg/60 px-2 py-1 text-muted">
+              universe {testResult.counts.universe}
+            </span>
+            <span className="rounded border border-border bg-bg/60 px-2 py-1 text-muted">
+              candidates {testResult.counts.candidates}
+            </span>
+            <span className="rounded border border-gold/30 bg-gold/10 px-2 py-1 text-gold">
+              aligned {testResult.counts.aligned}
+            </span>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table
+              data-testid="scanner-test-candidates"
+              className="w-full min-w-[420px] border-collapse text-left"
+            >
+              <thead>
+                <tr className="border-b border-border font-mono text-[9.5px] font-bold uppercase tracking-[0.14em] text-muted-2">
+                  <th className="pb-2 pr-3">Market</th>
+                  <th className="pb-2 pr-3">Step reads</th>
+                  <th className="pb-2 text-center">Aligned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {testResult.candidates.map((cand) => (
+                  <tr
+                    key={cand.market_slug}
+                    className="border-b border-border/50 align-top transition hover:bg-surface-2/40"
+                  >
+                    <td className="max-w-[200px] py-2.5 pr-3">
+                      <span className="block truncate text-[12.5px] font-bold text-text">
+                        {cand.title}
+                      </span>
+                      <span className="block truncate font-mono text-[9.5px] text-muted-2">
+                        {cand.market_slug}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <ReadPills stepTypes={stepTypes} candidate={cand} />
+                    </td>
+                    <td className="py-2.5 text-center">
+                      <AlignedCheck aligned={cand.aligned} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function DetailSkeleton() {
   return (
     <div aria-busy="true">
@@ -188,6 +416,8 @@ export function ScannerDetailShell({ id }: { id: string }) {
   const [runs, setRuns] = useState<ScannerRun[]>([]);
   const [source, setSource] = useState<ApiSource>("mock");
   const [running, setRunning] = useState(false);
+  // X1: spring the status pill the moment a draft publishes to active.
+  const [popStatus, setPopStatus] = useState(false);
 
   useEffect(() => {
     if (!isReady) return;
@@ -234,6 +464,15 @@ export function ScannerDetailShell({ id }: { id: string }) {
   async function handleResume() {
     const { scanner: updated } = await resumeScanner(id, token);
     if (updated) setScanner(updated);
+  }
+
+  // X1: publish flips draft -> active; spring the pill once on success.
+  function handlePublished(updated: Scanner) {
+    setScanner(updated);
+    if (updated.status === "active") {
+      setPopStatus(true);
+      window.setTimeout(() => setPopStatus(false), 600);
+    }
   }
 
   if (scanner === undefined) {
@@ -288,7 +527,7 @@ export function ScannerDetailShell({ id }: { id: string }) {
             <h1 className="min-w-0 flex-1 truncate text-2xl font-black tracking-tight text-text sm:text-3xl">
               {scanner.name}
             </h1>
-            <ScannerStatusPill status={scanner.status} />
+            <ScannerStatusPill status={scanner.status} className={popStatus ? "scanner-status-pop" : undefined} />
             <span
               data-testid="scanner-detail-source"
               className="rounded-full border border-border bg-surface px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted"
@@ -344,6 +583,17 @@ export function ScannerDetailShell({ id }: { id: string }) {
         >
           Paper research only — reads are simulated signals, never orders.
         </p>
+
+        {scanner.status === "draft" ? (
+          <PrePublishPanel
+            scanner={scanner}
+            stepTypes={stepTypes}
+            runs={runs}
+            token={token}
+            onPublished={handlePublished}
+            onTested={refresh}
+          />
+        ) : null}
 
         {/* THE CANVAS — spec pipeline, TerminalCanvas styling. */}
         <section className="t-rise t-stagger-1 mt-5" aria-label="Scanner pipeline">

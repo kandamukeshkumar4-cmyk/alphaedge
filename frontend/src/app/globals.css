@@ -383,6 +383,27 @@ body {
   animation: alert-toast-out 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Loop V86 (X1) — status pill spring settle when a scanner publishes (draft
+   -> active): a quick scale-up with a gentle overshoot, never red. Gated to
+   instant by the global reduced-motion kill-switch above. */
+@keyframes scanner-status-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.22);
+  }
+  62% {
+    transform: scale(0.93);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.scanner-status-pop {
+  animation: scanner-status-pop 0.55s cubic-bezier(0.34, 1.35, 0.64, 1) both;
+}
+
 /* Staggered fade-up for the card's content sections (header -> question ->
    outcome rows -> footer), like iOS notification content settling in. */
 @keyframes alert-toast-rise {
