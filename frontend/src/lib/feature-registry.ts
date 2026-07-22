@@ -100,6 +100,14 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
           "Ask a market question — streamed research steps, confluence scoreboard, bull/bear case. Paper only.",
       },
       {
+        id: "scanners",
+        label: "Scanner Studio",
+        href: "/scanners",
+        badge: "NEW",
+        blurb:
+          "Describe a scanner in plain English — compiled spec, scheduled pipeline runs, paper alerts. Never orders.",
+      },
+      {
         id: "signals",
         label: "Signals",
         href: "/signals",
