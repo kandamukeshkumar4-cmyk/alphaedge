@@ -493,6 +493,7 @@ export function TerminalShell() {
                     onSensesChange={setSenses}
                     onAsk={onAsk}
                     isRunning={running}
+                    hasSession
                   />
                 </div>
               </div>

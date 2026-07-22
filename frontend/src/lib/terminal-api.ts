@@ -128,12 +128,13 @@ export type StreamEvent =
 
 export type SenseId = "odds" | "whale" | "news" | "sentiment" | "model" | "arb";
 
+/** Data+ popover order matches UI-DIRECTION: Whale/News/Sentiment/Model/Price. */
 export const SENSE_CHIPS: { id: SenseId; label: string; blurb: string }[] = [
-  { id: "odds", label: "Odds", blurb: "Price action & candles" },
   { id: "whale", label: "Whale", blurb: "Large flow" },
   { id: "news", label: "News", blurb: "Headlines" },
   { id: "sentiment", label: "Sentiment", blurb: "Tone" },
   { id: "model", label: "Model", blurb: "Model vs market" },
+  { id: "odds", label: "Price", blurb: "Price action & candles" },
   { id: "arb", label: "Arb", blurb: "Cross-venue" },
 ];
 
