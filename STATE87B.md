@@ -17,8 +17,22 @@ OrderIntent → OrderBookService is untouched). No new migrations (P-A owns them
 ```
 $ cd backend && uv run --extra dev pytest -q tests/test_scanner_heal.py --basetemp=E:/polymarket-worktrees/loop87-selfheal/.ptf
 ...............                                                          [100%]
-15 passed in ~1s (after venv bootstrap)
+15 passed in 5.26s
 
 $ uv run --extra dev ruff check app/services/scanner_heal_service.py tests/test_scanner_heal.py
+All checks passed!
+```
+
+### H2 — bounded repairs
+
+```
+$ cd backend && uv run --extra dev pytest -q tests/test_scanner_heal.py --basetemp=E:/polymarket-worktrees/loop87-selfheal/.ptf
+..................                                                       [100%]
+18 passed in 5.98s
+
+$ uv run --extra dev pytest -q tests/test_scanner_executor.py tests/test_scanner_reliability.py tests/test_scanner_deadletter.py tests/test_scanner_heal.py --basetemp=E:/polymarket-worktrees/loop87-selfheal/.ptf
+25 passed in 8.44s
+
+$ uv run --extra dev ruff check app/services/scanner_heal_service.py app/services/scanner_executor_service.py tests/test_scanner_heal.py
 All checks passed!
 ```

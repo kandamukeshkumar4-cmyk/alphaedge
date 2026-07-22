@@ -1,8 +1,13 @@
 """H1/H2/H3 — scanner self-heal classifier, repairs, and API visibility."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
+from app.db.models import OddsSnapshot, Scanner
+from app.services.market_service import MarketService
+from app.services.scanner_executor_service import run_scanner
 from app.services.scanner_heal_service import (
     EmptyResponseError,
     classify_step_error,
@@ -53,3 +58,125 @@ def test_coerce_numeric_strings_guarded():
         "name": "x",
     }
     assert coerce_numeric_strings(["1.5", "nope"]) == [1.5, "nope"]
+
+
+async def _seed_one_market(db_session):
+    market = await MarketService(db_session).create_market(
+        slug="nba-2025-01-15-lal-bos",
+        title="Lakers vs Celtics",
+        question="Will the Lakers beat the Celtics?",
+        lock_at=datetime.now(UTC) + timedelta(hours=2),
+        category="Sports",
+        volume=50000,
+    )
+    db_session.add(
+        OddsSnapshot(
+            market_slug=market.slug,
+            implied_yes=0.5,
+            captured_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+    return market
+
+
+def _minimal_scanner(**spec_extra) -> Scanner:
+    spec = {
+        "name": "heal-fixture",
+        "universe": {"categories": ["sports"], "minimum_volume": 1},
+        "schedule": {
+            "timezone": "UTC",
+            "market_hours_only": False,
+            "interval_minutes": 60,
+        },
+        "steps": [{"type": "WHALE_FLOW"}],
+        "delivery": {"email": False, "in_app": True, "cooldown_minutes": 120},
+        "limit": 5,
+    }
+    spec.update(spec_extra)
+    return Scanner(name="heal-fixture", owner="tester", spec=spec, status="active")
+
+
+@pytest.mark.asyncio
+async def test_type_mismatch_step_heals_and_completes(db_session, monkeypatch):
+    await _seed_one_market(db_session)
+    calls = {"n": 0}
+
+    async def _flaky(db, step, candidates, *, align_present):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ValueError("could not convert string to float: '7'")
+        return list(candidates)
+
+    async def _no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service._run_step", _flaky
+    )
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service._heal_sleep", _no_sleep
+    )
+
+    scanner = _minimal_scanner()
+    db_session.add(scanner)
+    await db_session.flush()
+
+    run = await run_scanner(db_session, scanner)
+    assert run.status == "completed"
+    assert calls["n"] == 2
+    repairs = (run.result or {}).get("repairs") or []
+    assert repairs == [
+        {"node": 0, "class": "type_mismatch", "action": "coerce_numeric"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_unknown_error_propagates_to_failed(db_session, monkeypatch):
+    await _seed_one_market(db_session)
+
+    async def _boom(db, step, candidates, *, align_present):
+        raise RuntimeError("completely weird failure")
+
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service._run_step", _boom
+    )
+
+    scanner = _minimal_scanner()
+    db_session.add(scanner)
+    await db_session.flush()
+
+    run = await run_scanner(db_session, scanner)
+    assert run.status == "failed"
+    assert "weird" in (run.error or "")
+    assert not (run.result or {}).get("repairs")
+
+
+@pytest.mark.asyncio
+async def test_invalid_market_drop_records_counts_dropped(db_session, monkeypatch):
+    await _seed_one_market(db_session)
+    calls = {"n": 0}
+
+    async def _bad_slug(db, step, candidates, *, align_present):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise LookupError("404 market slug nba-2025-01-15-lal-bos not found")
+        return list(candidates)
+
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service._run_step", _bad_slug
+    )
+
+    scanner = _minimal_scanner()
+    db_session.add(scanner)
+    await db_session.flush()
+
+    run = await run_scanner(db_session, scanner)
+    # All markets dropped → empty candidates → status empty
+    assert run.status == "empty"
+    result = run.result or {}
+    assert result["counts"]["dropped"] == 1
+    assert result["repairs"] == [
+        {"node": 0, "class": "invalid_market", "action": "drop_market"}
+    ]
+    assert result["candidates"] == []
