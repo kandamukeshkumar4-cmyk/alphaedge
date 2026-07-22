@@ -14,11 +14,13 @@ import { useCallback, useEffect, useState } from "react";
 import { TerminalBullBear } from "@/components/terminal/TerminalBullBear";
 import { TerminalScoreboard } from "@/components/terminal/TerminalScoreboard";
 import { TerminalComposer } from "@/components/terminal/TerminalComposer";
+import { TerminalSaveAsSkill } from "@/components/terminal/TerminalSaveAsSkill";
 import { TerminalSessionSidebar } from "@/components/terminal/TerminalSessionSidebar";
 import { TerminalStepCard } from "@/components/terminal/TerminalStepCard";
 import { EMPTY_STATE_TEMPLATES } from "@/components/terminal/terminal-templates";
 import { cn } from "@/lib/cn";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
+import { runSkill } from "@/lib/skills-api";
 import { useCountUp } from "@/lib/use-count-up";
 import {
   createSession,
@@ -177,14 +179,33 @@ export function TerminalShell() {
     (async () => {
       await refreshList();
       if (cancelled) return;
-      const { sessions: items } = await listSessions();
-      if (cancelled) return;
-      if (items[0]) await loadSession(items[0].id);
+      // A `?session={id}` deep link (from the Skills gallery Run flow) loads
+      // that session directly instead of the most-recent one.
+      const param =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("session")
+          : null;
+      if (param) {
+        await loadSession(param);
+      } else {
+        const { sessions: items } = await listSessions();
+        if (cancelled) return;
+        if (items[0]) await loadSession(items[0].id);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [refreshList, loadSession]);
+
+  const onRunSkill = useCallback(
+    async (skillId: string) => {
+      const { session_id, source } = await runSkill(skillId, null);
+      setApiSource(source);
+      await loadSession(session_id);
+    },
+    [loadSession],
+  );
 
   const onAsk = useCallback(
     async (question: string, selected: SenseId[]) => {
@@ -433,6 +454,11 @@ export function TerminalShell() {
                   className="space-y-3"
                   data-testid="terminal-session-body"
                 >
+                  {session.status === "completed" ? (
+                    <div className="flex justify-end">
+                      <TerminalSaveAsSkill sessionId={session.id} />
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-muted">
                       Steps{" "}
@@ -510,6 +536,7 @@ export function TerminalShell() {
                     onAsk={onAsk}
                     isRunning={running}
                     hasSession
+                    onRunSkill={onRunSkill}
                   />
                 </div>
               </div>
@@ -533,6 +560,7 @@ export function TerminalShell() {
                     onSensesChange={setSenses}
                     onAsk={onAsk}
                     isRunning={running}
+                    onRunSkill={onRunSkill}
                   />
                 </div>
                 <div className="mt-8 grid w-full gap-3 sm:grid-cols-3">
