@@ -202,12 +202,15 @@ async function tryLiveJson(
 
 /**
  * Fork a skill into the caller's account. Live: POST {id}/fork → SkillOut.
- * Mock: copy the source skill from the skills mock store, give it a new id,
- * and insert it so the fork appears in the gallery/library mock.
+ * Mock: copy the source skill from the skills mock store (or an optional
+ * `seed` from the live catalog when the id isn't in the mock store — the
+ * backend fork endpoint may still be landing while listSkills is live),
+ * give it a new id, and insert it so the fork appears in the gallery/library.
  */
 export async function forkSkill(
   id: string,
   token: string | null = null,
+  seed?: Skill | null,
 ): Promise<ForkSkillResult> {
   const live = await tryLiveJson(
     `/api/v1/skills/${encodeURIComponent(id)}/fork`,
@@ -219,7 +222,7 @@ export async function forkSkill(
     if (skill) return { ok: true, skill, source: "live" };
   }
 
-  const source = findMockSkill(id);
+  const source = findMockSkill(id) ?? (seed && seed.id === id ? seed : null);
   if (!source) return { ok: false, reason: "not_found" };
   const forked: Skill = {
     ...source,
@@ -234,11 +237,13 @@ export async function forkSkill(
 
 /**
  * Fork a scanner into the caller's account. Live: POST {id}/fork → scanner.
- * Mock: copy the source scanner, new id, draft status, no runs.
+ * Mock: copy the source scanner (or optional live-catalog `seed`), new id,
+ * draft status, no runs.
  */
 export async function forkScanner(
   id: string,
   token: string | null = null,
+  seed?: Scanner | null,
 ): Promise<ForkScannerResult> {
   const live = await tryLiveJson(
     `/api/v1/scanners/${encodeURIComponent(id)}/fork`,
@@ -250,7 +255,7 @@ export async function forkScanner(
     if (scanner) return { ok: true, scanner, source: "live" };
   }
 
-  const source = findMockScanner(id);
+  const source = findMockScanner(id) ?? (seed && seed.id === id ? seed : null);
   if (!source) return { ok: false, reason: "not_found" };
   const now = mockTimestamp();
   const forked: Scanner = {

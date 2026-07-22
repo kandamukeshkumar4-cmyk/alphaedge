@@ -198,7 +198,8 @@ export function LibraryHub() {
       const tok = isReady ? token : null;
       try {
         if (entry.kind === "skill") {
-          const result = await forkSkill(entry.id, tok);
+          const seed = skills.find((s) => s.id === entry.id) ?? null;
+          const result = await forkSkill(entry.id, tok, seed);
           if (!result.ok) {
             toast({
               title: "Could not fork",
@@ -216,7 +217,8 @@ export function LibraryHub() {
             tone: "success",
           });
         } else {
-          const result = await forkScanner(entry.id, tok);
+          const seed = scanners.find((s) => s.id === entry.id) ?? null;
+          const result = await forkScanner(entry.id, tok, seed);
           if (!result.ok) {
             toast({
               title: "Could not fork",
@@ -240,7 +242,7 @@ export function LibraryHub() {
         setForkId(null);
       }
     },
-    [isReady, token, toast, refresh],
+    [isReady, token, toast, refresh, skills, scanners],
   );
 
   const onRun = useCallback(

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { TERMINAL_TEMPLATES } from "@/components/terminal/terminal-templates";
@@ -84,6 +85,7 @@ export function TerminalSessionSidebar({
   loading?: boolean;
   onCollapse?: () => void;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -133,11 +135,20 @@ export function TerminalSessionSidebar({
       </div>
 
       <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto p-2" aria-label="Terminal">
-        {/* Terminal group */}
+        {/* Terminal group — Library + Screener live (Loop V85 L4) */}
         <section className="space-y-1">
           <GroupHeader>Terminal</GroupHeader>
           <NavItem label="Research" active onClick={onNew} testId="terminal-new-session" />
-          <NavItem label="Screener" soon />
+          <NavItem
+            label="Library"
+            onClick={() => router.push("/library")}
+            testId="terminal-nav-library"
+          />
+          <NavItem
+            label="Screener"
+            onClick={() => router.push("/screener")}
+            testId="terminal-nav-screener"
+          />
           <NavItem label="Datasets" soon />
         </section>
 

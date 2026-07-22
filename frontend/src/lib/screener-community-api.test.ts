@@ -102,6 +102,23 @@ describe("V85 screener + community mock clients", () => {
     expect(missingSkill.ok).toBe(false);
     expect(missingSkill.ok === false && missingSkill.reason).toBe("not_found");
 
+    // Live-catalog seed: id absent from mock store still forks when seed is passed.
+    const seeded = await forkSkill("live-only-skill", null, {
+      id: "live-only-skill",
+      name: "Live only",
+      description: "seed",
+      icon: "✦",
+      template: [],
+      run_count: 3,
+      is_public: true,
+    });
+    expect(seeded.ok).toBe(true);
+    if (seeded.ok) {
+      expect(seeded.source).toBe("mock");
+      expect(seeded.skill.name).toContain("fork");
+      expect(seeded.skill.is_public).toBe(false);
+    }
+
     const scnFork = await forkScanner("scn-mock-whale");
     expect(scnFork.ok).toBe(true);
     if (scnFork.ok) {

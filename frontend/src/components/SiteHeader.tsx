@@ -23,13 +23,17 @@ import { cn } from "@/lib/cn";
  * mystery meat). Home and Clones defer to xl to keep the 1280 row tight;
  * Features (the full map) and every secondary surface stay ≤1 click away via
  * the grouped More menu. Scanners (Loop V84 U4) sits beside Terminal — the
- * two research-automation surfaces.
+ * two research-automation surfaces. Library + Screener (Loop V85 L4) join the
+ * bar beside Discover/Markets; Library is the hub over Skills+Scanners and
+ * Screener ranks paper markets by edge.
  */
 const NAV: { label: string; href: string; icon: NavIconKey }[] = [
   { label: "Discover", href: "/", icon: "compass" },
   { label: "Home", href: "/home", icon: "home" },
+  { label: "Library", href: "/library", icon: "library" },
   { label: "Trade", href: "/trade", icon: "bolt" },
   { label: "Markets", href: "/markets", icon: "grid" },
+  { label: "Screener", href: "/screener", icon: "screener" },
   { label: "Signals", href: "/signals", icon: "signal" },
   { label: "Terminal", href: "/terminal", icon: "intel" },
   { label: "Skills", href: "/skills", icon: "intel" },
