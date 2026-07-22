@@ -18,10 +18,12 @@ import { useSignalAlerts } from "@/hooks/useSignalAlerts";
 import { cn } from "@/lib/cn";
 
 /*
- * QuestFlow nav: Discover | Trade | Markets | Signals | Terminal | Portfolio | Features
- * with icon+text labels (Loop V62 R1 — no icon-only mystery meat). Home and
- * Clones defer to xl to keep the 1280 row tight; Features (the full map) and
- * every secondary surface stay ≤1 click away via the grouped More menu.
+ * QuestFlow nav: Discover | Trade | Markets | Signals | Terminal | Scanners |
+ * Portfolio | Features with icon+text labels (Loop V62 R1 — no icon-only
+ * mystery meat). Home and Clones defer to xl to keep the 1280 row tight;
+ * Features (the full map) and every secondary surface stay ≤1 click away via
+ * the grouped More menu. Scanners (Loop V84 U4) sits beside Terminal — the
+ * two research-automation surfaces.
  */
 const NAV: { label: string; href: string; icon: NavIconKey }[] = [
   { label: "Discover", href: "/", icon: "compass" },
@@ -31,6 +33,7 @@ const NAV: { label: string; href: string; icon: NavIconKey }[] = [
   { label: "Signals", href: "/signals", icon: "signal" },
   { label: "Terminal", href: "/terminal", icon: "intel" },
   { label: "Skills", href: "/skills", icon: "intel" },
+  { label: "Scanners", href: "/scanners", icon: "radar" },
   { label: "Clones", href: "/clones", icon: "clone" },
   { label: "Portfolio", href: "/portfolio", icon: "wallet" },
   { label: "Features", href: "/features", icon: "map" },

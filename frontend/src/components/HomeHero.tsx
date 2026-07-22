@@ -49,6 +49,14 @@ const LOOPS: Loop[] = [
     href: "/eval",
     cta: "See the proof",
   },
+  {
+    step: "04",
+    name: "Scan",
+    icon: "radar",
+    blurb: "Describe a scanner in plain English — it compiles into a scheduled pipeline that watches markets and fires paper alerts.",
+    href: "/scanners",
+    cta: "Open Scanner Studio",
+  },
 ];
 
 export function HomeHero() {
@@ -95,7 +103,9 @@ export function HomeHero() {
           </div>
         </MotionReveal>
 
-        <ol className="mt-6 grid gap-3 sm:grid-cols-3">
+        {/* Loop V84 (U4) — Scanner Studio joins the secondary row: 2-up on
+            small screens, 4-up from xl so all four loops stay one row. */}
+        <ol className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {LOOPS.map((loop, i) => (
             <li key={loop.name} className="h-full list-none">
               <MotionReveal delay={0.08 + i * 0.08} className="h-full">

@@ -1,0 +1,1037 @@
+/**
+ * Loop V84 — Scanner Studio typed client.
+ *
+ * Backend contract (`backend/app/schemas/scanners.py`,
+ * `backend/app/api/v1/scanners.py`):
+ *   Scanner:   `{id, name, description, owner, spec, version, status,
+ *               is_public, cooldown_minutes, created_at, updated_at,
+ *               latest_run: ScannerRun | null}`
+ *   Spec:      `{name, universe{categories, minimum_volume},
+ *               schedule{timezone, market_hours_only, interval_minutes},
+ *               steps[{type, window_days?}], delivery{email, in_app,
+ *               cooldown_minutes}, limit, notes}`
+ *   Run:       `{id, scanner_id, started_at, finished_at, status,
+ *               checkpoint{node}|null, result{candidates, top_pick,
+ *               counts}|null, error|null}` — candidates carry per-step
+ *               `reads` keyed by step type + an `aligned` flag.
+ *
+ * Endpoints: POST `/api/v1/scanners/compile` `{text}` -> `{spec}`;
+ * POST `/api/v1/scanners/` (create, auth); GET `/api/v1/scanners/`;
+ * GET `/api/v1/scanners/{id}` (with latest run); POST `/{id}/run`;
+ * POST `/{id}/pause`; POST `/{id}/resume`; GET `/{id}/runs`.
+ *
+ * The live API is attempted first (Bearer token like the other authed
+ * clients); on any failure the caller gets an in-memory PAPER mock so the UI
+ * works while the backend is absent. All fetch wiring lives in this one
+ * file — UI components never call `fetch` themselves. Mirrors the
+ * live-first + mock-fallback pattern of `terminal-api.ts` (Loop V79).
+ *
+ * PAPER_TRADING_ONLY — scanners are research-only: they read markets and
+ * never create paper orders (RiskService → OrderIntent → OrderBookService
+ * is the sole order path and scanners never call it).
+ */
+
+import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
+
+// ---------------------------------------------------------------------------
+// Types (backend contract)
+// ---------------------------------------------------------------------------
+
+export type ScannerStepType =
+  | "WHALE_FLOW"
+  | "PRICE_TREND"
+  | "NEWS_SENTIMENT"
+  | "MODEL_EDGE"
+  | "DIRECTION_ALIGNMENT";
+
+export type ScannerStep = {
+  type: ScannerStepType;
+  window_days?: number;
+};
+
+export type ScannerUniverse = {
+  categories: string[];
+  minimum_volume: number;
+};
+
+export type ScannerSchedule = {
+  timezone: string;
+  market_hours_only: boolean;
+  interval_minutes: number;
+};
+
+export type ScannerDelivery = {
+  email: boolean;
+  in_app: boolean;
+  cooldown_minutes: number;
+};
+
+export type ScannerSpec = {
+  name: string;
+  universe: ScannerUniverse;
+  schedule: ScannerSchedule;
+  steps: ScannerStep[];
+  delivery: ScannerDelivery;
+  limit: number;
+  notes: string[];
+};
+
+export type ScannerStatus = "draft" | "active" | "paused" | "failed";
+
+export type ScannerRunStatus = "running" | "completed" | "empty" | "failed";
+
+/** Step read direction — "up"/"down" per backend, null when inconclusive. */
+export type StepDirection = "up" | "down" | null;
+
+export type WhaleFlowRead = {
+  pressure: number;
+  event_count: number;
+  net_notional: number;
+  total_notional: number;
+  direction: StepDirection;
+  flow_score: number;
+};
+
+export type PriceTrendRead = {
+  window_days: number;
+  direction: StepDirection;
+  change: number | null;
+  candle_count: number;
+};
+
+export type NewsSentimentRead = {
+  sentiment_score: number | null;
+  direction: StepDirection;
+  news: {
+    headline: string;
+    sentiment_score: number;
+    sources_count: number;
+  } | null;
+  trend_available: boolean;
+};
+
+export type ModelEdgeRead = {
+  model_prob: number | null;
+  market_prob: number | null;
+  edge: number | null;
+  direction: StepDirection;
+};
+
+export type AlignmentRead = { aligned: boolean };
+
+export type ScannerReads = {
+  WHALE_FLOW?: WhaleFlowRead;
+  PRICE_TREND?: PriceTrendRead;
+  NEWS_SENTIMENT?: NewsSentimentRead;
+  MODEL_EDGE?: ModelEdgeRead;
+  DIRECTION_ALIGNMENT?: AlignmentRead;
+};
+
+export type ScannerCandidate = {
+  market_slug: string;
+  title: string;
+  reads: ScannerReads;
+  aligned: boolean;
+};
+
+export type ScannerRunCounts = {
+  universe: number;
+  candidates: number;
+  aligned: number;
+};
+
+export type ScannerRunResult = {
+  candidates: ScannerCandidate[];
+  top_pick: ScannerCandidate | null;
+  counts: ScannerRunCounts;
+};
+
+export type ScannerRun = {
+  id: string;
+  scanner_id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: ScannerRunStatus;
+  checkpoint: { node: number } | null;
+  result: ScannerRunResult | null;
+  error: string | null;
+};
+
+export type Scanner = {
+  id: string;
+  name: string;
+  description: string | null;
+  owner: string | null;
+  spec: ScannerSpec;
+  version: number;
+  status: ScannerStatus;
+  is_public: boolean;
+  cooldown_minutes: number;
+  created_at: string;
+  updated_at: string;
+  latest_run: ScannerRun | null;
+};
+
+export type ApiSource = "live" | "mock";
+
+// ---------------------------------------------------------------------------
+// Payload guards + normalizers (backend sends dicts — be tolerant)
+// ---------------------------------------------------------------------------
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asDirection(value: unknown): StepDirection {
+  return value === "up" || value === "down" ? value : null;
+}
+
+export const SCANNER_STEP_TYPES: readonly ScannerStepType[] = [
+  "WHALE_FLOW",
+  "PRICE_TREND",
+  "NEWS_SENTIMENT",
+  "MODEL_EDGE",
+  "DIRECTION_ALIGNMENT",
+];
+
+function normalizeStep(raw: unknown): ScannerStep | null {
+  const rec = asRecord(raw);
+  const type = String(rec.type ?? "").toUpperCase();
+  if (!SCANNER_STEP_TYPES.includes(type as ScannerStepType)) return null;
+  return {
+    type: type as ScannerStepType,
+    ...(typeof rec.window_days === "number" && Number.isFinite(rec.window_days)
+      ? { window_days: rec.window_days }
+      : {}),
+  };
+}
+
+function normalizeSpec(raw: unknown): ScannerSpec {
+  const rec = asRecord(raw);
+  const universe = asRecord(rec.universe);
+  const schedule = asRecord(rec.schedule);
+  const delivery = asRecord(rec.delivery);
+  return {
+    name: typeof rec.name === "string" && rec.name.trim() ? rec.name : "Untitled scanner",
+    universe: {
+      categories: Array.isArray(universe.categories)
+        ? universe.categories.map((c) => String(c))
+        : [],
+      minimum_volume: asNumber(universe.minimum_volume),
+    },
+    schedule: {
+      timezone: typeof schedule.timezone === "string" ? schedule.timezone : "UTC",
+      market_hours_only: schedule.market_hours_only === true,
+      interval_minutes: asNumber(schedule.interval_minutes, 60) || 60,
+    },
+    steps: Array.isArray(rec.steps)
+      ? rec.steps.map(normalizeStep).filter((s): s is ScannerStep => s !== null)
+      : [],
+    delivery: {
+      email: delivery.email === true,
+      in_app: delivery.in_app !== false,
+      cooldown_minutes: asNumber(delivery.cooldown_minutes, 120),
+    },
+    limit: asNumber(rec.limit, 20) || 20,
+    notes: Array.isArray(rec.notes) ? rec.notes.map((n) => String(n)) : [],
+  };
+}
+
+function normalizeCandidate(raw: unknown): ScannerCandidate | null {
+  const rec = asRecord(raw);
+  if (typeof rec.market_slug !== "string") return null;
+  const rawReads = asRecord(rec.reads);
+  const reads: ScannerReads = {};
+  const whale = asRecord(rawReads.WHALE_FLOW);
+  if (rawReads.WHALE_FLOW !== undefined) {
+    reads.WHALE_FLOW = {
+      pressure: asNumber(whale.pressure),
+      event_count: asNumber(whale.event_count),
+      net_notional: asNumber(whale.net_notional),
+      total_notional: asNumber(whale.total_notional),
+      direction: asDirection(whale.direction),
+      flow_score: asNumber(whale.flow_score),
+    };
+  }
+  const trend = asRecord(rawReads.PRICE_TREND);
+  if (rawReads.PRICE_TREND !== undefined) {
+    reads.PRICE_TREND = {
+      window_days: asNumber(trend.window_days, 7) || 7,
+      direction: asDirection(trend.direction),
+      change: typeof trend.change === "number" && Number.isFinite(trend.change) ? trend.change : null,
+      candle_count: asNumber(trend.candle_count),
+    };
+  }
+  const news = asRecord(rawReads.NEWS_SENTIMENT);
+  if (rawReads.NEWS_SENTIMENT !== undefined) {
+    const newsItem = asRecord(news.news);
+    reads.NEWS_SENTIMENT = {
+      sentiment_score:
+        typeof news.sentiment_score === "number" && Number.isFinite(news.sentiment_score)
+          ? news.sentiment_score
+          : null,
+      direction: asDirection(news.direction),
+      news:
+        typeof newsItem.headline === "string"
+          ? {
+              headline: newsItem.headline,
+              sentiment_score: asNumber(newsItem.sentiment_score),
+              sources_count: asNumber(newsItem.sources_count),
+            }
+          : null,
+      trend_available: news.trend_available === true,
+    };
+  }
+  const model = asRecord(rawReads.MODEL_EDGE);
+  if (rawReads.MODEL_EDGE !== undefined) {
+    reads.MODEL_EDGE = {
+      model_prob:
+        typeof model.model_prob === "number" && Number.isFinite(model.model_prob)
+          ? model.model_prob
+          : null,
+      market_prob:
+        typeof model.market_prob === "number" && Number.isFinite(model.market_prob)
+          ? model.market_prob
+          : null,
+      edge: typeof model.edge === "number" && Number.isFinite(model.edge) ? model.edge : null,
+      direction: asDirection(model.direction),
+    };
+  }
+  const alignment = asRecord(rawReads.DIRECTION_ALIGNMENT);
+  if (rawReads.DIRECTION_ALIGNMENT !== undefined) {
+    reads.DIRECTION_ALIGNMENT = { aligned: alignment.aligned === true };
+  }
+  return {
+    market_slug: rec.market_slug,
+    title: typeof rec.title === "string" ? rec.title : rec.market_slug,
+    reads,
+    aligned: rec.aligned === true,
+  };
+}
+
+function normalizeRunResult(raw: unknown): ScannerRunResult | null {
+  const rec = asRecord(raw);
+  if (!Array.isArray(rec.candidates)) return null;
+  const candidates = rec.candidates
+    .map(normalizeCandidate)
+    .filter((c): c is ScannerCandidate => c !== null);
+  const counts = asRecord(rec.counts);
+  return {
+    candidates,
+    top_pick: normalizeCandidate(rec.top_pick),
+    counts: {
+      universe: asNumber(counts.universe, candidates.length),
+      candidates: asNumber(counts.candidates, candidates.length),
+      aligned: asNumber(counts.aligned, candidates.filter((c) => c.aligned).length),
+    },
+  };
+}
+
+export function normalizeScannerRun(raw: unknown): ScannerRun | null {
+  const rec = asRecord(raw);
+  if (typeof rec.id !== "string") return null;
+  const status = String(rec.status ?? "");
+  const runStatus: ScannerRunStatus =
+    status === "running" || status === "completed" || status === "empty" || status === "failed"
+      ? status
+      : "running";
+  const checkpoint = asRecord(rec.checkpoint);
+  return {
+    id: rec.id,
+    scanner_id: typeof rec.scanner_id === "string" ? rec.scanner_id : "",
+    started_at: typeof rec.started_at === "string" ? rec.started_at : new Date(0).toISOString(),
+    finished_at: typeof rec.finished_at === "string" ? rec.finished_at : null,
+    status: runStatus,
+    checkpoint:
+      typeof checkpoint.node === "number" && Number.isFinite(checkpoint.node)
+        ? { node: checkpoint.node }
+        : null,
+    result: rec.result !== null && rec.result !== undefined ? normalizeRunResult(rec.result) : null,
+    error: typeof rec.error === "string" ? rec.error : null,
+  };
+}
+
+export function normalizeScanner(raw: unknown): Scanner | null {
+  const rec = asRecord(raw);
+  if (typeof rec.id !== "string") return null;
+  const status = String(rec.status ?? "");
+  const scannerStatus: ScannerStatus =
+    status === "draft" || status === "active" || status === "paused" || status === "failed"
+      ? status
+      : "draft";
+  return {
+    id: rec.id,
+    name: typeof rec.name === "string" && rec.name.trim() ? rec.name : "Untitled scanner",
+    description: typeof rec.description === "string" ? rec.description : null,
+    owner: typeof rec.owner === "string" ? rec.owner : null,
+    spec: normalizeSpec(rec.spec),
+    version: asNumber(rec.version, 1) || 1,
+    status: scannerStatus,
+    is_public: rec.is_public === true,
+    cooldown_minutes: asNumber(rec.cooldown_minutes, 120),
+    created_at: typeof rec.created_at === "string" ? rec.created_at : new Date(0).toISOString(),
+    updated_at: typeof rec.updated_at === "string" ? rec.updated_at : new Date(0).toISOString(),
+    latest_run: rec.latest_run ? normalizeScannerRun(rec.latest_run) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Derived helpers (pure) — UI formatting without components doing the math
+// ---------------------------------------------------------------------------
+
+/** "every 15 min" / "every 2 h" / "daily" — the schedule line on cards. */
+export function scheduleLabel(spec: ScannerSpec): string {
+  const minutes = spec.schedule.interval_minutes;
+  if (minutes >= 1440) return "daily";
+  if (minutes >= 60 && minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `every ${hours} h`;
+  }
+  return `every ${Math.max(1, minutes)} min`;
+}
+
+/** One-line label for a spec step, e.g. "Price trend · 7d window". */
+export function stepLabel(step: ScannerStep): string {
+  switch (step.type) {
+    case "WHALE_FLOW":
+      return "Whale flow";
+    case "PRICE_TREND":
+      return `Price trend · ${step.window_days ?? 7}d`;
+    case "NEWS_SENTIMENT":
+      return "News sentiment";
+    case "MODEL_EDGE":
+      return "Model vs market";
+    case "DIRECTION_ALIGNMENT":
+      return "Direction alignment";
+  }
+}
+
+/** Run wall-clock duration in ms, or null while running/unknown. */
+export function runDurationMs(run: ScannerRun): number | null {
+  if (!run.finished_at) return null;
+  const ms = Date.parse(run.finished_at) - Date.parse(run.started_at);
+  return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+/** Compact duration label: "1.4s" / "820ms" / "—" while running. */
+export function runDurationLabel(run: ScannerRun): string {
+  const ms = runDurationMs(run);
+  if (ms === null) return "—";
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+}
+
+/** "2m ago" style relative label for last-run lines (fixed `now` for tests). */
+export function relativeTimeLabel(iso: string, nowMs: number = Date.now()): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return "—";
+  const delta = Math.max(0, nowMs - then);
+  const minutes = Math.floor(delta / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+/** Does the candidate's reads map carry a read for this step type? */
+export function candidateHasRead(cand: ScannerCandidate, type: ScannerStepType): boolean {
+  return cand.reads[type] !== undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Mock store (in-memory; used whenever the live scanner API is absent)
+// ---------------------------------------------------------------------------
+
+const MOCK_NOW = "2026-07-21T15:00:00.000Z";
+
+type MockMarket = { slug: string; title: string; category: string };
+
+const MOCK_UNIVERSE: MockMarket[] = [
+  { slug: "nba-2025-01-15-lal-bos", title: "Lakers vs Celtics — Jan 15", category: "nba" },
+  { slug: "nba-2025-01-16-gsw-den", title: "Warriors vs Nuggets — Jan 16", category: "nba" },
+  { slug: "nba-2025-01-16-mil-mia", title: "Bucks vs Heat — Jan 16", category: "nba" },
+  { slug: "election-2026-senate-oh", title: "Ohio Senate 2026 winner", category: "election" },
+  { slug: "crypto-btc-150k-2026", title: "BTC above $150k in 2026?", category: "crypto" },
+];
+
+function mockDirection(seed: number): StepDirection {
+  return seed % 3 === 2 ? null : seed % 2 === 0 ? "up" : "down";
+}
+
+/**
+ * Deterministic per-step read for a (step, market-index) pair — same shape as
+ * the backend executor emits, no randomness so UI tests stay stable.
+ */
+function mockRead(step: ScannerStep, marketIndex: number): ScannerReads {
+  switch (step.type) {
+    case "WHALE_FLOW":
+      return {
+        WHALE_FLOW: {
+          pressure: Number(((marketIndex % 2 === 0 ? 1 : -1) * (0.08 + marketIndex * 0.03)).toFixed(3)),
+          event_count: 4 + marketIndex * 2,
+          net_notional: 8_500 + marketIndex * 3_100,
+          total_notional: 21_000 + marketIndex * 4_500,
+          direction: mockDirection(marketIndex),
+          flow_score: 9_300 + marketIndex * 2_800,
+        },
+      };
+    case "PRICE_TREND": {
+      const dir = mockDirection(marketIndex + 1);
+      return {
+        PRICE_TREND: {
+          window_days: step.window_days ?? 7,
+          direction: dir,
+          change: dir === null ? null : Number((dir === "up" ? 0.018 : -0.014).toFixed(4)),
+          candle_count: 24 * (step.window_days ?? 7),
+        },
+      };
+    }
+    case "NEWS_SENTIMENT":
+      return {
+        NEWS_SENTIMENT: {
+          sentiment_score: Number(((marketIndex % 2 === 0 ? 1 : -1) * (0.12 + marketIndex * 0.02)).toFixed(3)),
+          direction: mockDirection(marketIndex),
+          news: {
+            headline: `Desk read: ${MOCK_UNIVERSE[marketIndex % MOCK_UNIVERSE.length]?.title ?? "market"} coverage leans ${marketIndex % 2 === 0 ? "bullish" : "cautious"}`,
+            sentiment_score: Number(((marketIndex % 2 === 0 ? 1 : -1) * 0.1).toFixed(3)),
+            sources_count: 3 + marketIndex,
+          },
+          trend_available: true,
+        },
+      };
+    case "MODEL_EDGE": {
+      const marketProb = 0.48 + marketIndex * 0.02;
+      const modelProb = marketProb + (marketIndex % 2 === 0 ? 0.05 : -0.02);
+      const edge = Number((modelProb - marketProb).toFixed(4));
+      return {
+        MODEL_EDGE: {
+          model_prob: Number(modelProb.toFixed(3)),
+          market_prob: Number(marketProb.toFixed(3)),
+          edge,
+          direction: edge > 0.01 ? "up" : edge < -0.01 ? "down" : null,
+        },
+      };
+    }
+    case "DIRECTION_ALIGNMENT":
+      return { DIRECTION_ALIGNMENT: { aligned: marketIndex % 2 === 0 } };
+  }
+}
+
+function candidateDirections(reads: ScannerReads): StepDirection[] {
+  const dirs: StepDirection[] = [
+    reads.WHALE_FLOW?.direction ?? null,
+    reads.PRICE_TREND?.direction ?? null,
+    reads.NEWS_SENTIMENT?.direction ?? null,
+    reads.MODEL_EDGE?.direction ?? null,
+  ];
+  return dirs.filter((d): d is "up" | "down" => d !== null);
+}
+
+function isCandidateAligned(reads: ScannerReads): boolean {
+  const dirs = candidateDirections(reads);
+  return dirs.length > 0 && new Set(dirs).size === 1;
+}
+
+/** Execute a spec over the mock universe — mirrors the backend executor. */
+function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): ScannerRun {
+  const limit = Math.max(1, spec.limit || 20);
+  const categories = spec.universe.categories.map((c) => c.toLowerCase());
+  const universe = MOCK_UNIVERSE.filter(
+    (m) => categories.length === 0 || categories.includes(m.category),
+  ).slice(0, limit);
+
+  if (universe.length === 0) {
+    return {
+      id: runId,
+      scanner_id: "",
+      started_at: startedAt,
+      finished_at: startedAt,
+      status: "empty",
+      checkpoint: null,
+      result: { candidates: [], top_pick: null, counts: { universe: 0, candidates: 0, aligned: 0 } },
+      error: null,
+    };
+  }
+
+  let candidates: ScannerCandidate[] = universe.map((m) => ({
+    market_slug: m.slug,
+    title: m.title,
+    reads: {},
+    aligned: false,
+  }));
+
+  const alignPresent = spec.steps.some((s) => s.type === "DIRECTION_ALIGNMENT");
+  for (const step of spec.steps) {
+    candidates = candidates.map((cand, i) => ({
+      ...cand,
+      reads: { ...cand.reads, ...mockRead(step, i) },
+    }));
+    if (step.type === "DIRECTION_ALIGNMENT") {
+      // Mirror backend: drop candidates whose signal directions conflict.
+      candidates = candidates
+        .map((cand) => {
+          const aligned = isCandidateAligned(cand.reads);
+          return {
+            ...cand,
+            aligned,
+            reads: { ...cand.reads, DIRECTION_ALIGNMENT: { aligned } },
+          };
+        })
+        .filter((cand) => {
+          const dirs = candidateDirections(cand.reads);
+          return !(dirs.length > 0 && !cand.aligned);
+        });
+    }
+  }
+
+  candidates = candidates.map((cand) =>
+    alignPresent ? cand : { ...cand, aligned: isCandidateAligned(cand.reads) },
+  );
+  const aligned = candidates.filter((c) => c.aligned);
+  const started = Date.parse(startedAt);
+  return {
+    id: runId,
+    scanner_id: "",
+    started_at: startedAt,
+    finished_at: new Date(started + 4200).toISOString(),
+    status: "completed",
+    checkpoint: { node: Math.max(0, spec.steps.length - 1) },
+    result: {
+      candidates,
+      top_pick: aligned[0] ?? null,
+      counts: { universe: universe.length, candidates: candidates.length, aligned: aligned.length },
+    },
+    error: null,
+  };
+}
+
+const MOCK_WHALE_SPEC: ScannerSpec = {
+  name: "NBA whale + trend confluence",
+  universe: { categories: ["nba"], minimum_volume: 50_000 },
+  schedule: { timezone: "UTC", market_hours_only: false, interval_minutes: 15 },
+  steps: [
+    { type: "WHALE_FLOW" },
+    { type: "PRICE_TREND", window_days: 7 },
+    { type: "NEWS_SENTIMENT" },
+    { type: "MODEL_EDGE" },
+    { type: "DIRECTION_ALIGNMENT" },
+  ],
+  delivery: { email: false, in_app: true, cooldown_minutes: 120 },
+  limit: 20,
+  notes: [],
+};
+
+const MOCK_DAILY_SPEC: ScannerSpec = {
+  name: "Election sentiment daily digest",
+  universe: { categories: ["election"], minimum_volume: 10_000 },
+  schedule: { timezone: "UTC", market_hours_only: false, interval_minutes: 1440 },
+  steps: [{ type: "NEWS_SENTIMENT" }, { type: "MODEL_EDGE" }],
+  delivery: { email: false, in_app: true, cooldown_minutes: 240 },
+  limit: 10,
+  notes: [],
+};
+
+const MOCK_DRAFT_SPEC: ScannerSpec = {
+  name: "Crypto whale watcher",
+  universe: { categories: ["crypto"], minimum_volume: 25_000 },
+  schedule: { timezone: "UTC", market_hours_only: false, interval_minutes: 60 },
+  steps: [{ type: "WHALE_FLOW" }, { type: "PRICE_TREND", window_days: 3 }],
+  delivery: { email: false, in_app: true, cooldown_minutes: 120 },
+  limit: 20,
+  notes: [],
+};
+
+function makeMockRun(scannerId: string, spec: ScannerSpec, id: string, startedAt: string): ScannerRun {
+  return { ...mockExecute(spec, id, startedAt), scanner_id: scannerId };
+}
+
+function seedMockStore(): { scanners: Scanner[]; runs: Record<string, ScannerRun[]> } {
+  const whaleRuns = [
+    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-2", "2026-07-21T14:45:00.000Z"),
+    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-1", "2026-07-21T14:30:00.000Z"),
+  ];
+  const dailyRuns = [
+    makeMockRun("scn-mock-daily", MOCK_DAILY_SPEC, "run-mock-daily-1", "2026-07-21T06:00:00.000Z"),
+  ];
+  const scanners: Scanner[] = [
+    {
+      id: "scn-mock-whale",
+      name: MOCK_WHALE_SPEC.name,
+      description: "Whale flow, price trend, news and model agreement on NBA markets.",
+      owner: "mock-user",
+      spec: MOCK_WHALE_SPEC,
+      version: 1,
+      status: "active",
+      is_public: true,
+      cooldown_minutes: 120,
+      created_at: "2026-07-20T12:00:00.000Z",
+      updated_at: MOCK_NOW,
+      latest_run: whaleRuns[0] ?? null,
+    },
+    {
+      id: "scn-mock-daily",
+      name: MOCK_DAILY_SPEC.name,
+      description: "Once-a-day sentiment + model read on election markets.",
+      owner: "mock-user",
+      spec: MOCK_DAILY_SPEC,
+      version: 1,
+      status: "paused",
+      is_public: true,
+      cooldown_minutes: 240,
+      created_at: "2026-07-19T09:00:00.000Z",
+      updated_at: "2026-07-21T07:00:00.000Z",
+      latest_run: dailyRuns[0] ?? null,
+    },
+    {
+      id: "scn-mock-draft",
+      name: MOCK_DRAFT_SPEC.name,
+      description: null,
+      owner: "mock-user",
+      spec: MOCK_DRAFT_SPEC,
+      version: 1,
+      status: "draft",
+      is_public: false,
+      cooldown_minutes: 120,
+      created_at: MOCK_NOW,
+      updated_at: MOCK_NOW,
+      latest_run: null,
+    },
+  ];
+  return {
+    scanners,
+    runs: {
+      "scn-mock-whale": whaleRuns,
+      "scn-mock-daily": dailyRuns,
+      "scn-mock-draft": [],
+    },
+  };
+}
+
+let mockStore = seedMockStore();
+let mockCounter = 0;
+
+function nextMockId(prefix: string): string {
+  mockCounter += 1;
+  return `${prefix}-local-${mockCounter.toString(36)}`;
+}
+
+export function resetScannersMockStore(): void {
+  mockStore = seedMockStore();
+  mockCounter = 0;
+}
+
+/**
+ * Mock NL→spec compile mirroring the backend's deterministic keyword parser
+ * (`scanner_compiler_service.py`) — same signal keywords, interval phrases,
+ * categories, minimum-volume and top-N parsing; residuals land in `notes`.
+ */
+export function compileSpecLocal(text: string): ScannerSpec {
+  const raw = (text || "").trim();
+  const lower = raw.toLowerCase();
+  const spec: ScannerSpec = {
+    name: "Untitled scanner",
+    universe: { categories: [], minimum_volume: 0 },
+    schedule: { timezone: "UTC", market_hours_only: false, interval_minutes: 60 },
+    steps: [],
+    delivery: { email: false, in_app: true, cooldown_minutes: 120 },
+    limit: 20,
+    notes: [],
+  };
+  if (!raw) {
+    spec.notes = ["(empty)"];
+    return spec;
+  }
+  spec.name = (raw.split(/[.!?\n]/)[0] ?? "").trim().slice(0, 80) || "Untitled scanner";
+
+  const steps: ScannerStep[] = [];
+  if (/\bwhale\b|\bflow\b/.test(lower)) steps.push({ type: "WHALE_FLOW" });
+  if (/\btrend\b|\bmomentum\b|\bprice\b/.test(lower)) {
+    const win = lower.match(/(\d+)\s*days?/);
+    steps.push({ type: "PRICE_TREND", ...(win ? { window_days: Number(win[1]) } : { window_days: 7 }) });
+  }
+  if (/\bnews\b|\bsentiment\b/.test(lower)) steps.push({ type: "NEWS_SENTIMENT" });
+  if (/\bmodel\b|\bedge\b/.test(lower)) steps.push({ type: "MODEL_EDGE" });
+  const signalCount = steps.length;
+  if (signalCount >= 2) steps.push({ type: "DIRECTION_ALIGNMENT" });
+  spec.steps = steps;
+
+  spec.universe.categories = (["nba", "sports", "election", "crypto"] as const).filter((cat) =>
+    new RegExp(`\\b${cat}\\b`).test(lower),
+  );
+  const vol = lower.match(/volume\s+above\s+(\d[\d,]*)/) ?? lower.match(/min(?:imum)?\s+volume(?:\s+of)?\s+(\d[\d,]*)/);
+  if (vol) spec.universe.minimum_volume = Number(vol[1].replace(/,/g, ""));
+
+  if (/\bdaily\b/.test(lower)) {
+    spec.schedule.interval_minutes = 1440;
+  } else {
+    const min = lower.match(/every\s+(\d+)\s*minutes?/);
+    const hr = lower.match(/every\s+(\d+)\s*hours?/);
+    if (min) spec.schedule.interval_minutes = Number(min[1]);
+    else if (hr) spec.schedule.interval_minutes = Number(hr[1]) * 60;
+  }
+  const top = lower.match(/\btop\s+(\d+)\b/);
+  if (top) spec.limit = Number(top[1]);
+
+  const stop = new Set([
+    "a", "an", "the", "and", "or", "with", "for", "of", "to", "in", "on", "at",
+    "when", "show", "shows", "scan", "scanner", "alert", "me", "markets",
+    "market", "above", "min", "minimum", "volume", "every", "minutes",
+    "minute", "hours", "hour", "daily", "top", "day", "days", "window",
+  ]);
+  const known = new Set([
+    "whale", "flow", "trend", "momentum", "price", "news", "sentiment",
+    "model", "edge", "nba", "sports", "election", "crypto",
+  ]);
+  for (const tok of lower.match(/[a-z0-9]+(?:'[a-z]+)?/g) ?? []) {
+    if (/^\d+$/.test(tok) || stop.has(tok) || known.has(tok)) continue;
+    if (!spec.notes.includes(tok)) spec.notes.push(tok);
+  }
+  return spec;
+}
+
+// ---------------------------------------------------------------------------
+// Fetch layer (the only place the UI talks to the scanner API)
+// ---------------------------------------------------------------------------
+
+type ScannersFetch = typeof fetch;
+
+let scannersFetch: ScannersFetch = (...args) => fetch(...args);
+
+/** Test / wiring hook — swap the fetch layer without touching UI files. */
+export function setScannersFetch(fn: ScannersFetch): void {
+  scannersFetch = fn;
+}
+
+async function liveBase(): Promise<string | null> {
+  const base = (await ensureApiBase()) || undefined;
+  return base && hasLiveApi(base) ? base : null;
+}
+
+async function tryLiveJson<T>(
+  path: string,
+  token: string | null,
+  init?: RequestInit,
+): Promise<T | null> {
+  const base = await liveBase();
+  if (!base) return null;
+  try {
+    const res = await scannersFetch(apiUrl(path, base), {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function asList(live: unknown): unknown[] | null {
+  if (Array.isArray(live)) return live;
+  const rec = asRecord(live);
+  if (Array.isArray(rec.items)) return rec.items;
+  if (Array.isArray(rec.scanners)) return rec.scanners;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Endpoints — live first, mock fallback. None of these reject.
+// ---------------------------------------------------------------------------
+
+/** Compile plain English into a scanner spec preview. POST /compile. */
+export async function compileScanner(
+  text: string,
+  token: string | null = null,
+): Promise<{ spec: ScannerSpec; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>("/api/v1/scanners/compile", token, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+  const specRec = asRecord(live);
+  if (live && specRec.spec !== undefined) {
+    return { spec: normalizeSpec(specRec.spec), source: "live" };
+  }
+  return { spec: compileSpecLocal(text), source: "mock" };
+}
+
+export type CreateScannerInput = {
+  name: string;
+  description?: string | null;
+  spec: ScannerSpec;
+  is_public?: boolean;
+  cooldown_minutes?: number;
+};
+
+/** Create a scanner from a compiled spec. POST / (auth). */
+export async function createScanner(
+  input: CreateScannerInput,
+  token: string | null = null,
+): Promise<{ scanner: Scanner; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>("/api/v1/scanners/", token, {
+    method: "POST",
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description ?? null,
+      spec: input.spec,
+      is_public: input.is_public ?? false,
+      cooldown_minutes: input.cooldown_minutes ?? input.spec.delivery.cooldown_minutes ?? 120,
+    }),
+  });
+  const scanner = live ? normalizeScanner(live) : null;
+  if (scanner) return { scanner, source: "live" };
+
+  const now = new Date().toISOString();
+  const local: Scanner = {
+    id: nextMockId("scn"),
+    name: input.name.trim() || input.spec.name,
+    description: input.description ?? null,
+    owner: "local-user",
+    spec: normalizeSpec(input.spec),
+    version: 1,
+    status: "draft",
+    is_public: input.is_public ?? false,
+    cooldown_minutes: input.cooldown_minutes ?? input.spec.delivery.cooldown_minutes ?? 120,
+    created_at: now,
+    updated_at: now,
+    latest_run: null,
+  };
+  mockStore = {
+    scanners: [local, ...mockStore.scanners],
+    runs: { ...mockStore.runs, [local.id]: [] },
+  };
+  return { scanner: local, source: "mock" };
+}
+
+/** List visible scanners. GET / (live first; seeded mock when empty/absent). */
+export async function listScanners(
+  token: string | null = null,
+): Promise<{ scanners: Scanner[]; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>("/api/v1/scanners/", token);
+  const rawList = asList(live);
+  if (rawList && rawList.length > 0) {
+    const scanners = rawList
+      .map(normalizeScanner)
+      .filter((s): s is Scanner => s !== null);
+    if (scanners.length > 0) return { scanners, source: "live" };
+  }
+  return { scanners: mockStore.scanners, source: "mock" };
+}
+
+/** Get one scanner with its latest run. GET /{id}. */
+export async function getScanner(
+  id: string,
+  token: string | null = null,
+): Promise<{ scanner: Scanner | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}`,
+    token,
+  );
+  const scanner = live ? normalizeScanner(live) : null;
+  if (scanner) return { scanner, source: "live" };
+  return { scanner: mockStore.scanners.find((s) => s.id === id) ?? null, source: "mock" };
+}
+
+/** Trigger a run now. POST /{id}/run (auth). Draft scanners flip to active. */
+export async function runScannerNow(
+  id: string,
+  token: string | null = null,
+): Promise<{ run: ScannerRun | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/run`,
+    token,
+    { method: "POST" },
+  );
+  const run = live ? normalizeScannerRun(live) : null;
+  if (run) return { run, source: "live" };
+
+  const scanner = mockStore.scanners.find((s) => s.id === id);
+  if (!scanner) return { run: null, source: "mock" };
+  const startedAt = new Date().toISOString();
+  const run2: ScannerRun = {
+    ...mockExecute(scanner.spec, nextMockId("run"), startedAt),
+    scanner_id: scanner.id,
+  };
+  const updated: Scanner = {
+    ...scanner,
+    status: scanner.status === "draft" ? "active" : scanner.status,
+    updated_at: startedAt,
+    latest_run: run2,
+  };
+  mockStore = {
+    scanners: mockStore.scanners.map((s) => (s.id === id ? updated : s)),
+    runs: { ...mockStore.runs, [id]: [run2, ...(mockStore.runs[id] ?? [])] },
+  };
+  return { run: run2, source: "mock" };
+}
+
+/** Pause a scanner. POST /{id}/pause (auth). */
+export async function pauseScanner(
+  id: string,
+  token: string | null = null,
+): Promise<{ scanner: Scanner | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/pause`,
+    token,
+    { method: "POST" },
+  );
+  const scanner = live ? normalizeScanner(live) : null;
+  if (scanner) return { scanner, source: "live" };
+  return { scanner: setMockStatus(id, "paused"), source: "mock" };
+}
+
+/** Resume a paused scanner. POST /{id}/resume (auth). */
+export async function resumeScanner(
+  id: string,
+  token: string | null = null,
+): Promise<{ scanner: Scanner | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/resume`,
+    token,
+    { method: "POST" },
+  );
+  const scanner = live ? normalizeScanner(live) : null;
+  if (scanner) return { scanner, source: "live" };
+  return { scanner: setMockStatus(id, "active"), source: "mock" };
+}
+
+function setMockStatus(id: string, status: ScannerStatus): Scanner | null {
+  const existing = mockStore.scanners.find((s) => s.id === id);
+  if (!existing) return null;
+  const updated: Scanner = { ...existing, status, updated_at: new Date().toISOString() };
+  mockStore = {
+    scanners: mockStore.scanners.map((s) => (s.id === id ? updated : s)),
+    runs: mockStore.runs,
+  };
+  return updated;
+}
+
+/** Runs history, newest first (backend caps at 20). GET /{id}/runs. */
+export async function listScannerRuns(
+  id: string,
+  token: string | null = null,
+): Promise<{ runs: ScannerRun[]; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(id)}/runs`,
+    token,
+  );
+  const rawList = asList(live);
+  if (rawList && rawList.length > 0) {
+    const runs = rawList
+      .map(normalizeScannerRun)
+      .filter((r): r is ScannerRun => r !== null);
+    if (runs.length > 0) return { runs, source: "live" };
+  }
+  return { runs: mockStore.runs[id] ?? [], source: "mock" };
+}
