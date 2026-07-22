@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { TERMINAL_TEMPLATES } from "@/components/terminal/terminal-templates";
@@ -180,9 +181,17 @@ export function TerminalSessionSidebar({
           </ul>
         </section>
 
-        {/* Skills group: colored dot list */}
+        {/* Skills group: header links to the full /skills gallery */}
         <section className="space-y-1">
-          <GroupHeader>Skills</GroupHeader>
+          <Link
+            href="/skills"
+            className="flex items-center gap-1 px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2 transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+          >
+            Skills
+            <span aria-hidden="true" className="ml-auto">
+              →
+            </span>
+          </Link>
           {TERMINAL_TEMPLATES.map((t) => (
             <NavItem
               key={t.id}

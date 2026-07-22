@@ -30,6 +30,7 @@ const NAV: { label: string; href: string; icon: NavIconKey }[] = [
   { label: "Markets", href: "/markets", icon: "grid" },
   { label: "Signals", href: "/signals", icon: "signal" },
   { label: "Terminal", href: "/terminal", icon: "intel" },
+  { label: "Skills", href: "/skills", icon: "intel" },
   { label: "Clones", href: "/clones", icon: "clone" },
   { label: "Portfolio", href: "/portfolio", icon: "wallet" },
   { label: "Features", href: "/features", icon: "map" },

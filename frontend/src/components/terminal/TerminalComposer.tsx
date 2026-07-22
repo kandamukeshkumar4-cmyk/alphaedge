@@ -11,8 +11,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { TERMINAL_TEMPLATES } from "@/components/terminal/terminal-templates";
 import { cn } from "@/lib/cn";
+import { listSkills, type Skill } from "@/lib/skills-api";
 import { SENSE_CHIPS, type SenseId } from "@/lib/terminal-api";
 
 type Popover = "data" | "skills" | null;
@@ -49,6 +49,7 @@ export function TerminalComposer({
   isRunning,
   hasSession,
   disabled,
+  onRunSkill,
 }: {
   senses: SenseId[];
   onSensesChange: (next: SenseId[]) => void;
@@ -57,13 +58,29 @@ export function TerminalComposer({
   /** Placeholder switches: follow-up in a session, describe-when-new. */
   hasSession?: boolean;
   disabled?: boolean;
+  /** Run a skill from the Skills popover — opens its terminal session. */
+  onRunSkill?: (skillId: string) => Promise<void> | void;
 }) {
   const [value, setValue] = useState("");
   const [popover, setPopover] = useState<Popover>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillRunning, setSkillRunning] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const senseSet = useMemo(() => new Set(senses), [senses]);
+
+  // Top 5 skills for the Skills popover (live-first, mock fallback).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { skills: items } = await listSkills(null);
+      if (!cancelled) setSkills(items.slice(0, 5));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!popover) return;
@@ -98,6 +115,17 @@ export function TerminalComposer({
     setValue("");
     setPopover(null);
     await onAsk(text, senses);
+  }
+
+  async function runSkillFromPopover(skill: Skill) {
+    if (!onRunSkill || skillRunning) return;
+    setSkillRunning(skill.id);
+    setPopover(null);
+    try {
+      await onRunSkill(skill.id);
+    } finally {
+      setSkillRunning(null);
+    }
   }
 
   return (
@@ -174,10 +202,11 @@ export function TerminalComposer({
           ) : null}
         </span>
 
-        {/* Skills chip — template gallery */}
+        {/* Skills chip — top skills (skills-api), each runs a terminal session */}
         <span className="relative">
           <button
             type="button"
+            data-testid="terminal-skills-chip"
             aria-haspopup="true"
             aria-expanded={popover === "skills"}
             onClick={() => setPopover((v) => (v === "skills" ? null : "skills"))}
@@ -189,30 +218,49 @@ export function TerminalComposer({
             <div
               role="menu"
               aria-label="Skills gallery"
-              className="absolute bottom-full left-0 z-20 mb-2 w-64 rounded-xl border border-border bg-surface p-1.5 shadow-lift"
+              className="absolute bottom-full left-0 z-20 mb-2 w-72 rounded-xl border border-border bg-surface p-1.5 shadow-lift"
             >
-              {TERMINAL_TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setValue(t.question);
-                    setPopover(null);
-                    inputRef.current?.focus();
-                  }}
-                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.99]"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", t.dot)}
-                  />
-                  <span>
-                    <span className="block text-[12px] font-semibold text-text">{t.name}</span>
-                    <span className="block text-[11px] text-muted">{t.blurb}</span>
-                  </span>
-                </button>
-              ))}
+              {skills.length === 0 ? (
+                <p className="px-2 py-2 text-[11px] text-muted">Loading skills…</p>
+              ) : (
+                skills.map((s) => (
+                  <div
+                    key={s.id}
+                    role="menuitem"
+                    className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-surface-2"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-primary-dim/55 text-sm"
+                    >
+                      {s.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-semibold text-text">
+                        {s.name}
+                      </span>
+                      <span className="block truncate text-[11px] text-muted">
+                        {s.description}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      data-testid={`terminal-skill-run-${s.id}`}
+                      disabled={!onRunSkill || skillRunning !== null}
+                      onClick={() => void runSkillFromPopover(s)}
+                      className={cn(
+                        "ml-1 shrink-0 self-center rounded-md bg-primary px-2 py-1 text-[11px] font-bold text-bg transition",
+                        "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:scale-95",
+                        !onRunSkill || skillRunning !== null
+                          ? "cursor-wait opacity-60"
+                          : "",
+                      )}
+                    >
+                      {skillRunning === s.id ? "…" : "Run"}
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           ) : null}
         </span>
