@@ -63,3 +63,14 @@ $ uv run --extra dev pytest -q tests/test_scanner_email.py --basetemp=E:/polymar
 $ uv run --extra dev ruff check app tests
 All checks passed!
 ```
+
+### T3 — publish gate
+
+```
+$ uv run --extra dev pytest -q tests/test_scanner_testmode.py --basetemp=E:/polymarket-worktrees/loop86-testmode/.pt
+........                                                                 [100%]
+8 passed in 9.11s
+
+$ uv run --extra dev ruff check app tests
+All checks passed!
+```

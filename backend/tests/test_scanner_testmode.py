@@ -364,3 +364,68 @@ async def test_test_email_endpoint_skips_when_unconfigured(
     finally:
         await client.aclose()
         app.dependency_overrides.clear()
+
+
+# --- T3: publish gate (draft -> active requires a test run) -----------------
+
+
+@pytest.mark.asyncio
+async def test_publish_blocked_without_test_run(db_session):
+    await _seed_markets(db_session, 3)
+    client = await _client_for(db_session)
+    try:
+        headers, scanner = await _signup_and_create_scanner(
+            client,
+            email="testmode-gate1@example.com",
+            name="Publish gate blocked",
+            spec=_spec([{"type": "WHALE_FLOW"}]),
+        )
+        scanner_id = scanner["id"]
+
+        blocked = await client.post(
+            f"/api/v1/scanners/{scanner_id}/publish", headers=headers
+        )
+        assert blocked.status_code == 409
+        assert blocked.json() == {"detail": "run a test first"}
+
+        # Still a draft after the rejected publish.
+        detail = await client.get(f"/api/v1/scanners/{scanner_id}", headers=headers)
+        assert detail.json()["status"] == "draft"
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_publish_allowed_after_test_run(db_session):
+    await _seed_markets(db_session, 3)
+    client = await _client_for(db_session)
+    try:
+        headers, scanner = await _signup_and_create_scanner(
+            client,
+            email="testmode-gate2@example.com",
+            name="Publish gate pass",
+            spec=_spec([{"type": "WHALE_FLOW"}]),
+        )
+        scanner_id = scanner["id"]
+
+        ran = await client.post(
+            f"/api/v1/scanners/{scanner_id}/test-run", headers=headers
+        )
+        assert ran.status_code == 200, ran.text
+        assert ran.json()["is_test"] is True
+
+        published = await client.post(
+            f"/api/v1/scanners/{scanner_id}/publish", headers=headers
+        )
+        assert published.status_code == 200, published.text
+        assert published.json()["status"] == "active"
+
+        # Publishing an already-active scanner is a bad transition.
+        again = await client.post(
+            f"/api/v1/scanners/{scanner_id}/publish", headers=headers
+        )
+        assert again.status_code == 400
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()

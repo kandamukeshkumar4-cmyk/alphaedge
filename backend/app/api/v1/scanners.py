@@ -253,6 +253,45 @@ async def test_email_scanner(
     return ScannerTestEmailOut(sent=sent, reason=None if sent else "send failed")
 
 
+@router.post("/{scanner_id}/publish", response_model=ScannerOut)
+async def publish_scanner(
+    scanner_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerOut:
+    """Publish gate (loop86 F-B): flip draft→active ONLY when at least one
+    pre-publish test run (``is_test=true``, status completed/empty) exists for
+    the current spec version. Otherwise HTTP 409 ``{"detail": "run a test first"}``.
+    """
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None or scanner.owner != str(user.id):
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    if scanner.status != "draft":
+        raise HTTPException(status_code=400, detail="Scanner is not a draft")
+
+    current_version = int(scanner.version or 1)
+    test_runs = (
+        await db.scalars(
+            select(ScannerRun).where(
+                ScannerRun.scanner_id == scanner.id,
+                ScannerRun.is_test.is_(True),
+                ScannerRun.status.in_(("completed", "empty")),
+            )
+        )
+    ).all()
+    qualified = any(
+        isinstance(r.result, dict) and r.result.get("spec_version") == current_version
+        for r in test_runs
+    )
+    if not qualified:
+        raise HTTPException(status_code=409, detail="run a test first")
+
+    scanner.status = "active"
+    await db.flush()
+    await db.refresh(scanner)
+    return _scanner_out(scanner, latest_run=await _latest_run(db, scanner.id))
+
+
 @router.post("/{scanner_id}/pause", response_model=ScannerOut)
 async def pause_scanner(
     scanner_id: UUID,
