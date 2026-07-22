@@ -36,6 +36,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "news_scan": 300,  # asyncio.sleep(300) — V61 5-min adaptive scan
     "weather_scan": 3600,
     "morning_research": 86400,
+    "scanner_scheduler": 300,
     "whale_refresh": 604800,  # 7 * 86400
     "whale_flow": 60,  # max(30, WHALE_FLOW_INTERVAL_SEC=60)
     "venue_gap": 60,  # max(30, VENUE_GAP_INTERVAL_SEC=60)

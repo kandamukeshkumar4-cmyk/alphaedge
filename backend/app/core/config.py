@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     scheduler_morning_research_enabled: bool = Field(
         default=True, alias="SCHEDULER_MORNING_RESEARCH_ENABLED"
     )
+    scheduler_scanners_enabled: bool = Field(
+        default=True, alias="SCHEDULER_SCANNERS_ENABLED"
+    )
     scheduler_whale_refresh_enabled: bool = Field(
         default=True, alias="SCHEDULER_WHALE_REFRESH_ENABLED"
     )
