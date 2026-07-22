@@ -74,3 +74,20 @@ $ uv run --extra dev pytest -q tests/test_scanner_testmode.py --basetemp=E:/poly
 $ uv run --extra dev ruff check app tests
 All checks passed!
 ```
+
+### FULL suite (from `backend/`)
+
+```
+$ uv run --extra dev pytest -q --basetemp=.ptf
+1942 passed, 28 skipped in 340.99s (0:05:40)
+```
+
+## Commits
+
+```
+954ce77 feat(loop86): T1 — test-mode execution
+382662b feat(loop86): T2 — pre-publish test-run and test-email endpoints
+017e011 feat(loop86): T3 — publish gate requires a pre-publish test run
+```
+
+T1–T3 DONE. Node F-B stopping (no push/deploy, per charter).
