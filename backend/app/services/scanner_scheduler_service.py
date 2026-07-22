@@ -99,6 +99,22 @@ async def _schedule_view(db: AsyncSession, scanner: Scanner) -> ScannerScheduleV
     )
 
 
+async def calendar_allows_run(
+    db: AsyncSession, spec: dict[str, Any] | None, *, now: datetime
+) -> bool:
+    """False when market_hours_only and no active markets in universe categories."""
+    from app.services.screener_query_service import (
+        has_active_markets_in_categories,
+        market_hours_only_enabled,
+        universe_categories,
+    )
+
+    if not market_hours_only_enabled(spec):
+        return True
+    categories = universe_categories(spec)
+    return await has_active_markets_in_categories(db, categories, now=now)
+
+
 async def run_due_scanners(db: AsyncSession, *, now: datetime | None = None) -> dict[str, Any]:
     """Load active scanners, pick due ones, execute each via run_scanner."""
     current = now or datetime.now(UTC)
@@ -112,8 +128,17 @@ async def run_due_scanners(db: AsyncSession, *, now: datetime | None = None) -> 
         views.append(await _schedule_view(db, scanner))
     due_ids = pick_due_scanners(views, current)
     ran = 0
+    skipped_calendar = 0
     for scanner_id in due_ids:
         scanner = by_id[scanner_id]
+        if not await calendar_allows_run(db, dict(scanner.spec or {}), now=current):
+            skipped_calendar += 1
+            continue
         await run_scanner(db, scanner)
         ran += 1
-    return {"active": len(scanners), "due": len(due_ids), "ran": ran}
+    return {
+        "active": len(scanners),
+        "due": len(due_ids),
+        "ran": ran,
+        "skipped_calendar": skipped_calendar,
+    }

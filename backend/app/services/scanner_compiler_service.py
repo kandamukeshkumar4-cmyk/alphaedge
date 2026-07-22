@@ -80,6 +80,7 @@ _STOP = frozenset(
         "day",
         "days",
         "window",
+        "only",
     }
 )
 
@@ -182,6 +183,9 @@ def compile_scanner_spec(text: str) -> dict[str, Any]:
         elif m_hr:
             interval = int(m_hr.group(1)) * 60
     out["schedule"]["interval_minutes"] = interval
+
+    if re.search(r"\bmarket\s+hours(?:\s+only)?\b", lower):
+        out["schedule"]["market_hours_only"] = True
 
     limit = 20
     m_top = re.search(r"\btop\s+(\d+)\b", lower)
