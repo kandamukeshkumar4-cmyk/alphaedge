@@ -180,3 +180,108 @@ async def test_invalid_market_drop_records_counts_dropped(db_session, monkeypatc
         {"node": 0, "class": "invalid_market", "action": "drop_market"}
     ]
     assert result["candidates"] == []
+
+
+@pytest.mark.asyncio
+async def test_runs_api_includes_repairs_count_and_list(db_session, monkeypatch):
+    """H3 — GET /{id}/runs exposes repairs_count; payload includes repairs list."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.db.session import get_db
+    from app.main import app
+
+    await _seed_one_market(db_session)
+    calls = {"n": 0}
+
+    async def _flaky(db, step, candidates, *, align_present):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ValueError("could not convert string to float: '7'")
+        return list(candidates)
+
+    async def _no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service._run_step", _flaky
+    )
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service._heal_sleep", _no_sleep
+    )
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    try:
+        signup = await client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": "scanner-heal@example.com",
+                "password": "correct-horse-battery-staple",
+            },
+        )
+        assert signup.status_code == 201, signup.text
+        headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+        created = await client.post(
+            "/api/v1/scanners/",
+            headers=headers,
+            json={
+                "name": "heal-api",
+                "description": "h3",
+                "spec": {
+                    "name": "heal-api",
+                    "universe": {"categories": ["sports"], "minimum_volume": 1},
+                    "schedule": {
+                        "timezone": "UTC",
+                        "market_hours_only": False,
+                        "interval_minutes": 60,
+                    },
+                    "steps": [{"type": "WHALE_FLOW"}],
+                    "delivery": {
+                        "email": False,
+                        "in_app": True,
+                        "cooldown_minutes": 120,
+                    },
+                    "limit": 5,
+                },
+                "is_public": True,
+            },
+        )
+        assert created.status_code == 201, created.text
+        scanner_id = created.json()["id"]
+
+        ran = await client.post(
+            f"/api/v1/scanners/{scanner_id}/run", headers=headers
+        )
+        assert ran.status_code == 200, ran.text
+        body = ran.json()
+        assert body["status"] == "completed"
+        assert body["repairs_count"] == 1
+        assert body["repairs"] == [
+            {"node": 0, "class": "type_mismatch", "action": "coerce_numeric"}
+        ]
+        # Detail panel also sees repairs inside result.
+        assert (body.get("result") or {}).get("repairs") == body["repairs"]
+
+        history = await client.get(
+            f"/api/v1/scanners/{scanner_id}/runs", headers=headers
+        )
+        assert history.status_code == 200, history.text
+        items = history.json()
+        assert len(items) >= 1
+        assert items[0]["repairs_count"] == 1
+        assert items[0]["repairs"][0]["class"] == "type_mismatch"
+
+        detail = await client.get(
+            f"/api/v1/scanners/{scanner_id}", headers=headers
+        )
+        assert detail.status_code == 200, detail.text
+        latest = detail.json().get("latest_run") or {}
+        assert latest.get("repairs_count") == 1
+        assert latest.get("repairs") == body["repairs"]
+    finally:
+        await client.aclose()
+        app.dependency_overrides.pop(get_db, None)

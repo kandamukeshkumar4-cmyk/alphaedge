@@ -36,3 +36,14 @@ $ uv run --extra dev pytest -q tests/test_scanner_executor.py tests/test_scanner
 $ uv run --extra dev ruff check app/services/scanner_heal_service.py app/services/scanner_executor_service.py tests/test_scanner_heal.py
 All checks passed!
 ```
+
+### H3 — healing visibility
+
+```
+$ cd backend && uv run --extra dev pytest -q tests/test_scanner_heal.py --basetemp=E:/polymarket-worktrees/loop87-selfheal/.ptf
+...................                                                      [100%]
+19 passed in 6.02s
+
+$ uv run --extra dev ruff check app/schemas/scanners.py app/api/v1/scanners.py tests/test_scanner_heal.py
+All checks passed!
+```

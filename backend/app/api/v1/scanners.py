@@ -41,7 +41,17 @@ def _duration_ms(run: ScannerRun) -> int | None:
     return max(int((end - start).total_seconds() * 1000), 0)
 
 
+def _repairs_from_result(result: dict | None) -> list[dict]:
+    if not isinstance(result, dict):
+        return []
+    raw = result.get("repairs")
+    if not isinstance(raw, list):
+        return []
+    return [r for r in raw if isinstance(r, dict)]
+
+
 def _run_out(run: ScannerRun) -> ScannerRunOut:
+    repairs = _repairs_from_result(run.result if isinstance(run.result, dict) else None)
     return ScannerRunOut(
         id=run.id,
         scanner_id=run.scanner_id,
@@ -53,6 +63,8 @@ def _run_out(run: ScannerRun) -> ScannerRunOut:
         error=run.error,
         duration_ms=_duration_ms(run),
         is_test=bool(run.is_test),
+        repairs_count=len(repairs),
+        repairs=repairs,
     )
 
 
