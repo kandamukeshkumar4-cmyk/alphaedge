@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -14,6 +14,8 @@ class ScannerCompileRequest(BaseModel):
 
 class ScannerCompileOut(BaseModel):
     spec: dict[str, Any]
+    compiler: Literal["deterministic", "llm-assisted"] = "deterministic"
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ScannerCreate(BaseModel):

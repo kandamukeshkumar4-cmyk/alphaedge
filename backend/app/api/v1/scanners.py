@@ -21,7 +21,7 @@ from app.schemas.scanners import (
     ScannerTestEmailOut,
     ScannerUpdate,
 )
-from app.services.scanner_compiler_service import compile_scanner_spec
+from app.services.scanner_compiler_service import compile_scanner_flow
 from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
 from app.services.scanner_version_service import apply_spec_change, rollback_scanner_spec
@@ -125,8 +125,14 @@ async def _get_visible_scanner(
 
 @router.post("/compile", response_model=ScannerCompileOut)
 async def compile_scanner(body: ScannerCompileRequest) -> ScannerCompileOut:
-    """Preview a deterministic NL→spec compile. Does not persist."""
-    return ScannerCompileOut(spec=compile_scanner_spec(body.text))
+    """Preview NL→spec compile (deterministic, optional LLM assist). Does not persist."""
+    settings = get_settings()
+    result = await compile_scanner_flow(body.text, settings)
+    return ScannerCompileOut(
+        spec=result["spec"],
+        compiler=result["compiler"],
+        warnings=list(result.get("warnings") or []),
+    )
 
 
 @router.post("/", response_model=ScannerOut, status_code=status.HTTP_201_CREATED)
