@@ -1,6 +1,7 @@
 """P1 — LLM planner fallback for scanner compile (stubbed client)."""
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -135,6 +136,59 @@ async def test_no_llm_config_path_unchanged():
     result2 = await compile_scanner_flow(text, None)
     assert result2["compiler"] == "deterministic"
     assert result2["spec"] == det
+
+
+@pytest.mark.asyncio
+async def test_slow_llm_planner_falls_back_to_deterministic(monkeypatch):
+    text = "xyzzy plugh frobozz"
+    deterministic = compile_scanner_spec(text)
+
+    async def slow_completion(**kwargs):
+        await asyncio.sleep(1)
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(side_effect=slow_completion)
+    import app.llm.provider as provider_mod
+
+    monkeypatch.setattr(
+        provider_mod,
+        "resolve_routed_client",
+        lambda settings, route, *, use_case_model="": (mock_client, "test-model"),
+    )
+    monkeypatch.setattr(
+        provider_mod,
+        "resolve_routed_endpoint",
+        lambda settings, route: ("https://api.openai.com/v1", "test-key"),
+    )
+    monkeypatch.setattr(
+        "app.services.scanner_compiler_service._LLM_PLANNER_TIMEOUT_SECONDS", 0.01
+    )
+
+    result = await compile_scanner_flow(
+        text, Settings(LLM_PROVIDER="openai", LLM_API_KEY="test-key")
+    )
+
+    assert result["compiler"] == "deterministic"
+    assert result["spec"] == deterministic
+
+
+@pytest.mark.asyncio
+async def test_busy_llm_queue_falls_back_within_planner_timeout(monkeypatch):
+    text = "xyzzy plugh frobozz"
+    deterministic = compile_scanner_spec(text)
+    import app.agents.analyst as analyst_mod
+
+    monkeypatch.setattr(analyst_mod, "_LLM_SEMAPHORE", asyncio.Semaphore(0))
+    monkeypatch.setattr(
+        "app.services.scanner_compiler_service._LLM_PLANNER_TIMEOUT_SECONDS", 0.01
+    )
+
+    result = await compile_scanner_flow(
+        text, Settings(LLM_PROVIDER="openai", LLM_API_KEY="test-key")
+    )
+
+    assert result["compiler"] == "deterministic"
+    assert result["spec"] == deterministic
 
 
 def test_validate_spec_empty_universe():

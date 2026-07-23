@@ -181,6 +181,38 @@ async def resolve_external_markets_task(ctx: dict) -> dict:
     return summary
 
 
+async def refresh_forecast_model_ab_task(ctx: dict) -> dict:
+    """Persist a controlled A/B readout after its real-data gate is met.
+
+    This task never changes the deployed model.  It only creates the cached
+    ``JobRun`` consumed by the public readout after 100 independent
+    correlation clusters are available.  The in-process caller is necessary
+    on production, where ARQ cron jobs do not run.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.ml.ab_harness import (
+        forecast_score_population_readout,
+        refresh_controlled_ab_readout,
+    )
+
+    settings = ctx.get("settings") or get_settings()
+    if not settings.scheduler_forecast_model_ab_enabled:
+        return {"skipped": True, "reason": "SCHEDULER_FORECAST_MODEL_AB_ENABLED=false"}
+
+    async with AsyncSessionLocal() as session:
+        population = await forecast_score_population_readout(session)
+        if not population["ab_ready"]:
+            return {
+                "skipped": True,
+                "reason": "insufficient_correlation_clusters",
+                "correlation_clusters": population["correlation_clusters"],
+                "ab_cluster_threshold": population["ab_cluster_threshold"],
+            }
+        summary = await refresh_controlled_ab_readout(session)
+        await session.commit()
+    return summary
+
+
 FETCH_NEWS_SIGNALS_JOB_NAME = "fetch_news_signals_task"
 
 
@@ -1207,6 +1239,7 @@ class WorkerSettings:
         unusual_flow_scan_task,
         wc2026_resolve_task,
         resolve_external_markets_task,
+        refresh_forecast_model_ab_task,
         catalog_market_resolve_task,
         refresh_whales_task,
         snapshot_whale_positions_task,
@@ -1242,6 +1275,9 @@ class WorkerSettings:
         cron(wc2026_resolve_task, minute={5, 15, 25, 35, 45, 55}),
         # V14 F02/F03: resolve past-close external markets from venue data + score
         cron(resolve_external_markets_task, minute={10, 40}),
+        # Controlled readout only: persists an A/B verdict when the 100-cluster
+        # gate is met; it never changes the deployed default model.
+        cron(refresh_forecast_model_ab_task, minute={25}),
         cron(catalog_market_resolve_task, minute={15, 45}),
         # V33 B2': supply the autolock funnel by registering eligible ingested
         # venue markets. Runs 10 min ahead of autolock so a freshly bridged

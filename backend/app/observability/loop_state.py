@@ -42,6 +42,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "venue_gap": 60,  # max(30, VENUE_GAP_INTERVAL_SEC=60)
     "wc2026_resolve": 600,
     "external_resolve": 900,
+    "forecast_model_ab": 3600,
     "catalog_market_resolve": 900,
     "external_market_bridge": 900,
     "forecast_autolock": 900,

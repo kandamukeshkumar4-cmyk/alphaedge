@@ -471,6 +471,35 @@ async def _external_resolve_loop() -> None:
             )
 
 
+async def _forecast_model_ab_loop() -> None:
+    """Refresh the controlled model A/B readout without changing production.
+
+    Railway production runs uvicorn but no ARQ worker, so this mirrors the
+    ARQ cron.  The task itself skips before the correlation-cluster gate;
+    after that it persists only a read-only comparison result.
+    """
+    from app.workers.tasks import refresh_forecast_model_ab_task
+
+    while True:
+        await _paced_sleep(3600, settings.scheduler_idle_interval_sec)
+        try:
+            summary = await refresh_forecast_model_ab_task({})
+            if summary.get("skipped"):
+                detail = (
+                    f"clusters={summary.get('correlation_clusters', 0)}/"
+                    f"{summary.get('ab_cluster_threshold', 100)} "
+                    f"reason={summary.get('reason', 'skipped')}"
+                )
+            else:
+                detail = f"verdict={summary.get('verdict', 'no_winner')}"
+            record_heartbeat("forecast_model_ab", detail=detail)
+        except Exception:
+            logger.error("Forecast model A/B loop failed", exc_info=True)
+            record_heartbeat(
+                "forecast_model_ab", status="error", detail="A/B readout refresh failed"
+            )
+
+
 async def _catalog_market_resolve_loop() -> None:
     """Resolve locked live catalog markets from terminal venue outcomes."""
     from app.workers.catalog_market_resolver import catalog_market_resolve_task
@@ -743,6 +772,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_wc2026_resolve_loop())
     if settings.scheduler_external_resolve_enabled:
         asyncio.create_task(_external_resolve_loop())
+    if settings.scheduler_forecast_model_ab_enabled:
+        asyncio.create_task(_forecast_model_ab_loop())
     if settings.scheduler_catalog_market_resolve_enabled:
         asyncio.create_task(_catalog_market_resolve_loop())
     if settings.scheduler_external_market_bridge_enabled:
