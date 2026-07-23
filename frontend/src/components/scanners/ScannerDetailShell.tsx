@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { ScannerCanvas } from "@/components/scanners/ScannerCanvas";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
@@ -20,6 +20,7 @@ import {
   resumeScanner,
   rollbackScanner,
   runDurationLabel,
+  runRepairsCount,
   runScannerNow,
   scheduleLabel,
   testEmailScanner,
@@ -28,6 +29,7 @@ import {
   type Scanner,
   type ScannerCandidate,
   type ScannerReads,
+  type ScannerRepair,
   type ScannerRun,
   type ScannerStep,
   type ScannerStepType,
@@ -168,6 +170,123 @@ function RunStatusChip({ status }: { status: ScannerRun["status"] }) {
         )}
       />
       {status}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loop V88 (V1) — self-heal visibility. The backend executor (loop87) heals
+// failing steps with bounded deterministic repairs and records them on the
+// run as {node, class, action}. Amber ("Self-healed xN") chip in the latest
+// run panel; expanding it lists each repair as "<node>: <class> -> <action>"
+// in mono. Runs-history rows carry a compact count chip. Never red.
+// ---------------------------------------------------------------------------
+
+function healSparkGlyph() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 2l2.1 6.4L20 10.5l-5.9 2.1L12 19l-2.1-6.4L4 10.5l5.9-2.1L12 2z" />
+    </svg>
+  );
+}
+
+function SelfHealChip({
+  count,
+  open,
+  onToggle,
+  controlsId,
+}: {
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  controlsId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      data-testid="scanner-selfheal-chip"
+      data-count={count}
+      aria-expanded={open}
+      aria-controls={controlsId}
+      title="The executor healed failing steps on this run — expand for the repair ledger"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-gold/45 bg-gold/10 px-2 py-0.5",
+        "font-mono text-[10px] font-bold tracking-[0.08em] text-gold",
+        "transition hover:bg-gold/15 active:scale-95 motion-reduce:transform-none",
+      )}
+    >
+      {healSparkGlyph()}
+      Self-healed x{count}
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 12 12"
+        fill="currentColor"
+        aria-hidden
+        className={cn("transition-transform motion-reduce:transition-none", open && "rotate-180")}
+      >
+        <path d="M6 8L2 4h8L6 8z" />
+      </svg>
+    </button>
+  );
+}
+
+function RepairLedger({
+  repairs,
+  open,
+  id,
+}: {
+  repairs: ScannerRepair[];
+  open: boolean;
+  id: string;
+}) {
+  return (
+    <div
+      id={id}
+      className={cn(
+        "grid transition-[grid-template-rows] duration-300 ease-swift motion-reduce:transition-none",
+        open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      )}
+    >
+      <div className="overflow-hidden">
+        <ul
+          data-testid="scanner-repair-ledger"
+          aria-label="Self-heal repairs"
+          className="mt-2.5 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2"
+        >
+          {repairs.map((repair, index) => (
+            <li
+              key={`${repair.node}-${repair.class}-${index}`}
+              data-testid="scanner-repair-row"
+              className="flex items-center gap-1.5 py-0.5 font-mono text-[11px] font-semibold text-gold"
+            >
+              <span aria-hidden className="text-gold/70">
+                {healSparkGlyph()}
+              </span>
+              {repair.node}: {repair.class} -&gt; {repair.action}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** Compact amber count chip for runs-history rows (loop88 V1). */
+function RunRepairsChip({ run }: { run: ScannerRun }) {
+  const count = runRepairsCount(run);
+  if (count === 0) return null;
+  return (
+    <span
+      data-testid="scanner-run-repairs"
+      data-count={count}
+      aria-label={`${count} self-healed repair${count === 1 ? "" : "s"}`}
+      title="Self-healed — the executor repaired a failing step mid-run"
+      className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-gold"
+    >
+      {healSparkGlyph()}
+      x{count}
     </span>
   );
 }
@@ -766,6 +885,9 @@ export function ScannerDetailShell({ id }: { id: string }) {
   const [running, setRunning] = useState(false);
   // X1: spring the status pill the moment a draft publishes to active.
   const [popStatus, setPopStatus] = useState(false);
+  // V1 (loop88): self-heal ledger expanded state for the latest run panel.
+  const [healOpen, setHealOpen] = useState(false);
+  const healId = useId();
   // X3: build narration rail — visible while a run is in flight.
   const [narrating, setNarrating] = useState(false);
   const [narrationKey, setNarrationKey] = useState(0);
@@ -989,6 +1111,14 @@ export function ScannerDetailShell({ id }: { id: string }) {
               {latestRun ? (
                 <div className="flex items-center gap-2 font-mono text-[11px] text-muted">
                   <RunStatusChip status={latestRun.status} />
+                  {runRepairsCount(latestRun) > 0 ? (
+                    <SelfHealChip
+                      count={runRepairsCount(latestRun)}
+                      open={healOpen}
+                      onToggle={() => setHealOpen((o) => !o)}
+                      controlsId={healId}
+                    />
+                  ) : null}
                   <span>{relativeTimeLabel(latestRun.started_at)}</span>
                   <span className="text-muted-2">{runDurationLabel(latestRun)}</span>
                   <button
@@ -1007,6 +1137,11 @@ export function ScannerDetailShell({ id }: { id: string }) {
                 </div>
               ) : null}
             </div>
+
+            {/* V1 (loop88): expandable ledger of self-heal repairs. */}
+            {latestRun && runRepairsCount(latestRun) > 0 ? (
+              <RepairLedger repairs={latestRun.repairs} open={healOpen} id={healId} />
+            ) : null}
 
             {!latestRun ? (
               <p className="mt-4 text-[13px] text-muted">
@@ -1135,6 +1270,7 @@ export function ScannerDetailShell({ id }: { id: string }) {
                       </span>
                     </div>
                     <RunStatusChip status={run.status} />
+                    <RunRepairsChip run={run} />
                     <span className="w-12 text-right font-mono text-[10.5px] font-bold text-muted">
                       {runDurationLabel(run)}
                     </span>

@@ -12,8 +12,11 @@
  *               cooldown_minutes}, limit, notes}`
  *   Run:       `{id, scanner_id, started_at, finished_at, status,
  *               checkpoint{node}|null, result{candidates, top_pick,
- *               counts}|null, error|null}` — candidates carry per-step
- *               `reads` keyed by step type + an `aligned` flag.
+ *               counts}|null, error|null, repairs[{node,class,action}],
+ *               repairs_count}` — candidates carry per-step `reads` keyed by
+ *               step type + an `aligned` flag; `repairs` lists the
+ *               deterministic self-heals the executor applied mid-run
+ *               (backend loop87 — also mirrored on `result.repairs`).
  *
  * Endpoints: POST `/api/v1/scanners/compile` `{text}` -> `{spec}`;
  * POST `/api/v1/scanners/` (create, auth); GET `/api/v1/scanners/`;
@@ -146,6 +149,19 @@ export type ScannerRunResult = {
   counts: ScannerRunCounts;
 };
 
+/**
+ * Loop V88 (V1) — one deterministic self-heal the executor applied mid-run
+ * (backend `scanner_heal_service`: 8-class classifier, bounded repairs).
+ * `class` is the error class (`rate_limited`, `type_mismatch`, …); `action`
+ * is the stable repair label (`sleep_retry`, `coerce_numeric`, …).
+ */
+export type ScannerRepair = {
+  /** Pipeline node (step index) that failed and was healed. */
+  node: number;
+  class: string;
+  action: string;
+};
+
 export type ScannerRun = {
   id: string;
   scanner_id: string;
@@ -159,6 +175,8 @@ export type ScannerRun = {
   duration_ms: number | null;
   /** True for test-run snapshots (never trigger delivery / never publish). */
   is_test: boolean;
+  /** Self-heal repairs applied on this run (loop87; empty when none). */
+  repairs: ScannerRepair[];
 };
 
 export type Scanner = {
@@ -349,6 +367,18 @@ function normalizeRunResult(raw: unknown): ScannerRunResult | null {
   };
 }
 
+/** Loop V88 (V1) — repairs list from the API, tolerant of junk entries. */
+function normalizeRepairs(raw: unknown): ScannerRepair[] {
+  if (!Array.isArray(raw)) return [];
+  const repairs: ScannerRepair[] = [];
+  for (const item of raw) {
+    const rec = asRecord(item);
+    if (typeof rec.class !== "string" || typeof rec.action !== "string") continue;
+    repairs.push({ node: asNumber(rec.node), class: rec.class, action: rec.action });
+  }
+  return repairs;
+}
+
 export function normalizeScannerRun(raw: unknown): ScannerRun | null {
   const rec = asRecord(raw);
   if (typeof rec.id !== "string") return null;
@@ -370,6 +400,9 @@ export function normalizeScannerRun(raw: unknown): ScannerRun | null {
             return Number.isFinite(ms) && ms >= 0 ? ms : null;
           })()
         : null;
+  // Loop V88 (V1): the API lifts repairs to the run row (`repairs` +
+  // `repairs_count`); older payloads only carry `result.repairs` — accept both.
+  const repairs = normalizeRepairs(rec.repairs ?? asRecord(rec.result).repairs);
   return {
     id: rec.id,
     scanner_id: typeof rec.scanner_id === "string" ? rec.scanner_id : "",
@@ -384,6 +417,7 @@ export function normalizeScannerRun(raw: unknown): ScannerRun | null {
     error: typeof rec.error === "string" ? rec.error : null,
     duration_ms: durationMs,
     is_test: rec.is_test === true,
+    repairs,
   };
 }
 
@@ -456,6 +490,11 @@ export function runDurationLabel(run: ScannerRun): string {
   const ms = runDurationMs(run);
   if (ms === null) return "—";
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+}
+
+/** Loop V88 (V1) — how many self-heal repairs the executor applied on a run. */
+export function runRepairsCount(run: ScannerRun): number {
+  return run.repairs.length;
 }
 
 /** "2m ago" style relative label for last-run lines (fixed `now` for tests). */
@@ -571,7 +610,12 @@ function isCandidateAligned(reads: ScannerReads): boolean {
 }
 
 /** Execute a spec over the mock universe — mirrors the backend executor. */
-function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): ScannerRun {
+function mockExecute(
+  spec: ScannerSpec,
+  runId: string,
+  startedAt: string,
+  repairs: ScannerRepair[] = [],
+): ScannerRun {
   const limit = Math.max(1, spec.limit || 20);
   const categories = spec.universe.categories.map((c) => c.toLowerCase());
   const universe = MOCK_UNIVERSE.filter(
@@ -590,6 +634,7 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
       error: null,
       duration_ms: 0,
       is_test: false,
+      repairs: [],
     };
   }
 
@@ -645,6 +690,7 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
     error: null,
     duration_ms: 4200,
     is_test: false,
+    repairs,
   };
 }
 
@@ -684,14 +730,28 @@ const MOCK_DRAFT_SPEC: ScannerSpec = {
   notes: [],
 };
 
-function makeMockRun(scannerId: string, spec: ScannerSpec, id: string, startedAt: string): ScannerRun {
-  return { ...mockExecute(spec, id, startedAt), scanner_id: scannerId };
+function makeMockRun(
+  scannerId: string,
+  spec: ScannerSpec,
+  id: string,
+  startedAt: string,
+  repairs: ScannerRepair[] = [],
+): ScannerRun {
+  return { ...mockExecute(spec, id, startedAt, repairs), scanner_id: scannerId };
 }
 
 function seedMockStore(): { scanners: Scanner[]; runs: Record<string, ScannerRun[]> } {
+  // Loop V88 (V1): the whale scanner's seeded runs carry self-heal repairs
+  // (deterministic, mirroring backend loop87 vocabulary) so the heal chip +
+  // ledger render without a live backend.
   const whaleRuns = [
-    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-2", "2026-07-21T14:45:00.000Z"),
-    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-1", "2026-07-21T14:30:00.000Z"),
+    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-2", "2026-07-21T14:45:00.000Z", [
+      { node: 1, class: "rate_limited", action: "sleep_retry" },
+      { node: 3, class: "type_mismatch", action: "coerce_numeric" },
+    ]),
+    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-1", "2026-07-21T14:30:00.000Z", [
+      { node: 0, class: "provider_transient", action: "retry_once" },
+    ]),
   ];
   const dailyRuns = [
     makeMockRun("scn-mock-daily", MOCK_DAILY_SPEC, "run-mock-daily-1", "2026-07-21T06:00:00.000Z"),
