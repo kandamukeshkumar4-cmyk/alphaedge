@@ -8,8 +8,9 @@ import {
   createScanner,
   scheduleLabel,
   stepLabel,
+  type CompileScannerResult,
   type Scanner,
-  type ScannerSpec,
+  type ScannerCompiler,
 } from "@/lib/scanners-api";
 
 /*
@@ -17,6 +18,10 @@ import {
  * spec PREVIEW panel (universe, schedule, numbered step chips) → Create →
  * POST create → the new card lands at the top of the grid. Research-only:
  * a scanner spec is a read plan, never an order path.
+ *
+ * Loop V88 (V2) — compile feedback: the preview carries the compiler badge
+ * ("Compiled: deterministic" mint / "Compiled: AI-assisted" blue) and the
+ * backend's deterministic warnings[] as amber notice lines above Create.
  */
 
 const SEED_PROMPTS = [
@@ -24,6 +29,42 @@ const SEED_PROMPTS = [
   "Daily election news sentiment digest with model edge",
   "Watch crypto whale flow, top 10 markets, every hour",
 ];
+
+// Loop V88 (V2) — compiler provenance badge. Mint for the deterministic
+// keyword parser, blue when the LLM planner assisted. Never red.
+function compilerBadgeClasses(compiler: ScannerCompiler): string {
+  return compiler === "deterministic"
+    ? "border-primary/40 bg-primary/10 text-primary"
+    : "border-secondary/40 bg-secondary/10 text-secondary";
+}
+
+function CompilerBadge({ compiler }: { compiler: ScannerCompiler }) {
+  return (
+    <span
+      data-testid="scanners-compiler-badge"
+      data-compiler={compiler}
+      title={
+        compiler === "deterministic"
+          ? "Compiled by the deterministic keyword parser"
+          : "Compiled with AI assistance"
+      }
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5",
+        "font-mono text-[10px] font-bold tracking-[0.08em]",
+        compilerBadgeClasses(compiler),
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          compiler === "deterministic" ? "bg-primary" : "bg-secondary",
+        )}
+      />
+      Compiled: {compiler === "deterministic" ? "deterministic" : "AI-assisted"}
+    </span>
+  );
+}
 
 function SpecChip({ index, label }: { index: number; label: string }) {
   return (
@@ -53,9 +94,7 @@ export function ScannerComposer({
   const [text, setText] = useState("");
   const [compiling, setCompiling] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [preview, setPreview] = useState<{ spec: ScannerSpec; source: "live" | "mock" } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<CompileScannerResult | null>(null);
 
   const trimmed = text.trim();
 
@@ -174,9 +213,12 @@ export function ScannerComposer({
               <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-primary">
                 Spec preview · compiled {preview.source === "live" ? "live" : "locally"}
               </p>
-              <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-muted-2">
-                nothing is saved yet
-              </span>
+              <div className="flex items-center gap-1.5">
+                <CompilerBadge compiler={preview.compiler} />
+                <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-muted-2">
+                  nothing is saved yet
+                </span>
+              </div>
             </div>
 
             <h3 className="mt-2.5 text-[15px] font-black tracking-tight text-text">
@@ -240,6 +282,29 @@ export function ScannerComposer({
               <p className="mt-2.5 text-[11px] text-muted-2">
                 Unparsed fragments (ignored): {preview.spec.notes.join(", ")}
               </p>
+            ) : null}
+
+            {/* Loop V88 (V2) — deterministic compile warnings, amber, never
+                blocking; rendered above the Create button. */}
+            {preview.warnings.length > 0 ? (
+              <ul
+                data-testid="scanners-compile-warnings"
+                aria-label="Compile warnings"
+                className="mt-3 space-y-1 rounded-lg border border-gold/35 bg-gold/5 px-3 py-2"
+              >
+                {preview.warnings.map((warning) => (
+                  <li
+                    key={warning}
+                    data-testid="scanners-compile-warning"
+                    className="flex items-start gap-1.5 text-[11.5px] font-semibold leading-snug text-gold"
+                  >
+                    <span aria-hidden className="mt-px shrink-0">
+                      ⚠
+                    </span>
+                    {warning}
+                  </li>
+                ))}
+              </ul>
             ) : null}
 
             <div className="mt-4 flex items-center gap-2">

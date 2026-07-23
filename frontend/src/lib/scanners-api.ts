@@ -12,10 +12,15 @@
  *               cooldown_minutes}, limit, notes}`
  *   Run:       `{id, scanner_id, started_at, finished_at, status,
  *               checkpoint{node}|null, result{candidates, top_pick,
- *               counts}|null, error|null}` — candidates carry per-step
- *               `reads` keyed by step type + an `aligned` flag.
+ *               counts}|null, error|null, repairs[{node,class,action}],
+ *               repairs_count}` — candidates carry per-step `reads` keyed by
+ *               step type + an `aligned` flag; `repairs` lists the
+ *               deterministic self-heals the executor applied mid-run
+ *               (backend loop87 — also mirrored on `result.repairs`).
  *
- * Endpoints: POST `/api/v1/scanners/compile` `{text}` -> `{spec}`;
+ * Endpoints: POST `/api/v1/scanners/compile` `{text}` -> `{spec, compiler,
+ *               warnings}` (loop88 V2 — `compiler` is "deterministic" |
+ *               "llm-assisted", `warnings` never blocks the compile);
  * POST `/api/v1/scanners/` (create, auth); GET `/api/v1/scanners/`;
  * GET `/api/v1/scanners/{id}` (with latest run); POST `/{id}/run`;
  * POST `/{id}/pause`; POST `/{id}/resume`; GET `/{id}/runs`.
@@ -146,6 +151,19 @@ export type ScannerRunResult = {
   counts: ScannerRunCounts;
 };
 
+/**
+ * Loop V88 (V1) — one deterministic self-heal the executor applied mid-run
+ * (backend `scanner_heal_service`: 8-class classifier, bounded repairs).
+ * `class` is the error class (`rate_limited`, `type_mismatch`, …); `action`
+ * is the stable repair label (`sleep_retry`, `coerce_numeric`, …).
+ */
+export type ScannerRepair = {
+  /** Pipeline node (step index) that failed and was healed. */
+  node: number;
+  class: string;
+  action: string;
+};
+
 export type ScannerRun = {
   id: string;
   scanner_id: string;
@@ -159,6 +177,8 @@ export type ScannerRun = {
   duration_ms: number | null;
   /** True for test-run snapshots (never trigger delivery / never publish). */
   is_test: boolean;
+  /** Self-heal repairs applied on this run (loop87; empty when none). */
+  repairs: ScannerRepair[];
 };
 
 export type Scanner = {
@@ -189,6 +209,9 @@ export type ScannerVersion = {
 };
 
 export type ApiSource = "live" | "mock";
+
+/** Loop V88 (V2) — which compiler path produced a spec preview. */
+export type ScannerCompiler = "deterministic" | "llm-assisted";
 
 // ---------------------------------------------------------------------------
 // Payload guards + normalizers (backend sends dicts — be tolerant)
@@ -349,6 +372,18 @@ function normalizeRunResult(raw: unknown): ScannerRunResult | null {
   };
 }
 
+/** Loop V88 (V1) — repairs list from the API, tolerant of junk entries. */
+function normalizeRepairs(raw: unknown): ScannerRepair[] {
+  if (!Array.isArray(raw)) return [];
+  const repairs: ScannerRepair[] = [];
+  for (const item of raw) {
+    const rec = asRecord(item);
+    if (typeof rec.class !== "string" || typeof rec.action !== "string") continue;
+    repairs.push({ node: asNumber(rec.node), class: rec.class, action: rec.action });
+  }
+  return repairs;
+}
+
 export function normalizeScannerRun(raw: unknown): ScannerRun | null {
   const rec = asRecord(raw);
   if (typeof rec.id !== "string") return null;
@@ -370,6 +405,9 @@ export function normalizeScannerRun(raw: unknown): ScannerRun | null {
             return Number.isFinite(ms) && ms >= 0 ? ms : null;
           })()
         : null;
+  // Loop V88 (V1): the API lifts repairs to the run row (`repairs` +
+  // `repairs_count`); older payloads only carry `result.repairs` — accept both.
+  const repairs = normalizeRepairs(rec.repairs ?? asRecord(rec.result).repairs);
   return {
     id: rec.id,
     scanner_id: typeof rec.scanner_id === "string" ? rec.scanner_id : "",
@@ -384,6 +422,7 @@ export function normalizeScannerRun(raw: unknown): ScannerRun | null {
     error: typeof rec.error === "string" ? rec.error : null,
     duration_ms: durationMs,
     is_test: rec.is_test === true,
+    repairs,
   };
 }
 
@@ -456,6 +495,11 @@ export function runDurationLabel(run: ScannerRun): string {
   const ms = runDurationMs(run);
   if (ms === null) return "—";
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+}
+
+/** Loop V88 (V1) — how many self-heal repairs the executor applied on a run. */
+export function runRepairsCount(run: ScannerRun): number {
+  return run.repairs.length;
 }
 
 /** "2m ago" style relative label for last-run lines (fixed `now` for tests). */
@@ -571,7 +615,12 @@ function isCandidateAligned(reads: ScannerReads): boolean {
 }
 
 /** Execute a spec over the mock universe — mirrors the backend executor. */
-function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): ScannerRun {
+function mockExecute(
+  spec: ScannerSpec,
+  runId: string,
+  startedAt: string,
+  repairs: ScannerRepair[] = [],
+): ScannerRun {
   const limit = Math.max(1, spec.limit || 20);
   const categories = spec.universe.categories.map((c) => c.toLowerCase());
   const universe = MOCK_UNIVERSE.filter(
@@ -590,6 +639,7 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
       error: null,
       duration_ms: 0,
       is_test: false,
+      repairs: [],
     };
   }
 
@@ -645,6 +695,7 @@ function mockExecute(spec: ScannerSpec, runId: string, startedAt: string): Scann
     error: null,
     duration_ms: 4200,
     is_test: false,
+    repairs,
   };
 }
 
@@ -684,14 +735,28 @@ const MOCK_DRAFT_SPEC: ScannerSpec = {
   notes: [],
 };
 
-function makeMockRun(scannerId: string, spec: ScannerSpec, id: string, startedAt: string): ScannerRun {
-  return { ...mockExecute(spec, id, startedAt), scanner_id: scannerId };
+function makeMockRun(
+  scannerId: string,
+  spec: ScannerSpec,
+  id: string,
+  startedAt: string,
+  repairs: ScannerRepair[] = [],
+): ScannerRun {
+  return { ...mockExecute(spec, id, startedAt, repairs), scanner_id: scannerId };
 }
 
 function seedMockStore(): { scanners: Scanner[]; runs: Record<string, ScannerRun[]> } {
+  // Loop V88 (V1): the whale scanner's seeded runs carry self-heal repairs
+  // (deterministic, mirroring backend loop87 vocabulary) so the heal chip +
+  // ledger render without a live backend.
   const whaleRuns = [
-    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-2", "2026-07-21T14:45:00.000Z"),
-    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-1", "2026-07-21T14:30:00.000Z"),
+    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-2", "2026-07-21T14:45:00.000Z", [
+      { node: 1, class: "rate_limited", action: "sleep_retry" },
+      { node: 3, class: "type_mismatch", action: "coerce_numeric" },
+    ]),
+    makeMockRun("scn-mock-whale", MOCK_WHALE_SPEC, "run-mock-whale-1", "2026-07-21T14:30:00.000Z", [
+      { node: 0, class: "provider_transient", action: "retry_once" },
+    ]),
   ];
   const dailyRuns = [
     makeMockRun("scn-mock-daily", MOCK_DAILY_SPEC, "run-mock-daily-1", "2026-07-21T06:00:00.000Z"),
@@ -851,6 +916,34 @@ export function compileSpecLocal(text: string): ScannerSpec {
   return spec;
 }
 
+const SIGNAL_STEP_TYPES: ReadonlySet<ScannerStepType> = new Set([
+  "WHALE_FLOW",
+  "PRICE_TREND",
+  "NEWS_SENTIMENT",
+  "MODEL_EDGE",
+]);
+
+/**
+ * Loop V88 (V2) — mock parity for the backend's deterministic post-compile
+ * warnings (`scanner_compiler_service.validate_spec`). Same rules, same
+ * strings; warnings never block the compile.
+ */
+export function specWarningsLocal(spec: ScannerSpec): string[] {
+  const warnings: string[] = [];
+  if (spec.universe.categories.length === 0) warnings.push("empty universe");
+  const interval = spec.schedule.interval_minutes;
+  if (interval < 15 && spec.steps.length > 3) {
+    warnings.push("spend warning: interval under 15 minutes with more than 3 steps");
+  }
+  if (!spec.steps.some((s) => SIGNAL_STEP_TYPES.has(s.type))) {
+    warnings.push("no signal steps");
+  }
+  if (spec.delivery.cooldown_minutes < interval) {
+    warnings.push("cooldown less than interval");
+  }
+  return warnings;
+}
+
 // ---------------------------------------------------------------------------
 // Fetch layer (the only place the UI talks to the scanner API)
 // ---------------------------------------------------------------------------
@@ -906,20 +999,48 @@ function asList(live: unknown): unknown[] | null {
 // Endpoints — live first, mock fallback. None of these reject.
 // ---------------------------------------------------------------------------
 
+export type CompileScannerResult = {
+  spec: ScannerSpec;
+  /** Loop V88 (V2) — which compiler path produced the spec. */
+  compiler: ScannerCompiler;
+  /** Loop V88 (V2) — deterministic post-compile warnings (never blocking). */
+  warnings: string[];
+  source: ApiSource;
+};
+
+function asCompiler(value: unknown): ScannerCompiler {
+  return value === "llm-assisted" ? "llm-assisted" : "deterministic";
+}
+
+function asWarnings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((w) => (typeof w === "string" ? w.trim() : ""))
+    .filter((w) => w.length > 0);
+}
+
 /** Compile plain English into a scanner spec preview. POST /compile. */
 export async function compileScanner(
   text: string,
   token: string | null = null,
-): Promise<{ spec: ScannerSpec; source: ApiSource }> {
+): Promise<CompileScannerResult> {
   const live = await tryLiveJson<unknown>("/api/v1/scanners/compile", token, {
     method: "POST",
     body: JSON.stringify({ text }),
   });
   const specRec = asRecord(live);
   if (live && specRec.spec !== undefined) {
-    return { spec: normalizeSpec(specRec.spec), source: "live" };
+    return {
+      spec: normalizeSpec(specRec.spec),
+      compiler: asCompiler(specRec.compiler),
+      warnings: asWarnings(specRec.warnings),
+      source: "live",
+    };
   }
-  return { spec: compileSpecLocal(text), source: "mock" };
+  // Mock: the local keyword parser is the deterministic compiler (no local
+  // LLM path), and warnings mirror the backend's validate_spec.
+  const spec = compileSpecLocal(text);
+  return { spec, compiler: "deterministic", warnings: specWarningsLocal(spec), source: "mock" };
 }
 
 export type CreateScannerInput = {
