@@ -9,7 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
-from app.api.v1.launch_limits import check_user_run_allowed
+from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
 from app.db.models import Scanner, ScannerRun, User
 from app.db.session import get_db
@@ -174,9 +174,15 @@ async def create_scanner(
     spec = dict(body.spec or {})
     if not isinstance(spec.get("steps"), list):
         raise HTTPException(status_code=400, detail="spec.steps must be a list")
+    name, description = harden_create_fields(
+        name=body.name,
+        description=body.description,
+        payload=spec,
+        steps=spec.get("steps"),
+    )
     scanner = Scanner(
-        name=body.name.strip(),
-        description=(body.description.strip() if body.description else None),
+        name=name,
+        description=description,
         owner=str(user.id),
         spec=spec,
         version=1,

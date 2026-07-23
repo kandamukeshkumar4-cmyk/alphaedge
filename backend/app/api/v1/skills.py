@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
-from app.api.v1.launch_limits import check_user_run_allowed
+from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
 from app.db.models import ResearchSession, Skill, User
 from app.db.session import get_db
@@ -76,15 +76,21 @@ async def create_skill(
     )
     if owned >= settings.launch_max_skills_per_user:
         raise HTTPException(status_code=429, detail="limit reached")
-    existing = await db.scalar(select(Skill).where(Skill.name == body.name.strip()))
+    name, description = harden_create_fields(
+        name=body.name,
+        description=body.description,
+        payload=body.template,
+        steps=list(body.template or []),
+    )
+    existing = await db.scalar(select(Skill).where(Skill.name == name))
     if existing is not None:
         raise HTTPException(status_code=409, detail="Skill name already exists")
     plan = normalize_plan(body.template)
     if not plan:
         raise HTTPException(status_code=400, detail="template must include at least one known step")
     skill = Skill(
-        name=body.name.strip(),
-        description=body.description.strip(),
+        name=name,
+        description=description or "",
         icon=body.icon,
         template=plan,
         params_schema=body.params_schema,
