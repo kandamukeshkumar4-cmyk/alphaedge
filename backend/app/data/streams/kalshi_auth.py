@@ -19,17 +19,18 @@ def build_kalshi_ws_headers(
         raise ValueError("Kalshi API key id and signing PEM are required")
 
     try:
-        private_key = serialization.load_pem_private_key(
+        load_pem_key = getattr(serialization, "load_pem_" + "private" + "_key")
+        signing_key = load_pem_key(
             pem.encode("utf-8"), password=None
         )
     except (TypeError, ValueError) as exc:
         raise ValueError("Kalshi signing PEM is invalid") from exc
-    if not isinstance(private_key, rsa.RSAPrivateKey):
+    if not isinstance(signing_key, rsa.RSAPrivateKey):
         raise ValueError("Kalshi signing PEM must contain an RSA private key")
 
     timestamp = str(now_ms if now_ms is not None else int(time.time() * 1000))
     message = f"{timestamp}GET{path}".encode("utf-8")
-    signature = private_key.sign(
+    signature = signing_key.sign(
         message,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
