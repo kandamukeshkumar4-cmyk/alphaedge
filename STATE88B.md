@@ -6,17 +6,30 @@ needed (limits are application-level).
 
 | Ticket | Status | Proof |
 |--------|--------|-------|
-| R1 creation caps | DONE | `tests/test_launch_limits.py` create caps |
-| R2 run rate limit | DONE | `tests/test_launch_limits.py` rate + sliding window |
-| R3 scheduler guard | DONE | `tests/test_scheduler_guard.py` 2 passed |
-| R4 input hardening | DONE | `tests/test_input_hardening.py` 5 passed |
+| R1 creation caps | DONE | `f285908` |
+| R2 run rate limit | DONE | `f5f0c02` |
+| R3 scheduler guard | DONE | `cc93c70` |
+| R4 input hardening | DONE | `f792496` |
+
+## Final proof
+
+```text
+uv run --extra dev pytest -q --basetemp=.../.pytest-tmp-full2
+1989 passed, 28 skipped in 325.72s
+
+py -3.13 orchestration/gate.py --backend-only
+PASS: all checks green
+```
+
+AutoLab: not applicable (no iterative measure)
 
 ## LOOP LOG
 
 | loop | date | result | proof |
 |------|------|--------|-------|
 | start | 2026-07-23 | migration head=061; no 062 needed | alembic versions tail |
-| R1 | 2026-07-23 | DONE | pytest test_launch_limits.py — 2 passed |
-| R2 | 2026-07-23 | DONE | pytest test_launch_limits.py — 4 passed |
-| R3 | 2026-07-23 | DONE | pytest test_scheduler_guard.py — 2 passed |
-| R4 | 2026-07-23 | DONE | pytest test_input_hardening.py — 5 passed |
+| R1 | 2026-07-23 | DONE | pytest create caps |
+| R2 | 2026-07-23 | DONE | pytest rate + sliding window |
+| R3 | 2026-07-23 | DONE | pytest scheduler guard |
+| R4 | 2026-07-23 | DONE | pytest input hardening |
+| full | 2026-07-23 | DONE | 1989 passed + gate --backend-only PASS |
