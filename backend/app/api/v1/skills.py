@@ -4,10 +4,12 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
+from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
+from app.core.config import get_settings
 from app.db.models import ResearchSession, Skill, User
 from app.db.session import get_db
 from app.schemas.skills import SkillCreate, SkillOut, SkillRunOut, SkillRunRequest
@@ -17,6 +19,12 @@ from app.services.terminal_research_service import (
 )
 
 router = APIRouter(prefix="/api/v1/skills", tags=["skills"])
+
+
+def _enforce_run_rate(user: User) -> None:
+    settings = get_settings()
+    if not check_user_run_allowed(str(user.id), settings.launch_run_rate_per_hour):
+        raise HTTPException(status_code=429, detail="limit reached")
 
 
 def _skill_out(skill: Skill) -> SkillOut:
@@ -57,15 +65,32 @@ async def create_skill(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SkillOut:
-    existing = await db.scalar(select(Skill).where(Skill.name == body.name.strip()))
+    settings = get_settings()
+    owned = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(Skill)
+            .where(Skill.created_by == str(user.id))
+        )
+        or 0
+    )
+    if owned >= settings.launch_max_skills_per_user:
+        raise HTTPException(status_code=429, detail="limit reached")
+    name, description = harden_create_fields(
+        name=body.name,
+        description=body.description,
+        payload=body.template,
+        steps=list(body.template or []),
+    )
+    existing = await db.scalar(select(Skill).where(Skill.name == name))
     if existing is not None:
         raise HTTPException(status_code=409, detail="Skill name already exists")
     plan = normalize_plan(body.template)
     if not plan:
         raise HTTPException(status_code=400, detail="template must include at least one known step")
     skill = Skill(
-        name=body.name.strip(),
-        description=body.description.strip(),
+        name=name,
+        description=description or "",
         icon=body.icon,
         template=plan,
         params_schema=body.params_schema,
@@ -86,6 +111,7 @@ async def run_skill(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SkillRunOut:
+    _enforce_run_rate(user)
     skill = await db.scalar(select(Skill).where(Skill.id == skill_id))
     if skill is None:
         raise HTTPException(status_code=404, detail="Skill not found")

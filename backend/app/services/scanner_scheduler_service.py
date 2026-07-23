@@ -4,16 +4,20 @@ Never places orders or calls RiskService / OrderBookService.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.db.models import Scanner, ScannerRun
 from app.services.scanner_executor_service import run_scanner
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -118,6 +122,35 @@ async def calendar_allows_run(
 async def run_due_scanners(db: AsyncSession, *, now: datetime | None = None) -> dict[str, Any]:
     """Load active scanners, pick due ones, execute each via run_scanner."""
     current = now or datetime.now(UTC)
+    settings = get_settings()
+    window_minutes = max(int(settings.scheduler_scanner_runs_guard_window_minutes), 0)
+    guard_max = max(int(settings.scheduler_scanner_runs_guard_max), 0)
+    if window_minutes > 0 and guard_max > 0:
+        since = current - timedelta(minutes=window_minutes)
+        recent = int(
+            await db.scalar(
+                select(func.count())
+                .select_from(ScannerRun)
+                .where(ScannerRun.started_at >= since)
+            )
+            or 0
+        )
+        if recent > guard_max:
+            logger.warning(
+                "scanner scheduler skipped: %s runs in last %s minutes (guard max %s)",
+                recent,
+                window_minutes,
+                guard_max,
+            )
+            return {
+                "active": 0,
+                "due": 0,
+                "ran": 0,
+                "skipped_calendar": 0,
+                "skipped_load_guard": True,
+                "recent_runs": recent,
+            }
+
     scanners = (
         await db.scalars(select(Scanner).where(Scanner.status == "active"))
     ).all()
@@ -141,4 +174,5 @@ async def run_due_scanners(db: AsyncSession, *, now: datetime | None = None) -> 
         "due": len(due_ids),
         "ran": ran,
         "skipped_calendar": skipped_calendar,
+        "skipped_load_guard": False,
     }

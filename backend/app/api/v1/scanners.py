@@ -5,10 +5,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
+from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
 from app.db.models import Scanner, ScannerRun, User
 from app.db.session import get_db
@@ -27,6 +28,12 @@ from app.services.scanner_executor_service import run_scanner
 from app.services.scanner_version_service import apply_spec_change, rollback_scanner_spec
 
 router = APIRouter(prefix="/api/v1/scanners", tags=["scanners"])
+
+
+def _enforce_run_rate(user: User) -> None:
+    settings = get_settings()
+    if not check_user_run_allowed(str(user.id), settings.launch_run_rate_per_hour):
+        raise HTTPException(status_code=429, detail="limit reached")
 
 
 def _duration_ms(run: ScannerRun) -> int | None:
@@ -153,12 +160,29 @@ async def create_scanner(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ScannerOut:
+    settings = get_settings()
+    owned = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(Scanner)
+            .where(Scanner.owner == str(user.id))
+        )
+        or 0
+    )
+    if owned >= settings.launch_max_scanners_per_user:
+        raise HTTPException(status_code=429, detail="limit reached")
     spec = dict(body.spec or {})
     if not isinstance(spec.get("steps"), list):
         raise HTTPException(status_code=400, detail="spec.steps must be a list")
+    name, description = harden_create_fields(
+        name=body.name,
+        description=body.description,
+        payload=spec,
+        steps=spec.get("steps"),
+    )
     scanner = Scanner(
-        name=body.name.strip(),
-        description=(body.description.strip() if body.description else None),
+        name=name,
+        description=description,
         owner=str(user.id),
         spec=spec,
         version=1,
@@ -264,6 +288,7 @@ async def run_scanner_now(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ScannerRunOut:
+    _enforce_run_rate(user)
     scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
     if scanner is None:
         raise HTTPException(status_code=404, detail="Scanner not found")
@@ -288,6 +313,7 @@ async def test_run_scanner_now(
     flagged ``is_test``, and silent — never writes feed rows or emails.
     Never changes scanner status (publishing goes through ``/{id}/publish``).
     """
+    _enforce_run_rate(user)
     scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
     if scanner is None:
         raise HTTPException(status_code=404, detail="Scanner not found")
