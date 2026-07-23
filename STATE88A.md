@@ -1,35 +1,39 @@
 # STATE88A — K-A Kalshi WebSocket authentication
 
-Status: BLOCKED — prerequisite dependency is not present.
+Status: DONE — K1–K3 implemented; the prior dependency block was cleared by
+the orchestrator decision to add the approved `cryptography` runtime dependency.
 
-## Escalation
+## K1–K2 implementation
 
-- Node: K-A, graph V88.
-- Work order: K1 signing helper, K2 Kalshi stream header wiring, K3 Railway
-  readiness runbook.
-- Required K1 implementation uses the `cryptography` library for RSA-PSS-
-  SHA256 signatures.
-- Checked first as instructed: `backend/pyproject.toml` does not declare
-  `cryptography` in runtime or dev dependencies. The existing `backend/uv.lock`
-  also has no `cryptography` package entry.
-- The work order explicitly says to stop and escalate instead of adding the
-  dependency when it is absent. Therefore no source, test, configuration,
-  migration, or dependency changes were made.
-- D3 diagnosis confirms the current root cause: `KalshiMarketStream` inherits
-  the base bare `websockets.connect` path and sends no authentication headers.
+- K1 signs `timestamp + GET + path` with RSA-PSS-SHA256 and returns the three
+  Kalshi access headers.
+- K2 passes those headers to the Kalshi-only WebSocket connector when both
+  `KALSHI_API_KEY_ID` and `KALSHI_SIGNING_PEM` are non-empty.
+- Empty credentials preserve the unauthenticated connector behavior and REST
+  polling remains available as the paper-trading fallback.
 
-## Decision needed
+## RUNBOOK
 
-Approve a revised work order that permits adding the approved `cryptography`
-dependency, or provide an already-approved project dependency that exposes the
-required RSA-PSS-SHA256 signing API. The K1–K3 tickets cannot be implemented
-under the current no-new-dependencies constraint.
+Set these exact Railway variables to re-enable authenticated Kalshi WebSocket
+ingest (do not commit secret values):
 
-## Verification
+```text
+KALSHI_API_KEY_ID=<Kalshi API key id>
+KALSHI_SIGNING_PEM=<Kalshi RSA private key PEM>
+KALSHI_WS_ENABLED=true
+```
 
-- K1/K2/K3: not done; no commits created for tickets.
-- Per-ticket pytest and Ruff commands: not run because the hard prerequisite
-  failed before implementation.
-- Full suite and `orchestration/gate.py`: not run because the task is blocked.
-- Pre-existing untracked files `luna-k-prompt.txt` and `luna-k.log` were
-  preserved unchanged.
+The signature path must exactly match the path in `KALSHI_WS_URL`. The default
+URL path is `/trade-api/ws/v2`; if `KALSHI_WS_URL` is changed, the helper signs
+that URL's path instead. A path mismatch causes Kalshi to reject the upgrade
+with HTTP 401.
+
+Rollback: set `KALSHI_WS_ENABLED=false` in Railway. This leaves REST live
+polling enabled and stops the WebSocket reconnect loop without changing any
+code or environment defaults.
+
+## Verification record
+
+- K1: `tests/test_kalshi_auth.py` — 3 passed; Ruff passed.
+- K2: `tests/test_kalshi_auth.py` — 5 passed; Ruff passed.
+- No migrations, cash funding, external execution, push, or deploy actions.
