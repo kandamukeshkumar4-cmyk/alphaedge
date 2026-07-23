@@ -285,9 +285,9 @@ async def _llm_plan_spec(text: str, settings: Settings) -> dict[str, Any] | None
         "Compile this scanner request into the alert-spec JSON schema.\n"
         f"Request:\n{text}"
     )
-    async with _LLM_SEMAPHORE:
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
+    async def _request() -> Any:
+        async with _LLM_SEMAPHORE:
+            return await client.chat.completions.create(
                 model=model_id,
                 messages=[
                     {"role": "system", "content": _PLANNER_SYSTEM_PROMPT},
@@ -295,9 +295,15 @@ async def _llm_plan_spec(text: str, settings: Settings) -> dict[str, Any] | None
                 ],
                 temperature=0.2,
                 max_tokens=800,
-            ),
-            timeout=_LLM_PLANNER_TIMEOUT_SECONDS,
-        )
+            )
+
+    # Include semaphore wait time in the preview budget. Otherwise a saturated
+    # shared LLM queue can leave this read-only endpoint pending indefinitely
+    # before the existing provider-call timeout begins.
+    response = await asyncio.wait_for(
+        _request(),
+        timeout=_LLM_PLANNER_TIMEOUT_SECONDS,
+    )
     content = (response.choices[0].message.content or "").strip()
     return _parse_llm_spec_json(content)
 

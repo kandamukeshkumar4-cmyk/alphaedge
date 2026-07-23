@@ -172,6 +172,25 @@ async def test_slow_llm_planner_falls_back_to_deterministic(monkeypatch):
     assert result["spec"] == deterministic
 
 
+@pytest.mark.asyncio
+async def test_busy_llm_queue_falls_back_within_planner_timeout(monkeypatch):
+    text = "xyzzy plugh frobozz"
+    deterministic = compile_scanner_spec(text)
+    import app.agents.analyst as analyst_mod
+
+    monkeypatch.setattr(analyst_mod, "_LLM_SEMAPHORE", asyncio.Semaphore(0))
+    monkeypatch.setattr(
+        "app.services.scanner_compiler_service._LLM_PLANNER_TIMEOUT_SECONDS", 0.01
+    )
+
+    result = await compile_scanner_flow(
+        text, Settings(LLM_PROVIDER="openai", LLM_API_KEY="test-key")
+    )
+
+    assert result["compiler"] == "deterministic"
+    assert result["spec"] == deterministic
+
+
 def test_validate_spec_empty_universe():
     spec = compile_scanner_spec("xyzzy plugh")
     warnings = validate_spec(spec)
