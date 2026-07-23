@@ -11,6 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
+from app.api.v1.launch_limits import check_user_run_allowed
+from app.core.config import get_settings
 from app.db.models import ResearchSession, ResearchStep, Skill, User
 from app.db.session import get_db
 from app.schemas.skills import SkillOut
@@ -23,6 +25,12 @@ from app.schemas.terminal import (
 from app.services.terminal_research_service import execute_session as run_terminal_research
 
 router = APIRouter(prefix="/api/v1/terminal", tags=["terminal"])
+
+
+def _enforce_run_rate(user: User) -> None:
+    settings = get_settings()
+    if not check_user_run_allowed(str(user.id), settings.launch_run_rate_per_hour):
+        raise HTTPException(status_code=429, detail="limit reached")
 
 
 def _step_out(step: ResearchStep) -> ResearchStepOut:
@@ -133,6 +141,7 @@ async def execute_session(
     user: User = Depends(get_current_user),
 ) -> ResearchSessionOut:
     """Run the fixed read-only research plan and persist its evidence steps."""
+    _enforce_run_rate(user)
     session = await _owned_session(db, session_id, user.id)
     try:
         await run_terminal_research(db, session)

@@ -210,6 +210,10 @@ class Settings(BaseSettings):
     launch_max_skills_per_user: int = Field(
         default=50, alias="LAUNCH_MAX_SKILLS_PER_USER"
     )
+    # Loop 88 R2 — per-user run rate (scanner/skill/terminal execute).
+    launch_run_rate_per_hour: int = Field(
+        default=30, alias="LAUNCH_RUN_RATE_PER_HOUR"
+    )
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",

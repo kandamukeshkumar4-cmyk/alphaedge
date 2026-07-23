@@ -6,8 +6,8 @@ needed (limits are application-level).
 
 | Ticket | Status | Proof |
 |--------|--------|-------|
-| R1 creation caps | DONE | `tests/test_launch_limits.py` 2 passed |
-| R2 run rate limit | PENDING | |
+| R1 creation caps | DONE | `tests/test_launch_limits.py` create caps |
+| R2 run rate limit | DONE | `tests/test_launch_limits.py` 4 passed |
 | R3 scheduler guard | PENDING | |
 | R4 input hardening | PENDING | |
 
@@ -17,3 +17,4 @@ needed (limits are application-level).
 |------|------|--------|-------|
 | start | 2026-07-23 | migration head=061; no 062 needed | alembic versions tail |
 | R1 | 2026-07-23 | DONE | pytest test_launch_limits.py — 2 passed |
+| R2 | 2026-07-23 | DONE | pytest test_launch_limits.py — 4 passed |
