@@ -17,6 +17,7 @@ dependencies = [
     "structlog>=24.4.0",
     "httpx>=0.28.0",
     "websockets>=15.0",
+    "cryptography>=42.0.0",
     "redis>=5.2.0",
     "arq>=0.26.1",
     "pandas>=2.2.0",
