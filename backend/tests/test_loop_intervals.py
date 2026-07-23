@@ -21,6 +21,7 @@ def test_loop_intervals_match_main_default_sleeps():
     assert LOOP_INTERVALS["venue_gap"] == max(30, settings.venue_gap_interval_sec or 60)
     assert LOOP_INTERVALS["wc2026_resolve"] == 600
     assert LOOP_INTERVALS["external_resolve"] == 900
+    assert LOOP_INTERVALS["forecast_model_ab"] == 3600
     assert LOOP_INTERVALS["external_market_bridge"] == 900
     assert LOOP_INTERVALS["forecast_autolock"] == 900
     assert LOOP_INTERVALS["drift_detect"] == 3600

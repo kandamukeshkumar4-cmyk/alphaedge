@@ -113,6 +113,7 @@ async def test_lifespan_registers_heartbeat_when_enabled(monkeypatch):
     monkeypatch.setattr(main_mod.settings, "scheduler_whale_refresh_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_wc2026_resolve_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_external_resolve_enabled", False)
+    monkeypatch.setattr(main_mod.settings, "scheduler_forecast_model_ab_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_external_market_bridge_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_external_autolock_enabled", False)
     monkeypatch.setattr(main_mod.settings, "scheduler_drift_detect_enabled", False)
@@ -198,6 +199,7 @@ async def test_lifespan_skips_heartbeat_when_disabled(monkeypatch):
         "scheduler_whale_refresh_enabled",
         "scheduler_wc2026_resolve_enabled",
         "scheduler_external_resolve_enabled",
+        "scheduler_forecast_model_ab_enabled",
         "scheduler_external_market_bridge_enabled",
         "scheduler_external_autolock_enabled",
         "scheduler_drift_detect_enabled",

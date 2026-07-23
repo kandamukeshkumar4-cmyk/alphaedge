@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     external_resolve_batch: int = Field(
         default=25, alias="EXTERNAL_RESOLVE_BATCH"
     )
+    # A/B readouts are controlled and read-only.  They must be refreshed by an
+    # in-process loop because production runs the API without an ARQ worker.
+    scheduler_forecast_model_ab_enabled: bool = Field(
+        default=True, alias="SCHEDULER_FORECAST_MODEL_AB_ENABLED"
+    )
     scheduler_catalog_market_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_CATALOG_MARKET_RESOLVE_ENABLED"
     )
