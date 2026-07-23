@@ -93,4 +93,78 @@ $ npx vitest run src/lib/scanners-api.test.ts
 (typecheck + lint exit 0, no output = clean; existing scanners-api unit
 suite still green after the additive `compiler` / `warnings` fields)
 
-`git log -1` for the V2 commit is appended in the V3 section below.
+```
+$ git log -1   # (recorded post-commit; folded in here)
+commit df00efa9c0d093c1b6cc24fbc2dc6a8e0b9f654f
+Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.github.com>
+Date:   Thu Jul 23 11:15:52 2026 -0400
+
+    feat(loop88): V2 — compile feedback
+
+    Composer preview shows which compiler path produced the spec — a small
+    'Compiled: deterministic' badge (mint) or 'Compiled: AI-assisted' (blue) —
+    and renders the backend's deterministic warnings[] as amber notice lines
+    above the Create button (never blocking, never red).
+
+    - scanners-api: compileScanner now returns {spec, compiler, warnings,
+      source}; live branch parses compiler/warnings defensively, mock branch
+      reports 'deterministic' with specWarningsLocal mirroring the backend's
+      validate_spec (same rules, same strings).
+    - ScannerComposer: CompilerBadge in the preview header, warnings list
+      above the Create row.
+
+    Verified: npm run typecheck && npm run lint (exit 0) + vitest
+    scanners-api.test.ts 4/4 passed.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+### V3 — e2e coverage for V1+V2
+
+Mock client seeds `repairs` (whale scanner's two runs: x2 and x1) and the
+compile mock returns `compiler: "deterministic"` + `specWarningsLocal`
+warnings, so the DOM assertions run without the backend. One e2e fix
+iteration: `scanner-repair-ledger` testid moved from the inner `<ul>` to the
+collapsible grid wrapper (where `aria-hidden` lives).
+
+```
+$ cd frontend && npm run typecheck
+> alphaedge-frontend@0.1.0 typecheck
+> tsc --noEmit
+
+$ npm run lint
+> alphaedge-frontend@0.1.0 lint
+> eslint src --max-warnings=0
+
+$ npm run build
+> alphaedge-frontend@0.1.0 build
+> next build
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 12.6s
+   Linting and checking validity of types ...
+ ✓ Generating static pages (113/113)
+├ ○ /scanners                                    5.82 kB         129 kB
+├ ƒ /scanners/[id]                               92.1 kB         216 kB
+
+$ npx next start -p 31099 &        # served the build
+ ✓ Ready in 1219ms
+
+$ E2E_SKIP_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:31099 npx playwright test e2e/scanners.spec.ts --project=chromium
+Running 7 tests using 1 worker
+
+  ok 1 [chromium] › e2e\scanners.spec.ts:20:7 › V84 Scanner Studio › /scanners renders the list from mock and a compile preview appears (1.5s)
+  ok 2 [chromium] › e2e\scanners.spec.ts:50:7 › V84 Scanner Studio › scanner detail renders the pipeline canvas with >=3 nodes (1.9s)
+  ok 3 [chromium] › e2e\scanners.spec.ts:79:7 › V84 Scanner Studio › draft scanner shows the Test & publish panel and version chip (1.3s)
+  ok 4 [chromium] › e2e\scanners.spec.ts:123:7 › V84 Scanner Studio › active scanner shows the version chip with rollback history (1.4s)
+  ok 5 [chromium] › e2e\scanners.spec.ts:149:7 › V84 Scanner Studio › Run now shows the build narration rail (X3) (1.3s)
+  ok 6 [chromium] › e2e\scanners.spec.ts:167:7 › V84 Scanner Studio › V1 — self-heal repairs chip + ledger on the latest run, count chips on history rows (1.9s)
+  ok 7 [chromium] › e2e\scanners.spec.ts:217:7 › V84 Scanner Studio › V2 — compile badge + warnings in the describe-a-scanner preview (1.1s)
+
+  7 passed (11.6s)
+```
+
+`git log -1` for the V3 commit is appended in the final status block below.
+
+AutoLab: not applicable (no iterative measure — one-shot V1–V3 feature
+tickets; verified by typecheck/lint/build/e2e gates above).
+

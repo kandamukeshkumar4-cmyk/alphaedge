@@ -7,6 +7,10 @@ import { dismissOnboardingIfPresent, skipOnboarding } from "./helpers/session";
  * The scanners client falls back to its in-memory PAPER mock when the live
  * API is absent/empty, so the list, the compile preview and the detail
  * canvas all render without the backend.
+ *
+ * Loop V88 (V3) — DOM assertions for the self-heal repairs chip + ledger
+ * (V1) and the compile badge + warnings (V2), driven by the mock client's
+ * seeded `repairs` and deterministic `warnings` fields.
  */
 test.describe("V84 Scanner Studio", () => {
   test.beforeEach(async ({ page }) => {
@@ -158,5 +162,101 @@ test.describe("V84 Scanner Studio", () => {
     await expect(page.getByTestId("scanner-build-narration-step").first()).toBeVisible();
 
     assertNoConsoleErrors(errors, "/scanners/[id] narration");
+  });
+
+  test("V1 — self-heal repairs chip + ledger on the latest run, count chips on history rows", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/scanners/scn-mock-whale", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await dismissOnboardingIfPresent(page);
+    await expect(page.getByTestId("scanner-detail-page")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("scanner-latest-run")).toBeVisible({ timeout: 20_000 });
+
+    // The seeded latest run (run-mock-whale-2) carries two repairs.
+    const chip = page.getByTestId("scanner-selfheal-chip");
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveText(/Self-healed x2/);
+    await expect(chip).toHaveAttribute("data-count", "2");
+    await expect(chip).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByTestId("scanner-repair-ledger")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+
+    // Expanding lists each repair as "<node>: <class> -> <action>" in mono.
+    await chip.click();
+    await expect(chip).toHaveAttribute("aria-expanded", "true");
+    const ledger = page.getByTestId("scanner-repair-ledger");
+    await expect(ledger).toHaveAttribute("aria-hidden", "false");
+    await expect(ledger).toBeVisible();
+    const rows = page.getByTestId("scanner-repair-row");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toHaveText(/1: rate_limited -> sleep_retry/);
+    await expect(rows.nth(1)).toHaveText(/3: type_mismatch -> coerce_numeric/);
+
+    // Collapse again — the ledger hides from assistive tech.
+    await chip.click();
+    await expect(chip).toHaveAttribute("aria-expanded", "false");
+    await expect(ledger).toHaveAttribute("aria-hidden", "true");
+
+    // Runs history (newest first): whale-2 healed x2, whale-1 healed x1.
+    const historyChips = page
+      .getByTestId("scanner-runs-history")
+      .getByTestId("scanner-run-repairs");
+    await expect(historyChips).toHaveCount(2);
+    await expect(historyChips.nth(0)).toHaveAttribute("data-count", "2");
+    await expect(historyChips.nth(1)).toHaveAttribute("data-count", "1");
+
+    assertNoConsoleErrors(errors, "/scanners/[id] repairs (V1)");
+  });
+
+  test("V2 — compile badge + warnings in the describe-a-scanner preview", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/scanners", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await dismissOnboardingIfPresent(page);
+    await expect(page.getByTestId("scanners-page")).toBeVisible({ timeout: 30_000 });
+
+    // Benign compile (15-min interval, 3 steps): deterministic badge, no warnings.
+    await page
+      .getByTestId("scanners-request-input")
+      .fill("Scan NBA markets with whale flow and price trend every 15 minutes, volume above 50,000");
+    await page.getByTestId("scanners-compile").click();
+    await expect(page.getByTestId("scanners-preview")).toBeVisible({ timeout: 20_000 });
+    const badge = page.getByTestId("scanners-compiler-badge");
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveAttribute("data-compiler", "deterministic");
+    await expect(badge).toHaveText(/Compiled: deterministic/);
+    await expect(page.getByTestId("scanners-compile-warnings")).toHaveCount(0);
+
+    // Spend-warning compile (5-min interval, 5 steps): amber warnings above Create.
+    await page
+      .getByTestId("scanners-request-input")
+      .fill(
+        "Scan NBA markets with whale flow, price trend, news sentiment and model edge every 5 minutes",
+      );
+    await page.getByTestId("scanners-compile").click();
+    const warnings = page.getByTestId("scanners-compile-warnings");
+    await expect(warnings).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("scanners-compile-warning")).toHaveCount(1);
+    await expect(page.getByTestId("scanners-compile-warning")).toHaveText(
+      /spend warning: interval under 15 minutes with more than 3 steps/,
+    );
+    // Mock compile stays on the deterministic path — badge unchanged.
+    await expect(badge).toHaveAttribute("data-compiler", "deterministic");
+
+    // Warnings render above the Create button.
+    const warningsBox = await warnings.boundingBox();
+    const createBox = await page.getByTestId("scanners-create").boundingBox();
+    expect(warningsBox).not.toBeNull();
+    expect(createBox).not.toBeNull();
+    expect(warningsBox!.y + warningsBox!.height).toBeLessThanOrEqual(createBox!.y + 1);
+
+    assertNoConsoleErrors(errors, "/scanners compile feedback (V2)");
   });
 });

@@ -244,6 +244,8 @@ function RepairLedger({
   return (
     <div
       id={id}
+      data-testid="scanner-repair-ledger"
+      aria-hidden={!open}
       className={cn(
         "grid transition-[grid-template-rows] duration-300 ease-swift motion-reduce:transition-none",
         open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
@@ -251,7 +253,6 @@ function RepairLedger({
     >
       <div className="overflow-hidden">
         <ul
-          data-testid="scanner-repair-ledger"
           aria-label="Self-heal repairs"
           className="mt-2.5 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2"
         >
