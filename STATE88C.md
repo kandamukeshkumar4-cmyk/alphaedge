@@ -49,4 +49,48 @@ $ npm run lint
 
 (both exit 0, no output = clean)
 
-`git log -1` for the V1 commit is appended in the V2 section below.
+```
+$ git log -1   # (recorded post-commit; folded in here)
+commit 5034c03cb9e577125fd7fc00a21bc61428ea2c84
+Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.github.com>
+Date:   Thu Jul 23 11:12:27 2026 -0400
+
+    feat(loop88): V1 — repairs visibility
+
+    Run panel on /scanners/[id] shows an amber 'Self-healed xN' chip when the
+    run carries executor repairs (backend loop87: 8-class classifier, bounded
+    repairs); expanding lists each repair as '<node>: <class> -> <action>' in
+    mono. Runs-history rows show a compact amber count chip. Never red.
+
+    - scanners-api: ScannerRepair type, repairs on ScannerRun (top-level with
+      result.repairs fallback), tolerant normalizer, runRepairsCount helper,
+      mock store seeds deterministic repairs on the whale scanner's runs.
+    - ScannerDetailShell: SelfHealChip (aria-expanded) + RepairLedger
+      (grid-rows expand, motion-reduce safe) + RunRepairsChip on history rows.
+
+    Verified: npm run typecheck && npm run lint (both exit 0).
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+### V2 — compile feedback
+
+```
+$ cd frontend && npm run typecheck
+> alphaedge-frontend@0.1.0 typecheck
+> tsc --noEmit
+
+$ npm run lint
+> alphaedge-frontend@0.1.0 lint
+> eslint src --max-warnings=0
+
+$ npx vitest run src/lib/scanners-api.test.ts
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Duration  1.40s
+```
+
+(typecheck + lint exit 0, no output = clean; existing scanners-api unit
+suite still green after the additive `compiler` / `warnings` fields)
+
+`git log -1` for the V2 commit is appended in the V3 section below.

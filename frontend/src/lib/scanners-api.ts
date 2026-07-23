@@ -18,7 +18,9 @@
  *               deterministic self-heals the executor applied mid-run
  *               (backend loop87 — also mirrored on `result.repairs`).
  *
- * Endpoints: POST `/api/v1/scanners/compile` `{text}` -> `{spec}`;
+ * Endpoints: POST `/api/v1/scanners/compile` `{text}` -> `{spec, compiler,
+ *               warnings}` (loop88 V2 — `compiler` is "deterministic" |
+ *               "llm-assisted", `warnings` never blocks the compile);
  * POST `/api/v1/scanners/` (create, auth); GET `/api/v1/scanners/`;
  * GET `/api/v1/scanners/{id}` (with latest run); POST `/{id}/run`;
  * POST `/{id}/pause`; POST `/{id}/resume`; GET `/{id}/runs`.
@@ -207,6 +209,9 @@ export type ScannerVersion = {
 };
 
 export type ApiSource = "live" | "mock";
+
+/** Loop V88 (V2) — which compiler path produced a spec preview. */
+export type ScannerCompiler = "deterministic" | "llm-assisted";
 
 // ---------------------------------------------------------------------------
 // Payload guards + normalizers (backend sends dicts — be tolerant)
@@ -911,6 +916,34 @@ export function compileSpecLocal(text: string): ScannerSpec {
   return spec;
 }
 
+const SIGNAL_STEP_TYPES: ReadonlySet<ScannerStepType> = new Set([
+  "WHALE_FLOW",
+  "PRICE_TREND",
+  "NEWS_SENTIMENT",
+  "MODEL_EDGE",
+]);
+
+/**
+ * Loop V88 (V2) — mock parity for the backend's deterministic post-compile
+ * warnings (`scanner_compiler_service.validate_spec`). Same rules, same
+ * strings; warnings never block the compile.
+ */
+export function specWarningsLocal(spec: ScannerSpec): string[] {
+  const warnings: string[] = [];
+  if (spec.universe.categories.length === 0) warnings.push("empty universe");
+  const interval = spec.schedule.interval_minutes;
+  if (interval < 15 && spec.steps.length > 3) {
+    warnings.push("spend warning: interval under 15 minutes with more than 3 steps");
+  }
+  if (!spec.steps.some((s) => SIGNAL_STEP_TYPES.has(s.type))) {
+    warnings.push("no signal steps");
+  }
+  if (spec.delivery.cooldown_minutes < interval) {
+    warnings.push("cooldown less than interval");
+  }
+  return warnings;
+}
+
 // ---------------------------------------------------------------------------
 // Fetch layer (the only place the UI talks to the scanner API)
 // ---------------------------------------------------------------------------
@@ -966,20 +999,48 @@ function asList(live: unknown): unknown[] | null {
 // Endpoints — live first, mock fallback. None of these reject.
 // ---------------------------------------------------------------------------
 
+export type CompileScannerResult = {
+  spec: ScannerSpec;
+  /** Loop V88 (V2) — which compiler path produced the spec. */
+  compiler: ScannerCompiler;
+  /** Loop V88 (V2) — deterministic post-compile warnings (never blocking). */
+  warnings: string[];
+  source: ApiSource;
+};
+
+function asCompiler(value: unknown): ScannerCompiler {
+  return value === "llm-assisted" ? "llm-assisted" : "deterministic";
+}
+
+function asWarnings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((w) => (typeof w === "string" ? w.trim() : ""))
+    .filter((w) => w.length > 0);
+}
+
 /** Compile plain English into a scanner spec preview. POST /compile. */
 export async function compileScanner(
   text: string,
   token: string | null = null,
-): Promise<{ spec: ScannerSpec; source: ApiSource }> {
+): Promise<CompileScannerResult> {
   const live = await tryLiveJson<unknown>("/api/v1/scanners/compile", token, {
     method: "POST",
     body: JSON.stringify({ text }),
   });
   const specRec = asRecord(live);
   if (live && specRec.spec !== undefined) {
-    return { spec: normalizeSpec(specRec.spec), source: "live" };
+    return {
+      spec: normalizeSpec(specRec.spec),
+      compiler: asCompiler(specRec.compiler),
+      warnings: asWarnings(specRec.warnings),
+      source: "live",
+    };
   }
-  return { spec: compileSpecLocal(text), source: "mock" };
+  // Mock: the local keyword parser is the deterministic compiler (no local
+  // LLM path), and warnings mirror the backend's validate_spec.
+  const spec = compileSpecLocal(text);
+  return { spec, compiler: "deterministic", warnings: specWarningsLocal(spec), source: "mock" };
 }
 
 export type CreateScannerInput = {
