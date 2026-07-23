@@ -5,6 +5,7 @@ land in ``notes`` rather than raising.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -27,6 +28,7 @@ _KNOWN_STEP_TYPES = frozenset(
 _KNOWN_CATEGORIES = frozenset({"nba", "sports", "election", "crypto"})
 _INTERVAL_MIN = 5
 _INTERVAL_MAX = 1440
+_LLM_PLANNER_TIMEOUT_SECONDS = 10.0
 
 CompilerMode = Literal["deterministic", "llm-assisted"]
 
@@ -284,14 +286,17 @@ async def _llm_plan_spec(text: str, settings: Settings) -> dict[str, Any] | None
         f"Request:\n{text}"
     )
     async with _LLM_SEMAPHORE:
-        response = await client.chat.completions.create(
-            model=model_id,
-            messages=[
-                {"role": "system", "content": _PLANNER_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=800,
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {"role": "system", "content": _PLANNER_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=800,
+            ),
+            timeout=_LLM_PLANNER_TIMEOUT_SECONDS,
         )
     content = (response.choices[0].message.content or "").strip()
     return _parse_llm_spec_json(content)
