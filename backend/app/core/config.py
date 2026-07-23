@@ -203,6 +203,13 @@ class Settings(BaseSettings):
     assistant_anon_rate_per_min: int = Field(
         default=60, alias="ASSISTANT_ANON_RATE_PER_MIN"
     )
+    # Loop 88 R1 — per-user creation caps for public-launch abuse control.
+    launch_max_scanners_per_user: int = Field(
+        default=20, alias="LAUNCH_MAX_SCANNERS_PER_USER"
+    )
+    launch_max_skills_per_user: int = Field(
+        default=50, alias="LAUNCH_MAX_SKILLS_PER_USER"
+    )
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",

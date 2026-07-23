@@ -4,10 +4,11 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
+from app.core.config import get_settings
 from app.db.models import ResearchSession, Skill, User
 from app.db.session import get_db
 from app.schemas.skills import SkillCreate, SkillOut, SkillRunOut, SkillRunRequest
@@ -57,6 +58,17 @@ async def create_skill(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SkillOut:
+    settings = get_settings()
+    owned = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(Skill)
+            .where(Skill.created_by == str(user.id))
+        )
+        or 0
+    )
+    if owned >= settings.launch_max_skills_per_user:
+        raise HTTPException(status_code=429, detail="limit reached")
     existing = await db.scalar(select(Skill).where(Skill.name == body.name.strip()))
     if existing is not None:
         raise HTTPException(status_code=409, detail="Skill name already exists")

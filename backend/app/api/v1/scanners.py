@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
@@ -153,6 +153,17 @@ async def create_scanner(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ScannerOut:
+    settings = get_settings()
+    owned = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(Scanner)
+            .where(Scanner.owner == str(user.id))
+        )
+        or 0
+    )
+    if owned >= settings.launch_max_scanners_per_user:
+        raise HTTPException(status_code=429, detail="limit reached")
     spec = dict(body.spec or {})
     if not isinstance(spec.get("steps"), list):
         raise HTTPException(status_code=400, detail="spec.steps must be a list")
