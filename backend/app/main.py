@@ -824,6 +824,8 @@ async def _kalshi_stream_loop() -> None:
                 ws_url=settings.kalshi_ws_url,
                 reconnect_cap_sec=settings.stream_reconnect_max_sec,
                 heartbeat_timeout_sec=settings.stream_heartbeat_timeout_sec,
+                api_key_id=settings.kalshi_api_key_id,
+                signing_pem=settings.kalshi_signing_pem,
             )
             return
         except asyncio.CancelledError:

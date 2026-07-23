@@ -14,8 +14,10 @@ import logging
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.data.streams.base import MarketStream, StreamEvent, StreamEventKind, utcnow
+from app.data.streams.kalshi_auth import build_kalshi_ws_headers
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +130,8 @@ class KalshiMarketStream(MarketStream):
         ws_url: str = DEFAULT_KALSHI_WS_URL,
         reconnect_cap_sec: float = 60.0,
         heartbeat_timeout_sec: float = 30.0,
+        api_key_id: str = "",
+        signing_pem: str = "",
     ) -> None:
         super().__init__(
             reconnect_cap_sec=reconnect_cap_sec,
@@ -135,6 +139,23 @@ class KalshiMarketStream(MarketStream):
         )
         self._ticker_to_slug = dict(ticker_to_slug)
         self._url = ws_url
+        self._api_key_id = api_key_id
+        self._signing_pem = signing_pem
+
+    async def _connect(self):
+        import websockets
+
+        kwargs: dict[str, Any] = {
+            "open_timeout": 15,
+            "max_size": 8 * 1024 * 1024,
+        }
+        if self._api_key_id and self._signing_pem:
+            kwargs["additional_headers"] = build_kalshi_ws_headers(
+                self._api_key_id,
+                self._signing_pem,
+                urlsplit(self._ws_url()).path,
+            )
+        return await websockets.connect(self._ws_url(), **kwargs)
 
     def _ws_url(self) -> str:
         return self._url
