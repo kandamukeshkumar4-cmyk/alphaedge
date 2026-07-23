@@ -97,7 +97,7 @@ suite still green after the additive `compiler` / `warnings` fields)
 $ git log -1   # (recorded post-commit; folded in here)
 commit df00efa9c0d093c1b6cc24fbc2dc6a8e0b9f654f
 Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.github.com>
-Date:   Thu Jul 23 11:15:52 2026 -0400
+Date:   Thu Jul 23 11:15:22 2026 -0400
 
     feat(loop88): V2 — compile feedback
 
@@ -163,8 +163,50 @@ Running 7 tests using 1 worker
   7 passed (11.6s)
 ```
 
-`git log -1` for the V3 commit is appended in the final status block below.
+`git log -1` for the V3 commit:
+
+```
+$ git log -1   # (recorded post-commit; folded in here)
+commit 9eabc43e13e4d02096a0d268667c531c84bbddb3
+Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.github.com>
+Date:   Thu Jul 23 11:25:02 2026 -0400
+
+    feat(loop88): V3 — e2e coverage for repairs + compile feedback
+
+    Extends e2e/scanners.spec.ts with DOM assertions driven by the mock
+    client's seeded data (no backend needed):
+
+    - V1: amber 'Self-healed x2' chip on the latest-run panel with
+      aria-expanded toggle; expanded ledger lists each repair as
+      '<node>: <class> -> <action>' in mono; runs-history rows carry x2/x1
+      count chips (newest first).
+    - V2: 'Compiled: deterministic' mint badge in the preview, warnings[]
+      rendered as amber notice lines above Create (spend-warning compile),
+      and a geometry check that warnings sit above the Create button.
+
+    The scanner-repair-ledger testid moved from the inner <ul> to the
+    collapsible grid wrapper so the aria-hidden contract is directly
+    assertable.
+
+    Verified: npm run typecheck && npm run lint (exit 0); npm run build
+    (Compiled successfully, 113/113 static pages); playwright suite
+    e2e/scanners.spec.ts --project=chromium 7 passed (11.6s) against
+    next start on :31099.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+```
 
 AutoLab: not applicable (no iterative measure — one-shot V1–V3 feature
 tickets; verified by typecheck/lint/build/e2e gates above).
+
+Guardrails honored: `PAPER_TRADING_ONLY` untouched; no order path changes;
+reduced-motion respected (grid-rows transition gated by
+`motion-reduce:transition-none`, chevron rotation likewise); reserved
+heights preserved (skeleton/narration rails untouched; ledger expansion is
+a standard accordion below the header); no red styling anywhere (amber/gold
+for heal chips + warnings, mint/blue for the compiler badge). Rule budget:
+2 retries max per command; no strikes exhausted, no escalation needed.
+
+STATUS: **DONE** (V1–V3 committed — 5034c03, df00efa, 9eabc43, + this proof
+commit; no push, no deploy).
 
