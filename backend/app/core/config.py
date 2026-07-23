@@ -214,6 +214,13 @@ class Settings(BaseSettings):
     launch_run_rate_per_hour: int = Field(
         default=30, alias="LAUNCH_RUN_RATE_PER_HOUR"
     )
+    # Loop 88 R3 — global scheduler runaway guard (skip cycle if exceeded).
+    scheduler_scanner_runs_guard_max: int = Field(
+        default=50, alias="SCHEDULER_SCANNER_RUNS_GUARD_MAX"
+    )
+    scheduler_scanner_runs_guard_window_minutes: int = Field(
+        default=10, alias="SCHEDULER_SCANNER_RUNS_GUARD_WINDOW_MINUTES"
+    )
     system_account_id: str = Field(
         default="00000000-0000-0000-0000-000000000001",
         alias="SYSTEM_ACCOUNT_ID",

@@ -8,7 +8,7 @@ needed (limits are application-level).
 |--------|--------|-------|
 | R1 creation caps | DONE | `tests/test_launch_limits.py` create caps |
 | R2 run rate limit | DONE | `tests/test_launch_limits.py` 4 passed |
-| R3 scheduler guard | PENDING | |
+| R3 scheduler guard | DONE | `tests/test_scheduler_guard.py` 2 passed |
 | R4 input hardening | PENDING | |
 
 ## LOOP LOG
@@ -18,3 +18,4 @@ needed (limits are application-level).
 | start | 2026-07-23 | migration head=061; no 062 needed | alembic versions tail |
 | R1 | 2026-07-23 | DONE | pytest test_launch_limits.py — 2 passed |
 | R2 | 2026-07-23 | DONE | pytest test_launch_limits.py — 4 passed |
+| R3 | 2026-07-23 | DONE | pytest test_scheduler_guard.py — 2 passed |
