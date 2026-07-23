@@ -160,6 +160,8 @@ async def run_kalshi_stream_loop(
     ws_url: str,
     reconnect_cap_sec: float,
     heartbeat_timeout_sec: float,
+    api_key_id: str = "",
+    signing_pem: str = "",
 ) -> None:
     """Resolve tracked tickers and run the Kalshi stream forever.
 
@@ -179,6 +181,8 @@ async def run_kalshi_stream_loop(
             ws_url=ws_url,
             reconnect_cap_sec=reconnect_cap_sec,
             heartbeat_timeout_sec=heartbeat_timeout_sec,
+            api_key_id=api_key_id,
+            signing_pem=signing_pem,
         )
         logger.info("Kalshi stream: subscribing to %d markets", len(mapping))
         await stream.run(_persist_tick_event)
