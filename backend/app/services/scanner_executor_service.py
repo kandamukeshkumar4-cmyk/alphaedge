@@ -5,7 +5,9 @@ Never creates paper orders or calls RiskService / OrderBookService.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import random
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +19,12 @@ from app.api.v1.market_candles import _build_market_candles
 from app.db.models import Market, MarketStatus, Scanner, ScannerRun
 from app.services.forecast_service import ForecastService
 from app.services.market_service import MarketService
+from app.services.scanner_heal_service import (
+    classify_step_error,
+    coerce_numeric_strings,
+    market_slug_from_error,
+    repair_action_for,
+)
 from app.services.whale_flow_service import WhaleFlowService
 from app.signals.news_signal import fetch_news_signal
 from app.signals.sentiment_trend import load_sentiment_trend
@@ -359,6 +367,113 @@ async def _run_step(
     return candidates
 
 
+async def _heal_sleep(seconds: float) -> None:
+    """Awaitable sleep used by heal retries (tests monkeypatch this)."""
+    await asyncio.sleep(seconds)
+
+
+def _heal_jitter() -> float:
+    """Jitter in [0, 1) added to rate-limit backoff."""
+    return random.random()
+
+
+async def _run_step_with_heal(
+    db: AsyncSession,
+    step: dict[str, Any],
+    candidates: list[dict[str, Any]],
+    *,
+    align_present: bool,
+    node: int,
+    repairs: list[dict[str, Any]],
+    dropped_slugs: list[str],
+) -> list[dict[str, Any]]:
+    """Execute one step; on failure apply a single deterministic repair (no LLM).
+
+    Repairs never mutate ``scanner.spec``. Applied repairs are appended to
+    ``repairs`` as ``{"node", "class", "action"}`` for the run result only.
+    ``unknown`` (and exhausted repairs) propagate to the caller.
+    """
+    context: dict[str, Any] = {
+        "node": node,
+        "step": step,
+        "candidates": candidates,
+    }
+
+    async def _once(
+        step_arg: dict[str, Any], cands: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        return await _run_step(db, step_arg, cands, align_present=align_present)
+
+    try:
+        return await _once(step, candidates)
+    except Exception as exc:
+        error_class = classify_step_error(exc, context)
+        action = repair_action_for(error_class)
+        if action is None:
+            raise
+
+        repair_rec = {"node": node, "class": error_class, "action": action}
+        repairs.append(repair_rec)
+
+        if error_class == "type_mismatch":
+            coerced_step = coerce_numeric_strings(dict(step))
+            coerced_cands = coerce_numeric_strings([dict(c) for c in candidates])
+            return await _once(coerced_step, coerced_cands)
+
+        if error_class == "missing_field":
+            stype = str(step.get("type") or "").upper()
+            out: list[dict[str, Any]] = []
+            for cand in candidates:
+                row = dict(cand)
+                row["degraded"] = True
+                reads = dict(row.get("reads") or {})
+                if stype:
+                    prev = dict(reads.get(stype) or {})
+                    prev["degraded"] = True
+                    prev.setdefault("value", None)
+                    reads[stype] = prev
+                row["reads"] = reads
+                out.append(row)
+            return out
+
+        if error_class == "empty_response":
+            await _heal_sleep(1.0)
+            try:
+                return await _once(step, candidates)
+            except Exception as retry_exc:
+                if classify_step_error(retry_exc, context) == "empty_response":
+                    return []
+                raise
+
+        if error_class == "rate_limited":
+            await _heal_sleep(2.0 + float(_heal_jitter()))
+            return await _once(step, candidates)
+
+        if error_class in ("invalid_market", "expired_market"):
+            slug = market_slug_from_error(exc, context)
+            kept = list(candidates)
+            if slug:
+                dropped_slugs.append(slug)
+                slug_l = slug.lower()
+                kept = [
+                    c
+                    for c in candidates
+                    if str(c.get("market_slug") or "").lower() != slug_l
+                ]
+            if kept:
+                try:
+                    return await _once(step, kept)
+                except Exception:
+                    return kept
+            return kept
+
+        if error_class == "provider_transient":
+            await _heal_sleep(2.0)
+            return await _once(step, candidates)
+
+        raise
+
+
 def _test_mode_result_fields(scanner: Scanner, test_mode: bool) -> dict[str, Any]:
     """Result markers for pre-publish test runs (loop86 F-B).
 
@@ -435,6 +550,8 @@ async def run_scanner(
             for m in markets
         ]
         universe_count = len(candidates)
+        repairs: list[dict[str, Any]] = []
+        dropped_slugs: list[str] = []
 
         def _counts(*, candidates_n: int, aligned_n: int) -> dict[str, Any]:
             counts: dict[str, Any] = {
@@ -446,17 +563,26 @@ async def run_scanner(
                 counts["truncated"] = True
                 counts["truncated_from"] = pre_cap
                 counts["max_markets"] = effective_max
+            if dropped_slugs:
+                counts["dropped"] = len(dropped_slugs)
             return counts
+
+        def _attach_repairs(body: dict[str, Any]) -> dict[str, Any]:
+            if repairs:
+                body["repairs"] = list(repairs)
+            return body
 
         if universe_count == 0:
             run.status = "empty"
             run.finished_at = datetime.now(UTC)
-            run.result = {
-                "candidates": [],
-                "top_pick": None,
-                "counts": _counts(candidates_n=0, aligned_n=0),
-                **_test_mode_result_fields(scanner, test_mode),
-            }
+            run.result = _attach_repairs(
+                {
+                    "candidates": [],
+                    "top_pick": None,
+                    "counts": _counts(candidates_n=0, aligned_n=0),
+                    **_test_mode_result_fields(scanner, test_mode),
+                }
+            )
             await db.flush()
             await db.refresh(run)
             return run
@@ -466,21 +592,48 @@ async def run_scanner(
                 run.status = "failed"
                 run.error = "timeout"
                 run.finished_at = datetime.now(UTC)
-                run.result = {
-                    "candidates": candidates,
-                    "top_pick": None,
-                    "counts": _counts(candidates_n=len(candidates), aligned_n=0),
-                    **_test_mode_result_fields(scanner, test_mode),
-                }
+                run.result = _attach_repairs(
+                    {
+                        "candidates": candidates,
+                        "top_pick": None,
+                        "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                        **_test_mode_result_fields(scanner, test_mode),
+                    }
+                )
                 await db.flush()
                 if not test_mode:
                     await _maybe_deadletter_after_failure(db, scanner)
                 await db.refresh(run)
                 return run
 
-            candidates = await _run_step(
-                db, step, candidates, align_present=align_present
-            )
+            try:
+                candidates = await _run_step_with_heal(
+                    db,
+                    step,
+                    candidates,
+                    align_present=align_present,
+                    node=index,
+                    repairs=repairs,
+                    dropped_slugs=dropped_slugs,
+                )
+            except Exception as step_exc:
+                run.status = "failed"
+                run.error = str(step_exc)[:500]
+                run.finished_at = datetime.now(UTC)
+                run.result = _attach_repairs(
+                    {
+                        "candidates": candidates,
+                        "top_pick": None,
+                        "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                        **_test_mode_result_fields(scanner, test_mode),
+                    }
+                )
+                await db.flush()
+                if not test_mode:
+                    await _maybe_deadletter_after_failure(db, scanner)
+                await db.refresh(run)
+                return run
+
             run.checkpoint = {"node": index}
             await db.flush()
 
@@ -488,12 +641,14 @@ async def run_scanner(
                 run.status = "failed"
                 run.error = "timeout"
                 run.finished_at = datetime.now(UTC)
-                run.result = {
-                    "candidates": candidates,
-                    "top_pick": None,
-                    "counts": _counts(candidates_n=len(candidates), aligned_n=0),
-                    **_test_mode_result_fields(scanner, test_mode),
-                }
+                run.result = _attach_repairs(
+                    {
+                        "candidates": candidates,
+                        "top_pick": None,
+                        "counts": _counts(candidates_n=len(candidates), aligned_n=0),
+                        **_test_mode_result_fields(scanner, test_mode),
+                    }
+                )
                 await db.flush()
                 if not test_mode:
                     await _maybe_deadletter_after_failure(db, scanner)
@@ -507,12 +662,14 @@ async def run_scanner(
 
         aligned = [c for c in candidates if c.get("aligned")]
         top_pick = aligned[0] if aligned else None
-        run.result = {
-            "candidates": candidates,
-            "top_pick": top_pick,
-            "counts": _counts(candidates_n=len(candidates), aligned_n=len(aligned)),
-            **_test_mode_result_fields(scanner, test_mode),
-        }
+        run.result = _attach_repairs(
+            {
+                "candidates": candidates,
+                "top_pick": top_pick,
+                "counts": _counts(candidates_n=len(candidates), aligned_n=len(aligned)),
+                **_test_mode_result_fields(scanner, test_mode),
+            }
+        )
         run.status = "empty" if not candidates else "completed"
         run.finished_at = datetime.now(UTC)
         await db.flush()

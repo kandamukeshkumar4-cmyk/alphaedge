@@ -46,6 +46,9 @@ class ScannerRunOut(BaseModel):
     duration_ms: int | None = None
     # loop86 F-B: True for pre-publish test-mode runs (never alerts/emails).
     is_test: bool = False
+    # loop87 H3: healing visibility (API only — UI later).
+    repairs_count: int = 0
+    repairs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ScannerTestEmailOut(BaseModel):
