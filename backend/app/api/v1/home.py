@@ -58,7 +58,7 @@ HOME_DISCLAIMER = (
 
 async def _top_markets(db: AsyncSession, limit: int) -> list[dict[str, Any]]:
     """Active, non-decided markets. Compact projection only."""
-    markets = await MarketService(db).list_public_markets(sort="active")
+    markets, _ = await MarketService(db).list_public_markets(sort="active")
     top = markets[:limit]
     return [
         {
