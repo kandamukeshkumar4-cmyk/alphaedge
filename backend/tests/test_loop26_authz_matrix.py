@@ -44,6 +44,7 @@ METHODS = ("get", "post", "put", "patch", "delete")
 # public         = no user/admin dependency        (may still check paper token)
 # ---------------------------------------------------------------------------
 AUTH_CLASS: dict[tuple[str, str], str] = {
+    ("get", "/api/v1/alpha/hypotheses"): "public",
     ("get", "/api/v1/markets/{slug}/indicators"): "public",
     ("get", "/api/v1/alpha/factors"): "public",
     ("get", "/api/v1/alpha/latest-signal"): "public",
@@ -467,8 +468,8 @@ def _no_network(monkeypatch):
 def test_auth_class_table_covers_snapshot_surface():
     """197 paths in the snapshot; every operation has an auth class."""
     snap = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert len(snap) == 202, f"expected 202 paths, got {len(snap)}"
-    assert len(_OPS) == 222, f"expected 222 ops, got {len(_OPS)}"
+    assert len(snap) == 203, f"expected 203 paths, got {len(snap)}"
+    assert len(_OPS) == 223, f"expected 223 ops, got {len(_OPS)}"
     counts: dict[str, int] = {}
     for _m, _p, auth in _OPS:
         counts[auth] = counts.get(auth, 0) + 1
@@ -476,7 +477,7 @@ def test_auth_class_table_covers_snapshot_surface():
     assert counts["user"] == 66
     assert counts["optional_user"] == 3
     assert counts["admin_metrics"] == 1
-    assert counts["public"] == 111
+    assert counts["public"] == 112
 
 
 # Soft-checked app defects (must still not be uncaught). Loop V27 cleared

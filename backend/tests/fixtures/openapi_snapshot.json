@@ -362,6 +362,15 @@
    ]
   }
  },
+ "/api/v1/alpha/hypotheses": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Hypotheses",
+   "tags": [
+    "alpha"
+   ]
+  }
+ },
  "/api/v1/alpha/latest-signal": {
   "get": {
    "has_success_response": true,
