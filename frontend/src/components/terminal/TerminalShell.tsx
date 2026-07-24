@@ -9,6 +9,7 @@
  */
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { TerminalBullBear } from "@/components/terminal/TerminalBullBear";
@@ -93,6 +94,7 @@ export function TerminalShell() {
   const [composerKey, setComposerKey] = useState(0);
   const [view, setView] = useState<View>("dashboard");
   const [apiSource, setApiSource] = useState<"live" | "mock">("mock");
+  const [authRequired, setAuthRequired] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
   const [hideSteps, setHideSteps] = useState(false);
@@ -102,13 +104,17 @@ export function TerminalShell() {
 
   const refreshList = useCallback(async () => {
     setListLoading(true);
+    let requiresAuth = false;
     try {
-      const { sessions: items, source } = await listSessions();
+      const { sessions: items, source, authRequired: needsAuth } = await listSessions();
       setApiSource(source);
+      requiresAuth = Boolean(needsAuth);
+      setAuthRequired(requiresAuth);
       setSessions(items.map(toSessionSummary));
     } finally {
       setListLoading(false);
     }
+    return requiresAuth;
   }, []);
 
   const applySession = useCallback((s: ResearchSession) => {
@@ -159,8 +165,9 @@ export function TerminalShell() {
     async (id: string) => {
       setError(null);
       setMobileNav(false);
-      const { session: s, source } = await getSession(id);
+      const { session: s, source, authRequired: needsAuth } = await getSession(id);
       setApiSource(source);
+      setAuthRequired(Boolean(needsAuth));
       if (!s) {
         setError("Session not found.");
         return;
@@ -177,8 +184,8 @@ export function TerminalShell() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await refreshList();
-      if (cancelled) return;
+      const requiresAuth = await refreshList();
+      if (cancelled || requiresAuth) return;
       // A `?session={id}` deep link (from the Skills gallery Run flow) loads
       // that session directly instead of the most-recent one.
       const param =
@@ -210,12 +217,17 @@ export function TerminalShell() {
   const onAsk = useCallback(
     async (question: string, selected: SenseId[]) => {
       setView("dashboard");
-      const { session: created, source } = await createSession({
+      const { session: created, source, authRequired: needsAuth } = await createSession({
         question,
         market_slug: TERMINAL_CANONICAL_MARKET,
         senses: selected,
       });
       setApiSource(source);
+      setAuthRequired(Boolean(needsAuth));
+      if (!created) {
+        setError("Sign in to run live research.");
+        return;
+      }
       applySession(created);
       await runStream(created.id);
     },
@@ -384,13 +396,29 @@ export function TerminalShell() {
             >
               {PAPER_TRADING_DISCLAIMER}
               {apiSource === "mock" ? (
-                <span className="ml-2 font-mono text-[10px] uppercase text-muted-2">
-                  · local mock
+                <span className="mt-2 block font-mono text-[10px] font-bold uppercase text-muted-2">
+                  PAPER MOCK SESSION — not live research.
                 </span>
               ) : null}
             </p>
 
-            {view === "canvas" ? (
+            {authRequired ? (
+              <section
+                aria-label="Sign in required"
+                className="mt-4 flex min-h-[62dvh] flex-col items-center justify-center rounded-xl border border-dashed border-border px-4 py-10 text-center"
+              >
+                <h2 className="text-2xl font-black text-text">Sign in to view live research</h2>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">
+                  The live research API requires an account. No sample research session is shown here.
+                </p>
+                <Link
+                  href="/auth/login"
+                  className="mt-6 rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
+                >
+                  Sign in
+                </Link>
+              </section>
+            ) : view === "canvas" ? (
               <div className="mt-4">
                 <TerminalCanvas
                   steps={steps}
