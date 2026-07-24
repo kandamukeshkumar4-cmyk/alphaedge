@@ -1,0 +1,85 @@
+You are Cursor Grok 4.5 High, the BACKEND engineer on AlphaEdge (paper-trading prediction-market
+SIMULATION). Worktree: (assigned at launch). Branch loop105-catalog/node.
+
+Briefed as a mid-level developer: exact files, exact signatures, exact test names, zero open design
+decisions. The design decisions below are already made — implement them, do not re-litigate them.
+
+=== THE VERIFIED BUG ===
+GET /api/v1/markets returns the ENTIRE catalog on every call: 2,353,865 bytes, ~1.3s.
+Measured in prod, three ways — the size is byte-identical regardless of query params:
+    /api/v1/markets                 -> 2353865 bytes
+    /api/v1/markets?limit=3         -> 2353865 bytes
+    /api/v1/markets?limit=5&offset=0-> 2353865 bytes
+Root cause (already diagnosed, confirm it then fix it): backend/app/api/v1/routes.py L89-107,
+`async def list_markets(category, sort, q, db)` has NO limit/offset parameters at all. FastAPI
+silently discards the unknown query args, so the frontend "asking for 3" is a no-op. Every first
+paint of Discover, /markets and /trade downloads the whole catalog.
+
+=== DESIGN DECISIONS (made for you — implement exactly) ===
+1. KEEP the response shape `list[MarketResponse]`. Do NOT introduce an envelope object
+   ({items, total}) — that would break every existing consumer. Pagination metadata travels in
+   RESPONSE HEADERS instead.
+2. Add `limit: int = 100` and `offset: int = 0` to list_markets.
+   Validation: 1 <= limit <= 500, offset >= 0, else HTTP 400 (match the existing style at
+   routes.py L98-101 and the /search handler L120-123).
+3. Set response headers on every 200: `X-Total-Count` (total matching BEFORE slicing) and
+   `X-Page-Limit`, `X-Page-Offset`. Use a `Response` parameter injected by FastAPI.
+4. Slice in the SERVICE, not the router: add limit/offset to
+   `MarketService.list_public_markets` so the DB does the work (LIMIT/OFFSET in the query), and
+   return the total count alongside. Do not fetch-all-then-slice-in-Python — that keeps the cost.
+   New signature:
+     async def list_public_markets(self, *, category=None, sort="volume", q=None,
+                                   limit: int = 100, offset: int = 0) -> tuple[list, int]
+   (returns (rows, total_count))
+5. CACHE: the existing `markets_cache` key at routes.py L101 is `(category, sort, q)` and now
+   under-keys the result. Change the key to `(category, sort, q, limit, offset)` and cache the
+   `(rows, total)` tuple. Missing this is a correctness bug — a cached page-1 would be served for
+   page-2 requests.
+6. DEFAULT CHANGE IS INTENTIONAL AND BREAKING: callers that previously got everything now get 100.
+   That is the point. A separate frontend node updates the consumers against the contract below.
+
+--- FROZEN CONTRACT (a frontend node builds against this in parallel — do not deviate) ---
+GET /api/v1/markets?category=&sort=volume&q=&limit=100&offset=0
+  200 -> list[MarketResponse]  (UNCHANGED item shape)
+  headers: X-Total-Count: <int>, X-Page-Limit: <int>, X-Page-Offset: <int>
+  400 -> limit outside 1..500, or offset < 0, or existing invalid category/sort
+
+=== EXACT FILES (your exclusive charter) ===
+ 1. backend/app/api/v1/routes.py            — list_markets only (L89-107). Touch no other route.
+ 2. backend/app/services/market_service.py  — list_public_markets signature + LIMIT/OFFSET + count
+ 3. backend/tests/test_loop105_markets_pagination.py — these EXACT test names:
+      test_default_limit_is_100_not_full_catalog
+      test_limit_and_offset_slice_correctly
+      test_total_count_header_reflects_full_match_not_page
+      test_limit_over_500_returns_400
+      test_limit_zero_or_negative_returns_400
+      test_negative_offset_returns_400
+      test_cache_key_distinguishes_pages          # page 2 must not serve page 1's rows
+      test_category_and_sort_filters_still_apply_with_pagination
+      test_offset_past_end_returns_empty_list_not_error
+ 4. backend/tests/test_loop26_authz_matrix.py — ONLY if the (method,path) set changed. It should NOT
+    change (same path, new query params), so most likely you touch nothing here. Verify, don't assume.
+
+NOT YOURS: all of frontend/**, any alembic/** (this node adds NO migration), any other API module.
+
+=== GUARDRAILS (non-negotiable) ===
+- PAPER_TRADING_ONLY stays true. This is a read path; it must not touch order, risk, or position code.
+- Do not "fix" anything else you notice — list it in STATE105.md instead. Extra scope is a defect.
+- NEVER print, echo, or set a secret. Needs one -> "NEEDS USER: <what>" in STATE105.md.
+- Do NOT push. Do NOT deploy. Do NOT run `railway up`.
+
+=== STOP CONDITION (checkable, not your say-so) — paste real output into STATE105.md ===
+  cd backend && uv run --extra dev pytest -q tests/test_loop105_markets_pagination.py --basetemp=<worktree>/.pt
+  cd backend && uv run --extra dev ruff check app tests
+  cd backend && uv run python scripts/regen_openapi_snapshot.py   (query params changed -> regenerate)
+  cd backend && uv run --extra dev pytest -q --basetemp=<worktree>/.ptf   (full suite; paste summary line)
+PLUS a measured before/after: start the app locally and paste the byte size of
+  /api/v1/markets  and  /api/v1/markets?limit=10
+They must now differ. A fix that does not shrink the default payload has not worked, regardless of
+what the tests say.
+An independent auditor on a different model re-runs all of it. Unproven "done" is rejected.
+
+=== BUDGET LAW ===
+Grep to the files named above. 2 retries per failing command; 3 strikes on one error -> ESCALATION in
+STATE105.md and STOP. Commit per logical unit ("perf(loop105): ..."). End STATE105.md with
+`git log --oneline`.
