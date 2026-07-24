@@ -17,4 +17,16 @@ persist mutable runtime state.
 
 ## A1 — factor library
 
-Status: IN PROGRESS
+Status: DONE
+
+```text
+$ git log -1 --oneline
+c966dec feat(loop96): A1 — add pure alpha factor library
+
+$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
+..                                                                       [100%]
+2 passed in 46.60s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
