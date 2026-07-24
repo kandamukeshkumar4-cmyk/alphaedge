@@ -170,6 +170,11 @@ export function NotificationCenter() {
               </button>
             ) : null}
           </header>
+          {source === "mock" ? (
+            <p className="border-b border-border px-4 py-2 text-center text-xs text-muted-2">
+              Showing demo notifications. These alerts are simulated, not live account events.
+            </p>
+          ) : null}
 
           {/* Reserved height: skeletons/empty states hold the panel steady. */}
           <div className="min-h-[196px]">

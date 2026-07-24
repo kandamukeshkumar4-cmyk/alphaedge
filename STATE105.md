@@ -18,7 +18,7 @@ No backend, order path, secret, deployment, or forbidden file changes.
 - Item 5 PriceChart: generated candle fallback now carries an adjacent visible `Synthetic chart` indicator.
 - Item 6 marketplace spotlight: now honors the existing trending/featured `source` values and banners mock rows as a paper mock catalog.
 - Item 7 Quest board: tracks the bundled seed fallback, adds a visible seed-catalog banner, suppresses seed `LIVE` treatment, and labels team links `Paper buy`.
-- Item 8: pending.
+- Item 8 screener/notifications/portfolio: elevated existing mock source chips/subtitles to visible banners beside the decision-grade numbers.
 
 ## Verification
 
@@ -38,6 +38,7 @@ Item 1 focused typecheck:
 5. PriceChart: unlabeled generated OHLCV fallback → adjacent `Synthetic chart — generated from sample data, not live candles.` text.
 6. Marketplace: mock trending/featured cards with silent ratings/run counts → source-driven `Paper mock catalog` banner on each mock row.
 7. Quest board: seed cards with quiet `Paper sim` clock plus `Buy LAL/BOS` → visible seed-catalog banner, no seed `LIVE` badge, and `Paper buy LAL/BOS` links.
+8. Quiet decision-grade fallbacks: `local mock` / `paper mock` / `Offline mock` chips → visible demo banners for screener, notifications, and portfolio analytics.
 
 ## Blockers and unrelated findings
 
@@ -52,4 +53,5 @@ Item 1 focused typecheck:
 - `0444579 fix(loop105): honest source labelling — paper trade controls`
 - `8b0194d fix(loop105): honest source labelling — synthetic chart`
 - `550c8b5 fix(loop105): honest source labelling — marketplace`
-- Item 7 commit will be listed after commit.
+- `5401d82 fix(loop105): honest source labelling — quest seed board`
+- Item 8 commit will be listed after commit.
