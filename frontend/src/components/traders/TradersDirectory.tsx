@@ -182,13 +182,7 @@ export function TradersDirectory() {
   }, [sort]);
 
   useEffect(() => {
-    let active = true;
-    void load().catch(() => {
-      if (active) setError("The live trader rankings could not be loaded.");
-    });
-    return () => {
-      active = false;
-    };
+    void load();
   }, [load, reloadKey]);
 
   const visibleEntries = useMemo(() => {

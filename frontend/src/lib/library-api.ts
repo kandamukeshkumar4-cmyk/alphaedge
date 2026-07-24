@@ -290,12 +290,12 @@ export async function loadLibrary(
   }> = [
     {
       source: "briefs",
-      promise: requestJson(base, "/api/v1/briefs?limit=100", token, fetcher),
+      promise: requestJson(base, "/api/v1/briefs?limit=100", null, fetcher),
       normalize: normalizeBriefs,
     },
     {
       source: "memories",
-      promise: requestJson(base, "/api/v1/memories?limit=100", token, fetcher),
+      promise: requestJson(base, "/api/v1/memories?limit=100", null, fetcher),
       normalize: normalizeMemories,
     },
     {
@@ -305,12 +305,12 @@ export async function loadLibrary(
     },
     {
       source: "alpha",
-      promise: requestJson(base, "/api/v1/alpha/runs?limit=100", token, fetcher),
+      promise: requestJson(base, "/api/v1/alpha/runs?limit=100", null, fetcher),
       normalize: normalizeAlpha,
     },
     {
       source: "skills",
-      promise: requestJson(base, "/api/v1/skills/", token, fetcher),
+      promise: requestJson(base, "/api/v1/skills/", null, fetcher),
       normalize: normalizeSkills,
     },
   ];
