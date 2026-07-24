@@ -1,9 +1,13 @@
 """Focused tests for the additive market search service."""
 from datetime import UTC, datetime, timedelta
 
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 import pytest
 
+from app.api.v1.search import router
 from app.db.models import OddsSnapshot
+from app.db.session import get_db
 from app.services.market_search_service import search_markets
 from app.services.market_service import MarketService
 
@@ -69,6 +73,17 @@ async def _seed_markets(db_session):
     return markets
 
 
+async def _client_for(db_session):
+    test_app = FastAPI()
+    test_app.include_router(router)
+
+    async def override_get_db():
+        yield db_session
+
+    test_app.dependency_overrides[get_db] = override_get_db
+    return AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test")
+
+
 @pytest.mark.asyncio
 async def test_search_service_ranks_title_prefix_and_returns_latest_price(db_session):
     await _seed_markets(db_session)
@@ -89,3 +104,19 @@ async def test_search_service_ranks_title_prefix_and_returns_latest_price(db_ses
         "yes_price",
         "hours_to_close",
     }
+
+
+@pytest.mark.asyncio
+async def test_search_router_is_public_and_rejects_invalid_limit(db_session):
+    await _seed_markets(db_session)
+    client = await _client_for(db_session)
+    try:
+        response = await client.get("/api/v1/search", params={"q": "crypto"})
+        assert response.status_code == 200, response.text
+        assert response.json()["query"] == "crypto"
+        assert response.json()["items"][0]["slug"] == "bitcoin-price"
+
+        invalid = await client.get("/api/v1/search", params={"q": "crypto", "limit": 0})
+        assert invalid.status_code == 400
+    finally:
+        await client.aclose()
