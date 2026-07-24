@@ -175,3 +175,37 @@ def maybe_email_scanner_fired(
     return send_scanner_fired_email(
         scanner, run, settings=settings, smtp_factory=smtp_factory
     )
+
+
+def send_plain_text_email(
+    *,
+    to_addr: str,
+    subject: str,
+    body: str,
+    settings=None,
+    smtp_factory=None,
+) -> bool:
+    """Send one plain-text email via the shared SMTP helper.
+
+    Skips silently when SMTP is unconfigured or ``to_addr`` is empty.
+    Paper research only — never places orders.
+    """
+    settings = settings or get_settings()
+    if not smtp_configured(settings):
+        return False
+    dest = (to_addr or "").strip()
+    if not dest:
+        return False
+    resolved = _resolve_smtp(settings)
+    if resolved is None:
+        return False
+    host, port, user, password, from_addr, _default_to = resolved
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = dest
+    msg.set_content(body)
+    return _deliver(
+        msg, host=host, port=port, user=user, password=password, smtp_factory=smtp_factory
+    )

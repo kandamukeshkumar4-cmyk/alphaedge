@@ -1015,6 +1015,31 @@ async def morning_research_task(ctx: dict) -> dict:
     return {**summary, "distribution": distribution}
 
 
+NOTIFICATION_DIGEST_JOB_NAME = "send_notification_digest_task"
+
+
+async def send_notification_digest_task(ctx: dict) -> dict:
+    """Daily 13:00 UTC: email digest of unread + today's fired alerts.
+
+    Skips silently when SMTP is unconfigured. Paper research only — no execution.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.services.notification_digest_service import run_notification_digest
+
+    settings = (ctx or {}).get("settings")
+    session_factory = (ctx or {}).get("session_factory") or AsyncSessionLocal
+    async with session_factory() as session:
+        summary = await run_notification_digest(
+            session,
+            settings=settings,
+            now=(ctx or {}).get("now"),
+            smtp_factory=(ctx or {}).get("smtp_factory"),
+            send_fn=(ctx or {}).get("send_fn") or (ctx or {}).get("send_email"),
+        )
+        await session.commit()
+    return summary
+
+
 async def _attach_distribution_metadata(session, now, distribution: dict) -> None:
     """Record channels attempted/sent on today's digest row (spec: digest row gains
     distribution metadata)."""
@@ -1260,6 +1285,7 @@ class WorkerSettings:
         external_market_bridge_task,
         forecast_autolock_task,
         daily_digest_task,
+        send_notification_digest_task,
         jobrun_retention_task,
         data_retention_task,
     ]
@@ -1297,6 +1323,8 @@ class WorkerSettings:
         cron(analyst_aggregates_task, minute={50}),
         # daily research digest at 06:00 — "the desk runs while you sleep"
         cron(morning_research_task, hour={6}, minute={0}),
+        # Loop V90 N4: engagement email digest at 13:00 UTC (SMTP optional)
+        cron(send_notification_digest_task, hour={13}, minute={0}),
         # Loop V82 C5: Scanner Studio due-scanner sweep every 5 min
         cron(scanner_scheduler_task, minute=set(range(0, 60, 5))),
         # nightly backtest replay at 02:00 — flag-gated (BACKTEST_NIGHTLY_ENABLED=false)
