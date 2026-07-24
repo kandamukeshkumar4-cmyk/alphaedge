@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildCalibrationCurve, type CalibrationBin } from "./calibration-api";
+import { buildCalibrationCurve, type CalibrationBin, fetchCalibrationBins } from "./calibration-api";
 
 function bin(binIdx: number, count: number, pred: number, outcome: number): CalibrationBin {
   return { bin: binIdx, count, mean_pred: pred, mean_outcome: outcome };
@@ -41,5 +41,38 @@ describe("buildCalibrationCurve", () => {
     expect(curve.points).toEqual([]);
     expect(curve.totalN).toBe(0);
     expect(curve.provisional).toBe(true);
+  });
+});
+
+describe("fetchCalibrationBins", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("calibration_bins_fetches_the_eval_calibration_path", async () => {
+    const bins: CalibrationBin[] = [{ bin: 0, count: 2, mean_pred: 0.1, mean_outcome: 0.2 }];
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ bins }),
+    } as Response);
+    vi.stubGlobal("fetch", fetcher);
+
+    // Parsing is untouched: the bins array comes back verbatim.
+    await expect(fetchCalibrationBins()).resolves.toEqual(bins);
+
+    const urls = fetcher.mock.calls.map((call) => String(call[0]));
+    // The request must target the real eval endpoint…
+    expect(urls.some((url) => /\/api\/v1\/eval\/calibration(\?|$)/.test(url))).toBe(true);
+    // …and never the bare /api/v1/calibration path that 404s in prod.
+    expect(urls.some((url) => /\/api\/v1\/calibration(\?|$)/.test(url))).toBe(false);
+  });
+
+  it("calibration_bins_returns_empty_on_http_error", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    } as Response);
+    vi.stubGlobal("fetch", fetcher);
+
+    await expect(fetchCalibrationBins()).resolves.toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 import { API_BASE, apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 
 /**
- * Real calibration bins from GET /api/v1/calibration (eval_routes.py).
+ * Real calibration bins from GET /api/v1/eval/calibration (eval_routes.py).
  * Each bin buckets resolved evaluations by predicted probability and reports
  * the mean predicted prob (x), the observed outcome frequency (y), and the
  * sample count. Empty bins carry count=0 and are dropped by the curve builder.
@@ -51,7 +51,7 @@ export async function fetchCalibrationBins(signal?: AbortSignal): Promise<Calibr
   const base = (await ensureApiBase()) || API_BASE;
   if (!hasLiveApi(base)) return [];
   try {
-    const res = await fetch(apiUrl("/api/v1/calibration", base), {
+    const res = await fetch(apiUrl("/api/v1/eval/calibration", base), {
       cache: "no-store",
       signal,
     });
