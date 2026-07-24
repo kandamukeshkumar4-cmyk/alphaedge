@@ -42,6 +42,20 @@ class SkillRatingOut(BaseModel):
     my_stars: int
 
 
+class SkillTrendingOut(SkillOut):
+    avg_rating: float
+    rating_count: int
+    trending_score: float
+
+
+class SkillFeaturedListOut(BaseModel):
+    items: list[SkillOut]
+
+
+class SkillTrendingListOut(BaseModel):
+    items: list[SkillTrendingOut]
+
+
 class SkillRunRequest(BaseModel):
     market_slug: str = Field(min_length=1, max_length=128)
     question: str | None = Field(default=None, min_length=1, max_length=4000)

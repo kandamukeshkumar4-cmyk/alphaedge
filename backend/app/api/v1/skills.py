@@ -3,14 +3,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
 from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
-from app.db.models import ResearchSession, Skill, User
+from app.db.models import ResearchSession, Skill, SkillRating, User
 from app.db.session import get_db
 from app.schemas.skills import (
     SkillCreate,
@@ -19,8 +19,14 @@ from app.schemas.skills import (
     SkillRatingOut,
     SkillRunOut,
     SkillRunRequest,
+    SkillTrendingListOut,
+    SkillTrendingOut,
 )
 from app.services.marketplace_rating_service import upsert_skill_rating
+from app.services.marketplace_trending_service import (
+    compute_trending_score,
+    sort_trending_items,
+)
 from app.services.terminal_research_service import (
     execute_session as run_terminal_research,
     normalize_plan,
@@ -58,6 +64,55 @@ async def list_skills(db: AsyncSession = Depends(get_db)) -> list[SkillOut]:
         await db.scalars(select(Skill).order_by(Skill.run_count.desc(), Skill.name.asc()))
     ).all()
     return [_skill_out(skill) for skill in skills]
+
+
+@router.get("/trending", response_model=SkillTrendingListOut)
+async def trending_skills(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+) -> SkillTrendingListOut:
+    """Rank skills by recent-run proxy (run_count) + avg_rating. Deterministic."""
+    skills = (await db.scalars(select(Skill).where(Skill.is_public.is_(True)))).all()
+    if not skills:
+        return SkillTrendingListOut(items=[])
+
+    rating_rows = (
+        await db.execute(
+            select(
+                SkillRating.ref_id,
+                func.avg(SkillRating.stars),
+                func.count(),
+            ).group_by(SkillRating.ref_id)
+        )
+    ).all()
+    rating_map = {
+        row[0]: (float(row[1] or 0.0), int(row[2] or 0)) for row in rating_rows
+    }
+
+    built: list[dict] = []
+    for skill in skills:
+        avg_rating, rating_count = rating_map.get(skill.id, (0.0, 0))
+        run_count = int(skill.run_count or 0)
+        # Skills have no per-run log — reuse aggregate run_count as the run signal.
+        score = compute_trending_score(
+            recent_run_count=0,
+            avg_rating=avg_rating,
+            run_count=run_count,
+        )
+        base = _skill_out(skill).model_dump()
+        base.update(
+            {
+                "avg_rating": avg_rating,
+                "rating_count": rating_count,
+                "run_count": run_count,
+                "trending_score": score,
+                "name": skill.name,
+            }
+        )
+        built.append(base)
+
+    ranked = sort_trending_items(built, limit=limit)
+    return SkillTrendingListOut(items=[SkillTrendingOut(**row) for row in ranked])
 
 
 @router.get("/{skill_id}", response_model=SkillOut)

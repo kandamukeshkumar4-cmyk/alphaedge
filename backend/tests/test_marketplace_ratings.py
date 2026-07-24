@@ -1,16 +1,22 @@
-"""M1/M2 — marketplace ratings CRUD + rate API."""
+"""M1/M2/M3 — marketplace ratings, rate API, trending."""
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import Scanner, ScannerRating, Skill, SkillRating
+from app.db.models import Scanner, ScannerRating, ScannerRun, Skill, SkillRating
 from app.db.session import get_db
 from app.main import app
+from app.services.marketplace_trending_service import (
+    compute_trending_score,
+    recent_window_start,
+    sort_trending_items,
+)
 
 
 def _skill(**kwargs) -> Skill:
@@ -259,6 +265,121 @@ async def test_scanner_rate_upsert_auth_and_validation(db_session):
         assert upserted.json()["count"] == 1
         assert upserted.json()["my_stars"] == 5
         assert upserted.json()["avg"] == 5.0
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()
+
+
+# --- M3: trending ---
+
+
+def test_compute_trending_score_deterministic():
+    assert compute_trending_score(recent_run_count=10, avg_rating=4.5) == 14.5
+    # Fallback to run_count when recent is zero (skills proxy).
+    assert compute_trending_score(recent_run_count=0, avg_rating=3.0, run_count=7) == 10.0
+    # Prefer recent when present.
+    assert compute_trending_score(recent_run_count=2, avg_rating=1.0, run_count=100) == 3.0
+
+
+def test_sort_trending_items_desc_and_limit():
+    items = [
+        {"name": "b", "trending_score": 5.0},
+        {"name": "a", "trending_score": 5.0},
+        {"name": "c", "trending_score": 9.0},
+    ]
+    ranked = sort_trending_items(items, limit=2)
+    assert [r["name"] for r in ranked] == ["c", "a"]
+
+
+def test_recent_window_start_uses_reference_time():
+    now = datetime(2026, 7, 24, 12, 0, tzinfo=UTC)
+    assert recent_window_start(now) == now - timedelta(days=7)
+
+
+@pytest.mark.asyncio
+async def test_skills_trending_ordered_by_score(db_session):
+    low = _skill(name="trend-low", run_count=1, is_public=True)
+    high = _skill(name="trend-high", run_count=20, is_public=True)
+    mid = _skill(name="trend-mid", run_count=5, is_public=True)
+    private = _skill(name="trend-private", run_count=100, is_public=False)
+    db_session.add_all([low, high, mid, private])
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            SkillRating(user="u1", ref_id=low.id, stars=5),
+            SkillRating(user="u1", ref_id=high.id, stars=4),
+            SkillRating(user="u2", ref_id=high.id, stars=4),
+            SkillRating(user="u1", ref_id=mid.id, stars=5),
+        ]
+    )
+    await db_session.flush()
+
+    client = await _api_client(db_session)
+    try:
+        resp = await client.get("/api/v1/skills/trending?limit=10")
+        assert resp.status_code == 200, resp.text
+        items = resp.json()["items"]
+        names = [i["name"] for i in items]
+        assert "trend-private" not in names
+        assert names[0] == "trend-high"
+        assert items[0]["trending_score"] == compute_trending_score(
+            recent_run_count=0, avg_rating=4.0, run_count=20
+        )
+        assert "avg_rating" in items[0]
+        assert "rating_count" in items[0]
+        assert "run_count" in items[0]
+        # Descending scores
+        scores = [i["trending_score"] for i in items]
+        assert scores == sorted(scores, reverse=True)
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_scanners_trending_uses_recent_runs(db_session):
+    now = datetime.now(UTC)
+    hot = _scanner(name="scan-hot", is_public=True)
+    cold = _scanner(name="scan-cold", is_public=True)
+    db_session.add_all([hot, cold])
+    await db_session.flush()
+
+    # 3 recent runs for hot, 1 old run for cold
+    for _ in range(3):
+        db_session.add(
+            ScannerRun(
+                scanner_id=hot.id,
+                started_at=now - timedelta(days=1),
+                status="completed",
+            )
+        )
+    db_session.add(
+        ScannerRun(
+            scanner_id=cold.id,
+            started_at=now - timedelta(days=30),
+            status="completed",
+        )
+    )
+    db_session.add(ScannerRating(user="u1", ref_id=hot.id, stars=5))
+    db_session.add(ScannerRating(user="u1", ref_id=cold.id, stars=5))
+    await db_session.flush()
+
+    client = await _api_client(db_session)
+    try:
+        resp = await client.get("/api/v1/scanners/trending?limit=5")
+        assert resp.status_code == 200, resp.text
+        items = resp.json()["items"]
+        assert items[0]["name"] == "scan-hot"
+        assert items[0]["run_count"] == 3
+        assert items[0]["trending_score"] == compute_trending_score(
+            recent_run_count=3, avg_rating=5.0, run_count=3
+        )
+        cold_item = next(i for i in items if i["name"] == "scan-cold")
+        # Old run outside 7d → recent=0, falls back to total run_count=1
+        assert cold_item["trending_score"] == compute_trending_score(
+            recent_run_count=0, avg_rating=5.0, run_count=1
+        )
     finally:
         await client.aclose()
         app.dependency_overrides.clear()

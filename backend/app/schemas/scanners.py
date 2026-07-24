@@ -84,3 +84,18 @@ class ScannerRatingOut(BaseModel):
     avg: float
     count: int
     my_stars: int
+
+
+class ScannerTrendingOut(ScannerOut):
+    avg_rating: float
+    rating_count: int
+    run_count: int
+    trending_score: float
+
+
+class ScannerFeaturedListOut(BaseModel):
+    items: list[ScannerOut]
+
+
+class ScannerTrendingListOut(BaseModel):
+    items: list[ScannerTrendingOut]

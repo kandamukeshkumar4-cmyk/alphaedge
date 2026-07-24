@@ -4,14 +4,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
 from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
-from app.db.models import Scanner, ScannerRun, User
+from app.db.models import Scanner, ScannerRating, ScannerRun, User
 from app.db.session import get_db
 from app.schemas.scanners import (
     ScannerCompileOut,
@@ -22,9 +22,16 @@ from app.schemas.scanners import (
     ScannerRatingOut,
     ScannerRunOut,
     ScannerTestEmailOut,
+    ScannerTrendingListOut,
+    ScannerTrendingOut,
     ScannerUpdate,
 )
 from app.services.marketplace_rating_service import upsert_scanner_rating
+from app.services.marketplace_trending_service import (
+    compute_trending_score,
+    recent_window_start,
+    sort_trending_items,
+)
 from app.services.scanner_compiler_service import compile_scanner_flow
 from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
@@ -213,6 +220,89 @@ async def list_scanners(
         await db.scalars(select(Scanner).where(clause).order_by(Scanner.created_at.desc()))
     ).all()
     return [_scanner_out(s) for s in scanners]
+
+
+@router.get("/trending", response_model=ScannerTrendingListOut)
+async def trending_scanners(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+) -> ScannerTrendingListOut:
+    """Rank public scanners by 7d run count + avg_rating. Deterministic."""
+    # Reference time is injected once here; pure score fn never calls now().
+    now = datetime.now(UTC)
+    window_start = recent_window_start(now)
+
+    scanners = (
+        await db.scalars(select(Scanner).where(Scanner.is_public.is_(True)))
+    ).all()
+    if not scanners:
+        return ScannerTrendingListOut(items=[])
+
+    scanner_ids = [s.id for s in scanners]
+
+    rating_rows = (
+        await db.execute(
+            select(
+                ScannerRating.ref_id,
+                func.avg(ScannerRating.stars),
+                func.count(),
+            )
+            .where(ScannerRating.ref_id.in_(scanner_ids))
+            .group_by(ScannerRating.ref_id)
+        )
+    ).all()
+    rating_map = {
+        row[0]: (float(row[1] or 0.0), int(row[2] or 0)) for row in rating_rows
+    }
+
+    recent_rows = (
+        await db.execute(
+            select(ScannerRun.scanner_id, func.count())
+            .where(
+                ScannerRun.scanner_id.in_(scanner_ids),
+                ScannerRun.started_at >= window_start,
+                ScannerRun.started_at <= now,
+            )
+            .group_by(ScannerRun.scanner_id)
+        )
+    ).all()
+    recent_map = {row[0]: int(row[1] or 0) for row in recent_rows}
+
+    total_rows = (
+        await db.execute(
+            select(ScannerRun.scanner_id, func.count())
+            .where(ScannerRun.scanner_id.in_(scanner_ids))
+            .group_by(ScannerRun.scanner_id)
+        )
+    ).all()
+    total_map = {row[0]: int(row[1] or 0) for row in total_rows}
+
+    built: list[dict] = []
+    for scanner in scanners:
+        avg_rating, rating_count = rating_map.get(scanner.id, (0.0, 0))
+        recent = recent_map.get(scanner.id, 0)
+        run_count = total_map.get(scanner.id, 0)
+        score = compute_trending_score(
+            recent_run_count=recent,
+            avg_rating=avg_rating,
+            run_count=run_count,
+        )
+        base = _scanner_out(scanner).model_dump()
+        base.update(
+            {
+                "avg_rating": avg_rating,
+                "rating_count": rating_count,
+                "run_count": run_count,
+                "trending_score": score,
+                "name": scanner.name,
+            }
+        )
+        built.append(base)
+
+    ranked = sort_trending_items(built, limit=limit)
+    return ScannerTrendingListOut(
+        items=[ScannerTrendingOut(**row) for row in ranked]
+    )
 
 
 async def _last_error_for(db: AsyncSession, scanner_id: UUID) -> str | None:
