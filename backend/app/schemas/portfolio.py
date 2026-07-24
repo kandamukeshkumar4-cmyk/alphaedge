@@ -121,3 +121,40 @@ class PortfolioResponse(BaseModel):
     total_trades: int = 0
     paper_trading_only: bool = True
     disclaimer: str = PORTFOLIO_DISCLAIMER
+
+
+class PnLSeriesPoint(BaseModel):
+    date: str
+    realized_pnl: float
+    unrealized_pnl: float
+    equity: float
+
+
+class PortfolioAnalyticsSummary(BaseModel):
+    total_realized: float = 0.0
+    total_unrealized: float = 0.0
+    win_rate: float = 0.0
+    trades_closed: int = 0
+    trades_open: int = 0
+    best_trade: float = 0.0
+    worst_trade: float = 0.0
+    avg_hold_hours: float = 0.0
+
+
+class PortfolioCalibrationBucket(BaseModel):
+    predicted_prob_bucket: str
+    actual_rate: float
+    n: int
+
+
+class PortfolioCalibrationBlock(BaseModel):
+    buckets: list[PortfolioCalibrationBucket] = Field(default_factory=list)
+    paper_trading_only: bool = True
+
+
+class PortfolioAnalyticsResponse(BaseModel):
+    """V92 — user paper-trading performance analytics (frozen contract)."""
+
+    pnl_series: list[PnLSeriesPoint] = Field(default_factory=list)
+    summary: PortfolioAnalyticsSummary = Field(default_factory=PortfolioAnalyticsSummary)
+    calibration: PortfolioCalibrationBlock = Field(default_factory=PortfolioCalibrationBlock)
