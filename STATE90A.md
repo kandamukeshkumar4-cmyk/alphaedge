@@ -2,112 +2,134 @@
 
 Worktree: `E:/polymarket-worktrees/loop90-notif`  
 Branch: `loop90/notif`  
-Charter: backend/** + STATE90A.md  
-Status: **DONE** (N1–N5)
+Charter: `backend/**` + this file. Migration owner this wave.  
+Status: **N1–N5 DONE** — STOP (no push/deploy).
 
 Frozen FE contracts implemented (shapes unchanged):
-- `GET /api/v1/notifications?limit=30` → `{items[{id,type,title,body,read,created_at,link}], unread}`
-- `POST /api/v1/notifications/{id}/read` → 204
-- `POST /api/v1/notifications/read-all` → `{marked}`
+- `GET /api/v1/notifications?limit=30` → `{items:[{id,type,title,body,read,created_at,link}], unread:N}`
+- `POST /api/v1/notifications/{id}/read` → `204`
+- `POST /api/v1/notifications/read-all` → `{marked:N}`
 - `GET|PUT /api/v1/notifications/preferences` → `{email_digest,in_app,fired_alerts}`
-- `POST /api/v1/notifications/push/subscribe` → `{stored:true}` (store only)
+- `POST /api/v1/notifications/push/subscribe` → `{stored:true}` (store JSON only)
 
-Migration head: `062_notif_engagement` (revises `061_scanner_test_runs`)
+Migration head chained: `061_scanner_test_runs` → `062_notif_engagement` (id ≤32).
 
-## Ticket log
+Paper-only: no orders / RiskService / OrderBookService. No new deps. Web-push send not built.
 
-### N1 — model + migration + feed CRUD
-```
-1db2b02e159d38ff700e5b4e790024518f5e2237
-feat(loop90): N1 — notifications schema + frozen feed API
-2026-07-23 21:00:12 -0400
-```
-```
-......                                                                   [100%]
-6 passed in 8.54s
-```
-(`uv run --extra dev pytest tests/test_notifications_api.py -q --basetemp=.../n1`)
+---
 
-### N2 — producers (scanner:fired / brief) + 1h idempotency
-```
-b342956f488f5a49692c75445da0b74f2d70bbbc
-feat(loop90): N2 — scanner/brief in-app notification hooks
-2026-07-23 21:02:16 -0400
-```
-```
-0e2bb27147bb80ffac23052464cd6f008c33940a
-feat(loop90): N2 — scanner/brief in-app notification producers
-2026-07-23 21:02:54 -0400
-```
-```
-............                                                             [100%]
-12 passed in 14.60s
-```
-(`test_notifications_api.py` + `test_notification_producers_v90.py`)
+## Commits
 
-### N3 — preferences API
 ```
-2f54d060028ac27bb268e4fb490f0992a7ca2542
-feat(loop90): N3 — notification preferences API tests
-2026-07-23 21:02:49 -0400
+6e95d0b feat(loop90): N5 — push subscribe store-only endpoint tests
+e09c2d8 feat(loop90): N4 — daily email notification digest at 13:00 UTC
+6676c35 feat(loop90): N4 — notification email digest at 13:00 UTC
+0e2bb27 feat(loop90): N2 — scanner/brief in-app notification producers
+2f54d06 feat(loop90): N3 — notification preferences API tests
+b342956 feat(loop90): N2 — scanner/brief in-app notification hooks
+1db2b02 feat(loop90): N1 — notifications schema + frozen feed API
 ```
+
+---
+
+## N1 — model + migration + CRUD
+
+**git log -1** (at N1):
+```
+1db2b02 feat(loop90): N1 — notifications schema + frozen feed API
+```
+
+**pytest** (`tests/test_notifications_api.py`, basetemp under worktree):
+```
+.......                                                                  [100%]
+7 passed in 9.60s
+```
+
+Schema: `notifications(user str(64), type(24), title(200), body(1000), read bool, link(300), created_at)` + `notification_preferences` + `push_subscriptions`.
+
+---
+
+## N2 — in-app feed + scanner/brief hooks
+
+**git log -1**:
+```
+b342956 feat(loop90): N2 — scanner/brief in-app notification hooks
+0e2bb27 feat(loop90): N2 — scanner/brief in-app notification producers
+```
+
+**pytest** (`tests/test_notification_hooks.py` + related):
+```
+...........                                                              [100%]
+11 passed in 12.51s
+```
+
+Hooks: `record_scanner_fired_alert` → `notify_scanner_fired` (`scanner:fired`); analyst `persist_publish` → `notify_watchers_brief_created` (`brief`). Respects `in_app` (+ `fired_alerts` for scanner). Idempotent `(user,type,link)` within 1h.
+
+---
+
+## N3 — preferences API
+
+**git log -1**:
+```
+2f54d06 feat(loop90): N3 — notification preferences API tests
+```
+
+**pytest** (`tests/test_notification_preferences.py`):
 ```
 ...                                                                      [100%]
-3 passed
+3 passed in 11.99s
 ```
-(`tests/test_notification_preferences.py`)
 
-### N4 — email digest (13:00 UTC dual-wire)
+---
+
+## N4 — email digest dual-wire (13:00 UTC)
+
+**git log -1**:
 ```
-6676c3514205a8c2259822f543e8f20bb36fb710
-feat(loop90): N4 — notification email digest at 13:00 UTC
-2026-07-23 21:06:34 -0400
+6676c35 feat(loop90): N4 — notification email digest at 13:00 UTC
+e09c2d8 feat(loop90): N4 — daily email notification digest at 13:00 UTC
 ```
-```
-e09c2d845ed67244f1136018659f3a8385789746
-feat(loop90): N4 — daily email notification digest at 13:00 UTC
-2026-07-23 21:07:09 -0400
-```
+
+**pytest** (`tests/test_notification_digest.py`):
 ```
 ....                                                                     [100%]
-4 passed in 11.45s
+4 passed in 12.66s
 ```
-(`tests/test_notification_digest.py` — monkeypatched SMTP: 1 send when on, 0 when off)
 
-### N5 — push subscribe store-only
+- Task: `async def send_notification_digest_task(ctx)`
+- In-process: `_notification_digest_loop` — seconds-to-next-13:00 (no sleep-first-24h)
+- ARQ: `cron(send_notification_digest_task, hour={13}, minute={0})`
+- SMTP via existing helper; skip silently if unconfigured
+
+---
+
+## N5 — push subscribe (store only)
+
+**git log -1**:
 ```
 6e95d0bf3574a5d17fda782a92096639b396ee3d
 feat(loop90): N5 — push subscribe store-only endpoint tests
-2026-07-23 21:07:28 -0400
 ```
+
+**pytest** (`tests/test_notification_push.py`):
 ```
 ...                                                                      [100%]
-3 passed in 16.44s
-```
-(`tests/test_notification_push.py`)
-
-## Aggregated proof
-
-Notification cluster:
-```
-........................................                                 [100%]
-40 passed in 29.52s
+3 passed in 8.90s
 ```
 
-Full backend suite (`--basetemp` under this worktree):
+---
+
+## Full suite (end)
+
+```text
+cd backend && uv run --extra dev pytest -q --basetemp=../.pytest-basetemp/full
+2015 passed, 28 skipped in 992.59s (0:16:32)
 ```
-2015 passed, 28 skipped, 4 warnings in 943.23s (0:15:43)
-```
 
-Ruff: `uv run --extra dev ruff check app tests` → All checks passed!
+AutoLab: not applicable (no iterative measure — contract implementation tickets).
 
-## Notes
-- Paper-only; no order path; no web-push send; no new deps.
-- Digest reuses `scanner_email_service` SMTP; skips silently when unconfigured.
-- In-process `_notification_digest_loop` wall-clock to next 13:00 UTC + ARQ cron mirror.
-- AutoLab: not applicable (no iterative measure)
+---
 
-## LOOP LOG
-| loop | date | result | proof |
-|------|------|--------|-------|
-| V90 E-A N1–N5 | 2026-07-23 | DONE | 2015 passed / ruff clean / commits N1–N5 |
+## STOP
+
+N1–N5 complete. No push / no deploy.
