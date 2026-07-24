@@ -261,3 +261,57 @@ async def test_analytics_calibration_mixed_bucket_rate(db_session):
     assert matched[0]["n"] == 2
     assert matched[0]["actual_rate"] == pytest.approx(0.5)
 
+
+@pytest.mark.asyncio
+async def test_analytics_endpoint_requires_auth():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/api/v1/portfolio/analytics")
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_analytics_endpoint_rejects_bad_days(db_session):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup(client, "analytics-days@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+        r0 = await client.get("/api/v1/portfolio/analytics?days=0", headers=headers)
+        r366 = await client.get("/api/v1/portfolio/analytics?days=366", headers=headers)
+        rneg = await client.get("/api/v1/portfolio/analytics?days=-5", headers=headers)
+    assert r0.status_code == 400
+    assert r366.status_code == 400
+    assert rneg.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_analytics_endpoint_ok_contract(db_session):
+    await MarketService(db_session).seed_catalog_markets()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup(client, "analytics-api@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+        empty = await client.get("/api/v1/portfolio/analytics?days=30", headers=headers)
+        assert empty.status_code == 200
+        body = empty.json()
+        assert body["pnl_series"] == []
+        assert body["summary"]["trades_closed"] == 0
+        assert body["calibration"]["paper_trading_only"] is True
+
+        buy = await client.post(
+            "/api/v1/orders",
+            headers=headers,
+            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 10, "price": 0.4},
+        )
+        assert buy.status_code in (200, 201)
+        await client.post(
+            f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
+            headers=ADMIN_HEADERS,
+            json={"winning_outcome": "YES"},
+        )
+        r = await client.get("/api/v1/portfolio/analytics?days=30", headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body.keys()) == {"pnl_series", "summary", "calibration"}
+    assert body["summary"]["win_rate"] == pytest.approx(1.0)
+    assert body["summary"]["total_realized"] == pytest.approx(6.0)
+    assert len(body["pnl_series"]) == 30
+    assert body["calibration"]["buckets"]
+

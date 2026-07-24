@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,11 +23,16 @@ from app.schemas.portfolio import (
     EquityCurveResponse,
     ExposureGroupResponse,
     ExposureResponse,
+    PortfolioAnalyticsResponse,
+    PortfolioAnalyticsSummary,
     PortfolioAttributionResponse,
+    PortfolioCalibrationBlock,
+    PortfolioCalibrationBucket,
     PortfolioPositionResponse,
     PortfolioResponse,
     PortfolioRiskResponse,
     PortfolioSummaryResponse,
+    PnLSeriesPoint,
 )
 from app.services.analytics_attribution import (
     OrderLeg,
@@ -36,6 +41,7 @@ from app.services.analytics_attribution import (
 )
 from app.services.exposure_service import PositionInput, compute_exposure
 from app.services.paper_position_service import fifo_open_position
+from app.services.portfolio_analytics_service import compute_portfolio_analytics
 from app.services.portfolio_risk import ClosedTrade, OpenExposure, compute_risk_metrics
 
 import logging
@@ -180,6 +186,39 @@ async def _load_paper_orders(
         )
     return positions
 
+
+
+
+@router.get("/portfolio/analytics", response_model=PortfolioAnalyticsResponse)
+async def get_portfolio_analytics(
+    days: int = Query(default=30),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PortfolioAnalyticsResponse:
+    """V92 — authenticated paper performance analytics (frozen contract)."""
+    if days < 1 or days > 365:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="days must be between 1 and 365",
+        )
+    try:
+        payload = await compute_portfolio_analytics(db, current_user, days)
+    except (OperationalError, ProgrammingError) as exc:
+        raise _portfolio_unavailable() from exc
+
+    return PortfolioAnalyticsResponse(
+        pnl_series=[PnLSeriesPoint(**point) for point in payload["pnl_series"]],
+        summary=PortfolioAnalyticsSummary(**payload["summary"]),
+        calibration=PortfolioCalibrationBlock(
+            buckets=[
+                PortfolioCalibrationBucket(**bucket)
+                for bucket in payload["calibration"]["buckets"]
+            ],
+            paper_trading_only=bool(
+                payload["calibration"].get("paper_trading_only", True)
+            ),
+        ),
+    )
 
 @router.get("/portfolio/summary", response_model=PortfolioSummaryResponse)
 async def get_portfolio_summary(
