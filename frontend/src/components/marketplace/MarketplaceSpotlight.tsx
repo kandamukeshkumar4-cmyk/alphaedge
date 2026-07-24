@@ -17,6 +17,7 @@ import { cn } from "@/lib/cn";
 import {
   getFeaturedMarketplace,
   getTrendingMarketplace,
+  type ApiSource,
   type FeaturedItem,
   type TrendingItem,
 } from "@/lib/marketplace-api";
@@ -143,6 +144,8 @@ export function MarketplaceSpotlight() {
   const { token, isReady } = useAuth();
   const [trending, setTrending] = useState<TrendingItem[]>([]);
   const [featured, setFeatured] = useState<FeaturedItem[]>([]);
+  const [trendingSource, setTrendingSource] = useState<ApiSource>("mock");
+  const [featuredSource, setFeaturedSource] = useState<ApiSource>("mock");
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -155,6 +158,8 @@ export function MarketplaceSpotlight() {
       ]);
       setTrending(t.items);
       setFeatured(f.items);
+      setTrendingSource(t.source);
+      setFeaturedSource(f.source);
     } finally {
       setLoading(false);
     }
@@ -181,6 +186,11 @@ export function MarketplaceSpotlight() {
             </p>
           </div>
         </div>
+        {!loading && trendingSource === "mock" ? (
+          <p className="mt-4 text-center text-xs text-muted-2">
+            Paper mock catalog — trending scores, run counts, and ratings are simulated.
+          </p>
+        ) : null}
         {loading ? (
           <RowSkeleton testId="marketplace-trending-skeleton" />
         ) : trending.length === 0 ? (
@@ -222,6 +232,11 @@ export function MarketplaceSpotlight() {
             </p>
           </div>
         </div>
+        {!loading && featuredSource === "mock" ? (
+          <p className="mt-4 text-center text-xs text-muted-2">
+            Paper mock catalog — featured items and run counts are simulated.
+          </p>
+        ) : null}
         {loading ? (
           <RowSkeleton testId="marketplace-featured-skeleton" />
         ) : featured.length === 0 ? (

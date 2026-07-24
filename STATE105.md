@@ -16,7 +16,8 @@ No backend, order path, secret, deployment, or forbidden file changes.
 - Item 3 terminal research: 401 responses now produce a sign-in empty state; offline mock sessions carry a loud `PAPER MOCK SESSION — not live research` banner.
 - Item 4 trade controls: relabeled buy/close controls, progress states, toasts, money fields, and position values as paper-only; order and risk logic untouched.
 - Item 5 PriceChart: generated candle fallback now carries an adjacent visible `Synthetic chart` indicator.
-- Items 6–8: pending.
+- Item 6 marketplace spotlight: now honors the existing trending/featured `source` values and banners mock rows as a paper mock catalog.
+- Items 7–8: pending.
 
 ## Verification
 
@@ -34,6 +35,7 @@ Item 1 focused typecheck:
 3. Terminal research: quiet `· local mock` and fabricated 401 fallback → loud `PAPER MOCK SESSION — not live research`, or a sign-in empty state with no fabricated session.
 4. Trade controls: `Buy` / `Placing order…` / `Order placed` → `Paper buy` / `Placing paper order…` / `Paper order placed`; position close and money labels use the same paper framing.
 5. PriceChart: unlabeled generated OHLCV fallback → adjacent `Synthetic chart — generated from sample data, not live candles.` text.
+6. Marketplace: mock trending/featured cards with silent ratings/run counts → source-driven `Paper mock catalog` banner on each mock row.
 
 ## Blockers and unrelated findings
 
@@ -46,4 +48,5 @@ Item 1 focused typecheck:
 - `6f68956 fix(loop105): honest source labelling — market detail`
 - `041fd5f fix(loop105): honest source labelling — terminal research`
 - `0444579 fix(loop105): honest source labelling — paper trade controls`
-- Item 5 commit will be listed after commit.
+- `8b0194d fix(loop105): honest source labelling — synthetic chart`
+- Item 6 commit will be listed after commit.
