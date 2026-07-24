@@ -44,3 +44,9 @@ async def get_runs(
 @router.get("/latest-signal")
 async def get_latest_signal(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     return await AlphaRunService(db).latest_signal()
+
+
+@router.get("/hypotheses")
+async def get_hypotheses(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Public, read-only proposal tickets and deterministic validation verdicts."""
+    return await AlphaRunService(db).hypotheses()

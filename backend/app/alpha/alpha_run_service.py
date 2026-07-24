@@ -181,6 +181,29 @@ class AlphaRunService:
             "paper_trading_only": True,
         }
 
+    async def hypotheses(self) -> dict[str, Any]:
+        """Return the latest proposal tickets and their validator evidence."""
+        row = await self._session.scalar(select(AlphaRun).order_by(AlphaRun.run_date.desc()).limit(1))
+        if row is None:
+            return {
+                "run_date": None,
+                "hypotheses": {"proposed": [], "verdicts": [], "survivors": [], "rejected": []},
+                "rejection_reasons": [],
+                "paper_trading_only": True,
+            }
+        result = row.result or {}
+        hypotheses = result.get("hypotheses", {})
+        return {
+            "run_date": row.run_date.isoformat(),
+            "hypotheses": hypotheses if isinstance(hypotheses, dict) else {},
+            "rejection_reasons": [
+                item
+                for item in (row.rejection_reasons or [])
+                if item.get("node") == "idea_validator"
+            ],
+            "paper_trading_only": True,
+        }
+
 
 async def run_alpha_model_task(ctx: dict[str, Any]) -> dict[str, Any]:
     """ARQ/in-process shared daily entrypoint; commits only research evidence."""
