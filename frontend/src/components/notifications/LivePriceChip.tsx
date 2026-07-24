@@ -34,7 +34,7 @@ export function LivePriceChip() {
     <div
       data-testid="live-price-chip"
       className="flex items-center gap-2 font-mono text-[11px] text-muted"
-      title="Polls every 15s (pauses when the tab is hidden) — paper price, research only"
+      title="WebSocket prices with 15s poll fallback (pauses when hidden) — paper price, research only"
     >
       <span
         aria-hidden="true"
@@ -48,12 +48,12 @@ export function LivePriceChip() {
       <span
         className={cn(
           "rounded border px-1 py-px text-[9px] font-bold uppercase tracking-[0.1em]",
-          source === "live"
+          source === "ws"
             ? "border-primary/40 bg-primary-dim/60 text-primary"
             : "border-border-light bg-surface-2 text-muted-2",
         )}
       >
-        {source === "live" ? "live" : "mock"}
+        {source}
       </span>
       <span className="ml-auto shrink-0 text-muted-2">
         {loading ? "fetching…" : `upd ${formatClock(lastUpdated)}`}
