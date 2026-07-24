@@ -47,6 +47,8 @@ export const metadata: Metadata = {
   },
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE_NAME,
+  // Loop 103 P1 — installability via app/manifest.ts → /manifest.webmanifest
+  manifest: "/manifest.webmanifest",
   keywords: [
     "paper trading",
     "prediction markets",
