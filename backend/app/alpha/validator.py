@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alpha.factors import FACTOR_FUNCTIONS
 from app.backtesting.clv import ForecastComparison, evaluate_forecasts_against_closing
-from app.db.models import ForecastLog
+from app.db.models import AlphaClosingLine, AlphaFactorSnapshot
 from app.ml.forecast_ab_dataset import load_forecast_score_rows
 
 
@@ -64,37 +64,66 @@ async def load_factor_observations(
     if not ids:
         return [], {"missing_factor_provenance": 0, "missing_closing_line": 0}
 
-    records = await session.execute(
+    factor_records = await session.execute(
         select(
-            ForecastLog.id,
-            ForecastLog.user_probability,
-            ForecastLog.market_implied_probability,
-            ForecastLog.time_to_resolution_seconds,
-            ForecastLog.snapshot_metadata,
-        ).where(ForecastLog.id.in_(ids))
+            AlphaFactorSnapshot.forecast_id,
+            AlphaFactorSnapshot.features,
+            AlphaFactorSnapshot.factor_values,
+            AlphaFactorSnapshot.factor_provenance,
+        ).where(AlphaFactorSnapshot.forecast_id.in_(ids))
     )
-    locked = {str(row.id): row for row in records.all()}
+    closing_records = await session.execute(
+        select(
+            AlphaClosingLine.forecast_id,
+            AlphaClosingLine.closing_implied_probability,
+        ).where(AlphaClosingLine.forecast_id.in_(ids))
+    )
+    factors_by_forecast = {
+        str(row.forecast_id): row for row in factor_records.all()
+    }
+    closing_by_forecast = {
+        str(row.forecast_id): row.closing_implied_probability
+        for row in closing_records.all()
+    }
     observations: list[FactorObservation] = []
     missing = {"missing_factor_provenance": 0, "missing_closing_line": 0}
     for row in population:
-        forecast = locked.get(row["forecast_id"])
-        if forecast is None:
+        captured = factors_by_forecast.get(row["forecast_id"])
+        if captured is None:
             missing["missing_factor_provenance"] += 1
             continue
-        features = _lock_features(forecast)
-        result = FACTOR_FUNCTIONS[factor](features)
-        if not result["provenance"]["available"]:
+        provenance = captured.factor_provenance or {}
+        factor_provenance = provenance.get(factor)
+        if not isinstance(factor_provenance, dict) or not factor_provenance.get(
+            "available"
+        ):
             missing["missing_factor_provenance"] += 1
             continue
+        factor_values = (
+            captured.factor_values
+            if isinstance(captured.factor_values, dict)
+            else {}
+        )
+        score = factor_values.get(factor)
+        if isinstance(score, bool):
+            missing["missing_factor_provenance"] += 1
+            continue
+        try:
+            score = float(score)
+        except (TypeError, ValueError):
+            missing["missing_factor_provenance"] += 1
+            continue
+        features = (
+            dict(captured.features) if isinstance(captured.features, dict) else {}
+        )
         entry = _probability(features.get("market_implied_probability"))
-        closing = _probability((forecast.snapshot_metadata or {}).get("closing_implied_probability"))
+        closing = _probability(closing_by_forecast.get(row["forecast_id"]))
         if entry is None:
             missing["missing_factor_provenance"] += 1
             continue
         if closing is None:
             missing["missing_closing_line"] += 1
             continue
-        score = float(result["score"])
         if not math.isfinite(score):
             missing["missing_factor_provenance"] += 1
             continue
@@ -179,20 +208,6 @@ def validate_factor_observations(
         return _reject(base, "oos_degradation_exceeds_limit")
     base.update({"valid": True, "reason": None})
     return base
-
-
-def _lock_features(forecast: Any) -> dict[str, Any]:
-    metadata = forecast.snapshot_metadata or {}
-    alpha_features = metadata.get("alpha_features")
-    features = dict(alpha_features) if isinstance(alpha_features, dict) else {}
-    model = _probability(forecast.user_probability)
-    market = _probability(forecast.market_implied_probability)
-    features["model_probability"] = model
-    features["market_implied_probability"] = market
-    features["edge"] = None if model is None or market is None else model - market
-    seconds = forecast.time_to_resolution_seconds
-    features["hours_to_lock"] = None if seconds is None else float(seconds) / 3600.0
-    return features
 
 
 def _evaluate(rows: list[FactorObservation]):

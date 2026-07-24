@@ -1481,6 +1481,104 @@ class ForecastScore(Base):
     forecast: Mapped["ForecastLog"] = relationship(back_populates="score")
 
 
+class AlphaFactorSnapshot(Base):
+    """Immutable factor inputs observed with a locked forecast.
+
+    The JSON payload records only values available at ``observed_at``. Missing
+    factor inputs remain absent and carry an explicit provenance reason.
+    """
+
+    __tablename__ = "alpha_factor_snapshots"
+    __table_args__ = (
+        Index(
+            "ix_alpha_factor_market_observed",
+            "external_market_id",
+            "observed_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    forecast_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("forecast_logs.id"), unique=True, nullable=False
+    )
+    external_market_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("external_markets.id"), nullable=False
+    )
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    features: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    factor_values: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    factor_provenance: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    capture_version: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="v1"
+    )
+    backfilled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AlphaClosingLine(Base):
+    """Append-only closing-line observation used by alpha validation.
+
+    Historical odds-derived values are explicitly marked as estimates; the
+    resolved outcome is never a price source.
+    """
+
+    __tablename__ = "alpha_closing_lines"
+    __table_args__ = (
+        Index(
+            "ix_alpha_closing_market_observed",
+            "external_market_id",
+            "observed_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    forecast_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("forecast_logs.id"), unique=True, nullable=False
+    )
+    external_market_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("external_markets.id"), nullable=False
+    )
+    source_snapshot_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("odds_snapshots.id", ondelete="SET NULL"), nullable=True
+    )
+    closing_implied_probability: Mapped[Decimal] = mapped_column(
+        Numeric(6, 4), nullable=False
+    )
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    cutoff_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="last_pre_close_v1"
+    )
+    is_estimate: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    backfilled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AlphaRun(Base):
     """One daily paper-only multi-factor research run and its complete evidence."""
 

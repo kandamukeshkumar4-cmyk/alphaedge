@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -189,6 +189,11 @@ class WhaleFlowService:
                 .where(
                     WhaleEvent.market_slug == market_slug,
                     WhaleEvent.captured_at >= cutoff,
+                    WhaleEvent.captured_at <= now,
+                    or_(
+                        WhaleEvent.trade_at.is_(None),
+                        WhaleEvent.trade_at <= now,
+                    ),
                 )
                 .order_by(WhaleEvent.captured_at.desc())
                 .limit(500)

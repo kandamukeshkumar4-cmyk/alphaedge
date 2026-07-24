@@ -11,12 +11,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 import math
 from typing import Any, Iterable
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alpha.validator import FactorObservation, load_factor_observations
-from app.db.models import ExternalMarket, ForecastLog
+from app.db.models import AlphaFactorSnapshot, ForecastLog
 
 
 MIN_REGIME_ROWS = 4
@@ -40,11 +41,16 @@ async def load_regime_observations(
     observations, missing = await load_factor_observations(session, factor)
     if not observations:
         return [], {**missing, "missing_regime_provenance": 0}
-    ids = [item.forecast_id for item in observations]
+    ids = [UUID(item.forecast_id) for item in observations]
     rows = await session.execute(
-        select(ForecastLog.id, ForecastLog.time_to_resolution_seconds, ForecastLog.snapshot_metadata,
-               ExternalMarket.category)
-        .join(ExternalMarket, ExternalMarket.id == ForecastLog.external_market_id)
+        select(
+            ForecastLog.id,
+            AlphaFactorSnapshot.features,
+        )
+        .join(
+            AlphaFactorSnapshot,
+            AlphaFactorSnapshot.forecast_id == ForecastLog.id,
+        )
         .where(ForecastLog.id.in_(ids))
     )
     captured = {str(row.id): row for row in rows.all()}
@@ -55,15 +61,15 @@ async def load_regime_observations(
         if row is None:
             missing_regime += 1
             continue
-        metadata = row.snapshot_metadata or {}
-        features = metadata.get("alpha_features")
-        volume = _number(metadata.get("volume"))
-        if volume is None and isinstance(features, dict):
-            volume = _number(features.get("volume"))
-        hours = None
-        if row.time_to_resolution_seconds is not None:
-            hours = float(row.time_to_resolution_seconds) / 3600.0
-        category = row.category.strip() if isinstance(row.category, str) and row.category.strip() else None
+        features = row.features if isinstance(row.features, dict) else {}
+        volume = _number(features.get("volume"))
+        hours = _number(features.get("hours_to_lock"))
+        category_value = features.get("category")
+        category = (
+            category_value.strip()
+            if isinstance(category_value, str) and category_value.strip()
+            else None
+        )
         if volume is None or volume < 0.0 or hours is None or hours < 0.0 or category is None:
             missing_regime += 1
             continue

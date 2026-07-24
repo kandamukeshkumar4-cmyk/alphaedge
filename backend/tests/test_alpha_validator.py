@@ -6,6 +6,8 @@ import pytest
 
 from app.alpha.validator import FactorObservation, load_factor_observations, validate_factor_observations
 from app.db.models import (
+    AlphaClosingLine,
+    AlphaFactorSnapshot,
     ExternalMarket,
     ExternalMarketStatus,
     ForecastLog,
@@ -86,14 +88,45 @@ async def test_validator_loads_only_locked_factor_provenance_from_score_populati
     )
     db_session.add(forecast)
     await db_session.flush()
-    db_session.add(
-        ForecastScore(
+    db_session.add_all(
+        [
+            AlphaFactorSnapshot(
+                forecast_id=forecast.id,
+                external_market_id=market.id,
+                observed_at=forecast.locked_at,
+                features={
+                    "model_probability": 0.7,
+                    "market_implied_probability": 0.5,
+                    "edge": 0.2,
+                    "hours_to_lock": None,
+                },
+                factor_values={"model_edge": 1.0},
+                factor_provenance={
+                    "model_edge": {
+                        "available": True,
+                        "fields": [
+                            "model_probability",
+                            "market_implied_probability",
+                        ],
+                    }
+                },
+            ),
+            AlphaClosingLine(
+                forecast_id=forecast.id,
+                external_market_id=market.id,
+                closing_implied_probability=Decimal("0.60"),
+                observed_at=datetime(2026, 1, 2, tzinfo=UTC),
+                cutoff_at=datetime(2026, 1, 2, tzinfo=UTC),
+                source="test.persisted",
+            ),
+            ForecastScore(
             forecast_id=forecast.id,
             actual_outcome=1,
             user_brier=Decimal("0.09"),
             market_brier=Decimal("0.25"),
             brier_delta=Decimal("0.16"),
-        )
+            ),
+        ]
     )
     await db_session.flush()
 

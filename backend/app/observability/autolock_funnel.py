@@ -128,10 +128,11 @@ def funnel_detail(snapshot: dict[str, object]) -> str:
     parts = [
         f"external={stages['0_external_markets_total']}",
         f"open={stages['1_status_open']}",
+        f"has_close={stages['2_has_close_at']}",
         f"pre_close={stages['3_close_at_in_future']}",
         f"in_horizon={stages['4_within_horizon']}",
-        f"eligible={snapshot['eligible']}",
-        f"selectable={snapshot['selectable']}",
+        f"lacks_live={stages['5_lacks_live_forecast']}",
+        f"selectable={stages['6_after_batch_cap']}",
     ]
     if isinstance(biggest, dict) and biggest.get("excluded"):
         parts.append(f"biggest_drop={biggest['from']}->{biggest['to']}:{biggest['excluded']}")

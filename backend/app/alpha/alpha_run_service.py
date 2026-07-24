@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alpha.portfolio_constructor import construct_research_weights
+from app.alpha.provenance import backfill_alpha_validation_history
 from app.alpha.idea_generator import FactorHypothesis, propose_hypotheses, source_factor_for
 from app.alpha.regime_auditor import audit_factor_regimes, load_regime_observations
 from app.alpha.risk_decomposer import decompose_oos_returns
@@ -25,6 +26,9 @@ class AlphaRunService:
 
     async def run_daily(self, *, now: datetime | None = None) -> dict[str, Any]:
         now = _utc(now or datetime.now(UTC))
+        provenance_backfill = await backfill_alpha_validation_history(
+            self._session
+        )
         existing = await self._session.scalar(select(AlphaRun).where(AlphaRun.run_date == now.date()))
         if existing is not None:
             return _serialize(existing, reused=True)
@@ -67,6 +71,7 @@ class AlphaRunService:
                 rejections.append({"node": "risk_decomposer", "reason": decomposition["reason"]})
         status = str(decomposition["status"])
         result = {
+            "provenance_backfill": provenance_backfill,
             "hypotheses": hypothesis_evidence,
             "validations": validations,
             "regimes": regimes,
