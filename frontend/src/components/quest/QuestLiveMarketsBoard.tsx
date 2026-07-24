@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useAtlasPanel } from "@/context/atlas-panel";
-import { fetchMarkets, hasLiveApi } from "@/lib/alphaedge-api";
+import { fetchMarketsPage, hasLiveApi } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
 import { formatCompactUSD, MARKETS, type Market } from "@/lib/mock-data";
 import { marketHref, marketIntelHref } from "@/lib/market-href";
@@ -12,26 +12,51 @@ import { activeTrendingMarkets } from "@/lib/live-discovery";
 import { marketLifecycle } from "@/lib/market-lifecycle";
 
 const FETCH_MS = 8000;
+const PAGE_LIMIT = 100;
 const LIVE_API = hasLiveApi();
 
-type MarketLoadResult = { markets: Market[]; source: "live" | "seed" };
+type MarketLoadResult = {
+  markets: Market[];
+  fetched: number;
+  total: number;
+  source: "live" | "seed";
+};
 
-async function loadMarketsOrFallback(): Promise<MarketLoadResult> {
+async function loadMarketsOrFallback(offset = 0): Promise<MarketLoadResult> {
   try {
-    const rows = await Promise.race([
-      fetchMarkets({ sort: "active" }),
-      new Promise<Market[]>((_, reject) => {
+    const page = await Promise.race([
+      fetchMarketsPage({ sort: "active", limit: PAGE_LIMIT, offset }),
+      new Promise<never>((_, reject) => {
         window.setTimeout(() => reject(new Error("markets-timeout")), FETCH_MS);
       }),
     ]);
+    const rows = page.items;
+    const fetched = rows.length;
     const active = activeTrendingMarkets(rows);
     const live = active.filter((m) => m.slug.startsWith("pm-") || m.slug.startsWith("ks-"));
-    if (live.length > 0) return { markets: live, source: "live" };
-    if (active.length > 0) return { markets: active, source: "live" };
+    if (live.length > 0) {
+      return { markets: live, fetched, total: page.total, source: "live" };
+    }
+    if (active.length > 0) {
+      return { markets: active, fetched, total: page.total, source: "live" };
+    }
     // Only fall back to bundled seed catalog when the live API is unavailable.
-    return LIVE_API ? { markets: [], source: "live" } : { markets: MARKETS, source: "seed" };
+    if (LIVE_API) return { markets: [], fetched, total: page.total, source: "live" };
+    return {
+      markets: MARKETS,
+      fetched: MARKETS.length,
+      total: MARKETS.length,
+      source: "seed",
+    };
   } catch {
-    return LIVE_API ? { markets: [], source: "live" } : { markets: MARKETS, source: "seed" };
+    return LIVE_API
+      ? { markets: [], fetched: 0, total: 0, source: "live" }
+      : {
+          markets: MARKETS,
+          fetched: MARKETS.length,
+          total: MARKETS.length,
+          source: "seed",
+        };
   }
 }
 
@@ -70,15 +95,22 @@ function initials(name: string): string {
 
 export function QuestLiveMarketsBoard({
   initialMarkets,
+  initialTotal = 0,
 }: {
   initialMarkets?: Market[];
+  initialTotal?: number;
 }) {
   const { openPanel } = useAtlasPanel();
   const [markets, setMarkets] = useState<Market[]>(initialMarkets ?? []);
+  const [total, setTotal] = useState(
+    initialTotal > 0 ? initialTotal : (initialMarkets?.length ?? 0),
+  );
+  const [loadedCount, setLoadedCount] = useState(initialMarkets?.length ?? 0);
   const [seedFallback, setSeedFallback] = useState(
     Boolean(initialMarkets?.some((market) => market.source === "seed")),
   );
   const [loading, setLoading] = useState(!initialMarkets || initialMarkets.length === 0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[number]>("All");
   const [cat, setCat] = useState<(typeof CATS)[number]>("All");
   const [sport, setSport] = useState("live");
@@ -86,20 +118,45 @@ export function QuestLiveMarketsBoard({
   useEffect(() => {
     let dead = false;
     setLoading(true);
-    void loadMarketsOrFallback().then(({ markets: rows, source }) => {
-      if (dead) return;
-      setSeedFallback(source === "seed");
-      if (rows.length > 0) {
-        setMarkets(rows);
-      } else {
-        setMarkets((prev) => (prev.length > 0 ? prev : rows));
-      }
-      setLoading(false);
-    });
+    void loadMarketsOrFallback(0).then(
+      ({ markets: rows, fetched, total: nextTotal, source }) => {
+        if (dead) return;
+        setSeedFallback(source === "seed");
+        if (rows.length > 0) {
+          setMarkets(rows);
+          setLoadedCount(fetched);
+          setTotal(nextTotal);
+        } else {
+          setMarkets((prev) => (prev.length > 0 ? prev : rows));
+          if (fetched > 0) setLoadedCount(fetched);
+          if (nextTotal > 0) setTotal(nextTotal);
+        }
+        setLoading(false);
+      },
+    );
     return () => {
       dead = true;
     };
   }, []);
+
+  async function loadMore() {
+    if (loadingMore || loadedCount >= total) return;
+    setLoadingMore(true);
+    try {
+      const { markets: rows, fetched, total: nextTotal } = await loadMarketsOrFallback(
+        loadedCount,
+      );
+      setMarkets((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const appended = rows.filter((m) => !seen.has(m.id));
+        return appended.length > 0 ? [...prev, ...appended] : prev;
+      });
+      setLoadedCount((prev) => prev + fetched);
+      if (nextTotal > 0) setTotal(nextTotal);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     let list = activeTrendingMarkets(markets);
@@ -387,6 +444,24 @@ export function QuestLiveMarketsBoard({
             ))}
           </div>
         )}
+
+        {!loading && !seedFallback && total > 0 ? (
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <p className="text-sm text-muted">
+              Showing {loadedCount} of {total} markets
+            </p>
+            {loadedCount < total ? (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-text transition hover:border-border-light hover:bg-surface-2 disabled:cursor-wait disabled:opacity-60"
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
