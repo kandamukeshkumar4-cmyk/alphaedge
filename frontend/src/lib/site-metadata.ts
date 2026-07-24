@@ -11,7 +11,10 @@ export const SITE_NAME = "AlphaEdge";
 
 export const DEFAULT_TITLE = "AlphaEdge — AI Prediction Markets";
 
-export const DEFAULT_DESCRIPTION = PAPER_TRADING_DISCLAIMER;
+/** Launch-facing description; always discloses paper / simulated funds. */
+export const DEFAULT_DESCRIPTION =
+  "AI research desk for paper prediction-market trading (sports & elections) — simulated funds only. " +
+  PAPER_TRADING_DISCLAIMER;
 
 /** Public routes listed in sitemap / robots allowlist. Admin is intentionally excluded. */
 export const PUBLIC_SITEMAP_ROUTES: ReadonlyArray<{
@@ -204,6 +207,46 @@ export const PUBLIC_SITEMAP_ROUTES: ReadonlyArray<{
     description: "Signal alerts digest for paper research (notify/read only).",
     changeFrequency: "weekly",
     priority: 0.45,
+  },
+  {
+    path: "/terminal",
+    title: "Research Terminal",
+    description:
+      "AI research terminal with streamed steps and confluence scoreboard. Paper trading only — simulated funds.",
+    changeFrequency: "daily",
+    priority: 0.85,
+  },
+  {
+    path: "/scanners",
+    title: "Scanner Studio",
+    description:
+      "Compile plain-English scanners into scheduled paper alert specs. Research only — no real-money orders.",
+    changeFrequency: "daily",
+    priority: 0.8,
+  },
+  {
+    path: "/skills",
+    title: "Skills",
+    description:
+      "One-tap research skills that run full terminal sessions on the canonical paper market. Simulated funds only.",
+    changeFrequency: "weekly",
+    priority: 0.75,
+  },
+  {
+    path: "/alpha",
+    title: "Multi-Factor Alpha",
+    description:
+      "Paper-only factor research: signals scored per market and shown as edge only when they beat the closing line out-of-sample.",
+    changeFrequency: "daily",
+    priority: 0.8,
+  },
+  {
+    path: "/screener",
+    title: "Screener",
+    description:
+      "Dense sortable table of paper markets ranked by model edge. Read-only research — simulated funds only.",
+    changeFrequency: "hourly",
+    priority: 0.85,
   },
 ];
 

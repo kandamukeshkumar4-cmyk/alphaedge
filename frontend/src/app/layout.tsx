@@ -57,9 +57,14 @@ export const metadata: Metadata = {
     "Brier score",
     "calibration",
     "AlphaEdge",
+    "AI research desk",
+    "simulated funds",
   ],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
+  alternates: {
+    canonical: SITE_URL,
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
