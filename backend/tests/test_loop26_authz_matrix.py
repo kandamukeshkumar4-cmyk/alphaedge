@@ -52,6 +52,7 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("get", "/api/v1/alpha/runs"): "public",
     ("delete", "/api/v1/clones/{clone_id}"): "user",
     ("delete", "/api/v1/social/follow/{trader}"): "user",
+    ("delete", "/api/v1/social/stories/{story_id}/reactions/like"): "user",
     ("delete", "/api/v1/watchlist/{slug}"): "user",
     ("get", "/"): "public",
     ("get", "/admin/agents/runs"): "admin",
@@ -156,6 +157,8 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("get", "/api/v1/smart-money"): "public",
     ("get", "/api/v1/social/feed"): "user",
     ("get", "/api/v1/social/following"): "user",
+    ("get", "/api/v1/social/stories"): "public",
+    ("get", "/api/v1/social/stories/{story_id}/comments"): "public",
     ("get", "/api/v1/social/traders/{trader}"): "public",
     ("get", "/api/v1/sports/results"): "public",
     ("get", "/api/v1/system/loops"): "public",
@@ -166,6 +169,7 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("get", "/api/v1/track-record"): "public",
     ("get", "/api/v1/watchlist"): "user",
     ("get", "/api/v1/watchlist/alerts"): "user",
+    ("get", "/api/v1/watchlist/shared/{handle}"): "public",
     ("get", "/api/v1/wc2026/schedule"): "public",
     ("get", "/api/v1/weather/edges"): "public",
     ("get", "/health"): "public",
@@ -213,9 +217,12 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("post", "/api/v1/orders/{order_id}/cancel"): "public",
     ("post", "/api/v1/positions/close"): "user",
     ("post", "/api/v1/social/follow/{trader}"): "user",
+    ("post", "/api/v1/social/stories/{story_id}/comments"): "user",
+    ("post", "/api/v1/social/stories/{story_id}/reactions"): "user",
     ("post", "/api/v1/sports/ingest"): "admin",
     ("post", "/api/v1/telemetry/mirror/events"): "public",
     ("post", "/api/v1/watchlist"): "user",
+    ("post", "/api/v1/watchlist/share"): "user",
     ("put", "/api/v1/notify/prefs"): "user",
     # Loop V58–V92 snapshot additions: classifications mirror handler dependencies.
     ("get", "/api/v1/context/digest"): "public",
@@ -290,6 +297,8 @@ _PATH_VALUES: dict[str, str] = {
     "ref_id": "00000000-0000-0000-0000-000000000077",
     "trader": "unknown-trader",
     "category": "Sports",
+    "story_id": "trade:00000000-0000-0000-0000-000000000099",
+    "handle": "unknown-trader",
 }
 
 _PARAM_RE = re.compile(r"\{([^{}/]+)\}")
@@ -354,6 +363,12 @@ def _json_body(method: str, path: str) -> dict[str, Any] | None:
         return {"message": "ping"}
     if path == "/api/v1/watchlist":
         return {"slug": _PATH_VALUES["slug"]}
+    if path == "/api/v1/watchlist/share":
+        return {"public": True}
+    if path == "/api/v1/social/stories/{story_id}/comments":
+        return {"body": "matrix probe"}
+    if path == "/api/v1/social/stories/{story_id}/reactions":
+        return {"kind": "like"}
     if path == "/api/v1/notify/prefs":
         return {}
     if path == "/api/v1/auth/me":
@@ -468,16 +483,16 @@ def _no_network(monkeypatch):
 def test_auth_class_table_covers_snapshot_surface():
     """197 paths in the snapshot; every operation has an auth class."""
     snap = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert len(snap) == 203, f"expected 203 paths, got {len(snap)}"
-    assert len(_OPS) == 223, f"expected 223 ops, got {len(_OPS)}"
+    assert len(snap) == 209, f"expected 209 paths, got {len(snap)}"
+    assert len(_OPS) == 230, f"expected 230 ops, got {len(_OPS)}"
     counts: dict[str, int] = {}
     for _m, _p, auth in _OPS:
         counts[auth] = counts.get(auth, 0) + 1
     assert counts["admin"] == 41
-    assert counts["user"] == 66
+    assert counts["user"] == 70
     assert counts["optional_user"] == 3
     assert counts["admin_metrics"] == 1
-    assert counts["public"] == 112
+    assert counts["public"] == 115
 
 
 # Soft-checked app defects (must still not be uncaught). Loop V27 cleared

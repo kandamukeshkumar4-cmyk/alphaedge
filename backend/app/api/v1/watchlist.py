@@ -23,6 +23,7 @@ from app.api.v1.portfolio import _latest_implied_yes_by_slug
 from app.core import market_detail_cache
 from app.db.models import Market, PredictionLog, User, Watchlist
 from app.db.session import get_db
+from app.services.social_service import get_shared_watchlist, set_watchlist_share
 
 router = APIRouter(prefix="/api/v1", tags=["watchlist"])
 
@@ -51,6 +52,27 @@ class WatchlistResponse(BaseModel):
     disclaimer: str
 
 
+class WatchlistShareRequest(BaseModel):
+    public: bool
+
+
+class WatchlistShareResponse(BaseModel):
+    public: bool
+    share_url: str
+
+
+class SharedWatchlistItemOut(BaseModel):
+    market_slug: str
+    market_title: str
+    added_at: str
+
+
+class SharedWatchlistResponse(BaseModel):
+    handle: str
+    display_name: str
+    items: list[SharedWatchlistItemOut]
+
+
 async def _latest_model_prob_by_slug(
     db: AsyncSession, slugs: list[str]
 ) -> dict[str, float]:
@@ -75,6 +97,37 @@ async def _latest_model_prob_by_slug(
         )
     ).all()
     return {slug: float(prob) for slug, prob in rows}
+
+
+@router.post(
+    "/watchlist/share",
+    response_model=WatchlistShareResponse,
+    summary="Set watchlist public-share flag",
+)
+async def share_watchlist(
+    body: WatchlistShareRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> WatchlistShareResponse:
+    result = await set_watchlist_share(
+        db, user_id=str(current_user.id), public=body.public
+    )
+    return WatchlistShareResponse(**result)
+
+
+@router.get(
+    "/watchlist/shared/{handle}",
+    response_model=SharedWatchlistResponse,
+    summary="Get a publicly shared watchlist",
+)
+async def get_public_shared_watchlist(
+    handle: str,
+    db: AsyncSession = Depends(get_db),
+) -> SharedWatchlistResponse:
+    result = await get_shared_watchlist(db, handle=handle)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Shared watchlist not found")
+    return SharedWatchlistResponse(**result)
 
 
 @router.post(

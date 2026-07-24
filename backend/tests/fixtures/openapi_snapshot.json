@@ -1696,6 +1696,49 @@
    ]
   }
  },
+ "/api/v1/social/stories": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List community stories",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/stories/{story_id}/comments": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List story comments",
+   "tags": [
+    "social"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Add a story comment",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/stories/{story_id}/reactions": {
+  "post": {
+   "has_success_response": true,
+   "summary": "React to a story (idempotent like)",
+   "tags": [
+    "social"
+   ]
+  }
+ },
+ "/api/v1/social/stories/{story_id}/reactions/like": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Remove a like reaction",
+   "tags": [
+    "social"
+   ]
+  }
+ },
  "/api/v1/social/traders/{trader}": {
   "get": {
    "has_success_response": true,
@@ -1919,6 +1962,24 @@
    "summary": "Get Watchlist Alerts",
    "tags": [
     "alerts"
+   ]
+  }
+ },
+ "/api/v1/watchlist/share": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Set watchlist public-share flag",
+   "tags": [
+    "watchlist"
+   ]
+  }
+ },
+ "/api/v1/watchlist/shared/{handle}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get a publicly shared watchlist",
+   "tags": [
+    "watchlist"
    ]
   }
  },
