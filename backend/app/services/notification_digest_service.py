@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Notification, NotificationPreference, SignalEvent, User
 from app.services.scanner_alert_service import SCANNER_FIRED_SIGNAL_TYPE
-from app.services.scanner_email_service import PAPER_FOOTER, send_plain_text_email, smtp_configured
+from app.services.scanner_email_service import PAPER_FOOTER, send_plain_text_email
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +123,9 @@ async def run_notification_digest(
     current = now or datetime.now(UTC)
     sender = send_fn or send_plain_text_email
 
-    # Injected send_fn (tests) bypasses SMTP probe; production skips when unset.
-    if send_fn is None and not smtp_configured(settings):
+    # Injected send_fn (tests) bypasses SMTP probe; production skips when host unset.
+    host = (getattr(settings, "smtp_host", "") or "").strip()
+    if send_fn is None and not host:
         return {
             "skipped": True,
             "reason": "smtp_unconfigured",
