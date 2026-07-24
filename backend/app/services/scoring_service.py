@@ -47,6 +47,13 @@ class ScoringService:
             )
         )
         forecasts = list(result.scalars().all())
+        from app.alpha.provenance import capture_closing_lines
+
+        await capture_closing_lines(
+            self.session,
+            external_market,
+            forecasts=forecasts,
+        )
 
         existing_scores = await self.session.execute(
             select(ForecastScore.forecast_id).where(

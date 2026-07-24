@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import math
 from typing import Any
 
 from sqlalchemy import select
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alpha.factors import FACTOR_FUNCTIONS
 from app.alpha.validator import validate_all_factors
-from app.db.models import ExternalMarket, ForecastLog
+from app.db.models import AlphaFactorSnapshot, ExternalMarket, ForecastLog
 
 
 class AlphaService:
@@ -23,7 +24,10 @@ class AlphaService:
         external_market = await self._external_market(market)
         validations = {item["name"]: item for item in await validate_all_factors(self._session)}
         forecast = await self._latest_forecast(external_market.id)
-        factors, as_of = _current_factors(forecast)
+        snapshot = (
+            await self._factor_snapshot(forecast.id) if forecast is not None else None
+        )
+        factors, as_of = _current_factors(forecast, snapshot)
         results = [_combine(result, validations[result["name"]]) for result in factors]
         rejected = [
             {"name": item["name"], "reason": item["reason"]}
@@ -70,21 +74,69 @@ class AlphaService:
         )
         return result.scalar_one_or_none()
 
+    async def _factor_snapshot(
+        self, forecast_id: object
+    ) -> AlphaFactorSnapshot | None:
+        return await self._session.scalar(
+            select(AlphaFactorSnapshot).where(
+                AlphaFactorSnapshot.forecast_id == forecast_id
+            )
+        )
 
-def _current_factors(forecast: ForecastLog | None) -> tuple[list[dict[str, Any]], datetime | None]:
+
+def _current_factors(
+    forecast: ForecastLog | None,
+    snapshot: AlphaFactorSnapshot | None,
+) -> tuple[list[dict[str, Any]], datetime | None]:
     if forecast is None:
         return [_missing(name, "missing_locked_forecast") for name in FACTOR_FUNCTIONS], None
-    metadata = forecast.snapshot_metadata or {}
-    captured = metadata.get("alpha_features")
-    features = dict(captured) if isinstance(captured, dict) else {}
-    model = _probability(forecast.user_probability)
-    market = _probability(forecast.market_implied_probability)
-    features["model_probability"] = model
-    features["market_implied_probability"] = market
-    features["edge"] = None if model is None or market is None else model - market
-    seconds = forecast.time_to_resolution_seconds
-    features["hours_to_lock"] = None if seconds is None else float(seconds) / 3600.0
-    return [function(features) for function in FACTOR_FUNCTIONS.values()], forecast.locked_at
+    if snapshot is None:
+        return [
+            _missing(name, "missing_factor_snapshot") for name in FACTOR_FUNCTIONS
+        ], forecast.locked_at
+    factor_values = (
+        snapshot.factor_values if isinstance(snapshot.factor_values, dict) else {}
+    )
+    capture_provenance = (
+        snapshot.factor_provenance
+        if isinstance(snapshot.factor_provenance, dict)
+        else {}
+    )
+    results: list[dict[str, Any]] = []
+    for name in FACTOR_FUNCTIONS:
+        provenance = capture_provenance.get(name)
+        if not isinstance(provenance, dict) or not provenance.get("available"):
+            reason = (
+                provenance.get("reason")
+                if isinstance(provenance, dict)
+                else "missing_factor_provenance"
+            )
+            results.append(_missing(name, str(reason)))
+            continue
+        score = factor_values.get(name)
+        if isinstance(score, bool):
+            results.append(_missing(name, "missing_captured_factor_value"))
+            continue
+        try:
+            score = float(score)
+        except (TypeError, ValueError):
+            results.append(_missing(name, "missing_captured_factor_value"))
+            continue
+        if not math.isfinite(score):
+            results.append(_missing(name, "missing_captured_factor_value"))
+            continue
+        results.append(
+            {
+                "name": name,
+                "score": score,
+                "provenance": {
+                    "available": True,
+                    "fields": list(provenance.get("fields", [])),
+                    "capture": provenance,
+                },
+            }
+        )
+    return results, snapshot.observed_at
 
 
 def _combine(current: dict[str, Any], validation: dict[str, Any]) -> dict[str, Any]:
@@ -111,16 +163,6 @@ def _missing(name: str, reason: str) -> dict[str, Any]:
         "score": 0.0,
         "provenance": {"available": False, "reason": reason},
     }
-
-
-def _probability(value: object) -> float | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        probability = float(value)
-    except (TypeError, ValueError):
-        return None
-    return probability if 0.0 <= probability <= 1.0 else None
 
 
 def _utc_iso(value: datetime | None) -> str | None:

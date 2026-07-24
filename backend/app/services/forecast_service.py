@@ -238,6 +238,9 @@ class ForecastService:
         )
         self.session.add(forecast)
         await self.session.flush()
+        from app.alpha.provenance import capture_factor_snapshot
+
+        await capture_factor_snapshot(self.session, forecast, external_market)
         await self.events.emit(
             "forecast_locked",
             {

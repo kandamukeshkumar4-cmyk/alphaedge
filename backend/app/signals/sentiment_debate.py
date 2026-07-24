@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -43,6 +44,7 @@ def reset_nim_client() -> None:
 class DebateVerdict:
     lens: str
     verdict: str
+    sentiment_score: float
     rationale: str
     cited_inputs: list[str]
     model_id: str
@@ -61,11 +63,25 @@ def _parse_verdict(raw: str, *, lens: str, model_id: str, prompt_version: str) -
     if banned:
         raise ValueError(f"debate response contains forbidden keys: {banned}")
     verdict = str(parsed.get("verdict", "inconclusive")).strip()[:80] or "inconclusive"
+    try:
+        sentiment_score = float(parsed["sentiment_score"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("debate response requires numeric sentiment_score") from exc
+    if not math.isfinite(sentiment_score) or not -1.0 <= sentiment_score <= 1.0:
+        raise ValueError("sentiment_score must be in [-1, 1]")
     rationale = str(parsed.get("rationale", "")).strip()[:2000]
     cited = parsed.get("cited_inputs") or []
     if not isinstance(cited, list):
         raise ValueError("cited_inputs must be a list")
-    return DebateVerdict(lens, verdict, rationale, [str(item)[:256] for item in cited[:20]], model_id, prompt_version)
+    return DebateVerdict(
+        lens,
+        verdict,
+        sentiment_score,
+        rationale,
+        [str(item)[:256] for item in cited[:20]],
+        model_id,
+        prompt_version,
+    )
 
 
 async def run_news_debate(
@@ -107,7 +123,9 @@ async def run_news_debate(
     for lens in LENSES:
         prompt = (
             f"You are the {lens} lens. Analyze only this pre-close public-news context: "
-            f"{json.dumps(context)}. Return JSON only with verdict, rationale, cited_inputs. "
+            f"{json.dumps(context)}. Return JSON only with verdict, sentiment_score "
+            "(-1 bearish to +1 bullish; this is sentiment, not a probability), "
+            "rationale, cited_inputs. "
             "Never give probability, predicted probability, stake, side, or trade instruction."
         )
         try:
@@ -137,7 +155,7 @@ def persist_debate(session, *, market_slug: str, verdicts: list[DebateVerdict]) 
             headline=f"Sentiment debate: {verdict.lens}"[:160],
             body_markdown=verdict.rationale or "No rationale returned.",
             citations=[{"kind": "news", "ref": ref, "url": None} for ref in verdict.cited_inputs],
-            tools_used=[{"tool": "nim", "model_id": verdict.model_id, "prompt_version": verdict.prompt_version, "lens": verdict.lens, "verdict": verdict.verdict}],
+            tools_used=[{"tool": "nim", "model_id": verdict.model_id, "prompt_version": verdict.prompt_version, "lens": verdict.lens, "verdict": verdict.verdict, "sentiment_score": verdict.sentiment_score}],
             model_version=verdict.model_id[:64],
             prompt_version=verdict.prompt_version,
             generator="llm",

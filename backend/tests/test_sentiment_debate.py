@@ -18,7 +18,7 @@ from app.signals.sentiment_debate import (
 class _Completions:
     async def create(self, **kwargs):
         assert "probability" in kwargs["messages"][0]["content"]
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"verdict":"supported","rationale":"headline evidence","cited_inputs":["public headline"]}'))])
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"verdict":"supported","sentiment_score":0.25,"rationale":"headline evidence","cited_inputs":["public headline"]}'))])
 
 
 class _Client:
@@ -37,6 +37,7 @@ async def test_debate_runs_three_lenses_and_persists_provenance(db_session):
     verdicts = await run_news_debate(candidate=candidate, title="Market", headline="Public news", sentiment_score=0.5, settings=_settings(), client=_Client(), now=datetime(2026, 7, 17, tzinfo=UTC))
     assert [verdict.lens for verdict in verdicts] == list(LENSES)
     assert all(verdict.model_id == "nim-test" for verdict in verdicts)
+    assert all(verdict.sentiment_score == 0.25 for verdict in verdicts)
     persist_debate(db_session, market_slug="m1", verdicts=verdicts)
     await db_session.flush()
     from sqlalchemy import select
@@ -47,6 +48,7 @@ async def test_debate_runs_three_lenses_and_persists_provenance(db_session):
         row.kind == "debate"
         and row.tools_used[0]["lens"] in LENSES
         and row.tools_used[0]["verdict"] == "supported"
+        and row.tools_used[0]["sentiment_score"] == 0.25
         for row in rows
     )
 

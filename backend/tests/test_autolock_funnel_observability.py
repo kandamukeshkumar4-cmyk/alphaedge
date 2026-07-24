@@ -251,8 +251,11 @@ def test_funnel_detail_is_a_compact_public_string():
         "stages": {
             "0_external_markets_total": 25,
             "1_status_open": 25,
+            "2_has_close_at": 25,
             "3_close_at_in_future": 25,
             "4_within_horizon": 14,
+            "5_lacks_live_forecast": 14,
+            "6_after_batch_cap": 14,
         },
         "eligible": 14,
         "selectable": 14,
@@ -265,6 +268,8 @@ def test_funnel_detail_is_a_compact_public_string():
     detail = funnel_detail(snap)
 
     assert "external=25" in detail
+    assert "has_close=25" in detail
     assert "in_horizon=14" in detail
-    assert "eligible=14" in detail
+    assert "lacks_live=14" in detail
+    assert "selectable=14" in detail
     assert "biggest_drop=3_close_at_in_future->4_within_horizon:11" in detail
