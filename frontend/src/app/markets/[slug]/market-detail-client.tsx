@@ -24,6 +24,7 @@ import { LatencyBadge } from "@/components/LatencyBadge";
 import { WatchlistStar } from "@/components/WatchlistStar";
 import { OrderbookDepthChart } from "@/components/OrderbookDepthChart";
 import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChartLazy";
+import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanelLazy";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
 import {
@@ -252,6 +253,11 @@ export default function MarketDetailClient({
               height={360}
             />
           </div>
+
+          {/* Loop 99 AU3 — TA indicators (RSI/MACD/SMA/EMA/Bollinger/ADX) +
+              regime chip + close/SMA-20 overlay chart. Live-first client
+              with paper-mock fallback; down-states render blue, never red. */}
+          <IndicatorsPanel slug={market.slug} />
 
           {/* Outcome strip */}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
