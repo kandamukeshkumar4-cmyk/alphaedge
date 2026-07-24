@@ -314,3 +314,42 @@ a719f4a fix(loop105): honest source labelling — demo ticker
 9bfa413 merge(loop102): alpha runs/signal/hypotheses UI (Qwen, Grok rubric-PASS)
 00623cf feat(loop102): AR3 — proposed hypotheses section + alpha-runs E2E
 ```
+
+## Smoke test alignment
+
+Re-pointed the two `frontend/src/components/component-smoke.test.tsx`
+assertions that the loop-105 honesty work intentionally changed. No component,
+copy, or logic touched — only the test file and this state file.
+
+- Live ticker seed rows: `"Live trades"` -> `"Demo feed"`. LiveTicker's h2 now
+  renders `Demo feed` next to a `simulated` badge (read from
+  `frontend/src/components/LiveTicker.tsx`); the `demo-trader-1` row
+  assertion is unchanged.
+- Trade panel logged-out state: `"Log in to trade"` -> `"Log in to paper
+  trade"`. TradePanel's logged-out paragraph now renders `Log in to paper
+  trade` (read from `frontend/src/components/TradePanel.tsx`); the
+  `/auth/login` href assertion is unchanged.
+
+Both replacements remain specific full-string assertions — each still fails if
+the label disappears or silently reverts. No assertions deleted or weakened,
+no `.skip`/`.todo`/`.only` added. Both surfaces still render a direct
+equivalent of what the old assertions checked, so no "nothing equivalent"
+note was needed.
+
+`cd frontend && npm run test` — verbatim runner output:
+
+```text
+> alphaedge-frontend@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.8 E:/polymarket-worktrees/loop105-honest/frontend
+
+
+ Test Files  101 passed (101)
+      Tests  567 passed (567)
+   Start at  18:55:40
+   Duration  19.88s (transform 6.73s, setup 0ms, import 25.66s, tests 4.84s, environment 28ms)
+```
+
+0 failed.
