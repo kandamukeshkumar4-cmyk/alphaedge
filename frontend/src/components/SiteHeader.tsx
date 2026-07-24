@@ -10,7 +10,7 @@ import { HeaderMoreMenu } from "@/components/HeaderMoreMenu";
 import { HeaderSearch } from "@/components/HeaderSearch";
 import { AlertsBell } from "@/components/AlertsBell";
 import { NavIcon, type NavIconKey } from "@/components/nav-icons";
-import { NotificationBell } from "@/components/NotificationBell";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { SignalAlertBadge } from "@/components/SignalAlertBadge";
 import { FEATURE_GROUPS } from "@/lib/feature-registry";
 import { useAuth } from "@/hooks/useAuth";
@@ -190,7 +190,7 @@ export function SiteHeader() {
               </>
             )}
             <AlertsBell />
-            <NotificationBell />
+            <NotificationCenter />
             <button
               className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
               aria-label="Menu"
