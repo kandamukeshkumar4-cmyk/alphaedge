@@ -120,12 +120,6 @@ async def test_scanner_notification_idempotent_within_1h(db_session):
     await db_session.commit()
     assert first == 1
     assert second == 0
-    count = await db_session.scalar(
-        select(Notification.id).where(
-            Notification.user == str(user.id),
-            Notification.type == "scanner:fired",
-        )
-    )
     rows = (
         await db_session.scalars(
             select(Notification).where(Notification.user == str(user.id))
