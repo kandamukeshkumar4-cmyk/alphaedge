@@ -1055,11 +1055,29 @@ class Skill(Base):
     params_schema: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     run_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class SkillRating(Base):
+    """One star rating (1-5) per user per skill. Upsert on (user, ref_id)."""
+
+    __tablename__ = "skill_ratings"
+    __table_args__ = (
+        UniqueConstraint("user", "ref_id", name="uq_skill_ratings_user_ref"),
+        CheckConstraint("stars >= 1 AND stars <= 5", name="ck_skill_ratings_stars"),
+        Index("ix_skill_ratings_ref_id", "ref_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user: Mapped[str] = mapped_column(String(64), nullable=False)
+    ref_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("skills.id"), nullable=False)
+    stars: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Scanner(Base):
@@ -1079,6 +1097,7 @@ class Scanner(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     cooldown_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -1087,6 +1106,23 @@ class Scanner(Base):
 
     runs: Mapped[list["ScannerRun"]] = relationship(back_populates="scanner")
     versions: Mapped[list["ScannerVersion"]] = relationship(back_populates="scanner")
+
+
+class ScannerRating(Base):
+    """One star rating (1-5) per user per scanner. Upsert on (user, ref_id)."""
+
+    __tablename__ = "scanner_ratings"
+    __table_args__ = (
+        UniqueConstraint("user", "ref_id", name="uq_scanner_ratings_user_ref"),
+        CheckConstraint("stars >= 1 AND stars <= 5", name="ck_scanner_ratings_stars"),
+        Index("ix_scanner_ratings_ref_id", "ref_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user: Mapped[str] = mapped_column(String(64), nullable=False)
+    ref_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scanners.id"), nullable=False)
+    stars: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ScannerVersion(Base):

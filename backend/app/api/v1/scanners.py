@@ -4,23 +4,36 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user, get_optional_user
 from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
-from app.db.models import Scanner, ScannerRun, User
+from app.core.security import verify_admin_api_key
+from app.db.models import Scanner, ScannerRating, ScannerRun, User
 from app.db.session import get_db
 from app.schemas.scanners import (
     ScannerCompileOut,
     ScannerCompileRequest,
     ScannerCreate,
+    ScannerFeatureRequest,
+    ScannerFeaturedListOut,
     ScannerOut,
+    ScannerRateRequest,
+    ScannerRatingOut,
     ScannerRunOut,
     ScannerTestEmailOut,
+    ScannerTrendingListOut,
+    ScannerTrendingOut,
     ScannerUpdate,
+)
+from app.services.marketplace_rating_service import upsert_scanner_rating
+from app.services.marketplace_trending_service import (
+    compute_trending_score,
+    recent_window_start,
+    sort_trending_items,
 )
 from app.services.scanner_compiler_service import compile_scanner_flow
 from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
@@ -112,6 +125,7 @@ def _scanner_out(
         version=int(scanner.version or 1),
         status=scanner.status,
         is_public=bool(scanner.is_public),
+        is_featured=bool(scanner.is_featured),
         cooldown_minutes=int(scanner.cooldown_minutes or 120),
         created_at=scanner.created_at,
         updated_at=scanner.updated_at,
@@ -209,6 +223,103 @@ async def list_scanners(
         await db.scalars(select(Scanner).where(clause).order_by(Scanner.created_at.desc()))
     ).all()
     return [_scanner_out(s) for s in scanners]
+
+
+@router.get("/trending", response_model=ScannerTrendingListOut)
+async def trending_scanners(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+) -> ScannerTrendingListOut:
+    """Rank public scanners by 7d run count + avg_rating. Deterministic."""
+    # Reference time is injected once here; pure score fn never calls now().
+    now = datetime.now(UTC)
+    window_start = recent_window_start(now)
+
+    scanners = (
+        await db.scalars(select(Scanner).where(Scanner.is_public.is_(True)))
+    ).all()
+    if not scanners:
+        return ScannerTrendingListOut(items=[])
+
+    scanner_ids = [s.id for s in scanners]
+
+    rating_rows = (
+        await db.execute(
+            select(
+                ScannerRating.ref_id,
+                func.avg(ScannerRating.stars),
+                func.count(),
+            )
+            .where(ScannerRating.ref_id.in_(scanner_ids))
+            .group_by(ScannerRating.ref_id)
+        )
+    ).all()
+    rating_map = {
+        row[0]: (float(row[1] or 0.0), int(row[2] or 0)) for row in rating_rows
+    }
+
+    recent_rows = (
+        await db.execute(
+            select(ScannerRun.scanner_id, func.count())
+            .where(
+                ScannerRun.scanner_id.in_(scanner_ids),
+                ScannerRun.started_at >= window_start,
+                ScannerRun.started_at <= now,
+            )
+            .group_by(ScannerRun.scanner_id)
+        )
+    ).all()
+    recent_map = {row[0]: int(row[1] or 0) for row in recent_rows}
+
+    total_rows = (
+        await db.execute(
+            select(ScannerRun.scanner_id, func.count())
+            .where(ScannerRun.scanner_id.in_(scanner_ids))
+            .group_by(ScannerRun.scanner_id)
+        )
+    ).all()
+    total_map = {row[0]: int(row[1] or 0) for row in total_rows}
+
+    built: list[dict] = []
+    for scanner in scanners:
+        avg_rating, rating_count = rating_map.get(scanner.id, (0.0, 0))
+        recent = recent_map.get(scanner.id, 0)
+        run_count = total_map.get(scanner.id, 0)
+        score = compute_trending_score(
+            recent_run_count=recent,
+            avg_rating=avg_rating,
+            run_count=run_count,
+        )
+        base = _scanner_out(scanner).model_dump()
+        base.update(
+            {
+                "avg_rating": avg_rating,
+                "rating_count": rating_count,
+                "run_count": run_count,
+                "trending_score": score,
+                "name": scanner.name,
+            }
+        )
+        built.append(base)
+
+    ranked = sort_trending_items(built, limit=limit)
+    return ScannerTrendingListOut(
+        items=[ScannerTrendingOut(**row) for row in ranked]
+    )
+
+
+@router.get("/featured", response_model=ScannerFeaturedListOut)
+async def featured_scanners(
+    db: AsyncSession = Depends(get_db),
+) -> ScannerFeaturedListOut:
+    scanners = (
+        await db.scalars(
+            select(Scanner)
+            .where(Scanner.is_featured.is_(True))
+            .order_by(Scanner.name.asc())
+        )
+    ).all()
+    return ScannerFeaturedListOut(items=[_scanner_out(s) for s in scanners])
 
 
 async def _last_error_for(db: AsyncSession, scanner_id: UUID) -> str | None:
@@ -430,6 +541,36 @@ async def list_scanner_runs(
         )
     ).all()
     return [_run_out(r) for r in runs]
+
+
+@router.post("/{scanner_id}/rate", response_model=ScannerRatingOut)
+async def rate_scanner(
+    scanner_id: UUID,
+    body: ScannerRateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerRatingOut:
+    scanner = await _get_visible_scanner(db, scanner_id, user)
+    avg, count, my_stars = await upsert_scanner_rating(
+        db, user=str(user.id), ref_id=scanner.id, stars=body.stars
+    )
+    return ScannerRatingOut(avg=avg, count=count, my_stars=my_stars)
+
+
+@router.post("/{scanner_id}/feature", response_model=ScannerOut)
+async def feature_scanner(
+    scanner_id: UUID,
+    body: ScannerFeatureRequest,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_admin_api_key),
+) -> ScannerOut:
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    scanner.is_featured = bool(body.is_featured)
+    await db.flush()
+    await db.refresh(scanner)
+    return _scanner_out(scanner, latest_run=await _latest_run(db, scanner.id))
 
 
 @router.post("/{scanner_id}/fork", response_model=ScannerOut, status_code=status.HTTP_201_CREATED)

@@ -67,9 +67,39 @@ class ScannerOut(BaseModel):
     version: int
     status: str
     is_public: bool
+    is_featured: bool = False
     cooldown_minutes: int
     created_at: datetime
     updated_at: datetime
     latest_run: ScannerRunOut | None = None
     next_run_at: datetime | None = None
     last_error: str | None = None
+
+
+class ScannerRateRequest(BaseModel):
+    stars: int = Field(ge=1, le=5)
+
+
+class ScannerRatingOut(BaseModel):
+    avg: float
+    count: int
+    my_stars: int
+
+
+class ScannerTrendingOut(ScannerOut):
+    avg_rating: float
+    rating_count: int
+    run_count: int
+    trending_score: float
+
+
+class ScannerFeatureRequest(BaseModel):
+    is_featured: bool
+
+
+class ScannerFeaturedListOut(BaseModel):
+    items: list[ScannerOut]
+
+
+class ScannerTrendingListOut(BaseModel):
+    items: list[ScannerTrendingOut]

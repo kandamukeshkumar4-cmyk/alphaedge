@@ -26,9 +26,38 @@ class SkillOut(BaseModel):
     params_schema: dict[str, Any] | list[Any] | None
     run_count: int
     is_public: bool
+    is_featured: bool = False
     created_by: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class SkillRateRequest(BaseModel):
+    stars: int = Field(ge=1, le=5)
+
+
+class SkillRatingOut(BaseModel):
+    avg: float
+    count: int
+    my_stars: int
+
+
+class SkillTrendingOut(SkillOut):
+    avg_rating: float
+    rating_count: int
+    trending_score: float
+
+
+class SkillFeatureRequest(BaseModel):
+    is_featured: bool
+
+
+class SkillFeaturedListOut(BaseModel):
+    items: list[SkillOut]
+
+
+class SkillTrendingListOut(BaseModel):
+    items: list[SkillTrendingOut]
 
 
 class SkillRunRequest(BaseModel):
