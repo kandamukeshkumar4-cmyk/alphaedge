@@ -8,6 +8,10 @@ import {
 } from "@/components/alpha/AlphaReportCard";
 import { FactorTable, FactorTableSkeleton } from "@/components/alpha/FactorTable";
 import {
+  HypothesesTable,
+  HypothesesTableSkeleton,
+} from "@/components/alpha/HypothesesTable";
+import {
   LatestSignalCard,
   LatestSignalCardSkeleton,
 } from "@/components/alpha/LatestSignalCard";
@@ -26,15 +30,18 @@ import {
   type ApiSource,
 } from "@/lib/alpha-api";
 import {
+  getHypotheses,
   getLatestSignal,
   getRuns,
   type AlphaRuns,
+  type Hypotheses,
   type LatestSignal,
 } from "@/lib/alpha-runs-api";
 
 /*
  * Loop 99 AU2 — Multi-Factor Alpha research view (/alpha).
  * Loop 102 AR2 — Latest-signal hero + daily run history.
+ * Loop 102 AR3 — Idea-generator hypotheses with validation verdicts.
  *
  * Factor scores + independent OOS validation for the canonical paper market,
  * beside the portfolio-wide validated-factor report. Paper-only: nothing
@@ -61,6 +68,7 @@ export function AlphaResearchPage() {
   const [loaded, setLoaded] = useState(false);
   const [runs, setRuns] = useState<AlphaRuns | null>(null);
   const [latestSignal, setLatestSignal] = useState<LatestSignal | null>(null);
+  const [hypotheses, setHypotheses] = useState<Hypotheses | null>(null);
   const [tailLoaded, setTailLoaded] = useState(false);
 
   useEffect(() => {
@@ -76,14 +84,17 @@ export function AlphaResearchPage() {
       setSource(f.source);
       setLoaded(true);
     });
-    // Research tail (runs + latest signal) loads independently so the hero
-    // and history are never blocked by the factor ledger.
-    void Promise.all([getRuns(), getLatestSignal()]).then(([h, s]) => {
-      if (cancelled) return;
-      setRuns(h.data);
-      setLatestSignal(s.data);
-      setTailLoaded(true);
-    });
+    // Research tail (runs + latest signal + hypotheses) loads independently
+    // so the hero and history are never blocked by the factor ledger.
+    void Promise.all([getRuns(), getLatestSignal(), getHypotheses()]).then(
+      ([h, s, p]) => {
+        if (cancelled) return;
+        setRuns(h.data);
+        setLatestSignal(s.data);
+        setHypotheses(p.data);
+        setTailLoaded(true);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -198,11 +209,17 @@ export function AlphaResearchPage() {
               <AlphaReportCard report={report} />
             </div>
 
-            <div className="mt-6">
+            <div className="mt-6 grid gap-5 xl:grid-cols-2">
               {tailLoaded ? (
-                <RunHistoryTable runs={runs} />
+                <>
+                  <RunHistoryTable runs={runs} />
+                  <HypothesesTable hypotheses={hypotheses} />
+                </>
               ) : (
-                <RunHistoryTableSkeleton />
+                <>
+                  <RunHistoryTableSkeleton />
+                  <HypothesesTableSkeleton />
+                </>
               )}
             </div>
 
@@ -219,8 +236,9 @@ export function AlphaResearchPage() {
               <FactorTableSkeleton />
               <AlphaReportCardSkeleton />
             </div>
-            <div className="mt-6">
+            <div className="mt-6 grid gap-5 xl:grid-cols-2">
               <RunHistoryTableSkeleton />
+              <HypothesesTableSkeleton />
             </div>
           </>
         )}
