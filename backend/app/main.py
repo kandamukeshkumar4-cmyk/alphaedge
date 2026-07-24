@@ -53,6 +53,7 @@ from app.api.v1.skills import router as skills_router
 from app.api.v1.scanners import router as scanners_router
 from app.api.v1.search import router as search_router
 from app.api.v1.alpha import router as alpha_router
+from app.api.v1.indicators import router as indicators_router
 from app.api.v1.subscriptions import router as subscriptions_router
 from app.api.v1.screener import router as screener_router
 from app.api.v1.usage import router as usage_router
@@ -1050,6 +1051,7 @@ app.include_router(skills_router)
 app.include_router(scanners_router)
 app.include_router(search_router)
 app.include_router(alpha_router)
+app.include_router(indicators_router)
 app.include_router(subscriptions_router)
 app.include_router(screener_router)
 app.include_router(usage_router)
