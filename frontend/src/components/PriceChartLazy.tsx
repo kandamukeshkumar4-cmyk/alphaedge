@@ -19,17 +19,16 @@ const PriceChartInner = dynamic(
   () => import("./PriceChart").then((m) => ({ default: m.PriceChart })),
   {
     ssr: false,
-    // loop104 a11y: while the lazy chunk loads, expose the chart region as a
-    // named image (role=img + aria-label) instead of nothing. This both gives
-    // AT users an announced placeholder and makes the BUG-V28-02 regression
-    // deterministic (the named region exists before the chunk resolves, so a
-    // slow chunk load can no longer time out the 30s wait). Absolute-inset so
-    // it fills the reserved box at any height without adding layout shift.
+    // loop104 a11y: while the lazy chunk loads, reserve space with a busy
+    // skeleton (absolute-inset fills the reserved box; no layout shift).
+    // Must NOT use role="img" + "Price history chart" — that is the real
+    // chart's accessible name. BUG-V28-02 waits on that name to mean the
+    // chart has mounted; a skeleton with the same name makes the wait pass
+    // early and races the TradingView attribution checks.
     loading: () => (
       <div
-        role="img"
-        aria-label="Price history chart"
         aria-busy="true"
+        aria-label="Loading price history chart"
         className="skeleton absolute inset-0 rounded-xl"
       />
     ),

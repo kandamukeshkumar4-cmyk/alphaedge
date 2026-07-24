@@ -82,11 +82,9 @@ risk code / numbers / copy changed**, `PAPER_TRADING_ONLY` untouched.
   the muted text below 4.5:1 (`color-contrast` serious); the gray palette
   (`text-muted-2` + KILLED/REJECTED badge) already de-emphasises without
   dimming. Fixes `/alpha`.
-- **`src/components/PriceChartLazy.tsx`** — the `next/dynamic` loading state
-  now renders a `role="img"` + `aria-label="Price history chart"` +
-  `aria-busy` placeholder (absolute-inset inside the reserved box), so the
-  chart region is named during load (a11y win) and the BUG-V28-02 `role="img"`
-  wait is deterministic.
+- **`src/components/PriceChartLazy.tsx`** — kept the `relative` wrapper +
+  absolute-inset skeleton for layout (no CLS). **Regression fixed below:** the
+  skeleton must not claim the loaded chart's accessible name.
 - **`e2e/a11y.spec.ts`** (my file) — `beforeEach` now also seeds the
   orientation-tour gate `ae_onboarded_v1` via `addInitScript`. `skipOnboarding`
   only set `alphaedge.onboarded` (the OnboardingModal gate); the OnboardingTour
@@ -153,5 +151,40 @@ Session commits on `loop104-a11y/node` (bounded; full history via
 
 (The single docs commit that writes this final STATE104 sits directly above
 `8aebe23` in `git log`.)
+
+## Regression fix
+
+**Bug:** commit `5d0b5d4` gave the `next/dynamic` loading skeleton
+`role="img"` + `aria-label="Price history chart"`. BUG-V28-02 waits on
+`getByRole("img", { name: /Price history chart/i })` specifically to mean
+the **real** chart has mounted; the skeleton made that wait resolve early,
+then the TradingView attribution checks raced and failed.
+
+**Fix (only `frontend/src/components/PriceChartLazy.tsx`):** drop `role="img"`
+and the loaded-chart name from the skeleton. Keep `aria-busy="true"`, use a
+distinct label (`Loading price history chart`), keep `className="relative"`
+wrapper + absolute-inset skeleton (layout improvement retained). Test
+unchanged.
+
+**Proof** — `cd frontend && npx playwright test e2e/a11y.spec.ts --reporter=list`
+(verbatim last lines of the runner):
+
+```
+  ok 23 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /categories has no serious/critical axe violations (9.1s)
+  ok 24 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /usage has no serious/critical axe violations (11.2s)
+  ok 25 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /about has no serious/critical axe violations (8.1s)
+  ok 26 [chromium] › e2e\a11y.spec.ts:194:7 › Q8 a11y market detail regressions (@axe-core/playwright) › market detail has no serious/critical axe violations (17.9s)
+  ok 27 [chromium] › e2e\a11y.spec.ts:199:7 › Q8 a11y market detail regressions (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo (8.6s)
+
+
+  27 passed (5.5m)
+```
+
+Also: `npm run typecheck` → clean; `npm run lint` → clean (`eslint src --max-warnings=0`).
+Note: two earlier full-suite attempts failed BUG-V28-02 when next-dev hit
+webpack module corruption after many route compiles (error boundary on market
+detail). Cleared `frontend/.next` and re-ran; 27/27 green. Component fix is
+correct (isolated BUG-V28-02 + market-detail pair also green before the clean
+full run).
 
 
