@@ -58,12 +58,12 @@ export function PositionCard({
       );
       idemKeyRef.current = null;
       const pnlText = `${result.realized_pnl >= 0 ? "+" : ""}$${result.realized_pnl.toFixed(2)}`;
-      toast({ title: "Position closed", body: `Realized P&L ${pnlText}`, tone: "success" });
+      toast({ title: "Paper position closed", body: `Paper realized P&L ${pnlText}`, tone: "success" });
       onClosed?.();
     } catch (err) {
       if (!(err instanceof TypeError)) idemKeyRef.current = null;
       toast({
-        title: "Close failed",
+        title: "Paper close failed",
         body: err instanceof Error ? err.message : "Unable to close position",
         tone: "error",
       });
@@ -76,7 +76,7 @@ export function PositionCard({
     <div className="rounded-xl border border-border bg-surface-2 p-3">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted-2">
-          My Position
+          My Paper Position
         </span>
         <span
           className={cn(
@@ -98,15 +98,15 @@ export function PositionCard({
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Avg Price</dt>
+          <dt className="text-muted">Paper avg price</dt>
           <dd className="font-mono text-text">${position.avg_cost.toFixed(3)}</dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Current</dt>
+          <dt className="text-muted">Paper mark</dt>
           <dd className="font-mono text-text">${currentPrice.toFixed(3)}</dd>
         </div>
         <div className="flex items-center justify-between border-t border-border pt-1">
-          <dt className="text-muted">Unrealized P&L</dt>
+          <dt className="text-muted">Paper unrealized P&L</dt>
           <dd
             className={cn(
               "font-mono font-bold",
@@ -125,8 +125,8 @@ export function PositionCard({
         className="mt-3 w-full rounded-lg border border-border py-1.5 text-xs font-semibold text-muted transition hover:border-danger hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
       >
         {closing
-          ? "Closing…"
-          : `Sell ${position.shares.toFixed(0)} shares (${fmtUSD(position.shares * currentPrice)})`}
+          ? "Closing paper…"
+          : `Paper sell ${position.shares.toFixed(0)} shares (${fmtUSD(position.shares * currentPrice)})`}
       </button>
     </div>
   );

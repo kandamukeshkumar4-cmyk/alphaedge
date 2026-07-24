@@ -62,8 +62,8 @@ export function TradePanel({
       idemKeyRef.current = null;
       await refreshBalance();
       toast({
-        title: "Order placed",
-        body: `Cost ${formatUSD(result.cost)} · Balance ${formatUSD(result.remaining_balance)}`,
+        title: "Paper order placed",
+        body: `Paper cost ${formatUSD(result.cost)} · Paper balance ${formatUSD(result.remaining_balance)}`,
         tone: "success",
       });
     } catch (error) {
@@ -83,7 +83,7 @@ export function TradePanel({
   if (!token) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-4 text-center">
-        <p className="text-sm font-semibold text-text">Log in to trade</p>
+        <p className="text-sm font-semibold text-text">Log in to paper trade</p>
         <Link
           href="/auth/login"
           className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
@@ -107,7 +107,7 @@ export function TradePanel({
             outcome === "yes" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
-          Buy Yes
+          Paper buy Yes
         </button>
         <button
           type="button"
@@ -119,7 +119,7 @@ export function TradePanel({
             outcome === "no" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
-          Buy No
+          Paper buy No
         </button>
       </div>
 
@@ -144,11 +144,11 @@ export function TradePanel({
 
       <dl className="mt-4 space-y-2 text-sm">
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Price</dt>
+          <dt className="text-muted">Paper price</dt>
           <dd className="font-mono font-bold text-text">{formatUSD(price)}</dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Cost</dt>
+          <dt className="text-muted">Paper cost</dt>
           <dd className="font-mono font-bold text-primary">{formatUSD(cost)}</dd>
         </div>
       </dl>
@@ -165,8 +165,8 @@ export function TradePanel({
         {disabled
           ? "Market resolved"
           : submitting
-            ? "Placing order…"
-            : `Buy ${outcome.toUpperCase()}`}
+            ? "Placing paper order…"
+            : `Paper buy ${outcome.toUpperCase()}`}
       </button>
 
       <p className="mt-2 text-[11px] leading-relaxed text-muted-2">Paper simulation only.</p>

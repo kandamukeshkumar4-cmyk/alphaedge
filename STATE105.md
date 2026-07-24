@@ -14,7 +14,8 @@ No backend, order path, secret, deployment, or forbidden file changes.
 - Item 1 LiveTicker: changed user-facing framing from live to simulated demo feed; proof pending final gate run.
 - Item 2 market detail: added fallback banners, propagated demo context to forecast/activity panels, and disabled sample-book jitter unless the existing market source is a live venue.
 - Item 3 terminal research: 401 responses now produce a sign-in empty state; offline mock sessions carry a loud `PAPER MOCK SESSION — not live research` banner.
-- Items 4–8: pending.
+- Item 4 trade controls: relabeled buy/close controls, progress states, toasts, money fields, and position values as paper-only; order and risk logic untouched.
+- Items 5–8: pending.
 
 ## Verification
 
@@ -30,6 +31,7 @@ Item 1 focused typecheck:
 1. LiveTicker: `Live trades` + pulsing `live` → `Demo feed` + `simulated` + explicit simulated-trades banner.
 2. Market detail: distant paper footer only → visible demo-market banner plus demo forecast/activity/sample-book indicators; sample order-book sizes stop jittering off live-source data.
 3. Terminal research: quiet `· local mock` and fabricated 401 fallback → loud `PAPER MOCK SESSION — not live research`, or a sign-in empty state with no fabricated session.
+4. Trade controls: `Buy` / `Placing order…` / `Order placed` → `Paper buy` / `Placing paper order…` / `Paper order placed`; position close and money labels use the same paper framing.
 
 ## Blockers and unrelated findings
 
@@ -40,4 +42,5 @@ Item 1 focused typecheck:
 
 - `a719f4a fix(loop105): honest source labelling — demo ticker`
 - `6f68956 fix(loop105): honest source labelling — market detail`
-- Item 3 commit will be listed after commit.
+- `041fd5f fix(loop105): honest source labelling — terminal research`
+- Item 4 commit will be listed after commit.
