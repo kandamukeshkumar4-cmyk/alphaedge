@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Market, PaperOrder, User, Watchlist
@@ -36,17 +36,57 @@ def _iso(value: datetime) -> str:
     return _as_utc(value).isoformat().replace("+00:00", "Z")
 
 
-def _parse_cursor(cursor: str | None) -> datetime | None:
+def _encode_cursor(created_at_iso: str, story_id: str) -> str:
+    """Opaque composite cursor: created_at + story id (stable under timestamp ties)."""
+    return f"{created_at_iso}|{story_id}"
+
+
+def _parse_cursor(cursor: str | None) -> tuple[datetime, str] | None:
+    """Decode composite cursor. Malformed input raises ValueError → HTTP 400."""
     if cursor is None or not cursor.strip():
         return None
     raw = cursor.strip()
-    if raw.endswith("Z"):
-        raw = raw[:-1] + "+00:00"
+    if "|" not in raw:
+        raise ValueError("Invalid cursor")
+    ts_part, story_id = raw.split("|", 1)
+    if not story_id.startswith((_STORY_PREFIX_TRADE, _STORY_PREFIX_WATCHLIST)):
+        raise ValueError("Invalid cursor")
+    id_raw = story_id.split(":", 1)[1]
     try:
-        parsed = datetime.fromisoformat(raw)
+        UUID(id_raw)
     except ValueError as exc:
         raise ValueError("Invalid cursor") from exc
-    return _as_utc(parsed)
+    if ts_part.endswith("Z"):
+        ts_part = ts_part[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(ts_part)
+    except ValueError as exc:
+        raise ValueError("Invalid cursor") from exc
+    return _as_utc(parsed), story_id
+
+
+def _trade_before_cursor(cursor_at: datetime, cursor_story_id: str):
+    """SQL: (created_at, trade:id) < (cursor_at, cursor_story_id) in ASC tuple order."""
+    if cursor_story_id.startswith(_STORY_PREFIX_TRADE):
+        cursor_uuid = UUID(cursor_story_id[len(_STORY_PREFIX_TRADE) :])
+        return or_(
+            PaperOrder.created_at < cursor_at,
+            and_(PaperOrder.created_at == cursor_at, PaperOrder.id < cursor_uuid),
+        )
+    # watchlist:* > trade:* lexicographically → all same-ts trades are after the cursor
+    return PaperOrder.created_at <= cursor_at
+
+
+def _watch_before_cursor(cursor_at: datetime, cursor_story_id: str):
+    """SQL: (created_at, watchlist:id) < (cursor_at, cursor_story_id) in ASC tuple order."""
+    if cursor_story_id.startswith(_STORY_PREFIX_WATCHLIST):
+        cursor_uuid = UUID(cursor_story_id[len(_STORY_PREFIX_WATCHLIST) :])
+        return or_(
+            Watchlist.created_at < cursor_at,
+            and_(Watchlist.created_at == cursor_at, Watchlist.id < cursor_uuid),
+        )
+    # trade:* < watchlist:* → no same-ts watchlist is after a trade cursor
+    return Watchlist.created_at < cursor_at
 
 
 def _actor_dict(user_id: UUID, display_name: str | None) -> dict[str, Any]:
@@ -172,7 +212,7 @@ async def list_stories(
     viewer_id: str | None = None,
 ) -> dict:
     """Derived reverse-chronological stories from paper trades + watchlist adds."""
-    cursor_at = _parse_cursor(cursor)
+    cursor_key = _parse_cursor(cursor)
     fetch_n = max(limit * 3, limit + 1)
 
     trade_stmt = (
@@ -182,8 +222,8 @@ async def list_stories(
         .order_by(PaperOrder.created_at.desc(), PaperOrder.id.desc())
         .limit(fetch_n)
     )
-    if cursor_at is not None:
-        trade_stmt = trade_stmt.where(PaperOrder.created_at < cursor_at)
+    if cursor_key is not None:
+        trade_stmt = trade_stmt.where(_trade_before_cursor(*cursor_key))
 
     watch_stmt = (
         select(Watchlist, User.display_name)
@@ -192,8 +232,8 @@ async def list_stories(
         .order_by(Watchlist.created_at.desc(), Watchlist.id.desc())
         .limit(fetch_n)
     )
-    if cursor_at is not None:
-        watch_stmt = watch_stmt.where(Watchlist.created_at < cursor_at)
+    if cursor_key is not None:
+        watch_stmt = watch_stmt.where(_watch_before_cursor(*cursor_key))
 
     trade_rows = (await db.execute(trade_stmt)).all()
     watch_rows = (await db.execute(watch_stmt)).all()
@@ -241,8 +281,15 @@ async def list_stories(
         )
 
     candidates.sort(key=lambda s: (s["_sort_at"], s["_sort_id"]), reverse=True)
+    if cursor_key is not None:
+        c_at, c_id = cursor_key
+        candidates = [s for s in candidates if (s["_sort_at"], s["_sort_id"]) < (c_at, c_id)]
     page = candidates[:limit]
-    next_cursor = page[-1]["created_at"] if len(candidates) > limit else None
+    next_cursor = (
+        _encode_cursor(page[-1]["created_at"], page[-1]["id"])
+        if len(candidates) > limit
+        else None
+    )
 
     story_ids = [s["id"] for s in page]
     reaction_map = await _reaction_stats(db, story_ids, viewer_id)

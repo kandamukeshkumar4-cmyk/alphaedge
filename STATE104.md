@@ -74,3 +74,36 @@ e8ff7fb feat(loop104): add community stories, reactions, and shared watchlists
 38713dc feat(loop103): P3 — PWA e2e + skip service worker (stale-data risk)
 34b8d5f feat(loop102): AR2 — latest-signal hero + run history on /alpha
 ```
+
+
+## Blocker fix
+
+Auditor blocker: unstable story cursor under equal `created_at` (composite `(created_at, id)` + tuple filter).
+
+### 1) Targeted pytest (11 tests)
+
+```text
+cd backend && uv run --extra dev pytest -q tests/test_loop104_social.py --basetemp=E:/polymarket-worktrees/loop104-social/.ptfix
+...........                                                              [100%]
+11 passed in 24.86s
+```
+
+### 2) Ruff
+
+```text
+cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
+
+### 3) OpenAPI contract shape
+
+Verified live `StoryPageOut` still `{items, next_cursor: str|null}`; path count 209 == snapshot. No regen required (opaque cursor string only; response shape unchanged).
+
+## Noted, not fixed
+
+- Reaction concurrent double-POST can still 500 without IntegrityError handling (auditor non-blocking).
+- GET stories uses `get_optional_user` while AUTH_CLASS says `"public"` — behavior OK (auditor nit).
+- `profile_public` filter on story derivation undocumented in frozen contract.
+- `_resolve_user_by_handle` loads all users then filters in Python.
+- `app.models.social` not wired into alembic/env.py / conftest import graph.
+- Kinds `forecast` / `note` allowed by schema, never produced by current derivation.

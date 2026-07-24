@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from app.db.models import User
+from app.db.models import PaperOrder, User
 from app.db.session import get_db
 from app.main import app
 from app.services.analytics_leaderboard import anonymized_username
@@ -121,6 +123,56 @@ async def test_list_stories_cursor_pagination_is_stable(db_session):
         assert set(ids1).isdisjoint(set(ids2))
         # Stable newest-first: every page1 created_at >= every page2 created_at
         assert body1["items"][-1]["created_at"] >= body2["items"][0]["created_at"]
+
+
+@pytest.mark.asyncio
+async def test_cursor_pagination_stable_with_identical_timestamps(db_session):
+    """Equal created_at across a page boundary must not drop or duplicate stories."""
+    await MarketService(db_session).seed_catalog_markets()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for i in range(4):
+            headers = await _auth(client, f"loop104-tie-{i}@example.com")
+            await _place_trade(client, headers)
+
+        orders = list(
+            (await db_session.execute(select(PaperOrder).order_by(PaperOrder.id.desc())))
+            .scalars()
+            .all()
+        )
+        assert len(orders) >= 4
+        # Force identical timestamps so the limit=2 page boundary straddles a tie.
+        tie_ts = datetime(2026, 6, 15, 12, 0, 0, tzinfo=UTC)
+        for order in orders[:4]:
+            order.created_at = tie_ts
+        await db_session.commit()
+
+        full = await client.get("/api/v1/social/stories?limit=100")
+        assert full.status_code == 200
+        expected_ids = [s["id"] for s in full.json()["items"]]
+        assert len(expected_ids) >= 4
+        newest_four = full.json()["items"][:4]
+        assert len({s["created_at"] for s in newest_four}) == 1
+        # Rows 2 and 3 (1-based) share the timestamp and straddle the limit=2 boundary.
+        assert newest_four[1]["created_at"] == newest_four[2]["created_at"]
+
+        collected: list[str] = []
+        cursor = None
+        for _ in range(10):
+            params: dict = {"limit": 2}
+            if cursor is not None:
+                params["cursor"] = cursor
+            page = await client.get("/api/v1/social/stories", params=params)
+            assert page.status_code == 200, page.text
+            body = page.json()
+            collected.extend(s["id"] for s in body["items"])
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+
+        assert len(collected) == len(set(collected)), f"duplicates in {collected}"
+        assert set(collected) == set(expected_ids), (
+            f"dropped/extra: expected={set(expected_ids)} got={set(collected)}"
+        )
 
 
 @pytest.mark.asyncio
