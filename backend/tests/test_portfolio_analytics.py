@@ -162,3 +162,102 @@ async def test_analytics_mixed_win_loss_and_open(db_session):
     assert summary["trades_open"] == 1
     assert summary["avg_hold_hours"] >= 0.0
 
+
+@pytest.mark.asyncio
+async def test_analytics_calibration_empty_without_closed_probs(db_session):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await _signup(client, "analytics-cal-empty@example.com")
+    user = (
+        await db_session.execute(
+            select(User).where(User.email == "analytics-cal-empty@example.com")
+        )
+    ).scalar_one()
+    result = await compute_portfolio_analytics(db_session, user, days=30)
+    assert result["calibration"]["buckets"] == []
+    assert result["calibration"]["paper_trading_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_analytics_calibration_decile_buckets(db_session):
+    await MarketService(db_session).seed_catalog_markets()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        token = await _signup(client, "analytics-cal@example.com")
+        # Entry implied 0.4 in decile 0.4-0.5; resolve YES => win
+        buy = await client.post(
+            "/api/v1/orders",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": CANONICAL_SLUG, "side": "YES", "shares": 10, "price": 0.4},
+        )
+        assert buy.status_code in (200, 201)
+        resolve = await client.post(
+            f"/api/v1/admin/markets/{CANONICAL_SLUG}/resolve",
+            headers=ADMIN_HEADERS,
+            json={"winning_outcome": "YES"},
+        )
+        assert resolve.status_code == 200
+
+    user = (
+        await db_session.execute(select(User).where(User.email == "analytics-cal@example.com"))
+    ).scalar_one()
+    await db_session.refresh(user)
+    result = await compute_portfolio_analytics(db_session, user, days=30)
+    buckets = result["calibration"]["buckets"]
+    assert result["calibration"]["paper_trading_only"] is True
+    assert len(buckets) >= 1
+    matched = [b for b in buckets if b["predicted_prob_bucket"] == "0.4-0.5"]
+    assert len(matched) == 1
+    assert matched[0]["n"] == 1
+    assert matched[0]["actual_rate"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_analytics_calibration_mixed_bucket_rate(db_session):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await _signup(client, "analytics-cal-mix@example.com")
+    user = (
+        await db_session.execute(
+            select(User).where(User.email == "analytics-cal-mix@example.com")
+        )
+    ).scalar_one()
+    now = datetime.now(UTC)
+    # Two settled buys at 0.65: one win, one loss => actual_rate 0.5 in 0.6-0.7
+    db_session.add_all(
+        [
+            PaperOrder(
+                user_id=user.id,
+                slug="cal-m1",
+                side="YES",
+                outcome="yes",
+                shares=Decimal("10"),
+                price=Decimal("0.65"),
+                cost=Decimal("6.5"),
+                action="BUY",
+                settled=True,
+                created_at=now,
+            ),
+            PaperOrder(
+                user_id=user.id,
+                slug="cal-m2",
+                side="YES",
+                outcome="yes",
+                shares=Decimal("10"),
+                price=Decimal("0.65"),
+                cost=Decimal("6.5"),
+                action="BUY",
+                settled=True,
+                created_at=now,
+            ),
+            MarketResolution(slug="cal-m1", outcome="YES"),
+            MarketResolution(slug="cal-m2", outcome="NO"),
+        ]
+    )
+    await db_session.flush()
+    result = await compute_portfolio_analytics(db_session, user, days=14)
+    matched = [
+        b for b in result["calibration"]["buckets"]
+        if b["predicted_prob_bucket"] == "0.6-0.7"
+    ]
+    assert len(matched) == 1
+    assert matched[0]["n"] == 2
+    assert matched[0]["actual_rate"] == pytest.approx(0.5)
+

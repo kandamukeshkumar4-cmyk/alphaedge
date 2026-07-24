@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Market, MarketResolution, PaperOrder, User
+from app.ml.calibration import reliability_curve
 from app.services.analytics_attribution import (
     OrderLeg,
     attributed_trades,
@@ -124,6 +125,77 @@ def _build_pnl_series(
         )
         cursor += timedelta(days=1)
     return series
+
+
+def _calibration_buckets(
+    orders: list[PaperOrder],
+    resolutions: dict[str, str],
+) -> list[dict[str, float | int | str]]:
+    """Decile reliability for closed paper bets with an entry implied/model prob.
+
+    Entry ``PaperOrder.price`` is the implied probability of the bought outcome
+    (same convention as /calibration). Actual = 1 iff the bet won. Reuses
+    ``reliability_curve`` for binning. No usable points -> empty buckets.
+    """
+    predictions: list[float] = []
+    outcomes: list[int] = []
+
+    # One point per settled BUY that still net-held into resolve (attribution
+    # SETTLE legs). Prefer the earliest BUY price as entry implied.
+    by_key: dict[tuple[str, str], list[PaperOrder]] = {}
+    for order in orders:
+        if str(order.action).upper() != "BUY":
+            continue
+        if not order.settled:
+            continue
+        if order.price is None:
+            continue
+        key = (order.slug, str(order.outcome).upper())
+        by_key.setdefault(key, []).append(order)
+
+    for (slug, outcome), buys in by_key.items():
+        resolution = resolutions.get(slug)
+        if resolution is None:
+            continue
+        # Skip fully sold-flat groups: no remaining shares into resolve.
+        sells = [
+            o
+            for o in orders
+            if o.slug == slug
+            and str(o.outcome).upper() == outcome
+            and str(o.action).upper() == "SELL"
+            and o.settled
+        ]
+        buy_shares = sum(float(b.shares) for b in buys)
+        sell_shares = sum(float(s.shares) for s in sells)
+        if buy_shares - sell_shares <= 1e-9:
+            continue
+        entry = buys[0]
+        try:
+            predicted = float(entry.price)
+        except (TypeError, ValueError):
+            continue
+        if not (0.0 <= predicted <= 1.0):
+            continue
+        won = 1 if outcome == str(resolution).upper() else 0
+        predictions.append(predicted)
+        outcomes.append(won)
+
+    if not predictions:
+        return []
+
+    curve = reliability_curve(predictions, outcomes, bins=10)
+    buckets: list[dict[str, float | int | str]] = []
+    for bin_row in curve:
+        buckets.append(
+            {
+                "predicted_prob_bucket": f"{bin_row.lower:.1f}-{bin_row.upper:.1f}",
+                "actual_rate": round(float(bin_row.observed_rate), 4),
+                "n": int(bin_row.count),
+            }
+        )
+    return buckets
+
 
 async def compute_portfolio_analytics(
     db: AsyncSession,
@@ -258,7 +330,7 @@ async def compute_portfolio_analytics(
             "avg_hold_hours": float(avg_hold),
         },
         "calibration": {
-            "buckets": [],
+            "buckets": _calibration_buckets(orders, resolutions),
             "paper_trading_only": True,
         },
     }
