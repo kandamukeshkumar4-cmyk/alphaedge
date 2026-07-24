@@ -125,10 +125,26 @@ BUILD_EXIT:0
 9f619cf fix(loop90): O-fix2 — cover SSR and private-mode onboarding helpers in vitest
 ```
 
-`git log -1` after O-fix1/O-fix4 STATE commits will supersede the tip line above.
+`git log -1` after O-fix4:
+
+```text
+0cf0dd5 fix(loop90): O-fix1 â€” rewrite STATE90B.md with O1â€“O3 and fix proofs
+```
 
 ## Verdict
 
 O1–O3 implementation retained; audit gaps closed: STATE present with pasted proofs, vitest covers SSR/private-mode and full suite green, E2E first-run path green after clean `:31099` restart, typecheck/lint/build green.
 
 No push. No ESCALATION.
+
+## O-fix4 — re-verify stamp
+
+Commands re-run clean in this worktree (pasted under F4 above):
+
+- `npm run typecheck` → exit 0
+- `npm run lint` → exit 0
+- `npm run build` → exit 0 (`○ /onboarding` present)
+
+```text
+0cf0dd5 fix(loop90): O-fix1 â€” rewrite STATE90B.md with O1â€“O3 and fix proofs
+```
