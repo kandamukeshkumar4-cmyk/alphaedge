@@ -8,6 +8,7 @@ import { AlertToast } from "@/components/AlertToast";
 import { ApiHealthChip } from "@/components/ApiHealthChip";
 import { HeaderMoreMenu } from "@/components/HeaderMoreMenu";
 import { HeaderSearch } from "@/components/HeaderSearch";
+import { SearchCommand } from "@/components/search/SearchCommand";
 import { AlertsBell } from "@/components/AlertsBell";
 import { NavIcon, type NavIconKey } from "@/components/nav-icons";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
@@ -151,6 +152,8 @@ export function SiteHeader() {
           </div>
 
           <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2 md:ml-0">
+            {/* V91 SU2: command-palette trigger (Cmd/Ctrl-K) — opens SearchPalette. */}
+            <SearchCommand />
             <Link
               href="/portfolio"
               className="hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex"
