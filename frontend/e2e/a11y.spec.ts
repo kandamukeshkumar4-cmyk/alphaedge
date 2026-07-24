@@ -138,6 +138,21 @@ async function runAxe(page: Page, path: string) {
 test.describe("Q8 a11y route sweep (@axe-core/playwright)", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
+    // loop104 a11y: skipOnboarding seeds `alphaedge.onboarded` (OnboardingModal)
+    // but NOT the orientation tour's gate `ae_onboarded_v1` (OnboardingGate /
+    // OnboardingTour). That tour renders a focus-trapping full-screen overlay
+    // (button.absolute.inset-0) on every page: it intercepts form input — which
+    // is why /portfolio's signupPaperUser typing never stuck — and its
+    // framer-motion + backdrop-blur load contends with the lazy price-chart
+    // chunk. Seed its gate too so each route is scanned unobstructed. This is
+    // test setup only; the axe assertions below are unchanged.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("ae_onboarded_v1", "true");
+      } catch {
+        /* localStorage unavailable */
+      }
+    });
   });
 
   for (const route of SWEEP_ROUTES) {
@@ -159,6 +174,21 @@ test.describe("Q8 a11y route sweep (@axe-core/playwright)", () => {
 test.describe("Q8 a11y market detail regressions (@axe-core/playwright)", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
+    // loop104 a11y: skipOnboarding seeds `alphaedge.onboarded` (OnboardingModal)
+    // but NOT the orientation tour's gate `ae_onboarded_v1` (OnboardingGate /
+    // OnboardingTour). That tour renders a focus-trapping full-screen overlay
+    // (button.absolute.inset-0) on every page: it intercepts form input — which
+    // is why /portfolio's signupPaperUser typing never stuck — and its
+    // framer-motion + backdrop-blur load contends with the lazy price-chart
+    // chunk. Seed its gate too so each route is scanned unobstructed. This is
+    // test setup only; the axe assertions below are unchanged.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("ae_onboarded_v1", "true");
+      } catch {
+        /* localStorage unavailable */
+      }
+    });
   });
 
   test("market detail has no serious/critical axe violations", async ({ page }) => {
