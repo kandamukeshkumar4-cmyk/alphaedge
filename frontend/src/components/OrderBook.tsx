@@ -3,12 +3,18 @@
 import { useEffect, useState } from "react";
 import { cents, type Market, type BookLevel } from "@/lib/mock-data";
 
-// Live-ish order book: sizes jitter on an interval to feel like a real feed.
 export function OrderBook({ market }: { market: Market }) {
   const [bids, setBids] = useState<BookLevel[]>(market.bids);
   const [asks, setAsks] = useState<BookLevel[]>(market.asks);
+  const isLive = market.source === "polymarket" || market.source === "kalshi";
 
   useEffect(() => {
+    setBids(market.bids);
+    setAsks(market.asks);
+  }, [market.bids, market.asks]);
+
+  useEffect(() => {
+    if (!isLive) return;
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -22,7 +28,7 @@ export function OrderBook({ market }: { market: Market }) {
       setAsks((prev) => prev.map(jitter));
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isLive]);
 
   const maxSize = Math.max(
     ...bids.map((b) => b.size),
@@ -33,6 +39,11 @@ export function OrderBook({ market }: { market: Market }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <h3 className="text-sm font-black text-text">Order book</h3>
+      {!isLive ? (
+        <p className="mt-1 text-center text-xs text-muted-2">
+          Sample book — displayed sizes are not live.
+        </p>
+      ) : null}
       <div className="mt-3 grid grid-cols-2 gap-4">
         <div>
           <div className="mb-1 flex justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-2">

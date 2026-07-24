@@ -1,6 +1,6 @@
 # Loop 105 — honest source labelling
 
-Worktree: `E:\polymarket-worktrees\loop105-honest`  
+Worktree: `E:\polymarket-worktrees\loop105-honest`
 Branch: `loop105-honest/node`
 
 ## Scope
@@ -12,7 +12,8 @@ No backend, order path, secret, deployment, or forbidden file changes.
 ## Progress
 
 - Item 1 LiveTicker: changed user-facing framing from live to simulated demo feed; proof pending final gate run.
-- Items 2–8: pending.
+- Item 2 market detail: added fallback banners, propagated demo context to forecast/activity panels, and disabled sample-book jitter unless the existing market source is a live venue.
+- Items 3–8: pending.
 
 ## Verification
 
@@ -26,6 +27,7 @@ Item 1 focused typecheck:
 ## Before → after indicators
 
 1. LiveTicker: `Live trades` + pulsing `live` → `Demo feed` + `simulated` + explicit simulated-trades banner.
+2. Market detail: distant paper footer only → visible demo-market banner plus demo forecast/activity/sample-book indicators; sample order-book sizes stop jittering off live-source data.
 
 ## Blockers and unrelated findings
 
@@ -34,4 +36,5 @@ Item 1 focused typecheck:
 
 ## Commits
 
-Item commits will be listed here after each commit.
+- `a719f4a fix(loop105): honest source labelling — demo ticker`
+- Item 2 commit will be listed after commit.

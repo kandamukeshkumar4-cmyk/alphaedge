@@ -60,6 +60,7 @@ export default function MarketDetailClient({
   const [loadedApi, setLoadedApi] = useState(false);
   const localMarket = getMarket(slug);
   const market = apiMarket ?? localMarket;
+  const isDemoMarket = !apiMarket || market?.source === "seed";
   const forecastProvisional = apiDetail?.forecast?.provisional ?? true;
   const resolutionOutcome = apiDetail?.resolution_outcome ?? null;
   const resolutionCriteria =
@@ -130,6 +131,11 @@ export default function MarketDetailClient({
         outcome={isResolved ? displayOutcome : null}
         resolvedAt={apiDetail?.resolved_at}
       />
+      {isDemoMarket ? (
+        <p className="mt-4 text-center text-xs text-muted-2">
+          Showing demo market data. Connect the API to view live prices and paper-market activity.
+        </p>
+      ) : null}
 
       {/* Breadcrumb + title */}
       <div className="flex items-center gap-2 text-xs text-muted">
@@ -305,7 +311,7 @@ export default function MarketDetailClient({
                 </p>
               ) : null}
               <LockedForecastPanel slug={slug} />
-              <AIForecastPanel market={market} />
+              <AIForecastPanel market={market} demo={isDemoMarket} />
               <SimilarPastMarkets category={market.category} currentSlug={slug} />
             </div>
           </div>
@@ -317,7 +323,7 @@ export default function MarketDetailClient({
             <p className="mt-2 text-sm leading-relaxed text-text">{resolutionCriteria}</p>
           </section>
 
-          <MarketTabs market={market} />
+          <MarketTabs market={market} demo={isDemoMarket} />
         </div>
 
         {/* Right: sticky trade panel */}

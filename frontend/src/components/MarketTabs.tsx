@@ -14,11 +14,16 @@ import { cn } from "@/lib/cn";
 type TabKey = "Activity" | "Holders" | "Comments" | "About";
 const TABS: TabKey[] = ["Activity", "Holders", "Comments", "About"];
 
-export function MarketTabs({ market }: { market: Market }) {
+export function MarketTabs({ market, demo = false }: { market: Market; demo?: boolean }) {
   const [tab, setTab] = useState<TabKey>("Activity");
 
   return (
     <div className="rounded-2xl border border-border bg-surface">
+      {demo ? (
+        <p className="px-4 pt-4 text-center text-xs text-muted-2">
+          Showing demo activity. Trades, holders, and comments are sample data.
+        </p>
+      ) : null}
       <div className="border-b border-border px-2 pt-1">
         <TabList value={tab} onChange={(value) => setTab(value as TabKey)}>
           {TABS.map((t) => (
