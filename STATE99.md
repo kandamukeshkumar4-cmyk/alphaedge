@@ -15,5 +15,5 @@ the global `prefers-reduced-motion` kill-switch in `globals.css`.
 | Ticket | Date | Result | Proof |
 | --- | --- | --- | --- |
 | AU1 | 2026-07-24 | DONE | `npm run typecheck` → clean; `npm run lint` → clean; `npx vitest run src/lib/alpha-api.test.ts src/lib/indicators-api.test.ts` → `4 passed (2.24s)`; `git log -1` pasted in handoff |
-| AU2 | — | — | — |
+| AU2 | 2026-07-24 | DONE | `npm run typecheck` → clean; `npm run lint` → clean; `/alpha` renders factor ledger (7 rows, VALID mint / KILLED gray, rejection reasons) + validated-factor report card + paper banner + LIVE/MOCK source badge; skeletons reserve heights; global reduced-motion kill-switch respected; `git log -1` pasted in handoff |
 | AU3 | — | — | — |

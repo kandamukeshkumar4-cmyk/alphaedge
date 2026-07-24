@@ -35,6 +35,7 @@ const NAV: { label: string; href: string; icon: NavIconKey }[] = [
   { label: "Trade", href: "/trade", icon: "bolt" },
   { label: "Markets", href: "/markets", icon: "grid" },
   { label: "Screener", href: "/screener", icon: "screener" },
+  { label: "Alpha", href: "/alpha", icon: "proof" },
   { label: "Signals", href: "/signals", icon: "signal" },
   { label: "Terminal", href: "/terminal", icon: "intel" },
   { label: "Skills", href: "/skills", icon: "intel" },
@@ -115,9 +116,11 @@ export function SiteHeader() {
                   ? pathname === "/"
                   : pathname === base || pathname.startsWith(`${base}/`);
               // PC10: at 1280, Home/Clones compete with search — defer them to
-              // xl. Features lives in the More map (its own surface) so the bar
+              // xl. Alpha (loop99 AU2) defers the same way to keep the bar tight.
+              // Features lives in the More map (its own surface) so the bar
               // stays ≤8 items now that Terminal (V79 A7) is always visible.
-              const deferWide = item.label === "Home" || item.label === "Clones";
+              const deferWide =
+                item.label === "Home" || item.label === "Clones" || item.label === "Alpha";
               const hideInBar = item.label === "Features";
               return (
                 <Link
