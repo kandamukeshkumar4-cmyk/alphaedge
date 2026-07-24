@@ -31,6 +31,55 @@ $ cd backend && uv run --extra dev ruff check app tests
 All checks passed!
 ```
 
+## A2 — independent out-of-sample validator
+
+Status: DONE
+
+Implementation contract: validator input is the existing resolved LIVE
+`forecast_scores` population from `load_forecast_score_rows`, retaining its
+locked-at ordering and correlation-cluster assignment. It reads only the
+matching immutable `ForecastLog` rows. Factor inputs come only from locked
+forecast fields and `snapshot_metadata.alpha_features`; the closing benchmark is
+only `snapshot_metadata.closing_implied_probability` and is never a factor
+input. Missing provenance and missing closing lines are separate rejection
+reasons; no data is backfilled or inferred.
+
+Checkable rule: chronological 60/40 IS/OOS split with at least 20 observations
+and 8 OOS rows; 10,000 fixed-seed cluster bootstraps must have a positive 5th
+percentile Brier delta, Newey-West-style OOS t-stat must be at least 2.0,
+factor OOS Brier must beat closing, and IS-to-OOS degradation may not exceed
+30%. A failure reports one stable rejection reason in that order.
+
+```text
+$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
+.....                                                                    [100%]
+5 passed in 6.11s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
+
+## A3 — read-only alpha service
+
+Status: DONE
+
+The service queries an exact `ExternalMarket.external_id` (the endpoint's
+canonical `market` value), then uses its latest immutable locked forecast as
+the `as_of` factor source. It does not claim current freshness, backfill any
+feature, aggregate scores, construct weights, or emit a trade-like decision.
+Unavailable current factors cannot become valid merely because their historic
+validator passes. Phase 1 returns only per-factor research scores and rejection
+reasons.
+
+```text
+$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py tests/test_alpha_service.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
+.......                                                                  [100%]
+7 passed in 7.91s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
+
 ## A4 — public alpha routes
 
 Status: DONE
@@ -108,52 +157,3 @@ test is implicated. This charter forbids repairing those unrelated surfaces.
 
 AutoLab: not applicable (bounded new Phase 1 feature; no pre-existing metric
 artifact was being iteratively improved).
-
-## A3 — read-only alpha service
-
-Status: DONE
-
-The service queries an exact `ExternalMarket.external_id` (the endpoint's
-canonical `market` value), then uses its latest immutable locked forecast as
-the `as_of` factor source. It does not claim current freshness, backfill any
-feature, aggregate scores, construct weights, or emit a trade-like decision.
-Unavailable current factors cannot become valid merely because their historic
-validator passes. Phase 1 returns only per-factor research scores and rejection
-reasons.
-
-```text
-$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py tests/test_alpha_service.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
-.......                                                                  [100%]
-7 passed in 7.91s
-
-$ cd backend && uv run --extra dev ruff check app tests
-All checks passed!
-```
-
-## A2 — independent out-of-sample validator
-
-Status: DONE
-
-Implementation contract: validator input is the existing resolved LIVE
-`forecast_scores` population from `load_forecast_score_rows`, retaining its
-locked-at ordering and correlation-cluster assignment. It reads only the
-matching immutable `ForecastLog` rows. Factor inputs come only from locked
-forecast fields and `snapshot_metadata.alpha_features`; the closing benchmark is
-only `snapshot_metadata.closing_implied_probability` and is never a factor
-input. Missing provenance and missing closing lines are separate rejection
-reasons; no data is backfilled or inferred.
-
-Checkable rule: chronological 60/40 IS/OOS split with at least 20 observations
-and 8 OOS rows; 10,000 fixed-seed cluster bootstraps must have a positive 5th
-percentile Brier delta, Newey-West-style OOS t-stat must be at least 2.0,
-factor OOS Brier must beat closing, and IS-to-OOS degradation may not exceed
-30%. A failure reports one stable rejection reason in that order.
-
-```text
-$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
-.....                                                                    [100%]
-5 passed in 6.11s
-
-$ cd backend && uv run --extra dev ruff check app tests
-All checks passed!
-```
