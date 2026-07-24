@@ -17,14 +17,29 @@ type PriceChartProps = ComponentProps<typeof PriceChartComponent>;
 
 const PriceChartInner = dynamic(
   () => import("./PriceChart").then((m) => ({ default: m.PriceChart })),
-  { ssr: false, loading: () => null },
+  {
+    ssr: false,
+    // loop104 a11y: while the lazy chunk loads, reserve space with a busy
+    // skeleton (absolute-inset fills the reserved box; no layout shift).
+    // Must NOT use role="img" + "Price history chart" — that is the real
+    // chart's accessible name. BUG-V28-02 waits on that name to mean the
+    // chart has mounted; a skeleton with the same name makes the wait pass
+    // early and races the TradingView attribution checks.
+    loading: () => (
+      <div
+        aria-busy="true"
+        aria-label="Loading price history chart"
+        className="skeleton absolute inset-0 rounded-xl"
+      />
+    ),
+  },
 );
 
 export function PriceChart(props: PriceChartProps) {
   // Reserve header (~60px) + chart height so the lazy swap causes no CLS.
   const reserve = (props.height ?? 360) + 60;
   return (
-    <div style={{ minHeight: reserve }}>
+    <div className="relative" style={{ minHeight: reserve }}>
       <PriceChartInner {...props} />
     </div>
   );

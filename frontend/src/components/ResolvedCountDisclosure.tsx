@@ -133,7 +133,10 @@ function Stat({
       >
         {value}
       </dd>
-      <p className="mt-0.5 text-[11px] text-muted-2">{hint}</p>
+      {/* loop104 a11y: a <dl>'s <div> wrapper may only contain <dt>/<dd>; the
+          hint as a <p> tripped axe `definition-list` (serious). The hint is a
+          second description of the term, so a second <dd> is correct. */}
+      <dd className="mt-0.5 text-[11px] text-muted-2">{hint}</dd>
     </div>
   );
 }

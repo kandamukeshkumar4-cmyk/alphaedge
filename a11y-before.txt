@@ -1,0 +1,2860 @@
+
+Running 27 tests using 1 worker
+
+  x   1 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › / has no serious/critical axe violations (13.7s)
+  x   2 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /discover has no serious/critical axe violations (14.9s)
+  x   3 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /markets has no serious/critical axe violations (10.3s)
+  x   4 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /feed has no serious/critical axe violations (10.6s)
+  x   5 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /signals has no serious/critical axe violations (9.0s)
+  x   6 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /opportunities has no serious/critical axe violations (11.0s)
+  x   7 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /portfolio has no serious/critical axe violations (14.4s)
+  x   8 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /watchlist has no serious/critical axe violations (14.1s)
+  x   9 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /leaderboard has no serious/critical axe violations (16.9s)
+  x  10 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /alpha has no serious/critical axe violations (17.5s)
+  x  11 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /scanners has no serious/critical axe violations (14.9s)
+  x  12 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /screener has no serious/critical axe violations (15.7s)
+  x  13 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /terminal has no serious/critical axe violations (16.8s)
+  x  14 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /skills has no serious/critical axe violations (9.6s)
+  x  15 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /research has no serious/critical axe violations (8.7s)
+  x  16 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /backtest has no serious/critical axe violations (7.5s)
+  x  17 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /compare has no serious/critical axe violations (8.1s)
+  x  18 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /alerts has no serious/critical axe violations (9.1s)
+  x  19 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /track-record has no serious/critical axe violations (8.5s)
+  x  20 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /smart-money has no serious/critical axe violations (8.6s)
+  x  21 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /macro has no serious/critical axe violations (13.3s)
+  x  22 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /resolved has no serious/critical axe violations (27.2s)
+  x  23 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /categories has no serious/critical axe violations (12.2s)
+  x  24 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /usage has no serious/critical axe violations (36.4s)
+  x  25 [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /about has no serious/critical axe violations (9.6s)
+  ok 26 [chromium] › e2e\a11y.spec.ts:164:7 › Q8 a11y market detail regressions (@axe-core/playwright) › market detail has no serious/critical axe violations (25.9s)
+  x  27 [chromium] › e2e\a11y.spec.ts:169:7 › Q8 a11y market detail regressions (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo (39.5s)
+
+
+  1) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › / has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-6db21-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-6db21-ous-critical-axe-violations-chromium\error-context.md
+
+  2) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /discover has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /discover:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-88bfb-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-88bfb-ous-critical-axe-violations-chromium\error-context.md
+
+  3) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /markets has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /markets:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-129dd-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-129dd-ous-critical-axe-violations-chromium\error-context.md
+
+  4) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /feed has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /feed:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-f7922-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-f7922-ous-critical-axe-violations-chromium\error-context.md
+
+  5) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /signals has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /signals:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-20eaf-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-20eaf-ous-critical-axe-violations-chromium\error-context.md
+
+  6) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /opportunities has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /opportunities:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-ad29d-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-ad29d-ous-critical-axe-violations-chromium\error-context.md
+
+  7) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /portfolio has no serious/critical axe violations 
+
+    TimeoutError: page.waitForFunction: Timeout 10000ms exceeded.
+
+       at helpers\session.ts:57
+
+      55 |   await input.fill("");
+      56 |   await input.pressSequentially(value, { delay: 15 });
+    > 57 |   await page.waitForFunction(
+         |              ^
+      58 |     ({ sel, expected }) => {
+      59 |       const el = document.querySelector(sel) as HTMLInputElement | null;
+      60 |       return el != null && el.value === expected;
+        at fillControlled (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\helpers\session.ts:57:14)
+        at signupPaperUser (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\helpers\session.ts:85:3)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:149:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-8fe5c-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-8fe5c-ous-critical-axe-violations-chromium\error-context.md
+
+  8) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /watchlist has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /watchlist:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-6a6b7-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-6a6b7-ous-critical-axe-violations-chromium\error-context.md
+
+  9) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /leaderboard has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /leaderboard:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-f3237-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-f3237-ous-critical-axe-violations-chromium\error-context.md
+
+  10) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /alpha has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /alpha:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]; .opacity-80[data-valid="false"][data-testid="alpha-factor-row"]:nth-child(4) > .sm\:px-5.px-4:nth-child(1) > .mt-0\.5.block.leading-snug; .opacity-80[data-valid="false"][data-testid="alpha-factor-row"]:nth-child(4) > .px-3:nth-child(2) > .tabular-nums.font-black.text-\[13px\]; .opacity-80[data-valid="false"][data-testid="alpha-factor-row"]:nth-child(4) > .sm\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\[0\.1em\]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 688
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-0.5 block text-[11px] leading-snug text-muted-2\">Did not beat the closing line out-of-sample</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(4) > .sm\\:px-5.px-4:nth-child(1) > .mt-0\\.5.block.leading-snug",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-mono text-[13px] font-black tabular-nums text-muted-2\">+0.11</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(4) > .px-3:nth-child(2) > .tabular-nums.font-black.text-\\[13px\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#12201e",
+    +               "contrastRatio": 3.65,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "7.5pt (10px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +                 "target": Array [
+    +                   ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(4) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(4) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-0.5 block text-[11px] leading-snug text-muted-2\">Bootstrap confidence interval crosses zero</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(5) > .sm\\:px-5.px-4:nth-child(1) > .mt-0\\.5.block.leading-snug",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-mono text-[13px] font-black tabular-nums text-muted-2\">+0.03</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(5) > .px-3:nth-child(2) > .tabular-nums.font-black.text-\\[13px\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#12201e",
+    +               "contrastRatio": 3.65,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "7.5pt (10px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +                 "target": Array [
+    +                   ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(5) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(5) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-0.5 block text-[11px] leading-snug text-muted-2\">Too few uncorrelated event clusters</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(6) > .sm\\:px-5.px-4:nth-child(1) > .mt-0\\.5.block.leading-snug",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-mono text-[13px] font-black tabular-nums text-muted-2\">+0.09</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(6) > .px-3:nth-child(2) > .tabular-nums.font-black.text-\\[13px\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#12201e",
+    +               "contrastRatio": 3.65,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "7.5pt (10px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +                 "target": Array [
+    +                   ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(6) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(6) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-0.5 block text-[11px] leading-snug text-muted-2\">Too few out-of-sample rows to validate</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(7) > .sm\\:px-5.px-4:nth-child(1) > .mt-0\\.5.block.leading-snug",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_360px\\] > .shadow-card.rounded-2xl.bg-surface:nth-child(1)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 9.8pt (13px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-mono text-[13px] font-black tabular-nums text-muted-2\">-0.06</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(7) > .px-3:nth-child(2) > .tabular-nums.font-black.text-\\[13px\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#12201e",
+    +               "contrastRatio": 3.65,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "7.5pt (10px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +                 "target": Array [
+    +                   ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(7) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>KILLED</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-valid=\"false\"][data-testid=\"alpha-factor-row\"]:nth-child(7) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".xl\\:grid-cols-2 > .shadow-card.rounded-2xl.bg-surface:nth-child(2)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-0.5 block max-w-xl text-[11px] leading-snug text-muted-2\">Markets overreact to star-injury news within the first hour; mean-reversion edge on the opposite side.</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(3) > .sm\\:px-5.px-4:nth-child(1) > .max-w-xl.mt-0\\.5.block",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#12201e",
+    +               "contrastRatio": 3.65,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "7.5pt (10px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>REJECTED</span>",
+    +                 "target": Array [
+    +                   ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(3) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>REJECTED</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(3) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".xl\\:grid-cols-2 > .shadow-card.rounded-2xl.bg-surface:nth-child(2)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-1 block text-[11px] leading-snug text-muted-2\">Did not beat the closing line out-of-sample (t-stat 1.21).</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(3) > .sm\\:px-5.px-4.text-right > .mt-1.block.leading-snug",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".xl\\:grid-cols-2 > .shadow-card.rounded-2xl.bg-surface:nth-child(2)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-0.5 block max-w-xl text-[11px] leading-snug text-muted-2\">Nationally televised games overshoot the projected total in the first half.</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(4) > .sm\\:px-5.px-4:nth-child(1) > .max-w-xl.mt-0\\.5.block",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#12201e",
+    +               "contrastRatio": 3.65,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "7.5pt (10px)",
+    +               "fontWeight": "bold",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>REJECTED</span>",
+    +                 "target": Array [
+    +                   ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(4) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.65 (foreground color: #647a72, background color: #12201e, font size: 7.5pt (10px), font weight: bold). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-black tracking-[0.1em] text-muted-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-muted-2/60\"></span>REJECTED</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(4) > .sm\\:px-5.px-4.text-right > .bg-surface-2.gap-1.tracking-\\[0\\.1em\\]",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#0e1614",
+    +               "contrastRatio": 3.99,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#647a72",
+    +               "fontSize": "8.3pt (11px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<section class=\"rounded-2xl border border-border bg-surface shadow-card overflow-hidden\">",
+    +                 "target": Array [
+    +                   ".xl\\:grid-cols-2 > .shadow-card.rounded-2xl.bg-surface:nth-child(2)",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.99 (foreground color: #647a72, background color: #0e1614, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"mt-1 block text-[11px] leading-snug text-muted-2\">Too few uncorrelated event clusters to validate.</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".opacity-80[data-validated=\"false\"][data-testid=\"alpha-hypothesis-row\"]:nth-child(4) > .sm\\:px-5.px-4.text-right > .mt-1.block.leading-snug",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-0dbae-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-0dbae-ous-critical-axe-violations-chromium\error-context.md
+
+  11) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /scanners has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /scanners:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-c1a1e-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-c1a1e-ous-critical-axe-violations-chromium\error-context.md
+
+  12) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /screener has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /screener:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-88fdd-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-88fdd-ous-critical-axe-violations-chromium\error-context.md
+
+  13) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /terminal has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /terminal:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → .text-\[13px\].gap-1\.5[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".text-\\[13px\\].gap-1\\.5[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-75a51-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-75a51-ous-critical-axe-violations-chromium\error-context.md
+
+  14) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /skills has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /skills:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[aria-current="page"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.44,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#f2f4f8",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.44 (foreground color: #f2f4f8, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.h-9[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.44 (foreground color: #f2f4f8, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a aria-current=\"page\" class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[aria-current=\"page\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-25e5e-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-25e5e-ous-critical-axe-violations-chromium\error-context.md
+
+  15) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /research has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /research:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-94820-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-94820-ous-critical-axe-violations-chromium\error-context.md
+
+  16) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /backtest has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /backtest:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-7eb66-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-7eb66-ous-critical-axe-violations-chromium\error-context.md
+
+  17) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /compare has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /compare:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-b2f8e-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-b2f8e-ous-critical-axe-violations-chromium\error-context.md
+
+  18) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /alerts has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /alerts:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-26095-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-26095-ous-critical-axe-violations-chromium\error-context.md
+
+  19) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /track-record has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /track-record:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+    [serious] definition-list: <dl> elements must only directly contain properly-ordered <dt> and <dd> groups, <script>, <template> or <div> elements → dl
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 111
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    +   Object {
+    +     "description": "Ensure <dl> elements are structured correctly",
+    +     "help": "<dl> elements must only directly contain properly-ordered <dt> and <dd> groups, <script>, <template> or <div> elements",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/definition-list?application=playwright",
+    +     "id": "definition-list",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [],
+    +         "failureSummary": "Fix all of the following:
+    +   dl element has direct children that are not allowed: div > p",
+    +         "html": "<dl class=\"mt-4 grid gap-3 sm:grid-cols-2\">",
+    +         "impact": "serious",
+    +         "none": Array [
+    +           Object {
+    +             "data": Object {
+    +               "values": "div > p",
+    +             },
+    +             "id": "only-dlitems",
+    +             "impact": "serious",
+    +             "message": "dl element has direct children that are not allowed: div > p",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<p class=\"mt-0.5 text-[11px] text-muted-2\">Gate progress numerator</p>",
+    +                 "target": Array [
+    +                   ".bg-bg\\/40.py-2\\.5.rounded-xl:nth-child(1) > .mt-0\\.5.text-\\[11px\\].text-muted-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<p class=\"mt-0.5 text-[11px] text-muted-2\">Scored LIVE ForecastLog rows only</p>",
+    +                 "target": Array [
+    +                   ".bg-bg\\/40.py-2\\.5.rounded-xl:nth-child(2) > .mt-0\\.5.text-\\[11px\\].text-muted-2",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "target": Array [
+    +           "dl",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.structure",
+    +       "wcag2a",
+    +       "wcag131",
+    +       "EN-301-549",
+    +       "EN-9.1.3.1",
+    +       "RGAAv4",
+    +       "RGAA-9.3.3",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-985f5-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-985f5-ous-critical-axe-violations-chromium\error-context.md
+
+  20) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /smart-money has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /smart-money:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-3dbd7-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-3dbd7-ous-critical-axe-violations-chromium\error-context.md
+
+  21) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /macro has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /macro:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-8bdd2-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-8bdd2-ous-critical-axe-violations-chromium\error-context.md
+
+  22) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /resolved has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /resolved:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-cb454-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-cb454-ous-critical-axe-violations-chromium\error-context.md
+
+  23) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /categories has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /categories:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-f5186-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-f5186-ous-critical-axe-violations-chromium\error-context.md
+
+  24) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /usage has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /usage:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".hover\\:brightness-110.sm\\:inline-flex[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-f5f07-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-f5f07-ous-critical-axe-violations-chromium\error-context.md
+
+  25) [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /about has no serious/critical axe violations 
+
+    Error: serious/critical a11y violations on /about:
+    [serious] color-contrast: Elements must meet minimum color contrast ratio thresholds → a[href$="skills"]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 58
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#00e8b0",
+    +               "contrastRatio": 1.59,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8fa8a0",
+    +               "fontSize": "9.8pt (13px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<a class=\"hidden h-9 items-center rounded-lg bg-primary px-3 text-sm font-bold text-bg shadow-glow transition hover:brightness-110 sm:inline-flex\" aria-label=\"View paper balance and portfolio\" title=\"View your paper balance and positions\" href=\"/portfolio\">Portfolio</a>",
+    +                 "target": Array [
+    +                   ".sm\\:inline-flex.hover\\:brightness-110[href$=\"portfolio\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.59 (foreground color: #8fa8a0, background color: #00e8b0, font size: 9.8pt (13px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"relative flex items-center gap-1.5 px-2 text-[13px] font-semibold transition text-muted hover:text-text\" href=\"/skills\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"skills\"]",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+      131 |     serious,
+      132 |     `serious/critical a11y violations on ${path}:\n${summarize(serious)}`,
+    > 133 |   ).toEqual([]);
+          |     ^
+      134 |
+      135 |   return { serious, residual, known, all };
+      136 | }
+        at runAxe (E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:133:5)
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:154:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-95d5a-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-95d5a-ous-critical-axe-violations-chromium\error-context.md
+
+  26) [chromium] › e2e\a11y.spec.ts:169:7 › Q8 a11y market detail regressions (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('img', { name: /Price history chart/i })
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByRole('img', { name: /Price history chart/i })
+
+
+      180 |     await expect(
+      181 |       page.getByRole("img", { name: /Price history chart/i }),
+    > 182 |     ).toBeVisible({ timeout: 30_000 });
+          |       ^
+      183 |     await expect(page.getByRole("link", { name: /^TradingView$/i }).first()).toBeVisible();
+      184 |     // Vendor #tv-attr-logo must not nest inside role=img.
+      185 |     await expect(page.locator('#tv-attr-logo')).toHaveCount(0);
+        at E:\polymarket-worktrees\loop104-a11y\frontend\e2e\a11y.spec.ts:182:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-market-detail-0502e-ctive-from-TradingView-logo-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-market-detail-0502e-ctive-from-TradingView-logo-chromium\error-context.md
+
+  26 failed
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › / has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /discover has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /markets has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /feed has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /signals has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /opportunities has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /portfolio has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /watchlist has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /leaderboard has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /alpha has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /scanners has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /screener has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /terminal has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /skills has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /research has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /backtest has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /compare has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /alerts has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /track-record has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /smart-money has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /macro has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /resolved has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /categories has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /usage has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:144:9 › Q8 a11y route sweep (@axe-core/playwright) › /about has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:169:7 › Q8 a11y market detail regressions (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo 
+  1 passed (8.2m)

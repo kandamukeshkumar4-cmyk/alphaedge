@@ -1,0 +1,47 @@
+
+Running 27 tests using 1 worker
+
+  x   1 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › / has no serious/critical axe violations (3.0m)
+   x   2 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /discover has no serious/critical axe violations (3.0m)
+  x   3 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /markets has no serious/critical axe violations (0ms)
+  -   4 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /feed has no serious/critical axe violations
+  -   5 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /signals has no serious/critical axe violations
+  -   6 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /opportunities has no serious/critical axe violations
+  -   7 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /portfolio has no serious/critical axe violations
+  -   8 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /watchlist has no serious/critical axe violations
+  -   9 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /leaderboard has no serious/critical axe violations
+  -  10 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /alpha has no serious/critical axe violations
+  -  11 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a  ok 11 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /scanners has no serious/critical axe violations (7.8s)
+  ok 12 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /screener has no serious/critical axe violations (8.4s)
+  ok 13 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /terminal has no serious/critical axe violations (9.9s)
+  ok 14 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /skills has no serious/critical axe violations (8.1s)
+  ok 15 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /research has no serious/critical axe violations (6.5s)
+  ok 16 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /backtest has no serious/critical axe violations (6.3s)
+  ok 17 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /compare has no serious/critical axe violations (6.0s)
+  ok 18 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /alerts has no serious/critical axe violations (6.4s)
+  ok 19 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /track-record has no serious/critical axe violations (7.3s)
+  ok 20 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /smart-money has no serious/critical axe violations (6.6s)
+  ok 21 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /macro has no serious/critical axe violations (6.4s)
+  ok 22 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /resolved has no serious/critical axe violations (8.0s)
+  ok 23 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /categories has no serious/critical axe violations (6.4s)
+  ok 24 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /usage has no serious/critical axe violations (8.2s)
+  ok 25 [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /about has no serious/critical axe violations (7.0s)
+  ok 26 [chromium] › e2e\a11y.spec.ts:194:7 › Q8 a11y market detail regressions (@axe-core/playwright) › market detail has no serious/critical axe violations (12.4s)
+  ok 27 [chromium] › e2e\a11y.spec.ts:199:7 › Q8 a11y market detail regressions (@axe-core/playwright) › BUG-V28-02: market chart has no nested-interactive from TradingView logo (6.8s)
+
+  27 passed (3.9m)
+achment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\a11y-Q8-a11y-route-sweep-a-88bfb-ous-critical-axe-violations-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\a11y-Q8-a11y-route-sweep-a-88bfb-ous-critical-axe-violations-chromium\error-context.md
+
+  2) [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /markets has no serious/critical axe violations 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+  2 failed
+    [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /discover has no serious/critical axe violations 
+    [chromium] › e2e\a11y.spec.ts:159:9 › Q8 a11y route sweep (@axe-core/playwright) › /markets has no serious/critical axe violations 
+  24 did not run
+  1 passed (3.3m)
