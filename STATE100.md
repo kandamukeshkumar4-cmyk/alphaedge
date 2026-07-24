@@ -19,5 +19,5 @@
 | Ticket | Status | Proof |
 | --- | --- | --- |
 | IG1 | DONE | `3 passed`; `uv run --extra dev ruff check app tests` passed (2026-07-24) |
-| IG2 | PENDING | — |
+| IG2 | DONE | `5 passed`; `uv run --extra dev ruff check app tests` passed (2026-07-24) |
 | IG3 | PENDING | — |
