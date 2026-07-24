@@ -17,7 +17,8 @@ No backend, order path, secret, deployment, or forbidden file changes.
 - Item 4 trade controls: relabeled buy/close controls, progress states, toasts, money fields, and position values as paper-only; order and risk logic untouched.
 - Item 5 PriceChart: generated candle fallback now carries an adjacent visible `Synthetic chart` indicator.
 - Item 6 marketplace spotlight: now honors the existing trending/featured `source` values and banners mock rows as a paper mock catalog.
-- Items 7–8: pending.
+- Item 7 Quest board: tracks the bundled seed fallback, adds a visible seed-catalog banner, suppresses seed `LIVE` treatment, and labels team links `Paper buy`.
+- Item 8: pending.
 
 ## Verification
 
@@ -36,6 +37,7 @@ Item 1 focused typecheck:
 4. Trade controls: `Buy` / `Placing order…` / `Order placed` → `Paper buy` / `Placing paper order…` / `Paper order placed`; position close and money labels use the same paper framing.
 5. PriceChart: unlabeled generated OHLCV fallback → adjacent `Synthetic chart — generated from sample data, not live candles.` text.
 6. Marketplace: mock trending/featured cards with silent ratings/run counts → source-driven `Paper mock catalog` banner on each mock row.
+7. Quest board: seed cards with quiet `Paper sim` clock plus `Buy LAL/BOS` → visible seed-catalog banner, no seed `LIVE` badge, and `Paper buy LAL/BOS` links.
 
 ## Blockers and unrelated findings
 
@@ -49,4 +51,5 @@ Item 1 focused typecheck:
 - `041fd5f fix(loop105): honest source labelling — terminal research`
 - `0444579 fix(loop105): honest source labelling — paper trade controls`
 - `8b0194d fix(loop105): honest source labelling — synthetic chart`
-- Item 6 commit will be listed after commit.
+- `550c8b5 fix(loop105): honest source labelling — marketplace`
+- Item 7 commit will be listed after commit.

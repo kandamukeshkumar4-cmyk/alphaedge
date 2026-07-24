@@ -14,7 +14,9 @@ import { marketLifecycle } from "@/lib/market-lifecycle";
 const FETCH_MS = 8000;
 const LIVE_API = hasLiveApi();
 
-async function loadMarketsOrFallback(): Promise<Market[]> {
+type MarketLoadResult = { markets: Market[]; source: "live" | "seed" };
+
+async function loadMarketsOrFallback(): Promise<MarketLoadResult> {
   try {
     const rows = await Promise.race([
       fetchMarkets({ sort: "active" }),
@@ -24,12 +26,12 @@ async function loadMarketsOrFallback(): Promise<Market[]> {
     ]);
     const active = activeTrendingMarkets(rows);
     const live = active.filter((m) => m.slug.startsWith("pm-") || m.slug.startsWith("ks-"));
-    if (live.length > 0) return live;
-    if (active.length > 0) return active;
+    if (live.length > 0) return { markets: live, source: "live" };
+    if (active.length > 0) return { markets: active, source: "live" };
     // Only fall back to bundled seed catalog when the live API is unavailable.
-    return LIVE_API ? [] : MARKETS;
+    return LIVE_API ? { markets: [], source: "live" } : { markets: MARKETS, source: "seed" };
   } catch {
-    return LIVE_API ? [] : MARKETS;
+    return LIVE_API ? { markets: [], source: "live" } : { markets: MARKETS, source: "seed" };
   }
 }
 
@@ -73,6 +75,9 @@ export function QuestLiveMarketsBoard({
 }) {
   const { openPanel } = useAtlasPanel();
   const [markets, setMarkets] = useState<Market[]>(initialMarkets ?? []);
+  const [seedFallback, setSeedFallback] = useState(
+    Boolean(initialMarkets?.some((market) => market.source === "seed")),
+  );
   const [loading, setLoading] = useState(!initialMarkets || initialMarkets.length === 0);
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[number]>("All");
   const [cat, setCat] = useState<(typeof CATS)[number]>("All");
@@ -81,8 +86,9 @@ export function QuestLiveMarketsBoard({
   useEffect(() => {
     let dead = false;
     setLoading(true);
-    void loadMarketsOrFallback().then((rows) => {
+    void loadMarketsOrFallback().then(({ markets: rows, source }) => {
       if (dead) return;
+      setSeedFallback(source === "seed");
       if (rows.length > 0) {
         setMarkets(rows);
       } else {
@@ -158,6 +164,11 @@ export function QuestLiveMarketsBoard({
 
       <div className="min-w-0 flex-1">
         <h1 className="mb-3 text-[22px] font-black tracking-tight text-text">Markets</h1>
+        {seedFallback ? (
+          <p className="mb-4 text-center text-xs text-muted-2">
+            Showing seed market catalog. Connect the API to browse live markets.
+          </p>
+        ) : null}
         <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto">
           {PLATFORMS.map((p) => (
             <button
@@ -243,7 +254,7 @@ export function QuestLiveMarketsBoard({
                     const noC = Math.round((no?.price ?? 1 - (yes?.price ?? 0.5)) * 100);
                     const teams = splitTeams(m.title);
                     const lifecycle = marketLifecycle(m);
-                    const live = lifecycle === "live" && isLiveish(m);
+                    const live = !seedFallback && lifecycle === "live" && isLiveish(m);
                     return (
                       <motion.li
                         key={m.id}
@@ -319,13 +330,13 @@ export function QuestLiveMarketsBoard({
                                 href={marketHref(m.slug, { side: "yes" })}
                                 className="min-w-[100px] flex-1 rounded-lg border border-primary/40 bg-primary-dim px-3 py-2.5 text-center font-mono text-[12px] font-bold text-primary transition hover:bg-primary hover:text-bg"
                               >
-                                Buy {initials(teams[0])}
+                                Paper buy {initials(teams[0])}
                               </Link>
                               <Link
                                 href={marketHref(m.slug, { side: "no" })}
                                 className="min-w-[100px] flex-1 rounded-lg border border-danger/40 bg-danger-dim px-3 py-2.5 text-center font-mono text-[12px] font-bold text-danger transition hover:bg-danger hover:text-bg"
                               >
-                                Buy {initials(teams[1])}
+                                Paper buy {initials(teams[1])}
                               </Link>
                             </div>
                           </div>
