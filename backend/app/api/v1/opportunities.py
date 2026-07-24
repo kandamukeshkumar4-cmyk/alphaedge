@@ -138,7 +138,7 @@ async def get_opportunities(
             return etag_json_response(request, {**cached_body, "cached": True})
 
     svc = MarketService(db)
-    markets = await svc.list_public_markets(sort="volume")
+    markets, _ = await svc.list_public_markets(sort="volume")
     # Only score live markets (resolved markets have a known outcome — no edge),
     # and never do unbounded work.
     candidates = [

@@ -129,7 +129,7 @@ async def get_category_summary(
             return etag_json_response(request, {**cached_body, "cached": True})
 
     svc = MarketService(db)
-    markets = await svc.list_public_markets(category=cat) if cat else []
+    markets, _ = (await svc.list_public_markets(category=cat)) if cat else ([], 0)
     slugs = [m.slug for m in markets]
 
     opp_rows = await _opportunity_rows_for_markets(db, markets)
