@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { LivePriceChip } from "@/components/notifications/LivePriceChip";
 import { NotificationPrefsToggles } from "@/components/notifications/NotificationPrefsToggles";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
@@ -119,6 +120,7 @@ export function NotificationCenter() {
     <aside ref={rootRef} className="relative">
       <button
         type="button"
+        data-testid="v90-notification-bell"
         onClick={() => setOpen((value) => !value)}
         aria-label={label}
         aria-expanded={open}
@@ -265,6 +267,10 @@ export function NotificationCenter() {
                 })}
               </ul>
             )}
+          </div>
+
+          <div className="border-t border-border bg-surface-2/30 px-4 py-2">
+            <LivePriceChip />
           </div>
 
           <footer className="border-t border-border bg-surface-2/40 px-4 py-3">

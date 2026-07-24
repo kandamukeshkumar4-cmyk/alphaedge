@@ -70,6 +70,11 @@ test.describe("Loop V90 C2 — notification center", () => {
     // Preferences toggles render in-dropdown (email_digest/in_app/fired_alerts).
     await expect(center.getByRole("switch")).toHaveCount(3);
 
+    // C3: the useLivePrices polling hook is wired visibly (mock mode here).
+    const chip = center.getByTestId("live-price-chip");
+    await expect(chip).toBeVisible({ timeout: 10_000 });
+    await expect(chip.getByText(/¢|—/)).toBeVisible();
+
     // ── Mark-all clears the badge ────────────────────────────────────────
     const markAll = center.getByRole("button", { name: /Mark all read/i });
     await expect(markAll).toBeVisible();
