@@ -1,109 +1,179 @@
-# STATE104 — loop104-social backend node
+# Loop 104 routes node — final state
 
-Branch: `loop104-social/node`  
-Base: `9bfa413`  
-Seat: Cursor Grok 4.5 High (BACKEND)
+Status: PASS
 
-## Delivered (charter only)
+Base: `9bfa413`
+Branch: `loop104-routes/node`
 
-1. `backend/alembic/versions/065_social_community.py` — tables `story_comments`, `story_reactions`, `watchlist_shares` (`down_revision=064_alpha_runs`)
-2. `backend/app/models/social.py` — `StoryComment`, `StoryReaction`, `WatchlistShare`
-3. `backend/app/services/social_service.py` — exact signatures; stories derived from `PaperOrder` + `Watchlist` (no stories table)
-4. `backend/app/api/v1/social.py` — 5 community routes on existing router
-5. `backend/app/api/v1/watchlist.py` — 2 share routes on existing router
-6. `backend/tests/test_loop104_social.py` — 10 exact contract tests
-7. `backend/tests/test_loop26_authz_matrix.py` — AUTH_CLASS + totals bumped (209 paths / 230 ops / public=115 / user=70)
-8. OpenAPI snapshot regenerated (required by stop condition)
+## Delivered
 
-## Guardrails
+- `/traders`: live `/api/v1/leaderboard` rankings with server-controlled P&L,
+  ROI, and win-rate ordering; search; explicit rank evidence; deliberate
+  loading, empty, no-match, and retry states.
+- `/traders/[name]`: read-only detail composed from the live leaderboard and
+  `/api/v1/social/traders/{name}`. It explains exactly why the trader has the
+  shown P&L rank and never places, sizes, copies, or executes an order.
+- `/library`: live aggregation of briefs, resolved memories, scanner results,
+  alpha runs, and saved skill workflows. It has source-level health, search,
+  type filters, chronological sort, partial-outage handling, deliberate
+  loading/empty/error states, and no sample-data substitution.
+- No backend file, endpoint, schema, migration, dependency manifest, lockfile,
+  deployment image, `social.py`, or `watchlist.py` was changed.
 
-- No RiskService / OrderBookService imports in social code
-- Comment body capped 1..500 after strip; plain text only
-- `PAPER_TRADING_ONLY` untouched
-- AutoLab: not applicable (no iterative measure)
+## Task gate 1 — frontend typecheck, lint, build
 
-## Outside charter (listed, not fixed)
+Command:
 
-- Untracked `cursor-prompt.txt`, `cursor104.log`, `cursor104-fullsuite.log` (local run artifacts)
-- Models package is new (`app/models/`) while most ORM still lives in `app/db/models.py` — charter-required path
-
----
-
-## Proof commands (pasted)
-
-### 1) Targeted pytest
-
-```text
-cd backend && uv run --extra dev pytest -q tests/test_loop104_social.py tests/test_loop26_authz_matrix.py --basetemp=E:/polymarket-worktrees/loop104-social/.pt
-............                                                             [100%]
-12 passed in 59.67s
+```powershell
+cd frontend
+npm run typecheck && npm run lint && npm run build
 ```
 
-### 2) OpenAPI snapshot regen
+Literal output (exit 0; unrelated route rows omitted from the table):
 
 ```text
-cd backend && uv run python scripts/regen_openapi_snapshot.py
-wrote E:\polymarket-worktrees\loop104-social\backend\tests\fixtures\openapi_snapshot.json (209 paths)
+> alphaedge-frontend@0.1.0 typecheck
+> tsc --noEmit
+
+> alphaedge-frontend@0.1.0 lint
+> eslint src --max-warnings=0
+
+> alphaedge-frontend@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.18
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 34.0s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/117) ...
+   Generating static pages (29/117)
+   Generating static pages (58/117)
+   Generating static pages (87/117)
+ ✓ Generating static pages (117/117)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+├ ○ /library                                     7.91 kB         124 kB
+├ ○ /traders                                     5.33 kB         121 kB
+├ ƒ /traders/[name]                              4.64 kB         121 kB
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
 ```
 
-### 3) Ruff
+## Task gate 2 — focused Playwright
+
+The default Playwright ports `31017/18017` were owned by the concurrently
+running `loop104-a11y` worktree. Stopping that writer would have violated the
+wave isolation rule, so this worktree used isolated ports. The auditor can run
+the bare command once the integrated worktree owns the default ports.
+
+Command:
+
+```powershell
+cd frontend
+$env:E2E_FE_PORT='31047'
+$env:E2E_API_PORT='18047'
+npx playwright test e2e/traders.spec.ts e2e/library.spec.ts
+```
+
+Literal output (exit 0):
 
 ```text
-cd backend && uv run --extra dev ruff check app tests
+Running 8 tests using 1 worker
+
+  ok 1 [chromium] › e2e\library.spec.ts:160:7 › Loop 104 live research library › live artifacts load without substitution and remain filterable (18.0s)
+  ok 2 [chromium] › e2e\library.spec.ts:193:7 › Loop 104 live research library › one failed source is named while available research stays browsable (3.3s)
+  ok 3 [chromium] › e2e\library.spec.ts:207:7 › Loop 104 live research library › five empty live sources render the deliberate empty archive (2.7s)
+  ok 4 [chromium] › e2e\library.spec.ts:217:7 › Loop 104 live research library › a total outage renders an error and never fabricates cards (3.0s)
+  ok 5 [chromium] › e2e\traders.spec.ts:97:7 › Loop 104 live trader surfaces › rankings explain the evidence, switch live sort, and remain searchable (6.8s)
+  ok 6 [chromium] › e2e\traders.spec.ts:129:7 › Loop 104 live trader surfaces › per-trader detail states exactly why the trader has that rank (8.9s)
+  ok 7 [chromium] › e2e\traders.spec.ts:148:7 › Loop 104 live trader surfaces › an empty live ledger stays honest (3.0s)
+  ok 8 [chromium] › e2e\traders.spec.ts:167:7 › Loop 104 live trader surfaces › a live API error renders a retry state instead of sample standings (3.5s)
+
+  8 passed (1.7m)
+```
+
+## Repo-wide deterministic gate
+
+Command:
+
+```powershell
+py -3.13 orchestration/gate.py
+```
+
+Literal verdict output (exit 0):
+
+```text
+=== GATE: backend pytest ===
+2081 passed, 28 skipped in 449.38s (0:07:29)
+PASS backend pytest (exit 0)
+
+=== GATE: backend ruff ===
 All checks passed!
+PASS backend ruff (exit 0)
+
+=== GATE: frontend typecheck ===
+PASS frontend typecheck (exit 0)
+
+=== GATE: frontend test ===
+ Test Files  101 passed (101)
+      Tests  567 passed (567)
+   Duration  17.91s
+PASS frontend test (exit 0)
+
+=== GATE: frontend build ===
+PASS frontend build (exit 0)
+
+=== GATE VERDICT ===
+PASS: all checks green
 ```
 
-### 4) Full suite
+Pytest emitted Windows temp-directory cleanup warnings after the successful
+backend test exit. They did not change any gate stage or the final PASS verdict.
+
+## Conditional task gates
+
+- Backend touched: NO. Focused backend pytest/ruff command is not applicable.
+  The repo-wide gate still proved the full backend suite and ruff green.
+- Endpoint added/changed: NO. OpenAPI regeneration and
+  `test_loop26_authz_matrix.py` count changes are not applicable.
+- Migration required: NO.
+- Secrets/user action required: NO.
+
+## Review and workflow verdicts
+
+- `requesting-code-review`: unavailable in this installation. Manual two-axis
+  review fallback completed against `git diff 9bfa413...HEAD`.
+- Standards review: PASS after removing unnecessary bearer headers from public
+  Library reads and deleting an inert load-effect cancellation variable.
+- Spec review: PASS. All changed paths are inside the exclusive charter; both
+  surfaces are read-only, live-data-first, keyboard-labelled, and have
+  loading/empty/error coverage. Product code contains no demo/mock standings or
+  research artifacts.
+- `gh-address-comments`: not applicable; this node has no PR/merge operation.
+- `bumblebee-supply-chain-scan`: not applicable; this is a non-merge handoff and
+  no dependency manifest, lockfile, loader, or deployment image changed.
+- Astryx CLI discovery was attempted twice. The local executable was absent and
+  npm blocked the remote CLI with `ECOMPROMISED`; no dependency/security bypass
+  was attempted. Existing AlphaEdge kit components/tokens and visual trace
+  review were used as the safe design-system fallback.
+- Pre-existing untracked `sol-prompt.txt` and `sol104.log` were preserved and
+  not staged.
+- Unrelated findings: none.
+
+AutoLab: baseline=9bfa413 had /traders absent and /library as a marketplace stub | benchmark=frontend typecheck+lint+build and 8 focused Playwright states | iterations=2; best=all frontend gates green, 8/8 focused E2E, repo gate PASS | budget=2/2 UX passes | outcome=improved
+
+## `git log --oneline 9bfa413..HEAD`
+
+Captured immediately before this evidence-file commit:
 
 ```text
-cd backend && uv run --extra dev pytest -q --basetemp=E:/polymarket-worktrees/loop104-social/.ptf
-2091 passed, 28 skipped in 647.89s (0:10:47)
+a86897f fix(loop104): make loading proofs deterministic
+b46895f fix(loop104): minimize live read credentials
+9e4b589 feat(loop104): turn library into live research archive
+e791ff8 feat(loop104): ship live trader rankings and detail
 ```
-
----
-
-## git log --oneline
-
-```text
-665ec87 feat(loop104): cover social contract and authz matrix surface
-e8ff7fb feat(loop104): add community stories, reactions, and shared watchlists
-49bda4d feat(loop104): add social community migration and models
-9bfa413 merge(loop102): alpha runs/signal/hypotheses UI (Qwen, Grok rubric-PASS)
-00623cf feat(loop102): AR3 — proposed hypotheses section + alpha-runs E2E
-65a034f merge(loop103): PWA manifest + SEO/launch meta (Cursor; service worker skipped — no caching next to live prices)
-38713dc feat(loop103): P3 — PWA e2e + skip service worker (stale-data risk)
-34b8d5f feat(loop102): AR2 — latest-signal hero + run history on /alpha
-```
-
-
-## Blocker fix
-
-Auditor blocker: unstable story cursor under equal `created_at` (composite `(created_at, id)` + tuple filter).
-
-### 1) Targeted pytest (11 tests)
-
-```text
-cd backend && uv run --extra dev pytest -q tests/test_loop104_social.py --basetemp=E:/polymarket-worktrees/loop104-social/.ptfix
-...........                                                              [100%]
-11 passed in 24.86s
-```
-
-### 2) Ruff
-
-```text
-cd backend && uv run --extra dev ruff check app tests
-All checks passed!
-```
-
-### 3) OpenAPI contract shape
-
-Verified live `StoryPageOut` still `{items, next_cursor: str|null}`; path count 209 == snapshot. No regen required (opaque cursor string only; response shape unchanged).
-
-## Noted, not fixed
-
-- Reaction concurrent double-POST can still 500 without IntegrityError handling (auditor non-blocking).
-- GET stories uses `get_optional_user` while AUTH_CLASS says `"public"` — behavior OK (auditor nit).
-- `profile_public` filter on story derivation undocumented in frozen contract.
-- `_resolve_user_by_handle` loads all users then filters in Python.
-- `app.models.social` not wired into alembic/env.py / conftest import graph.
-- Kinds `forecast` / `note` allowed by schema, never produced by current derivation.
