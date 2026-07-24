@@ -1481,6 +1481,23 @@ class ForecastScore(Base):
     forecast: Mapped["ForecastLog"] = relationship(back_populates="score")
 
 
+class AlphaRun(Base):
+    """One daily paper-only multi-factor research run and its complete evidence."""
+
+    __tablename__ = "alpha_runs"
+    __table_args__ = (Index("ix_alpha_runs_created_at", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    rejection_reasons: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    paper_trading_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class BacktestRun(Base):
     """U10 — Stored result of a backtest replay over historical odds_snapshots.
 

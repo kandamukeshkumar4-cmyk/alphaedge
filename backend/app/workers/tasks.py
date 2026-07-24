@@ -995,6 +995,13 @@ async def analyst_aggregates_task(ctx: dict) -> dict:
 MORNING_RESEARCH_JOB_NAME = "morning_research_task"
 
 
+async def alpha_model_task(ctx: dict) -> dict:
+    """Daily paper-only alpha research graph; never creates an executable artifact."""
+    from app.alpha.alpha_run_service import run_alpha_model_task
+
+    return await run_alpha_model_task(ctx)
+
+
 async def morning_research_task(ctx: dict) -> dict:
     """Daily: sweep top-moving markets, run the analyst on each, write a digest,
     and optionally distribute it to notification channels (T14, off by default)."""
@@ -1273,6 +1280,7 @@ class WorkerSettings:
         score_claims_task,
         analyst_aggregates_task,
         morning_research_task,
+        alpha_model_task,
         scanner_scheduler_task,
         nightly_backtest_task,
         nightly_profile_refresh_task,
@@ -1323,6 +1331,8 @@ class WorkerSettings:
         cron(analyst_aggregates_task, minute={50}),
         # daily research digest at 06:00 — "the desk runs while you sleep"
         cron(morning_research_task, hour={6}, minute={0}),
+        # Daily coordination tail after the resolved-history scoring window.
+        cron(alpha_model_task, hour={7}, minute={0}),
         # Loop V90 N4: engagement email digest at 13:00 UTC (SMTP optional)
         cron(send_notification_digest_task, hour={13}, minute={0}),
         # Loop V82 C5: Scanner Studio due-scanner sweep every 5 min
