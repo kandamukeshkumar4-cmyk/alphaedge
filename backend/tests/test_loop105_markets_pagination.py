@@ -150,3 +150,53 @@ async def test_offset_past_end_returns_empty_list_not_error(db_session, client):
     assert response.headers["X-Total-Count"] == "10"
     assert response.headers["X-Page-Limit"] == "10"
     assert response.headers["X-Page-Offset"] == "100"
+
+
+@pytest.mark.asyncio
+async def test_sort_ties_are_stable_across_page_boundary(db_session, client):
+    """Equal volume keys must not duplicate/drop rows across LIMIT/OFFSET pages.
+
+    Seeds >=4 markets with at least 3 sharing an identical volume that straddles
+    a limit=2 page boundary. Union of pages must equal the full id set.
+    """
+    # Four markets: three share volume=100 (tie straddles pages), one unique.
+    specs = [
+        ("tie-a", 100),
+        ("tie-b", 100),
+        ("tie-c", 100),
+        ("unique-hi", 200),
+    ]
+    db_session.add_all(
+        [
+            Market(
+                slug=slug,
+                title=f"Tie market {slug}",
+                question="?",
+                category="Sports",
+                volume=volume,
+                traders=0,
+                status=MarketStatus.OPEN,
+            )
+            for slug, volume in specs
+        ]
+    )
+    await db_session.flush()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        full = await ac.get("/api/v1/markets", params={"limit": 50, "offset": 0, "sort": "volume"})
+        page1 = await ac.get("/api/v1/markets", params={"limit": 2, "offset": 0, "sort": "volume"})
+        page2 = await ac.get("/api/v1/markets", params={"limit": 2, "offset": 2, "sort": "volume"})
+
+    assert full.status_code == 200
+    assert page1.status_code == 200
+    assert page2.status_code == 200
+    full_ids = [m["id"] for m in full.json()]
+    p1_ids = [m["id"] for m in page1.json()]
+    p2_ids = [m["id"] for m in page2.json()]
+    assert len(full_ids) == 4
+    assert len(p1_ids) == 2
+    assert len(p2_ids) == 2
+    assert set(p1_ids).isdisjoint(set(p2_ids))
+    assert set(p1_ids) | set(p2_ids) == set(full_ids)
+    # Round-trip: paging must not invent or drop any id from the full set.
+    assert sorted(p1_ids + p2_ids) == sorted(full_ids)

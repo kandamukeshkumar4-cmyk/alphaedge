@@ -300,13 +300,18 @@ class MarketService:
                 Market.lock_at.asc().nullslast(),
                 Market.last_synced_at.desc().nullslast(),
                 Market.volume.desc(),
+                Market.id.desc(),
             )
         elif sort == "traders":
-            stmt = stmt.order_by(Market.traders.desc(), Market.created_at.desc())
+            stmt = stmt.order_by(
+                Market.traders.desc(), Market.created_at.desc(), Market.id.desc()
+            )
         elif sort == "newest":
-            stmt = stmt.order_by(Market.created_at.desc())
+            stmt = stmt.order_by(Market.created_at.desc(), Market.id.desc())
         else:
-            stmt = stmt.order_by(Market.volume.desc(), Market.created_at.desc())
+            stmt = stmt.order_by(
+                Market.volume.desc(), Market.created_at.desc(), Market.id.desc()
+            )
 
         total_count = int(
             await self.session.scalar(
