@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 
 import { CountUp } from "@/components/CountUp";
+import { AnalyticsCalibrationChart } from "@/components/portfolio/AnalyticsCalibrationChart";
 import { AnalyticsEquityChart } from "@/components/portfolio/AnalyticsEquityChart";
 import { cn } from "@/lib/cn";
 import {
@@ -95,6 +96,10 @@ function AnalyticsSkeleton() {
       <div
         className="skeleton rounded-2xl"
         style={{ minHeight: EQUITY_BLOCK_MIN_H }}
+      />
+      <div
+        className="skeleton rounded-2xl"
+        style={{ minHeight: 220 }}
       />
     </div>
   );
@@ -230,6 +235,8 @@ export function PortfolioAnalyticsPanel({ token }: { token: string | null }) {
             </div>
             <AnalyticsEquityChart series={data.pnl_series} />
           </div>
+
+          <AnalyticsCalibrationChart buckets={data.calibration.buckets} />
         </>
       )}
     </section>
