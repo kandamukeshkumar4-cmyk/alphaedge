@@ -199,3 +199,22 @@ Summary:
 ```text
 2018 passed, 28 skipped in 398.72s (0:06:38)
 ```
+
+## Repository gate attempt
+
+Command:
+
+```text
+py -3.13 orchestration/gate.py
+```
+
+Result:
+
+```text
+command timed out after 605910 milliseconds
+exit code 124
+```
+
+The task-specific focused tests, Ruff, and full backend suite passed. The
+default repository gate did not produce a verdict within the command timeout;
+no application or protected-file changes were made to chase that timeout.
