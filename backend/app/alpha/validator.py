@@ -14,6 +14,7 @@ from datetime import datetime
 import math
 import random
 from typing import Any, Iterable
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +60,7 @@ async def load_factor_observations(
         raise ValueError(f"unknown factor: {factor}")
 
     population = await load_forecast_score_rows(session)
-    ids = [row["forecast_id"] for row in population]
+    ids = [UUID(row["forecast_id"]) for row in population]
     if not ids:
         return [], {"missing_factor_provenance": 0, "missing_closing_line": 0}
 

@@ -1,6 +1,18 @@
 from datetime import UTC, datetime, timedelta
 
-from app.alpha.validator import FactorObservation, validate_factor_observations
+from decimal import Decimal
+
+import pytest
+
+from app.alpha.validator import FactorObservation, load_factor_observations, validate_factor_observations
+from app.db.models import (
+    ExternalMarket,
+    ExternalMarketStatus,
+    ForecastLog,
+    ForecastScore,
+    Forecaster,
+    Platform,
+)
 
 
 def _observations(*, score: float = 1.0, count: int = 20) -> list[FactorObservation]:
@@ -50,3 +62,45 @@ def test_validator_rejects_missing_closing_line_and_insufficient_oos_data():
 
     assert missing_close["reason"] == "missing_closing_line"
     assert insufficient["reason"] == "insufficient_oos_rows"
+
+
+@pytest.mark.asyncio
+async def test_validator_loads_only_locked_factor_provenance_from_score_population(db_session):
+    market = ExternalMarket(
+        platform=Platform.POLYMARKET,
+        external_id="alpha-validator-market",
+        status=ExternalMarketStatus.RESOLVED,
+        winning_outcome=1,
+    )
+    forecaster = Forecaster(token_hash="validator-token", recovery_code_hash="validator-recovery")
+    db_session.add_all([market, forecaster])
+    await db_session.flush()
+    forecast = ForecastLog(
+        forecaster_id=forecaster.id,
+        external_market_id=market.id,
+        platform=Platform.POLYMARKET,
+        user_probability=Decimal("0.70"),
+        market_implied_probability=Decimal("0.50"),
+        locked_at=datetime(2026, 1, 1, tzinfo=UTC),
+        snapshot_metadata={"closing_implied_probability": 0.6, "alpha_features": {}},
+    )
+    db_session.add(forecast)
+    await db_session.flush()
+    db_session.add(
+        ForecastScore(
+            forecast_id=forecast.id,
+            actual_outcome=1,
+            user_brier=Decimal("0.09"),
+            market_brier=Decimal("0.25"),
+            brier_delta=Decimal("0.16"),
+        )
+    )
+    await db_session.flush()
+
+    observations, missing = await load_factor_observations(db_session, "model_edge")
+
+    assert len(observations) == 1
+    assert observations[0].score == 1.0
+    assert observations[0].entry_probability == 0.5
+    assert observations[0].closing_probability == 0.6
+    assert missing == {"missing_factor_provenance": 0, "missing_closing_line": 0}
