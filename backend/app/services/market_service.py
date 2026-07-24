@@ -243,10 +243,13 @@ class MarketService:
 
     async def list_public_markets(
         self,
+        *,
         category: str | None = None,
         sort: str = "volume",
         q: str | None = None,
-    ) -> list[MarketResponse]:
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[MarketResponse], int]:
         latest_yes_price = self._latest_yes_price_subquery()
         stmt = (
             select(
@@ -305,8 +308,16 @@ class MarketService:
         else:
             stmt = stmt.order_by(Market.volume.desc(), Market.created_at.desc())
 
+        total_count = int(
+            await self.session.scalar(
+                select(func.count()).select_from(stmt.order_by(None).subquery())
+            )
+            or 0
+        )
+        stmt = stmt.limit(limit).offset(offset)
         result = await self.session.execute(stmt)
-        return [self._market_response_from_row(row._mapping) for row in result.all()]
+        rows = [self._market_response_from_row(row._mapping) for row in result.all()]
+        return rows, total_count
 
     @staticmethod
     def _catalog_category_filter(category: str | None):
