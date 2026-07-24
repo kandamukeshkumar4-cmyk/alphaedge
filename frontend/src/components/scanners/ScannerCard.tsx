@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { StarRating } from "@/components/marketplace/StarRating";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
 import { cn } from "@/lib/cn";
 import {
@@ -86,6 +87,10 @@ export function ScannerCard({
             {STEP_ABBREV[step.type]}
           </span>
         ))}
+      </div>
+
+      <div className="mt-2.5 min-h-[28px]">
+        <StarRating kind="scanner" id={scanner.id} name={scanner.name} />
       </div>
 
       <dl className="mt-3 space-y-1 font-mono text-[11px] text-muted">

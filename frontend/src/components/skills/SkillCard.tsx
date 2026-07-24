@@ -7,6 +7,7 @@
  * (zeroed by the reduced-motion kill-switch in globals.css). Paper only.
  */
 
+import { StarRating } from "@/components/marketplace/StarRating";
 import { cn } from "@/lib/cn";
 import type { Skill } from "@/lib/skills-api";
 
@@ -69,6 +70,10 @@ export function SkillCard({
             private
           </span>
         ) : null}
+      </div>
+
+      <div className="mt-2.5 min-h-[28px]">
+        <StarRating kind="skill" id={skill.id} name={skill.name} />
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-2">

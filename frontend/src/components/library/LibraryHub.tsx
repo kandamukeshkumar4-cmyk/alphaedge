@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { LibraryCard, type LibraryEntry, type LibraryEntryKind } from "@/components/library/LibraryCard";
+import { MarketplaceSpotlight } from "@/components/marketplace/MarketplaceSpotlight";
 import { useToast } from "@/components/ToastProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
@@ -277,6 +278,8 @@ export function LibraryHub() {
           </p>
         </div>
       </div>
+
+      <MarketplaceSpotlight />
 
       {/* Tab bar */}
       <div
