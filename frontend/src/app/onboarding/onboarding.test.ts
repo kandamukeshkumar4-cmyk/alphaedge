@@ -40,4 +40,32 @@ describe("onboarding storage", () => {
 
     expect(isFirstRun()).toBe(true);
   });
+
+  it("is SSR-safe when window is absent", () => {
+    vi.stubGlobal("window", undefined);
+
+    expect(isFirstRun()).toBe(false);
+    expect(() => markOnboarded()).not.toThrow();
+    expect(() => resetOnboarding()).not.toThrow();
+  });
+
+  it("treats missing storage as not first-run", () => {
+    vi.stubGlobal("window", {});
+
+    expect(isFirstRun()).toBe(false);
+    expect(() => markOnboarded()).not.toThrow();
+    expect(() => resetOnboarding()).not.toThrow();
+  });
+
+  it("is safe when localStorage throws (private mode)", () => {
+    vi.stubGlobal("window", {
+      get localStorage(): Storage {
+        throw new Error("SecurityError");
+      },
+    });
+
+    expect(isFirstRun()).toBe(false);
+    expect(() => markOnboarded()).not.toThrow();
+    expect(() => resetOnboarding()).not.toThrow();
+  });
 });
