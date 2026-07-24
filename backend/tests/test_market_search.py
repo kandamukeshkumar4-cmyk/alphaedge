@@ -120,3 +120,25 @@ async def test_search_router_is_public_and_rejects_invalid_limit(db_session):
         assert invalid.status_code == 400
     finally:
         await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_search_empty_query_cap_and_injection_input_are_safe(db_session):
+    await _seed_markets(db_session)
+    service = MarketService(db_session)
+    for index in range(50):
+        await service.create_market(
+            slug=f"cap-market-{index}",
+            title=f"Cap market {index}",
+            question=f"Cap market {index}?",
+            category="Cap",
+            volume=index,
+        )
+    await db_session.flush()
+
+    assert await search_markets(db_session, "   ") == []
+    capped = await search_markets(db_session, "cap", limit=999)
+    assert len(capped) == 50
+
+    assert await search_markets(db_session, "'; DROP TABLE markets", limit=50) == []
+    assert (await search_markets(db_session, "lakers"))[0]["slug"] == "nba-lakers-celtics"

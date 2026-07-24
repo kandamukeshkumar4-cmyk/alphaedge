@@ -8,7 +8,8 @@ guardrail changes.
 
 - S1 `feat(loop91): S1 — market search service`: DONE; committed as
   `8c77103e3c00b52993f9c93e766dd77c07a56959`.
-- S2 `feat(loop91): S2 — public market search router`: pending.
+- S2 `feat(loop91): S2 — public market search router`: DONE; committed as
+  `427b29c0703938356185b60f0e895f6385a1ccad`.
 - S3 `feat(loop91): S3 — market search tests`: pending.
 
 The orchestrator wires the new router in `main.py` at merge time; `main.py`
@@ -96,4 +97,47 @@ Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.g
 Date:   Fri Jul 24 09:49:33 2026 -0400
 
     feat(loop91): S1 — market search service
+```
+
+### S2 proof
+
+Command:
+
+```text
+cd backend && uv run --extra dev pytest -q tests/test_market_search.py --basetemp=E:/polymarket-worktrees/loop91-search/.pt
+```
+
+Output:
+
+```text
+..                                                                       [100%]
+2 passed in 5.44s
+```
+
+Command:
+
+```text
+cd backend && uv run --extra dev ruff check app tests
+```
+
+Output:
+
+```text
+All checks passed!
+```
+
+Command:
+
+```text
+git log -1
+```
+
+Output:
+
+```text
+commit 427b29c0703938356185b60f0e895f6385a1ccad
+Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.github.com>
+Date:   Fri Jul 24 09:50:43 2026 -0400
+
+    feat(loop91): S2 — public market search router
 ```
