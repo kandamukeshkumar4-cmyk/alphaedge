@@ -353,6 +353,42 @@
    ]
   }
  },
+ "/api/v1/alpha/factors": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Factors",
+   "tags": [
+    "alpha"
+   ]
+  }
+ },
+ "/api/v1/alpha/latest-signal": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Latest Signal",
+   "tags": [
+    "alpha"
+   ]
+  }
+ },
+ "/api/v1/alpha/report": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Report",
+   "tags": [
+    "alpha"
+   ]
+  }
+ },
+ "/api/v1/alpha/runs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Runs",
+   "tags": [
+    "alpha"
+   ]
+  }
+ },
  "/api/v1/analyst/run": {
   "post": {
    "has_success_response": true,
@@ -915,6 +951,15 @@
   "get": {
    "has_success_response": true,
    "summary": "Get Market History",
+   "tags": [
+    "markets"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/indicators": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Indicators",
    "tags": [
     "markets"
    ]
