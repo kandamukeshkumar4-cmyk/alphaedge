@@ -649,6 +649,15 @@
    ]
   }
  },
+ "/api/v1/context/digest": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Context Digest",
+   "tags": [
+    "context"
+   ]
+  }
+ },
  "/api/v1/desk": {
   "get": {
    "has_success_response": true,
@@ -766,6 +775,15 @@
    ]
   }
  },
+ "/api/v1/heartbeat/decisions": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Heartbeat Decisions",
+   "tags": [
+    "heartbeat"
+   ]
+  }
+ },
  "/api/v1/home": {
   "get": {
    "has_success_response": true,
@@ -848,6 +866,15 @@
    ]
   }
  },
+ "/api/v1/markets/{slug}/context": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Market Context",
+   "tags": [
+    "context"
+   ]
+  }
+ },
  "/api/v1/markets/{slug}/detail": {
   "get": {
    "has_success_response": true,
@@ -899,6 +926,15 @@
    "summary": "Market Latency",
    "tags": [
     "analyst"
+   ]
+  }
+ },
+ "/api/v1/markets/{slug}/locked-forecast": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Locked Forecast",
+   "tags": [
+    "markets"
    ]
   }
  },
@@ -1008,6 +1044,31 @@
    ]
   }
  },
+ "/api/v1/notifications/preferences": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get notification channel preferences",
+   "tags": [
+    "notifications"
+   ]
+  },
+  "put": {
+   "has_success_response": true,
+   "summary": "Replace notification channel preferences",
+   "tags": [
+    "notifications"
+   ]
+  }
+ },
+ "/api/v1/notifications/push/subscribe": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Store a web-push subscription JSON (no send in v1)",
+   "tags": [
+    "notifications"
+   ]
+  }
+ },
  "/api/v1/notifications/read-all": {
   "post": {
    "has_success_response": true,
@@ -1094,10 +1155,28 @@
    ]
   }
  },
+ "/api/v1/pods": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Pods",
+   "tags": [
+    "pods"
+   ]
+  }
+ },
  "/api/v1/portfolio": {
   "get": {
    "has_success_response": true,
    "summary": "Get Portfolio",
+   "tags": [
+    "portfolio"
+   ]
+  }
+ },
+ "/api/v1/portfolio/analytics": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Portfolio Analytics",
    "tags": [
     "portfolio"
    ]
@@ -1184,12 +1263,179 @@
    ]
   }
  },
+ "/api/v1/scanners/": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Scanners",
+   "tags": [
+    "scanners"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/compile": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Compile Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/featured": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Featured Scanners",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/trending": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Trending Scanners",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Scanner",
+   "tags": [
+    "scanners"
+   ]
+  },
+  "patch": {
+   "has_success_response": true,
+   "summary": "Update Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/feature": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Feature Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/fork": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Fork Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/pause": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Pause Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/publish": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Publish Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/rate": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Rate Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/resume": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Resume Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/rollback": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Rollback Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/run": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Run Scanner Now",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/runs": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Scanner Runs",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/test-email": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Test Email Scanner",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/scanners/{scanner_id}/test-run": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Test Run Scanner Now",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
+ "/api/v1/screener": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Screener",
+   "tags": [
+    "screener"
+   ]
+  }
+ },
  "/api/v1/search": {
   "get": {
    "has_success_response": true,
-   "summary": "Search Markets",
+   "summary": "Get Market Search",
    "tags": [
-    "public"
+    "search"
    ]
   }
  },
@@ -1274,6 +1520,85 @@
    ]
   }
  },
+ "/api/v1/skills/": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Skills",
+   "tags": [
+    "skills"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Skill",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/featured": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Featured Skills",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/trending": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Trending Skills",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/{skill_id}": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Skill",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/{skill_id}/feature": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Feature Skill",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/{skill_id}/fork": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Fork Skill",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/{skill_id}/rate": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Rate Skill",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
+ "/api/v1/skills/{skill_id}/run": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Run Skill",
+   "tags": [
+    "skills"
+   ]
+  }
+ },
  "/api/v1/smart-money": {
   "get": {
    "has_success_response": true,
@@ -1344,6 +1669,31 @@
    ]
   }
  },
+ "/api/v1/subscriptions/": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Subscriptions",
+   "tags": [
+    "subscriptions"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Subscription",
+   "tags": [
+    "subscriptions"
+   ]
+  }
+ },
+ "/api/v1/subscriptions/{ref_type}/{ref_id}": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Delete Subscription",
+   "tags": [
+    "subscriptions"
+   ]
+  }
+ },
  "/api/v1/system/loops": {
   "get": {
    "has_success_response": true,
@@ -1398,12 +1748,98 @@
    ]
   }
  },
+ "/api/v1/terminal/sessions": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Sessions",
+   "tags": [
+    "terminal"
+   ]
+  },
+  "post": {
+   "has_success_response": true,
+   "summary": "Create Session",
+   "tags": [
+    "terminal"
+   ]
+  }
+ },
+ "/api/v1/terminal/sessions/{session_id}": {
+  "delete": {
+   "has_success_response": true,
+   "summary": "Delete Session",
+   "tags": [
+    "terminal"
+   ]
+  },
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Session",
+   "tags": [
+    "terminal"
+   ]
+  }
+ },
+ "/api/v1/terminal/sessions/{session_id}/execute": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Execute Session",
+   "tags": [
+    "terminal"
+   ]
+  }
+ },
+ "/api/v1/terminal/sessions/{session_id}/resume": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Resume Session",
+   "tags": [
+    "terminal"
+   ]
+  }
+ },
+ "/api/v1/terminal/sessions/{session_id}/save-as-skill": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Save Session As Skill",
+   "tags": [
+    "terminal"
+   ]
+  }
+ },
+ "/api/v1/terminal/sessions/{session_id}/stream": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Stream Session",
+   "tags": [
+    "terminal"
+   ]
+  }
+ },
  "/api/v1/track-record": {
   "get": {
    "has_success_response": true,
    "summary": "Get Track Record",
    "tags": [
     "track-record"
+   ]
+  }
+ },
+ "/api/v1/usage/summary": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Usage Summary",
+   "tags": [
+    "usage"
+   ]
+  }
+ },
+ "/api/v1/venue-gaps": {
+  "get": {
+   "has_success_response": true,
+   "summary": "List Venue Gaps",
+   "tags": [
+    "venue-gaps"
    ]
   }
  },
