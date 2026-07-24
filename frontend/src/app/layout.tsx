@@ -47,6 +47,8 @@ export const metadata: Metadata = {
   },
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE_NAME,
+  // Loop 103 P1 — installability via app/manifest.ts → /manifest.webmanifest
+  manifest: "/manifest.webmanifest",
   keywords: [
     "paper trading",
     "prediction markets",
@@ -55,9 +57,14 @@ export const metadata: Metadata = {
     "Brier score",
     "calibration",
     "AlphaEdge",
+    "AI research desk",
+    "simulated funds",
   ],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
+  alternates: {
+    canonical: SITE_URL,
+  },
   openGraph: {
     type: "website",
     locale: "en_US",

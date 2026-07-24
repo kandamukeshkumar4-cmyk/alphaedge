@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   absoluteUrl,
+  DEFAULT_DESCRIPTION,
   pageMetadata,
   PUBLIC_SITEMAP_ROUTES,
   SITE_URL,
@@ -33,6 +34,15 @@ describe("site metadata (loop67 L2)", () => {
   it("keeps the exact paper-trading disclaimer as default description source", () => {
     expect(PAPER_TRADING_DISCLAIMER).toContain("paper-trading simulation");
     expect(PAPER_TRADING_DISCLAIMER).toContain("simulated funds");
+    expect(DEFAULT_DESCRIPTION).toContain("simulated funds only");
+    expect(DEFAULT_DESCRIPTION).toContain(PAPER_TRADING_DISCLAIMER);
+  });
+
+  it("lists loop103 launch routes in the public sitemap", () => {
+    const paths = PUBLIC_SITEMAP_ROUTES.map((r) => r.path);
+    for (const path of ["/terminal", "/scanners", "/skills", "/alpha", "/screener"]) {
+      expect(paths).toContain(path);
+    }
   });
 
   it("lists only public routes in the sitemap (no admin)", () => {
