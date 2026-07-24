@@ -31,6 +31,40 @@ $ cd backend && uv run --extra dev ruff check app tests
 All checks passed!
 ```
 
+## A4 — public alpha routes
+
+Status: DONE
+
+`GET /api/v1/alpha/factors?market=<external-id>` performs exact external-id
+lookup and returns HTTP 404 `market_not_found` when absent. `GET
+/api/v1/alpha/report` returns a fresh global validation summary with every
+rejected factor and reason. Both routes are public/read-only and explicitly
+paper-only. They are tested through an isolated FastAPI application only:
+`main.py` is intentionally unchanged, so merge-time registration and live-route
+proof remain an orchestrator responsibility.
+
+```text
+$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py tests/test_alpha_service.py tests/test_alpha_api.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
+.........                                                                [100%]
+9 passed in 16.34s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
+
+## Phase 2 — intentionally not built
+
+- Regime Auditor: segment validated resolved history by volume tier,
+  time-to-close bucket, and category; reject factors whose OOS evidence is not
+  robust across regimes.
+- Portfolio Constructor: combine only independently validated factors into a
+  research-only inverse-volatility weight vector. It must not construct an
+  order, stake, side, or executable instruction.
+- Risk Decomposer: test residual alpha of that research vector with an OOS
+  t-stat above 2.5 before a daily signal can be emitted.
+- Scheduler: persist a daily no-signal outcome with evidence as faithfully as a
+  qualifying research result.
+
 ## A3 — read-only alpha service
 
 Status: DONE
