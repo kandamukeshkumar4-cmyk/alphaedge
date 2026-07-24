@@ -107,3 +107,34 @@ worktree + gate.py + STATE.md + routing table + Monitor already ARE the graph
 runtime — nodes=runner-per-worktree, edges=frozen contracts + merges, sync=the
 orchestrator reduce, persistence=commits+STATE, stop=gate/audit. Capture the
 principle, skip the tool (same call as loop-design's Slate decline).
+
+## Writing the node brief — context engineering (Anthropic, Claude-5 rules)
+
+Ref: `docs/graph-engineering/context-engineering-claude5.md`. The graph rules
+above are primary; these upgrade HOW you write each node's brief (the brief IS
+context engineering). They complement, never override, the topology + 5 modes.
+
+- **Spec as a runnable oracle, not prose.** The strongest acceptance criterion
+  is a command/test/rubric the node can run, not a paragraph. Prefer "make
+  `pytest tests/test_x.py` pass + `gate.py` exit 0" and a FROZEN CONTRACT over
+  long prose. A test suite or a typed contract is higher-fidelity than English.
+- **Design the interface, not examples.** A named, typed output contract (the
+  edge) tells a node how to behave better than example dumps. Examples can
+  over-constrain a capable model's exploration; a good contract frees it.
+- **Calibrate constraint to model tier.** This is the Claude-5 "let judgment
+  work" rule, applied per node: heavily-prescribed briefs (exact files, steps,
+  deterministic rules) for weaker runners (Qwen, cursor-grok — they need it);
+  goal + rubric + contract with room for judgment for strong runners (Sol,
+  Fable). Do NOT over-constrain the strong seats; do NOT under-specify the weak
+  ones. Same graph, different brief density.
+- **No conflicting instructions.** Audit each brief for clashes ("surgical
+  changes" vs "also refactor X"; "no comments" vs "document it"). Conflicts make
+  the node burn tokens reconciling. One coherent intent per brief.
+- **Progressive disclosure.** Don't inline everything — point briefs at the repo
+  docs/skills/contracts to load when needed. Keep this skill and AGENTS.md
+  lightweight (repo purpose + gotchas); split long guidance into referenced
+  files rather than one wall of rules.
+- **Rubrics for verifier edges.** Give the audit/verifier node a rubric ("what
+  does a correct, paper-safe factor look like") so it judges, not just ticks a
+  checklist. Rubric + re-run-the-proofs beats a rigid checklist for catching the
+  subtle miss.
