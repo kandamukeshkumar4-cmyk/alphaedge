@@ -36,6 +36,42 @@ statistics problem and it is not a "waiting for more data" problem. Prod evidenc
 STEP 1 IS TO CONFIRM OR REFUTE THIS. If the orchestrator is wrong, say so plainly with evidence and
 fix the real cause instead. A refutation with proof is a fully successful outcome for this node.
 
+=== SCOUT REPORT — READ `SCOUT105-PROVENANCE.md` IN THE REPO ROOT FIRST ===
+A read-only scout on a third model already mapped the terrain with file:line citations. Its findings
+narrow this node considerably. Do not re-derive them; verify and act.
+
+ A. **The lock has writers, and it is NOT the ARQ-cron-dead-in-prod gotcha.** `locked=True` iff a LIVE
+    `ForecastLog` exists (`api/v1/market_locked_forecast.py:205-219`). Only `ForecastService.lock_forecast`
+    (`services/forecast_service.py:140-252`) sets it, called from exactly two places: the autolock
+    worker (`workers/forecast_autolock.py:161-175`) and `api/v1/forecast_routes.py:136-147`.
+    The autolock task IS dual-wired — ARQ cron (`workers/tasks.py:1321`) AND an in-process loop
+    (`main.py:600 _forecast_autolock_loop`). So the worker runs. Do not spend budget re-checking that.
+
+ B. **THE ACTUAL UPSTREAM BLOCKER — start here.** The autolock worker runs but locks nothing. There is
+    a comment in `backend/app/main.py:571-574` recording a prior measurement:
+        "V33 B1 measured 99 ingested markets -> 0 autolock candidates"
+    and `_external_market_bridge_loop` was built specifically to "feed the input" so the funnel would
+    have candidates "at all". Prod today still shows `locked:false` on the canonical market and
+    `/api/v1/eval/aggregates` -> `market_count: 0`. Diagnostics already exist and are unused by any
+    endpoint: `app/observability/autolock_funnel.py` (`funnel_detail`) and the bridge's `bridge_detail`.
+    **Find which funnel stage drops every candidate to zero, and report the per-stage counts.**
+    Everything downstream — locks, factor provenance, closing lines, the alpha validation set — is
+    starved by this one gate. Fixing provenance capture without fixing this produces zero rows.
+
+ C. **An honest full backfill is IMPOSSIBLE — do not attempt one.** The scout classified each factor
+    by whether its lock-time value can be truthfully recomputed:
+        RECONSTRUCTIBLE (2): model_edge, time_decay — replayable from existing ForecastLog columns
+          (`user_probability`, `market_implied_probability`, `time_to_resolution_seconds`).
+        NOT RECONSTRUCTIBLE (5): whale_flow (process-cache only, plus a factor-key/graph-key name
+          mismatch `whale_flow` vs `whale_pressure`), momentum and mean_reversion (window definition
+          never recorded), news_sentiment (in-memory TTL cache, gone), cross_venue (no lock-time
+          venue pair bound to forecast_id).
+    Closing line: NOT stored. It may be DERIVABLE from `odds_snapshots` last-pre-close, but the scout
+    is explicit that this is a NEW POLICY, not recovery of a written value — so it must be labelled as
+    a derived estimate, and markets with snapshot gaps stay missing.
+    Therefore: 5 of 7 factors can only ever accumulate FORWARD from the moment capture is wired.
+    Writing plausible values for those 5 is fabrication and is an automatic FAIL of this node.
+
 === NODE JOB (one job): make the alpha validation set real ===
 Close the loop so that factor values observed at forecast time, and the closing line observed at
 resolution time, are PERSISTED and then actually consumed by the validator.
