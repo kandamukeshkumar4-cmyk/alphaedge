@@ -10,7 +10,8 @@ guardrail changes.
   `8c77103e3c00b52993f9c93e766dd77c07a56959`.
 - S2 `feat(loop91): S2 — public market search router`: DONE; committed as
   `427b29c0703938356185b60f0e895f6385a1ccad`.
-- S3 `feat(loop91): S3 — market search tests`: pending.
+- S3 `feat(loop91): S3 — market search tests`: DONE; committed as
+  `3d5edd358d697acf8e31907a25a7c69620169287`.
 
 The orchestrator wires the new router in `main.py` at merge time; `main.py`
 was intentionally not edited in this worktree.
@@ -140,4 +141,61 @@ Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.g
 Date:   Fri Jul 24 09:50:43 2026 -0400
 
     feat(loop91): S2 — public market search router
+```
+
+### S3 proof
+
+Command:
+
+```text
+cd backend && uv run --extra dev pytest -q tests/test_market_search.py --basetemp=E:/polymarket-worktrees/loop91-search/.pt
+```
+
+Output:
+
+```text
+...                                                                      [100%]
+3 passed in 5.58s
+```
+
+Command:
+
+```text
+cd backend && uv run --extra dev ruff check app tests
+```
+
+Output:
+
+```text
+All checks passed!
+```
+
+Command:
+
+```text
+git log -1
+```
+
+Output:
+
+```text
+commit 3d5edd358d697acf8e31907a25a7c69620169287
+Author: kandamukeshkumar4-cmyk <271247509+kandamukeshkumar4-cmyk@users.noreply.github.com>
+Date:   Fri Jul 24 09:51:35 2026 -0400
+
+    feat(loop91): S3 — market search tests
+```
+
+## Full-suite proof
+
+Command:
+
+```text
+cd backend && uv run --extra dev pytest -q --basetemp=.ptf
+```
+
+Summary:
+
+```text
+2018 passed, 28 skipped in 398.72s (0:06:38)
 ```
