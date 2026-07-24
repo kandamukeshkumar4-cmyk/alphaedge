@@ -18,10 +18,13 @@ from app.schemas.scanners import (
     ScannerCompileRequest,
     ScannerCreate,
     ScannerOut,
+    ScannerRateRequest,
+    ScannerRatingOut,
     ScannerRunOut,
     ScannerTestEmailOut,
     ScannerUpdate,
 )
+from app.services.marketplace_rating_service import upsert_scanner_rating
 from app.services.scanner_compiler_service import compile_scanner_flow
 from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
@@ -112,6 +115,7 @@ def _scanner_out(
         version=int(scanner.version or 1),
         status=scanner.status,
         is_public=bool(scanner.is_public),
+        is_featured=bool(scanner.is_featured),
         cooldown_minutes=int(scanner.cooldown_minutes or 120),
         created_at=scanner.created_at,
         updated_at=scanner.updated_at,
@@ -430,6 +434,20 @@ async def list_scanner_runs(
         )
     ).all()
     return [_run_out(r) for r in runs]
+
+
+@router.post("/{scanner_id}/rate", response_model=ScannerRatingOut)
+async def rate_scanner(
+    scanner_id: UUID,
+    body: ScannerRateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScannerRatingOut:
+    scanner = await _get_visible_scanner(db, scanner_id, user)
+    avg, count, my_stars = await upsert_scanner_rating(
+        db, user=str(user.id), ref_id=scanner.id, stars=body.stars
+    )
+    return ScannerRatingOut(avg=avg, count=count, my_stars=my_stars)
 
 
 @router.post("/{scanner_id}/fork", response_model=ScannerOut, status_code=status.HTTP_201_CREATED)

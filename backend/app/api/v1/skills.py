@@ -12,7 +12,15 @@ from app.api.v1.launch_limits import check_user_run_allowed, harden_create_field
 from app.core.config import get_settings
 from app.db.models import ResearchSession, Skill, User
 from app.db.session import get_db
-from app.schemas.skills import SkillCreate, SkillOut, SkillRunOut, SkillRunRequest
+from app.schemas.skills import (
+    SkillCreate,
+    SkillOut,
+    SkillRateRequest,
+    SkillRatingOut,
+    SkillRunOut,
+    SkillRunRequest,
+)
+from app.services.marketplace_rating_service import upsert_skill_rating
 from app.services.terminal_research_service import (
     execute_session as run_terminal_research,
     normalize_plan,
@@ -37,6 +45,7 @@ def _skill_out(skill: Skill) -> SkillOut:
         params_schema=skill.params_schema,
         run_count=int(skill.run_count or 0),
         is_public=bool(skill.is_public),
+        is_featured=bool(skill.is_featured),
         created_by=skill.created_by,
         created_at=skill.created_at,
         updated_at=skill.updated_at,
@@ -136,6 +145,22 @@ async def run_skill(
     skill.run_count = int(skill.run_count or 0) + 1
     await db.flush()
     return SkillRunOut(session_id=session.id)
+
+
+@router.post("/{skill_id}/rate", response_model=SkillRatingOut)
+async def rate_skill(
+    skill_id: UUID,
+    body: SkillRateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SkillRatingOut:
+    skill = await db.scalar(select(Skill).where(Skill.id == skill_id))
+    if skill is None:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    avg, count, my_stars = await upsert_skill_rating(
+        db, user=str(user.id), ref_id=skill.id, stars=body.stars
+    )
+    return SkillRatingOut(avg=avg, count=count, my_stars=my_stars)
 
 
 @router.post("/{skill_id}/fork", response_model=SkillOut, status_code=status.HTTP_201_CREATED)

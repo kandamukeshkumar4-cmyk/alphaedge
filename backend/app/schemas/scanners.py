@@ -67,9 +67,20 @@ class ScannerOut(BaseModel):
     version: int
     status: str
     is_public: bool
+    is_featured: bool = False
     cooldown_minutes: int
     created_at: datetime
     updated_at: datetime
     latest_run: ScannerRunOut | None = None
     next_run_at: datetime | None = None
     last_error: str | None = None
+
+
+class ScannerRateRequest(BaseModel):
+    stars: int = Field(ge=1, le=5)
+
+
+class ScannerRatingOut(BaseModel):
+    avg: float
+    count: int
+    my_stars: int

@@ -26,9 +26,20 @@ class SkillOut(BaseModel):
     params_schema: dict[str, Any] | list[Any] | None
     run_count: int
     is_public: bool
+    is_featured: bool = False
     created_by: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class SkillRateRequest(BaseModel):
+    stars: int = Field(ge=1, le=5)
+
+
+class SkillRatingOut(BaseModel):
+    avg: float
+    count: int
+    my_stars: int
 
 
 class SkillRunRequest(BaseModel):
