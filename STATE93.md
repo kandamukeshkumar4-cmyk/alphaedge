@@ -31,3 +31,25 @@ All checks passed!
 git log -1 --oneline
 499aa65 feat(loop93): T1 — technical analysis indicators
 ```
+
+## T2 — regime classifier
+
+Status: DONE
+
+Added the frozen deterministic classifier: ADX at or below 20 is `range`; a
+stronger trend uses SMA(20) versus SMA(50); absent long-trend inputs return
+`insufficient_data`.
+
+Proof:
+
+```text
+cd backend && uv run --extra dev pytest -q tests/test_technical_analysis.py --basetemp=E:/polymarket-worktrees/loop93-ta/.pt
+.......                                                                  [100%]
+7 passed in 7.98s
+
+cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+
+git log -1 --oneline
+ddfb425 feat(loop93): T2 — classify technical regimes
+```

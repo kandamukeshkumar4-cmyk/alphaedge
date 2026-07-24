@@ -59,6 +59,22 @@ def calculate_indicators(
     }
 
 
+def classify_regime(indicators: dict[str, object]) -> str:
+    """Return the public trend label from the long moving averages and ADX."""
+    sma_20 = indicators.get("sma_20")
+    sma_50 = indicators.get("sma_50")
+    adx = indicators.get("adx_14")
+    if not all(isinstance(value, (int, float)) for value in (sma_20, sma_50, adx)):
+        return "insufficient_data"
+    if float(adx) <= 20.0:
+        return "range"
+    if float(sma_20) > float(sma_50):
+        return "trending_up"
+    if float(sma_20) < float(sma_50):
+        return "trending_down"
+    return "range"
+
+
 def _empty_indicators() -> dict[str, object]:
     return {
         "rsi_14": None,

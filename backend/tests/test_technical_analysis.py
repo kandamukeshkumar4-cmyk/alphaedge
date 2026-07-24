@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.technical_analysis_service import calculate_indicators
+from app.services.technical_analysis_service import calculate_indicators, classify_regime
 
 
 def test_flat_series_has_known_neutral_values() -> None:
@@ -44,3 +44,16 @@ def test_each_indicator_reports_none_when_its_period_is_unavailable() -> None:
     assert indicators["ema_12"] == 0.5
     assert indicators["bollinger"] == {"upper": None, "mid": None, "lower": None}
     assert indicators["adx_14"] is None
+
+
+@pytest.mark.parametrize(
+    ("indicators", "expected"),
+    [
+        ({"sma_20": 0.7, "sma_50": 0.5, "adx_14": 21.0}, "trending_up"),
+        ({"sma_20": 0.4, "sma_50": 0.6, "adx_14": 21.0}, "trending_down"),
+        ({"sma_20": 0.7, "sma_50": 0.5, "adx_14": 20.0}, "range"),
+        ({"sma_20": None, "sma_50": None, "adx_14": None}, "insufficient_data"),
+    ],
+)
+def test_regime_classifier_is_deterministic(indicators: dict[str, object], expected: str) -> None:
+    assert classify_regime(indicators) == expected
