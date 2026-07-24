@@ -102,7 +102,7 @@ FAIL frontend typecheck, frontend test, frontend build
 The gate failure is unrelated to this backend charter: the checkout has no
 frontend TypeScript/Vitest/Next executables. No frontend manifest or lockfile
 was changed, so installing dependencies is out of scope. `requesting-code-review`
-is not available in this environment; manual review of `HEAD~4..HEAD` found
+is not available in this environment; manual review of `HEAD~5..HEAD` found
 no scope leak into order execution, no LLM execution path, no new router
 registration, and no migration branch. Bumblebee is not applicable: this work
 does not modify a dependency manifest, lockfile, loader, or deploy image.
