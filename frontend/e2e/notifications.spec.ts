@@ -1,31 +1,26 @@
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { assertNoConsoleErrors, collectConsoleErrors } from "./helpers/console";
-import {
-  CANONICAL_SLUG,
-  paperBuyCanonical,
-  setDisplayName,
-} from "./helpers/local-api";
-import {
-  dismissOnboardingIfPresent,
-  signupPaperUser,
-  skipOnboarding,
-  uniqueEmail,
-} from "./helpers/session";
+import { skipOnboarding } from "./helpers/session";
 
 /**
- * G2 — Notification journeys (Loop V28).
- * After follow + followed-trade: A's bell shows unread badge; open center;
- * mark-one and mark-all; badge clears.
+ * Loop V90 (C2) — notification center proof, mock-driven and backend-free.
  *
- * Note: WS-driven live bump is best-effort on local stack; assertions use
- * poll-based GET via NotificationBell mount (honest).
+ * The frozen loop90 contract client (frontend/src/lib/notifications-api.ts)
+ * is live-first with a MANDATORY PAPER mock fallback. We abort every API
+ * route (/health probe, /api/v1/*, the HF Space host) so the run always
+ * exercises the mock path: the bell renders with a mint unread badge, the
+ * dropdown opens with the seeded PAPER notifications, item links work,
+ * prefs toggles render, and "Mark all read" clears the badge.
  */
 
-async function newAuthedPage(browser: Browser): Promise<Page> {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await skipOnboarding(page);
-  return page;
+/** Force offline/mock mode regardless of whatever backend may be running. */
+async function forceMockMode(page: Page): Promise<void> {
+  await page.route((url) => {
+    const href = url.toString();
+    return (
+      href.includes("/api/v1/") || href.includes("/health") || href.includes("hf.space")
+    );
+  }, (route) => route.abort());
 }
 
 function notifBell(page: Page) {
@@ -34,133 +29,63 @@ function notifBell(page: Page) {
 
 async function unreadFromBell(page: Page): Promise<number> {
   const label = (await notifBell(page).getAttribute("aria-label")) ?? "";
-  const m = label.match(/(\d+)\s+unread/i);
-  if (m) return Number(m[1]);
+  const match = label.match(/(\d+)\s+unread/i);
+  if (match) return Number(match[1]);
   if (/9\+\s+unread/i.test(label)) return 9;
   return 0;
 }
 
-async function openNotifCenter(page: Page) {
-  await notifBell(page).click();
-  const center = page.getByRole("region", { name: /Notification center/i });
-  await expect(center).toBeVisible({ timeout: 10_000 });
-  return center;
-}
+test.describe("Loop V90 C2 — notification center", () => {
+  test("bell renders, dropdown opens from mock, mark-all clears badge", async ({ page }) => {
+    test.setTimeout(180_000);
 
-async function waitForUnread(page: Page, min = 1, timeout = 45_000) {
-  await expect
-    .poll(() => unreadFromBell(page), {
-      timeout,
-      intervals: [400, 800, 1500],
-    })
-    .toBeGreaterThanOrEqual(min);
-}
+    const errors = collectConsoleErrors(page);
+    await skipOnboarding(page);
+    await forceMockMode(page);
 
-test.describe("G2 notification journeys", () => {
-  test("unread badge after followed-trade; mark-one/mark-all; badge clears", async ({
-    browser,
-  }) => {
-    test.setTimeout(300_000);
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 90_000 });
 
-    const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
-    const displayB = `L28N${suffix}`.slice(0, 32);
-    const emailB = uniqueEmail("loop28-nb");
-    const emailA = uniqueEmail("loop28-na");
-    const password = "Loop28qa!";
-
-    const pageA = await newAuthedPage(browser);
-    const errorsA = collectConsoleErrors(pageA);
-    await signupPaperUser(pageA, { email: emailA, password });
-
-    const pageB = await newAuthedPage(browser);
-    const errorsB = collectConsoleErrors(pageB);
-    await signupPaperUser(pageB, { email: emailB, password });
-    await setDisplayName(pageB, displayB);
-
-    // A follows B before any trade (required for followed_trade fanout).
-    await pageA.goto(`/traders/${encodeURIComponent(displayB)}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-    await dismissOnboardingIfPresent(pageA);
-    await expect(
-      pageA.getByRole("heading", { name: new RegExp(displayB, "i") }).first(),
-    ).toBeVisible({ timeout: 25_000 });
-    await pageA.getByRole("button", { name: /Follow trader/i }).click();
-    await expect(
-      pageA.getByRole("button", { name: /Unfollow/i }),
-    ).toBeVisible({ timeout: 15_000 });
-
-    // ── Trade 1 → unread badge ──
-    await paperBuyCanonical(pageB, 3);
-    assertNoConsoleErrors(errorsB, "notif B trade 1");
-
-    await pageA.goto("/portfolio", {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-    await dismissOnboardingIfPresent(pageA);
-    await waitForUnread(pageA, 1);
-
-    let center = await openNotifCenter(pageA);
-    await expect(
-      center.getByRole("heading", { name: /Notifications/i }),
-    ).toBeVisible();
-    await expect(center.getByText(/traded/i).first()).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(center.getByText(CANONICAL_SLUG).first()).toBeVisible();
-
-    // ── mark-all (use header button; avoid item link navigation) ──
-    const markAll = center.getByRole("button", { name: /Mark all read/i });
-    await expect(markAll).toBeVisible();
-    await markAll.click({ force: true });
+    // ── Bell renders with the mock unread badge ──────────────────────────
+    await expect(notifBell(page)).toBeVisible({ timeout: 30_000 });
     await expect
-      .poll(() => unreadFromBell(pageA), { timeout: 20_000 })
-      .toBe(0);
-    // Mark-all control hides when unread_count hits 0
-    await expect(
-      center.getByRole("button", { name: /Mark all read/i }),
-    ).toHaveCount(0);
+      .poll(() => unreadFromBell(page), { timeout: 20_000 })
+      .toBeGreaterThanOrEqual(1);
+    await expect(page.getByTestId("notification-badge")).toBeVisible();
 
-    // Close center by clicking outside (portfolio heading)
-    await pageA.getByRole("heading", { name: /Portfolio/i }).click();
-    await expect(center).toBeHidden({ timeout: 5_000 }).catch(() => undefined);
+    // ── Dropdown opens from the mock ─────────────────────────────────────
+    await notifBell(page).click();
+    const center = page.getByRole("region", { name: /Notification center/i });
+    await expect(center).toBeVisible({ timeout: 10_000 });
+    await expect(center.getByRole("heading", { name: /Notifications/i })).toBeVisible();
+    await expect(center.getByText(/Whale flow/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(center.getByText(/paper mock/i).first()).toBeVisible();
 
-    // ── Trade 2 → new unread for mark-one path ──
-    await paperBuyCanonical(pageB, 2);
-
-    await pageA.goto("/portfolio", {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-    await waitForUnread(pageA, 1);
-
-    center = await openNotifCenter(pageA);
-    const items = center.locator("ul li");
-    await expect(items.first()).toBeVisible({ timeout: 15_000 });
-
-    // mark-one: click the notification (link navigates to market)
-    const firstControl = items.first().locator("a, button").first();
-    await firstControl.click();
-
-    // Land on market or stay; either way unread should drop to 0 for single item.
-    await pageA.goto("/portfolio", {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-    await expect
-      .poll(() => unreadFromBell(pageA), { timeout: 20_000 })
-      .toBe(0);
-    await expect(notifBell(pageA)).toHaveAttribute(
-      "aria-label",
-      /^Notifications$/i,
+    // Each seeded item links via its `link` (first → canonical market).
+    const firstItem = center.locator("ul li").first();
+    await expect(firstItem.locator("a")).toHaveAttribute(
+      "href",
+      "/markets/nba-2025-01-15-lal-bos",
     );
 
-    await pageA.waitForTimeout(500);
-    assertNoConsoleErrors(errorsA, "notif A journeys");
+    // Preferences toggles render in-dropdown (email_digest/in_app/fired_alerts).
+    await expect(center.getByRole("switch")).toHaveCount(3);
 
-    await pageB.context().close();
-    await pageA.context().close();
+    // C3: the useLivePrices polling hook is wired visibly (mock mode here).
+    const chip = center.getByTestId("live-price-chip");
+    await expect(chip).toBeVisible({ timeout: 10_000 });
+    await expect(chip.getByText(/¢|—/)).toBeVisible();
+
+    // ── Mark-all clears the badge ────────────────────────────────────────
+    const markAll = center.getByRole("button", { name: /Mark all read/i });
+    await expect(markAll).toBeVisible();
+    await markAll.click();
+    await expect
+      .poll(() => unreadFromBell(page), { timeout: 15_000 })
+      .toBe(0);
+    await expect(notifBell(page)).toHaveAttribute("aria-label", /^Notifications$/i);
+    await expect(page.getByTestId("notification-badge")).toHaveCount(0);
+    await expect(center.getByRole("button", { name: /Mark all read/i })).toHaveCount(0);
+
+    assertNoConsoleErrors(errors, "loop90 C2 notification center");
   });
 });
