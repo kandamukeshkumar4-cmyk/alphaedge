@@ -65,6 +65,50 @@ All checks passed!
 - Scheduler: persist a daily no-signal outcome with evidence as faithfully as a
   qualifying research result.
 
+## Ticket commit ledger
+
+```text
+$ git log -1 --oneline  # A2
+bda81b1 feat(loop96): A2 — validate factors out of sample
+
+$ git log -1 --oneline  # A3
+3d1c894 feat(loop96): A3 — orchestrate alpha factor validation
+
+$ git log -1 --oneline  # A4
+c33bdb2 feat(loop96): A4 — expose alpha research routes
+
+$ git log -1 --oneline  # portability correction
+f286575 fix(loop96): bind scored forecast UUIDs
+```
+
+## Final verification
+
+Scoped alpha proof is green after the UUID portability correction:
+
+```text
+$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py tests/test_alpha_service.py tests/test_alpha_api.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
+..........                                                               [100%]
+10 passed in 10.68s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+
+$ cd backend && uv run --extra dev pytest -q tests/test_llm_provider.py::test_llm_cannot_set_stake_side_or_is_edge --basetemp=E:/polymarket-worktrees/loop96-alpha/.ptguard
+.                                                                        [100%]
+1 passed in 14.28s
+```
+
+Final status: IMPLEMENTATION COMPLETE, REPO GATE BLOCKED.
+
+The required full suite and `py -3.13 orchestration/gate.py` both stop in
+unrelated collection of `tests/test_loop26_authz_matrix.py`: its
+`AUTH_CLASS` snapshot lacks 50 already-registered routes. The gate additionally
+reports missing frontend dependencies (`tsc`, `vitest`, and `next`). No alpha
+test is implicated. This charter forbids repairing those unrelated surfaces.
+
+AutoLab: not applicable (bounded new Phase 1 feature; no pre-existing metric
+artifact was being iteratively improved).
+
 ## A3 — read-only alpha service
 
 Status: DONE
