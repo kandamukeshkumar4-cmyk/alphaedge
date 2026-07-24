@@ -125,10 +125,11 @@ export function FactorTable({
                     key={factor.name}
                     data-testid="alpha-factor-row"
                     data-valid={factor.valid}
-                    className={cn(
-                      "border-b border-border/60 transition-colors duration-150 hover:bg-surface-2/70",
-                      !factor.valid && "opacity-80",
-                    )}
+                    // loop104 a11y: row-level opacity-80 composited the muted
+                    // KILLED-row text below 4.5:1 (color-contrast serious). The
+                    // gray palette (text-muted-2 + KILLED badge) already reads
+                    // as de-emphasised without dimming, so drop the opacity.
+                    className="border-b border-border/60 transition-colors duration-150 hover:bg-surface-2/70"
                   >
                     <td className="px-4 py-3 sm:px-5">
                       <span className="font-mono text-[13px] font-bold text-text">

@@ -17,14 +17,30 @@ type PriceChartProps = ComponentProps<typeof PriceChartComponent>;
 
 const PriceChartInner = dynamic(
   () => import("./PriceChart").then((m) => ({ default: m.PriceChart })),
-  { ssr: false, loading: () => null },
+  {
+    ssr: false,
+    // loop104 a11y: while the lazy chunk loads, expose the chart region as a
+    // named image (role=img + aria-label) instead of nothing. This both gives
+    // AT users an announced placeholder and makes the BUG-V28-02 regression
+    // deterministic (the named region exists before the chunk resolves, so a
+    // slow chunk load can no longer time out the 30s wait). Absolute-inset so
+    // it fills the reserved box at any height without adding layout shift.
+    loading: () => (
+      <div
+        role="img"
+        aria-label="Price history chart"
+        aria-busy="true"
+        className="skeleton absolute inset-0 rounded-xl"
+      />
+    ),
+  },
 );
 
 export function PriceChart(props: PriceChartProps) {
   // Reserve header (~60px) + chart height so the lazy swap causes no CLS.
   const reserve = (props.height ?? 360) + 60;
   return (
-    <div style={{ minHeight: reserve }}>
+    <div className="relative" style={{ minHeight: reserve }}>
       <PriceChartInner {...props} />
     </div>
   );

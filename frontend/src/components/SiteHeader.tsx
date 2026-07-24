@@ -108,7 +108,14 @@ export function SiteHeader() {
           {/* sm–lg: in header; lg–xl: hidden (nav+auth tight at 1280); xl+: back. */}
           <ApiHealthChip className="hidden shrink-0 sm:inline-flex lg:hidden xl:inline-flex" />
 
-          <nav className="hidden h-full min-w-0 items-stretch gap-0.5 self-stretch lg:flex">
+          {/* loop104 a11y: the 13-item bar overflows and the Skills link spills
+              over the opaque Portfolio CTA (color-contrast serious) until the
+              viewport is wide enough to hold every item + chrome (~2040px).
+              Below that width the accessible hamburger menu (below) replaces
+              the horizontal bar; the full bar returns on ultrawide. A proper
+              JS overflow→More-menu would let the bar degrade item-by-item and
+              is the recommended follow-up (tracked in STATE104). */}
+          <nav className="hidden h-full min-w-0 items-stretch gap-0.5 self-stretch min-[2080px]:flex">
             {NAV.map((item) => {
               const base = item.href.split("?")[0];
               const active =
@@ -198,7 +205,7 @@ export function SiteHeader() {
             <AlertsBell />
             <NotificationCenter />
             <button
-              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text lg:hidden"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:border-border-light hover:text-text min-[2080px]:hidden"
               aria-label="Menu"
               onClick={() => setOpen((v) => !v)}
             >
@@ -208,7 +215,7 @@ export function SiteHeader() {
         </div>
 
         {open && (
-          <div className="border-t border-border bg-surface px-4 py-3 lg:hidden">
+          <div className="border-t border-border bg-surface px-4 py-3 min-[2080px]:hidden">
             <div className="mb-2 flex items-center px-2 sm:hidden">
               <ApiHealthChip />
             </div>

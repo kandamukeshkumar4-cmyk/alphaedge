@@ -90,9 +90,11 @@ export function HypothesesTable({ hypotheses }: { hypotheses: Hypotheses | null 
                     key={hypothesis.name}
                     data-testid="alpha-hypothesis-row"
                     data-validated={String(hypothesis.validated)}
+                    // loop104 a11y: row-level opacity-80 composited the muted
+                    // REJECTED-row text below 4.5:1 (color-contrast serious).
+                    // The gray palette + REJECTED badge already de-emphasise.
                     className={cn(
                       "border-b border-border/60 transition-colors duration-150 hover:bg-surface-2/70",
-                      !hypothesis.validated && "opacity-80",
                     )}
                   >
                     <td className="px-4 py-3 sm:px-5">
