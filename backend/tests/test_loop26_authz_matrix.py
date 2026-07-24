@@ -211,6 +211,57 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("post", "/api/v1/telemetry/mirror/events"): "public",
     ("post", "/api/v1/watchlist"): "user",
     ("put", "/api/v1/notify/prefs"): "user",
+    # Loop V58–V92 snapshot additions: classifications mirror handler dependencies.
+    ("get", "/api/v1/context/digest"): "public",
+    ("get", "/api/v1/heartbeat/decisions"): "public",
+    ("get", "/api/v1/markets/{slug}/context"): "public",
+    ("get", "/api/v1/markets/{slug}/locked-forecast"): "public",
+    ("get", "/api/v1/notifications/preferences"): "user",
+    ("put", "/api/v1/notifications/preferences"): "user",
+    ("post", "/api/v1/notifications/push/subscribe"): "user",
+    ("get", "/api/v1/pods"): "public",
+    ("get", "/api/v1/portfolio/analytics"): "user",
+    ("get", "/api/v1/scanners/"): "public",
+    ("post", "/api/v1/scanners/"): "user",
+    ("post", "/api/v1/scanners/compile"): "public",
+    ("get", "/api/v1/scanners/featured"): "public",
+    ("get", "/api/v1/scanners/trending"): "public",
+    ("get", "/api/v1/scanners/{scanner_id}"): "public",
+    ("patch", "/api/v1/scanners/{scanner_id}"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/feature"): "admin",
+    ("post", "/api/v1/scanners/{scanner_id}/fork"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/pause"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/publish"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/rate"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/resume"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/rollback"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/run"): "user",
+    ("get", "/api/v1/scanners/{scanner_id}/runs"): "public",
+    ("post", "/api/v1/scanners/{scanner_id}/test-email"): "user",
+    ("post", "/api/v1/scanners/{scanner_id}/test-run"): "user",
+    ("get", "/api/v1/screener"): "public",
+    ("get", "/api/v1/skills/"): "public",
+    ("post", "/api/v1/skills/"): "user",
+    ("get", "/api/v1/skills/featured"): "public",
+    ("get", "/api/v1/skills/trending"): "public",
+    ("get", "/api/v1/skills/{skill_id}"): "public",
+    ("post", "/api/v1/skills/{skill_id}/feature"): "admin",
+    ("post", "/api/v1/skills/{skill_id}/fork"): "user",
+    ("post", "/api/v1/skills/{skill_id}/rate"): "user",
+    ("post", "/api/v1/skills/{skill_id}/run"): "user",
+    ("get", "/api/v1/subscriptions/"): "user",
+    ("post", "/api/v1/subscriptions/"): "user",
+    ("delete", "/api/v1/subscriptions/{ref_type}/{ref_id}"): "user",
+    ("get", "/api/v1/terminal/sessions"): "user",
+    ("post", "/api/v1/terminal/sessions"): "user",
+    ("get", "/api/v1/terminal/sessions/{session_id}"): "user",
+    ("delete", "/api/v1/terminal/sessions/{session_id}"): "user",
+    ("post", "/api/v1/terminal/sessions/{session_id}/execute"): "user",
+    ("post", "/api/v1/terminal/sessions/{session_id}/resume"): "user",
+    ("post", "/api/v1/terminal/sessions/{session_id}/save-as-skill"): "user",
+    ("get", "/api/v1/terminal/sessions/{session_id}/stream"): "user",
+    ("get", "/api/v1/usage/summary"): "public",
+    ("get", "/api/v1/venue-gaps"): "public",
 }
 
 # Path-param fillers for live probes (honest empty / not-found paths preferred).
@@ -226,6 +277,11 @@ _PATH_VALUES: dict[str, str] = {
     "account_id": "00000000-0000-0000-0000-000000000001",
     "external_market_id": "00000000-0000-0000-0000-000000000022",
     "version_id": "00000000-0000-0000-0000-000000000033",
+    "scanner_id": "00000000-0000-0000-0000-000000000044",
+    "skill_id": "00000000-0000-0000-0000-000000000055",
+    "session_id": "00000000-0000-0000-0000-000000000066",
+    "ref_type": "scanner",
+    "ref_id": "00000000-0000-0000-0000-000000000077",
     "trader": "unknown-trader",
     "category": "Sports",
 }
@@ -404,18 +460,18 @@ def _no_network(monkeypatch):
 
 
 def test_auth_class_table_covers_snapshot_surface():
-    """154 paths in the snapshot; every operation has an auth class."""
+    """197 paths in the snapshot; every operation has an auth class."""
     snap = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert len(snap) == 154, f"expected 154 paths, got {len(snap)}"
-    assert len(_OPS) == 167, f"expected 167 ops, got {len(_OPS)}"
+    assert len(snap) == 197, f"expected 197 paths, got {len(snap)}"
+    assert len(_OPS) == 217, f"expected 217 ops, got {len(_OPS)}"
     counts: dict[str, int] = {}
     for _m, _p, auth in _OPS:
         counts[auth] = counts.get(auth, 0) + 1
-    assert counts["admin"] == 39
-    assert counts["user"] == 36
+    assert counts["admin"] == 41
+    assert counts["user"] == 66
     assert counts["optional_user"] == 3
     assert counts["admin_metrics"] == 1
-    assert counts["public"] == 88
+    assert counts["public"] == 106
 
 
 # Soft-checked app defects (must still not be uncaught). Loop V27 cleared
