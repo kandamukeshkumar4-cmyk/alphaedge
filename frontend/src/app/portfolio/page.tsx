@@ -12,6 +12,7 @@ import { AnalystChatDrawer } from "@/components/AnalystChatDrawer";
 import { ExposurePanel } from "@/components/ExposurePanel";
 import { PortfolioClvPanel } from "@/components/PortfolioClvPanel";
 import { PortfolioRiskPanel } from "@/components/PortfolioRiskPanel";
+import { PortfolioAnalyticsPanel } from "@/components/portfolio/PortfolioAnalyticsPanel";
 import { TraderProfileCard } from "@/components/TraderProfileCard";
 import { API_BASE } from "@/lib/alphaedge-api";
 import { cn } from "@/lib/cn";
@@ -31,7 +32,9 @@ export default function PortfolioPage() {
   const { token, isReady } = useAuth();
   const [portfolio, setPortfolio] = useState<PortfolioView | null>(null);
   const [history, setHistory] = useState<OrderHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"positions" | "history">("positions");
+  const [activeTab, setActiveTab] = useState<"positions" | "history" | "analytics">(
+    "positions",
+  );
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +213,19 @@ export default function PortfolioPage() {
               >
                 Trade History
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("analytics")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-sm font-bold transition",
+                  activeTab === "analytics"
+                    ? "bg-accent text-bg"
+                    : "text-muted hover:text-text",
+                )}
+                data-testid="portfolio-tab-analytics"
+              >
+                Analytics
+              </button>
             </div>
 
             {activeTab === "positions" ? (
@@ -248,6 +264,10 @@ export default function PortfolioPage() {
                   </table>
                 </div>
               )
+            ) : activeTab === "analytics" ? (
+              <div className="mt-4">
+                <PortfolioAnalyticsPanel token={token} />
+              </div>
             ) : historyError ? (
               <p className="mt-4 text-sm text-muted">{historyError}</p>
             ) : historyLoading ? (
