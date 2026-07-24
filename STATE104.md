@@ -54,20 +54,104 @@ until ≈2040 px), not a token issue.
 
 ## Fixes applied
 
-_pending_
+All fixes are presentation-layer; **no forbidden file touched, no test weakened**
+(no axe ignore/disable, no route removed), **no trading logic / order path /
+risk code / numbers / copy changed**, `PAPER_TRADING_ONLY` untouched.
+
+- **`src/components/SiteHeader.tsx`** — the site-wide Skills-link
+  `color-contrast` was an *overflow* defect (nav content 1044 px vs ~383 px
+  available at 1280 px → the link spilled over the opaque Portfolio CTA).
+  Horizontal nav now renders only at `min-[2080px]` (the width where the full
+  13-item bar + chrome actually fits); below that the **existing accessible
+  hamburger menu** shows (`min-[2080px]:hidden` on the Menu button and the open
+  panel). Trade-off: laptops at 1024–2079 px now get the hamburger header
+  instead of the (previously *broken/overlapping*) bar; all destinations remain
+  reachable via the menu / cmd-K. **Recommended follow-up (out of this pass's
+  scope):** a JS overflow→More-menu so the bar degrades item-by-item and the
+  full bar returns at a smaller width. (Visual-snapshot specs `visreg` /
+  `v79-visual` will see a changed header at 1280/1440 — unavoidable when fixing
+  a visual bug; they are outside the STEP 6 gate and were capturing the
+  overlapping bar.)
+- **`src/components/ResolvedCountDisclosure.tsx`** — the per-stat hint `<p>`
+  inside the `<dl>`'s `<div>` wrapper tripped axe `definition-list` (serious);
+  a `<div>` under `<dl>` may only hold `<dt>`/`<dd>`. The hint is a second
+  description of the term → changed to a second `<dd>`. Fixes `/track-record`.
+- **`src/components/alpha/FactorTable.tsx`** +
+  **`src/components/alpha/HypothesesTable.tsx`** — removed row-level
+  `opacity-80` on invalid/KILLED and rejected rows. Element opacity composites
+  the muted text below 4.5:1 (`color-contrast` serious); the gray palette
+  (`text-muted-2` + KILLED/REJECTED badge) already de-emphasises without
+  dimming. Fixes `/alpha`.
+- **`src/components/PriceChartLazy.tsx`** — the `next/dynamic` loading state
+  now renders a `role="img"` + `aria-label="Price history chart"` +
+  `aria-busy` placeholder (absolute-inset inside the reserved box), so the
+  chart region is named during load (a11y win) and the BUG-V28-02 `role="img"`
+  wait is deterministic.
+- **`e2e/a11y.spec.ts`** (my file) — `beforeEach` now also seeds the
+  orientation-tour gate `ae_onboarded_v1` via `addInitScript`. `skipOnboarding`
+  only set `alphaedge.onboarded` (the OnboardingModal gate); the OnboardingTour
+  uses `ae_onboarded_v1` (`lib/onboarding.ts`), so its focus-trapping
+  full-screen overlay was open on **every** page. That overlay intercepted the
+  `/portfolio` signup keystrokes (the `fillControlled` timeout) and its
+  framer-motion + `backdrop-blur` load contended with the lazy chart chunk
+  (BUG-V28-02's TradingView-link timeout). This is **test setup only** — the
+  axe assertions are unchanged (not a weakened test).
+
+Iterative measure→edit→re-measure (per the AutoLab persistence pattern) caught
+two violations the first pass had masked behind the nav failure: the home-hero
+primary button (a cold-HMR/animation transient — the button is opaque
+`bg-primary`/`text-bg`, inherently compliant, clean on re-scan) and the
+hypotheses-table `opacity-80` (same fix as the factor table).
 
 ## DEFERRED (out of charter)
 
-_none yet_
+_none._ Every serious/critical violation across the 25 routes is resolved, and
+`/portfolio` + BUG-V28-02 were resolved via the spec tour-gate seed (setup, not
+a weakened assertion). No forbidden-file violations were encountered.
 
 ## AFTER
 
-_pending_
+Re-ran the identical command (`cd frontend && npx playwright test
+e2e/a11y.spec.ts --reporter=list`, full sweep; `a11y-after.txt` is the verbatim
+list output). **27 passed (3.9 m)** — 0 serious/critical across all 25 sweep
+routes, market-detail axe regression ok, BUG-V28-02 ok:
+
+```
+ok  1  /                 ok 10 /alpha            ok 19 /track-record
+ok  2  /discover         ok 11 /scanners         ok 20 /smart-money
+ok  3  /markets          ok 12 /screener         ok 21 /macro
+ok  4  /feed             ok 13 /terminal         ok 22 /resolved
+ok  5  /signals          ok 14 /skills           ok 23 /categories
+ok  6  /opportunities    ok 15 /research         ok 24 /usage
+ok  7  /portfolio        ok 16 /backtest         ok 25 /about
+ok  8  /watchlist        ok 17 /compare          ok 26 market detail (axe)
+ok  9  /leaderboard      ok 18 /alerts           ok 27 BUG-V28-02
+27 passed (3.9m)
+```
 
 ## Verification (STEP 6)
 
-_pending_
+All run from `frontend/`, real output:
+
+- `npm run typecheck` → `tsc --noEmit` — **clean** (no errors).
+- `npm run lint` → `eslint src --max-warnings=0` — **clean** (no warnings).
+- `npm run build` → Next production build **succeeded** (full route table
+  emitted; `○ /skills`, `○ /track-record`, `ƒ /markets/[slug]` etc. present;
+  `First Load JS shared by all 103 kB`; no compile/type errors).
 
 ## git log
 
-_pending_
+Session commits on `loop104-a11y/node` (bounded; full history via
+`git log --oneline`):
+
+```
+8aebe23 test(loop104): seed orientation-tour gate in a11y spec; capture sweep logs
+5d0b5d4 fix(loop104): a11y — nav overflow contrast, dl semantics, row opacity, chart lazy name
+24f2131 test(loop104): expand a11y sweep to 25 routes
+9bfa413 merge(loop102): alpha runs/signal/hypotheses UI (Qwen, Grok rubric-PASS)  # base
+```
+
+(The single docs commit that writes this final STATE104 sits directly above
+`8aebe23` in `git log`.)
+
+
