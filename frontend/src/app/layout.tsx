@@ -17,6 +17,7 @@ import { PortfolioBanner } from "@/components/PortfolioBanner";
 import { AtlasPanel } from "@/components/quest/AtlasPanel";
 import { AtlasPanelProvider } from "@/context/atlas-panel";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
@@ -91,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${mono.variable}`} style={{ colorScheme: "dark" }}>
       <body className="min-h-screen bg-bg font-sans text-text">
         <Providers>
+          <OnboardingGate />
           <AtlasPanelProvider>
             <ToastProvider>
               {/* M-A11Y-01: skip past the header/nav straight to the page. */}
