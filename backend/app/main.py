@@ -339,6 +339,33 @@ async def _morning_research_loop() -> None:
             record_heartbeat("morning_research", status="error", detail="morning research pass failed")
 
 
+async def _alpha_model_loop() -> None:
+    """Daily alpha graph (mirrors ``cron(alpha_model_task, hour={7})``).
+
+    Uses the same wall-clock alignment as morning research. The run service is
+    idempotent per UTC date, so boot catch-up records evidence once rather than
+    sleeping for a full day before the first available proof.
+    """
+    from app.workers.tasks import alpha_model_task
+
+    try:
+        await alpha_model_task({})
+        record_heartbeat("alpha_model")
+    except Exception:
+        logger.error("Alpha model boot catch-up failed", exc_info=True)
+        record_heartbeat("alpha_model", status="error", detail="alpha model boot catch-up failed")
+
+    while True:
+        delay = _seconds_until_next_utc_hour(datetime.now(timezone.utc), hour=7)
+        await asyncio.sleep(delay)
+        try:
+            await alpha_model_task({})
+            record_heartbeat("alpha_model")
+        except Exception:
+            logger.error("Alpha model loop failed", exc_info=True)
+            record_heartbeat("alpha_model", status="error", detail="alpha model pass failed")
+
+
 async def _notification_digest_loop() -> None:
     """Daily engagement email digest (mirrors ``cron(send_notification_digest_task, hour={13})``).
 
@@ -786,6 +813,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_weather_scan_loop())
     if settings.scheduler_morning_research_enabled:
         asyncio.create_task(_morning_research_loop())
+    if settings.scheduler_alpha_model_enabled:
+        asyncio.create_task(_alpha_model_loop())
     if settings.scheduler_notification_digest_enabled:
         asyncio.create_task(_notification_digest_loop())
     if settings.scheduler_scanners_enabled:
