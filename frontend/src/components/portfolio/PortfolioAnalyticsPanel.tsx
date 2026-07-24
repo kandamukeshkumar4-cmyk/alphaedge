@@ -171,6 +171,11 @@ export function PortfolioAnalyticsPanel({ token }: { token: string | null }) {
           ))}
         </div>
       </div>
+      {source === "mock" ? (
+        <p className="text-center text-xs text-muted-2">
+          Showing demo portfolio analytics. Calibration and performance values are not live account history.
+        </p>
+      ) : null}
 
       {loading || !data ? (
         <AnalyticsSkeleton />

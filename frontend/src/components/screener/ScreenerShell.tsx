@@ -120,6 +120,11 @@ export function ScreenerShell() {
           {source === "live" ? "live feed" : "local mock"} · {total} markets
         </span>
       </div>
+      {!loading && source === "mock" ? (
+        <p className="mb-4 text-center text-xs text-muted-2">
+          Showing demo screener data. Connect the API to rank live paper markets.
+        </p>
+      ) : null}
 
       <FilterBar
         category={category}

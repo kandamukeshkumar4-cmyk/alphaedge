@@ -9,6 +9,7 @@
  */
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { TerminalBullBear } from "@/components/terminal/TerminalBullBear";
@@ -18,6 +19,7 @@ import { TerminalSaveAsSkill } from "@/components/terminal/TerminalSaveAsSkill";
 import { TerminalSessionSidebar } from "@/components/terminal/TerminalSessionSidebar";
 import { TerminalStepCard } from "@/components/terminal/TerminalStepCard";
 import { EMPTY_STATE_TEMPLATES } from "@/components/terminal/terminal-templates";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
 import { runSkill } from "@/lib/skills-api";
@@ -72,6 +74,7 @@ function formatTimestamp(iso: string): string {
 }
 
 export function TerminalShell() {
+  const { token, isReady } = useAuth();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [session, setSession] = useState<ResearchSession | null>(null);
@@ -93,6 +96,7 @@ export function TerminalShell() {
   const [composerKey, setComposerKey] = useState(0);
   const [view, setView] = useState<View>("dashboard");
   const [apiSource, setApiSource] = useState<"live" | "mock">("mock");
+  const [authRequired, setAuthRequired] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
   const [hideSteps, setHideSteps] = useState(false);
@@ -102,14 +106,20 @@ export function TerminalShell() {
 
   const refreshList = useCallback(async () => {
     setListLoading(true);
+    let requiresAuth = false;
     try {
-      const { sessions: items, source } = await listSessions();
+      const { sessions: items, source, authRequired: needsAuth } = await listSessions(
+        isReady ? token : null,
+      );
       setApiSource(source);
+      requiresAuth = Boolean(needsAuth);
+      setAuthRequired(requiresAuth);
       setSessions(items.map(toSessionSummary));
     } finally {
       setListLoading(false);
     }
-  }, []);
+    return requiresAuth;
+  }, [isReady, token]);
 
   const applySession = useCallback((s: ResearchSession) => {
     setActiveId(s.id);
@@ -129,7 +139,7 @@ export function TerminalShell() {
       setBull(null);
       setBear(null);
       try {
-        for await (const ev of streamSession(id)) {
+        for await (const ev of streamSession(id, { token: isReady ? token : null })) {
           if (ev.type === "step") {
             setSteps((prev) => {
               if (prev.some((s) => s.id === ev.step.id)) return prev;
@@ -152,15 +162,19 @@ export function TerminalShell() {
         setRunning(false);
       }
     },
-    [applySession, refreshList],
+    [applySession, isReady, refreshList, token],
   );
 
   const loadSession = useCallback(
     async (id: string) => {
       setError(null);
       setMobileNav(false);
-      const { session: s, source } = await getSession(id);
+      const { session: s, source, authRequired: needsAuth } = await getSession(
+        id,
+        isReady ? token : null,
+      );
       setApiSource(source);
+      setAuthRequired(Boolean(needsAuth));
       if (!s) {
         setError("Session not found.");
         return;
@@ -171,14 +185,15 @@ export function TerminalShell() {
         await runStream(s.id);
       }
     },
-    [applySession, runStream],
+    [applySession, isReady, runStream, token],
   );
 
   useEffect(() => {
+    if (!isReady) return;
     let cancelled = false;
     (async () => {
-      await refreshList();
-      if (cancelled) return;
+      const requiresAuth = await refreshList();
+      if (cancelled || requiresAuth) return;
       // A `?session={id}` deep link (from the Skills gallery Run flow) loads
       // that session directly instead of the most-recent one.
       const param =
@@ -188,7 +203,7 @@ export function TerminalShell() {
       if (param) {
         await loadSession(param);
       } else {
-        const { sessions: items } = await listSessions();
+        const { sessions: items } = await listSessions(isReady ? token : null);
         if (cancelled) return;
         if (items[0]) await loadSession(items[0].id);
       }
@@ -196,30 +211,38 @@ export function TerminalShell() {
     return () => {
       cancelled = true;
     };
-  }, [refreshList, loadSession]);
+  }, [isReady, loadSession, refreshList, token]);
 
   const onRunSkill = useCallback(
     async (skillId: string) => {
-      const { session_id, source } = await runSkill(skillId, null);
+      const { session_id, source } = await runSkill(skillId, isReady ? token : null);
       setApiSource(source);
       await loadSession(session_id);
     },
-    [loadSession],
+    [isReady, loadSession, token],
   );
 
   const onAsk = useCallback(
     async (question: string, selected: SenseId[]) => {
       setView("dashboard");
-      const { session: created, source } = await createSession({
-        question,
-        market_slug: TERMINAL_CANONICAL_MARKET,
-        senses: selected,
-      });
+      const { session: created, source, authRequired: needsAuth } = await createSession(
+        {
+          question,
+          market_slug: TERMINAL_CANONICAL_MARKET,
+          senses: selected,
+        },
+        isReady ? token : null,
+      );
       setApiSource(source);
+      setAuthRequired(Boolean(needsAuth));
+      if (!created) {
+        setError("Sign in to run live research.");
+        return;
+      }
       applySession(created);
       await runStream(created.id);
     },
-    [applySession, runStream],
+    [applySession, isReady, runStream, token],
   );
 
   const onNew = useCallback(() => {
@@ -384,13 +407,29 @@ export function TerminalShell() {
             >
               {PAPER_TRADING_DISCLAIMER}
               {apiSource === "mock" ? (
-                <span className="ml-2 font-mono text-[10px] uppercase text-muted-2">
-                  · local mock
+                <span className="mt-2 block font-mono text-[10px] font-bold uppercase text-muted-2">
+                  PAPER MOCK SESSION — not live research.
                 </span>
               ) : null}
             </p>
 
-            {view === "canvas" ? (
+            {authRequired ? (
+              <section
+                aria-label="Sign in required"
+                className="mt-4 flex min-h-[62dvh] flex-col items-center justify-center rounded-xl border border-dashed border-border px-4 py-10 text-center"
+              >
+                <h2 className="text-2xl font-black text-text">Sign in to view live research</h2>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">
+                  The live research API requires an account. No sample research session is shown here.
+                </p>
+                <Link
+                  href="/auth/login"
+                  className="mt-6 rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
+                >
+                  Sign in
+                </Link>
+              </section>
+            ) : view === "canvas" ? (
               <div className="mt-4">
                 <TerminalCanvas
                   steps={steps}

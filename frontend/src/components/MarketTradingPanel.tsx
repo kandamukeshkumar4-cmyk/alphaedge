@@ -114,14 +114,14 @@ export function MarketTradingPanel({
       await Promise.all([refreshBalance(), refreshPosition()]);
       markTradePlaced();
       toast({
-        title: "Order placed",
-        body: `Cost ${formatUSD(result.cost)} · Balance ${formatUSD(result.remaining_balance)}`,
+        title: "Paper order placed",
+        body: `Paper cost ${formatUSD(result.cost)} · Paper balance ${formatUSD(result.remaining_balance)}`,
         tone: "success",
       });
     } catch (err) {
       if (!(err instanceof TypeError)) idemKeyRef.current = null;
       toast({
-        title: "Order rejected",
+        title: "Paper order rejected",
         body: err instanceof Error ? err.message : "Unable to place order",
         tone: "error",
       });
@@ -135,7 +135,7 @@ export function MarketTradingPanel({
   if (!token) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-4 text-center">
-        <p className="text-sm font-semibold text-text">Log in to trade</p>
+        <p className="text-sm font-semibold text-text">Log in to paper trade</p>
         <Link
           href="/auth/login"
           className="mt-3 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-bold text-bg transition hover:brightness-110"
@@ -198,7 +198,7 @@ export function MarketTradingPanel({
             outcome === "yes" ? "bg-primary text-bg" : "text-muted hover:text-text",
           )}
         >
-          Buy YES
+          Paper buy YES
         </button>
         <button
           type="button"
@@ -210,7 +210,7 @@ export function MarketTradingPanel({
             outcome === "no" ? "bg-danger text-bg" : "text-muted hover:text-text",
           )}
         >
-          Buy NO
+          Paper buy NO
         </button>
       </div>
 
@@ -239,16 +239,16 @@ export function MarketTradingPanel({
       {/* Cost summary */}
       <dl className="mt-3 space-y-1.5 text-xs">
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Price</dt>
+          <dt className="text-muted">Paper price</dt>
           <dd className="font-mono font-semibold text-text">${price.toFixed(3)}</dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Cost</dt>
+          <dt className="text-muted">Paper cost</dt>
           <dd className="font-mono font-bold text-primary">{formatUSD(cost)}</dd>
         </div>
         {paperBalance != null && (
           <div className="flex items-center justify-between">
-            <dt className="text-muted">Bankroll</dt>
+            <dt className="text-muted">Paper bankroll</dt>
             <dd className="font-mono text-text">{formatUSD(paperBalance)}</dd>
           </div>
         )}
@@ -272,8 +272,8 @@ export function MarketTradingPanel({
         {isDisabled
           ? "Market closed"
           : submitting
-            ? "Placing order…"
-            : `Buy ${outcome.toUpperCase()} · ${formatUSD(cost)}`}
+            ? "Placing paper order…"
+            : `Paper buy ${outcome.toUpperCase()} · ${formatUSD(cost)}`}
       </button>
 
       {/* Position card when position exists */}

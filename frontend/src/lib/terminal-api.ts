@@ -567,13 +567,15 @@ async function liveBase(): Promise<string | null> {
   return base && hasLiveApi(base) ? base : null;
 }
 
+type LiveJsonResult<T> = { data: T | null; unauthorized: boolean };
+
 async function tryLiveJson<T>(
   path: string,
   token: string | null,
   init?: RequestInit,
-): Promise<T | null> {
+): Promise<LiveJsonResult<T>> {
   const base = await liveBase();
-  if (!base) return null;
+  if (!base) return { data: null, unauthorized: false };
   try {
     const res = await terminalFetch(apiUrl(path, base), {
       ...init,
@@ -585,18 +587,23 @@ async function tryLiveJson<T>(
       },
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    if (res.status === 401 && !token) return { data: null, unauthorized: true };
+    if (!res.ok) return { data: null, unauthorized: false };
+    return { data: (await res.json()) as T, unauthorized: false };
   } catch {
-    return null;
+    return { data: null, unauthorized: false };
   }
 }
 
 /** List sessions (live first, mock fallback). Never rejects. */
 export async function listSessions(
   token: string | null = null,
-): Promise<{ sessions: ResearchSession[]; source: ApiSource }> {
-  const live = await tryLiveJson<unknown>("/api/v1/terminal/sessions", token);
+): Promise<{ sessions: ResearchSession[]; source: ApiSource; authRequired?: boolean }> {
+  const liveResult = await tryLiveJson<unknown>("/api/v1/terminal/sessions", token);
+  if (liveResult.unauthorized) {
+    return { sessions: [], source: "live", authRequired: true };
+  }
+  const live = liveResult.data;
   const rawList = Array.isArray(live)
     ? live
     : Array.isArray(asRecord(live).items)
@@ -618,11 +625,15 @@ export async function listSessions(
 export async function getSession(
   id: string,
   token: string | null = null,
-): Promise<{ session: ResearchSession | null; source: ApiSource }> {
-  const live = await tryLiveJson<unknown>(
+): Promise<{ session: ResearchSession | null; source: ApiSource; authRequired?: boolean }> {
+  const liveResult = await tryLiveJson<unknown>(
     `/api/v1/terminal/sessions/${encodeURIComponent(id)}`,
     token,
   );
+  if (liveResult.unauthorized) {
+    return { session: null, source: "live", authRequired: true };
+  }
+  const live = liveResult.data;
   const session = live ? normalizeSession(live) : null;
   if (session) return { session, source: "live" };
   return {
@@ -644,14 +655,18 @@ export type CreateSessionInput = {
 export async function createSession(
   input: CreateSessionInput,
   token: string | null = null,
-): Promise<{ session: ResearchSession; source: ApiSource }> {
-  const live = await tryLiveJson<unknown>("/api/v1/terminal/sessions", token, {
+): Promise<{ session: ResearchSession | null; source: ApiSource; authRequired?: boolean }> {
+  const liveResult = await tryLiveJson<unknown>("/api/v1/terminal/sessions", token, {
     method: "POST",
     body: JSON.stringify({
       question: input.question,
       market_slug: input.market_slug ?? null,
     }),
   });
+  if (liveResult.unauthorized) {
+    return { session: null, source: "live", authRequired: true };
+  }
+  const live = liveResult.data;
   const session = live ? normalizeSession(live) : null;
   if (session) return { session, source: "live" };
 

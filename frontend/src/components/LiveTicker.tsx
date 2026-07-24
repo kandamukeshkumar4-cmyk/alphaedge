@@ -62,18 +62,15 @@ export function LiveTicker() {
     <section className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-[12px] font-black uppercase tracking-[0.12em] text-text">
-          Live trades
+          Demo feed
         </h2>
-        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.1em] text-muted">
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full bg-accent",
-              mounted && "animate-pulse-soft",
-            )}
-          />
-          live
+        <span className="text-[11px] font-black uppercase tracking-[0.1em] text-muted">
+          simulated
         </span>
       </div>
+      <p className="mt-3 text-center text-xs text-muted-2">
+        Showing simulated trades. This demo feed is not live paper activity.
+      </p>
       <ul className="mt-3 space-y-2.5">
         {ticks.map((t, i) => (
           <li

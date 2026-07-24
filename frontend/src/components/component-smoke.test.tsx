@@ -52,7 +52,7 @@ describe("critical component smoke tests", () => {
   it("renders the trade panel logged-out state", () => {
     const html = renderToStaticMarkup(React.createElement(TradePanel, { market }));
 
-    expect(html).toContain("Log in to trade");
+    expect(html).toContain("Log in to paper trade");
     expect(html).toContain("/auth/login");
   });
 
@@ -75,7 +75,7 @@ describe("critical component smoke tests", () => {
   it("renders live ticker seed rows", () => {
     const html = renderToStaticMarkup(React.createElement(LiveTicker));
 
-    expect(html).toContain("Live trades");
+    expect(html).toContain("Demo feed");
     expect(html).toContain("demo-trader-1");
   });
 

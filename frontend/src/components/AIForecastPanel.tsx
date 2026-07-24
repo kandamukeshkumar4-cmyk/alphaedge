@@ -6,7 +6,7 @@ function fmtStdevPts(stdev: number): string {
   return `±${(stdev * 100).toFixed(1)}pt`;
 }
 
-export function AIForecastPanel({ market }: { market: Market }) {
+export function AIForecastPanel({ market, demo = false }: { market: Market; demo?: boolean }) {
   const f = market.forecast;
   const edgeUp = f.edge >= 0;
   // loop6 — ensemble surface. Only meaningful when >1 model contributed; a
@@ -16,13 +16,18 @@ export function AIForecastPanel({ market }: { market: Market }) {
   const toolsUsed = f.toolsUsed ?? [];
   return (
     <div className="rounded-2xl border border-accent/30 bg-accent-dim p-4 shadow-glow">
+      {demo ? (
+        <p className="mb-3 text-center text-xs text-muted-2">
+          Showing demo forecast. Model probability and edge are sample data, not live.
+        </p>
+      ) : null}
       <div className="flex items-center gap-2">
         <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#0D9488] font-mono text-[11px] font-black text-bg">
           AI
         </span>
         <h3 className="text-sm font-black text-text">AI forecast</h3>
         <span className="ml-auto rounded-full border border-accent/30 bg-bg/40 px-2.5 py-0.5 font-mono text-[11px] text-accent">
-          XGBoost · 2h ago
+          {demo ? "Sample forecast (not live)" : "XGBoost · 2h ago"}
         </span>
       </div>
 

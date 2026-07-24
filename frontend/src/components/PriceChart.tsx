@@ -381,6 +381,11 @@ export function PriceChart({
           </div>
         </div>
       </div>
+      {apiCandles === null ? (
+        <p className="mt-3 text-center text-xs text-muted-2">
+          Synthetic chart — generated from sample data, not live candles.
+        </p>
+      ) : null}
 
       <div
         ref={containerRef}
