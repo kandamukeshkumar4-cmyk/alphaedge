@@ -31,6 +31,27 @@ $ cd backend && uv run --extra dev ruff check app tests
 All checks passed!
 ```
 
+## A3 — read-only alpha service
+
+Status: DONE
+
+The service queries an exact `ExternalMarket.external_id` (the endpoint's
+canonical `market` value), then uses its latest immutable locked forecast as
+the `as_of` factor source. It does not claim current freshness, backfill any
+feature, aggregate scores, construct weights, or emit a trade-like decision.
+Unavailable current factors cannot become valid merely because their historic
+validator passes. Phase 1 returns only per-factor research scores and rejection
+reasons.
+
+```text
+$ cd backend && uv run --extra dev pytest -q tests/test_alpha_factors.py tests/test_alpha_validator.py tests/test_alpha_service.py --basetemp=E:/polymarket-worktrees/loop96-alpha/.pt
+.......                                                                  [100%]
+7 passed in 7.91s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
+
 ## A2 — independent out-of-sample validator
 
 Status: DONE
