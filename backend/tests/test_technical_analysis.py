@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 
+from app.api.v1.indicators import router as indicators_router
+from app.db.session import get_db
 from app.services.technical_analysis_service import calculate_indicators, classify_regime
+from app.services.market_service import MarketService
 
 
 def test_flat_series_has_known_neutral_values() -> None:
@@ -57,3 +62,57 @@ def test_each_indicator_reports_none_when_its_period_is_unavailable() -> None:
 )
 def test_regime_classifier_is_deterministic(indicators: dict[str, object], expected: str) -> None:
     assert classify_regime(indicators) == expected
+
+
+async def _indicators_client(db_session) -> AsyncClient:
+    app = FastAPI()
+    app.include_router(indicators_router)
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+@pytest.mark.asyncio
+async def test_indicators_endpoint_returns_the_frozen_public_contract(db_session) -> None:
+    await MarketService(db_session).seed_catalog_markets()
+
+    async with await _indicators_client(db_session) as client:
+        response = await client.get("/api/v1/markets/nba-2025-01-15-lal-bos/indicators?window=90")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"slug", "points", "indicators", "regime", "paper_trading_only"}
+    assert body["slug"] == "nba-2025-01-15-lal-bos"
+    assert body["paper_trading_only"] is True
+    assert len(body["points"]) == 90
+    assert set(body["points"][0]) == {"t", "close"}
+    assert set(body["indicators"]) == {
+        "rsi_14",
+        "macd",
+        "sma_20",
+        "sma_50",
+        "ema_12",
+        "bollinger",
+        "adx_14",
+    }
+    assert body["regime"] in {"trending_up", "trending_down", "range", "insufficient_data"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("window", [19, 366])
+async def test_indicators_endpoint_rejects_out_of_contract_windows(db_session, window: int) -> None:
+    async with await _indicators_client(db_session) as client:
+        response = await client.get(f"/api/v1/markets/nba-2025-01-15-lal-bos/indicators?window={window}")
+
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_indicators_endpoint_returns_404_for_unknown_market(db_session) -> None:
+    async with await _indicators_client(db_session) as client:
+        response = await client.get("/api/v1/markets/unknown-market/indicators")
+
+    assert response.status_code == 404

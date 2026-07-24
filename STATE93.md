@@ -53,3 +53,27 @@ All checks passed!
 git log -1 --oneline
 ddfb425 feat(loop93): T2 — classify technical regimes
 ```
+
+## T3 — public indicators endpoint
+
+Status: DONE
+
+Created `GET /api/v1/markets/{slug}/indicators?window=90`. It is public and
+read-only, uses the existing `_build_market_candles` helper, preserves the
+frozen JSON contract, returns 400 for windows outside 20–365, and forwards the
+existing market-not-found 404. `main.py` was intentionally not changed; the
+merge orchestrator must include `indicators.router`.
+
+Proof:
+
+```text
+cd backend && uv run --extra dev pytest -q tests/test_technical_analysis.py --basetemp=E:/polymarket-worktrees/loop93-ta/.pt
+...........                                                              [100%]
+11 passed in 7.27s
+
+cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+
+git log -1 --oneline
+9c4464a feat(loop93): T3 — expose market indicators
+```
