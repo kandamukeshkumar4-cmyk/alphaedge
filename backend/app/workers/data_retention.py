@@ -252,7 +252,7 @@ async def sweep_notifications(
                 await session.execute(
                     select(Notification.id)
                     .where(
-                        Notification.read_at.is_not(None),
+                        Notification.read.is_(True),
                         Notification.created_at < cutoff,
                     )
                     .order_by(Notification.created_at.asc())

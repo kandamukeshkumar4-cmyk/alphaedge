@@ -329,7 +329,7 @@ async def _already_notified(
     existing = await session.scalar(
         select(Notification.id)
         .where(
-            Notification.user_id == user_id,
+            Notification.user == str(user_id),
             Notification.type == ntype,
             Notification.link == link,
         )

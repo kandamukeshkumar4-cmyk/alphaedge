@@ -301,7 +301,7 @@ async def test_watcher_notified_on_forecast_locked(db_session):
         await db_session.scalars(select(Notification).order_by(Notification.created_at))
     ).all()
     assert len(rows) == 1
-    assert rows[0].user_id == watcher.id
+    assert rows[0].user == str(watcher.id)
     assert rows[0].type == "forecast_locked"
     assert rows[0].link == f"/markets/{catalog_slug}"
     assert "0.720" in rows[0].body or "0.72" in rows[0].body
@@ -328,7 +328,7 @@ async def test_watcher_notified_on_market_resolved(db_session):
     assert n == 1
     rows = (
         await db_session.scalars(
-            select(Notification).where(Notification.user_id == watcher.id)
+            select(Notification).where(Notification.user == str(watcher.id))
         )
     ).all()
     assert len(rows) == 1
@@ -355,7 +355,7 @@ async def test_non_watcher_not_notified(db_session):
     count = len(
         (
             await db_session.scalars(
-                select(Notification).where(Notification.user_id == user.id)
+                select(Notification).where(Notification.user == str(user.id))
             )
         ).all()
     )
@@ -386,7 +386,7 @@ async def test_watcher_notify_dedupes_per_user_market_event(db_session):
     rows = (
         await db_session.scalars(
             select(Notification).where(
-                Notification.user_id == watcher.id,
+                Notification.user == str(watcher.id),
                 Notification.type == "forecast_locked",
             )
         )
