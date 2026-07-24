@@ -19,6 +19,7 @@ import { TerminalSaveAsSkill } from "@/components/terminal/TerminalSaveAsSkill";
 import { TerminalSessionSidebar } from "@/components/terminal/TerminalSessionSidebar";
 import { TerminalStepCard } from "@/components/terminal/TerminalStepCard";
 import { EMPTY_STATE_TEMPLATES } from "@/components/terminal/terminal-templates";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/cn";
 import { PAPER_TRADING_DISCLAIMER } from "@/lib/paper-trading";
 import { runSkill } from "@/lib/skills-api";
@@ -73,6 +74,7 @@ function formatTimestamp(iso: string): string {
 }
 
 export function TerminalShell() {
+  const { token, isReady } = useAuth();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [session, setSession] = useState<ResearchSession | null>(null);
@@ -106,7 +108,9 @@ export function TerminalShell() {
     setListLoading(true);
     let requiresAuth = false;
     try {
-      const { sessions: items, source, authRequired: needsAuth } = await listSessions();
+      const { sessions: items, source, authRequired: needsAuth } = await listSessions(
+        isReady ? token : null,
+      );
       setApiSource(source);
       requiresAuth = Boolean(needsAuth);
       setAuthRequired(requiresAuth);
@@ -115,7 +119,7 @@ export function TerminalShell() {
       setListLoading(false);
     }
     return requiresAuth;
-  }, []);
+  }, [isReady, token]);
 
   const applySession = useCallback((s: ResearchSession) => {
     setActiveId(s.id);
@@ -135,7 +139,7 @@ export function TerminalShell() {
       setBull(null);
       setBear(null);
       try {
-        for await (const ev of streamSession(id)) {
+        for await (const ev of streamSession(id, { token: isReady ? token : null })) {
           if (ev.type === "step") {
             setSteps((prev) => {
               if (prev.some((s) => s.id === ev.step.id)) return prev;
@@ -158,14 +162,17 @@ export function TerminalShell() {
         setRunning(false);
       }
     },
-    [applySession, refreshList],
+    [applySession, isReady, refreshList, token],
   );
 
   const loadSession = useCallback(
     async (id: string) => {
       setError(null);
       setMobileNav(false);
-      const { session: s, source, authRequired: needsAuth } = await getSession(id);
+      const { session: s, source, authRequired: needsAuth } = await getSession(
+        id,
+        isReady ? token : null,
+      );
       setApiSource(source);
       setAuthRequired(Boolean(needsAuth));
       if (!s) {
@@ -178,10 +185,11 @@ export function TerminalShell() {
         await runStream(s.id);
       }
     },
-    [applySession, runStream],
+    [applySession, isReady, runStream, token],
   );
 
   useEffect(() => {
+    if (!isReady) return;
     let cancelled = false;
     (async () => {
       const requiresAuth = await refreshList();
@@ -195,7 +203,7 @@ export function TerminalShell() {
       if (param) {
         await loadSession(param);
       } else {
-        const { sessions: items } = await listSessions();
+        const { sessions: items } = await listSessions(isReady ? token : null);
         if (cancelled) return;
         if (items[0]) await loadSession(items[0].id);
       }
@@ -203,25 +211,28 @@ export function TerminalShell() {
     return () => {
       cancelled = true;
     };
-  }, [refreshList, loadSession]);
+  }, [isReady, loadSession, refreshList, token]);
 
   const onRunSkill = useCallback(
     async (skillId: string) => {
-      const { session_id, source } = await runSkill(skillId, null);
+      const { session_id, source } = await runSkill(skillId, isReady ? token : null);
       setApiSource(source);
       await loadSession(session_id);
     },
-    [loadSession],
+    [isReady, loadSession, token],
   );
 
   const onAsk = useCallback(
     async (question: string, selected: SenseId[]) => {
       setView("dashboard");
-      const { session: created, source, authRequired: needsAuth } = await createSession({
-        question,
-        market_slug: TERMINAL_CANONICAL_MARKET,
-        senses: selected,
-      });
+      const { session: created, source, authRequired: needsAuth } = await createSession(
+        {
+          question,
+          market_slug: TERMINAL_CANONICAL_MARKET,
+          senses: selected,
+        },
+        isReady ? token : null,
+      );
       setApiSource(source);
       setAuthRequired(Boolean(needsAuth));
       if (!created) {
@@ -231,7 +242,7 @@ export function TerminalShell() {
       applySession(created);
       await runStream(created.id);
     },
-    [applySession, runStream],
+    [applySession, isReady, runStream, token],
   );
 
   const onNew = useCallback(() => {

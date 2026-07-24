@@ -587,7 +587,7 @@ async function tryLiveJson<T>(
       },
       cache: "no-store",
     });
-    if (res.status === 401) return { data: null, unauthorized: true };
+    if (res.status === 401 && !token) return { data: null, unauthorized: true };
     if (!res.ok) return { data: null, unauthorized: false };
     return { data: (await res.json()) as T, unauthorized: false };
   } catch {

@@ -27,7 +27,7 @@ export function AIForecastPanel({ market, demo = false }: { market: Market; demo
         </span>
         <h3 className="text-sm font-black text-text">AI forecast</h3>
         <span className="ml-auto rounded-full border border-accent/30 bg-bg/40 px-2.5 py-0.5 font-mono text-[11px] text-accent">
-          XGBoost · 2h ago
+          {demo ? "Sample forecast (not live)" : "XGBoost · 2h ago"}
         </span>
       </div>
 
