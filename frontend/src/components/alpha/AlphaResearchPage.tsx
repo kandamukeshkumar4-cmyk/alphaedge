@@ -7,6 +7,14 @@ import {
   AlphaReportCardSkeleton,
 } from "@/components/alpha/AlphaReportCard";
 import { FactorTable, FactorTableSkeleton } from "@/components/alpha/FactorTable";
+import {
+  LatestSignalCard,
+  LatestSignalCardSkeleton,
+} from "@/components/alpha/LatestSignalCard";
+import {
+  RunHistoryTable,
+  RunHistoryTableSkeleton,
+} from "@/components/alpha/RunHistoryTable";
 import { PageHeader, PageShell, StatRow, StatTile } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import {
@@ -17,9 +25,16 @@ import {
   type AlphaReport,
   type ApiSource,
 } from "@/lib/alpha-api";
+import {
+  getLatestSignal,
+  getRuns,
+  type AlphaRuns,
+  type LatestSignal,
+} from "@/lib/alpha-runs-api";
 
 /*
  * Loop 99 AU2 — Multi-Factor Alpha research view (/alpha).
+ * Loop 102 AR2 — Latest-signal hero + daily run history.
  *
  * Factor scores + independent OOS validation for the canonical paper market,
  * beside the portfolio-wide validated-factor report. Paper-only: nothing
@@ -44,6 +59,9 @@ export function AlphaResearchPage() {
   const [report, setReport] = useState<AlphaReport | null>(null);
   const [source, setSource] = useState<ApiSource | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [runs, setRuns] = useState<AlphaRuns | null>(null);
+  const [latestSignal, setLatestSignal] = useState<LatestSignal | null>(null);
+  const [tailLoaded, setTailLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +75,14 @@ export function AlphaResearchPage() {
       // Factors endpoint drives the badge; report falls back the same way.
       setSource(f.source);
       setLoaded(true);
+    });
+    // Research tail (runs + latest signal) loads independently so the hero
+    // and history are never blocked by the factor ledger.
+    void Promise.all([getRuns(), getLatestSignal()]).then(([h, s]) => {
+      if (cancelled) return;
+      setRuns(h.data);
+      setLatestSignal(s.data);
+      setTailLoaded(true);
     });
     return () => {
       cancelled = true;
@@ -131,6 +157,14 @@ export function AlphaResearchPage() {
           <p className="text-[12px] font-medium text-muted">{PAPER_BANNER}</p>
         </div>
 
+        <div className="mb-6">
+          {tailLoaded && latestSignal ? (
+            <LatestSignalCard signal={latestSignal} />
+          ) : (
+            <LatestSignalCardSkeleton />
+          )}
+        </div>
+
         {loaded ? (
           <>
             <StatRow cols={4} className="mb-6">
@@ -164,17 +198,31 @@ export function AlphaResearchPage() {
               <AlphaReportCard report={report} />
             </div>
 
+            <div className="mt-6">
+              {tailLoaded ? (
+                <RunHistoryTable runs={runs} />
+              ) : (
+                <RunHistoryTableSkeleton />
+              )}
+            </div>
+
             <p className="mt-6 font-mono text-[11px] leading-relaxed text-muted-2">
               factors: loop96 seven-factor graph · validator: chronological OOS
               split, block-bootstrap CI, Newey-West HAC t, OOS-degradation cap ·
-              PAPER_TRADING_ONLY=true
+              a signal is emitted only when the residual alpha beats the
+              closing line out-of-sample · PAPER_TRADING_ONLY=true
             </p>
           </>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <FactorTableSkeleton />
-            <AlphaReportCardSkeleton />
-          </div>
+          <>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <FactorTableSkeleton />
+              <AlphaReportCardSkeleton />
+            </div>
+            <div className="mt-6">
+              <RunHistoryTableSkeleton />
+            </div>
+          </>
         )}
       </PageShell>
     </div>

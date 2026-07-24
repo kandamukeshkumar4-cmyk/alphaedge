@@ -10,7 +10,7 @@ only when it beats the closing line OOS. No danger-red (mint/gray only).
 | ticket | date | result | proof |
 |--------|------|--------|-------|
 | AR1 | 2026-07-24 | DONE | `npm run typecheck` → clean; `npm run lint` → clean; `npx vitest run src/lib/alpha-runs-api.test.ts` → `3 passed (3)` |
-| AR2 | | | |
+| AR2 | 2026-07-24 | DONE | `npm run typecheck` → clean; `npm run lint` → clean; `/alpha` now renders `alpha-latest-signal` hero (mint when emitted / gray + evidence when withheld, never red) + `alpha-run-history` table (date, status, residual α, t-stat, signal YES/NO) with skeletons + reserved heights |
 | AR3 | | | |
 
 ## Contracts (loop102 backend node)
