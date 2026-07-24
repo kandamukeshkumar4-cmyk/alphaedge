@@ -48,7 +48,7 @@ async def _already_digested(
     # window check for backfilled days and is racy around day boundaries.
     existing = await session.scalar(
         select(Notification.id).where(
-            Notification.user_id == user_id,
+            Notification.user == str(user_id),
             Notification.type == DIGEST_TYPE,
             Notification.title == _digest_title(day),
         ).limit(1)

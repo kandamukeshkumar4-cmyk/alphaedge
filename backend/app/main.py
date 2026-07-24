@@ -336,6 +336,29 @@ async def _morning_research_loop() -> None:
             record_heartbeat("morning_research", status="error", detail="morning research pass failed")
 
 
+async def _notification_digest_loop() -> None:
+    """Daily engagement email digest (mirrors ``cron(send_notification_digest_task, hour={13})``).
+
+    Wall-clock aligned to 13:00 UTC — compute seconds to next 13:00 (do NOT
+    sleep-first-24h). SMTP-unconfigured runs skip silently inside the task.
+    """
+    from app.workers.tasks import send_notification_digest_task
+
+    while True:
+        delay = _seconds_until_next_utc_hour(datetime.now(timezone.utc), hour=13)
+        await asyncio.sleep(delay)
+        try:
+            await send_notification_digest_task({})
+            record_heartbeat("notification_digest")
+        except Exception:
+            logger.error("Notification digest loop failed", exc_info=True)
+            record_heartbeat(
+                "notification_digest",
+                status="error",
+                detail="notification digest pass failed",
+            )
+
+
 
 async def _scanner_scheduler_loop() -> None:
     """Every 5 min run due Scanner Studio scanners (mirrors
@@ -760,6 +783,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_weather_scan_loop())
     if settings.scheduler_morning_research_enabled:
         asyncio.create_task(_morning_research_loop())
+    if settings.scheduler_notification_digest_enabled:
+        asyncio.create_task(_notification_digest_loop())
     if settings.scheduler_scanners_enabled:
         asyncio.create_task(_scanner_scheduler_loop())
     if settings.scheduler_whale_refresh_enabled:

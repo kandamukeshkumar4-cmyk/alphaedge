@@ -231,12 +231,11 @@ async def test_z2_notification_read_and_read_all(db_session):
         one = await client.post(
             f"/api/v1/notifications/{rows[0].id}/read", headers=headers
         )
-        assert one.status_code == 200
-        assert one.json()["read_at"] is not None
+        assert one.status_code == 204
 
         listed = await client.get("/api/v1/notifications", headers=headers)
         assert listed.status_code == 200
-        assert listed.json()["unread_count"] == 2
+        assert listed.json()["unread"] == 2
 
         # Cross-user mark-read is 404 (not 403) — no existence leak of foreign IDs
         # is ideal; 404 is the documented behaviour.
@@ -259,9 +258,9 @@ async def test_z2_notification_read_and_read_all(db_session):
         assert again.json()["marked"] == 0
 
         final = await client.get("/api/v1/notifications", headers=headers)
-        assert final.json()["unread_count"] == 0
-        # Loop V27 X2 / SEC-Z2-02: item-level unread matches badge after read-all.
-        assert all(not i["unread"] for i in final.json()["items"])
+        assert final.json()["unread"] == 0
+        # Loop V27 X2 / SEC-Z2-02: item-level read matches badge after read-all.
+        assert all(i["read"] is True for i in final.json()["items"])
 
 
 class _FakeWS:

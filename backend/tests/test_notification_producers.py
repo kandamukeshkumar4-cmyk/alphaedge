@@ -62,7 +62,7 @@ async def test_paper_order_creates_notification(db_session):
         )
     assert listed.status_code == 200
     body = listed.json()
-    assert body["unread_count"] >= 1
+    assert body["unread"] >= 1
     assert any(i["type"] == "order_filled" for i in body["items"])
     assert any(CANONICAL_SLUG in i["body"] for i in body["items"])
 
@@ -100,7 +100,7 @@ async def test_notify_order_filled_never_raises(db_session):
     await db_session.commit()
     rows = (
         await db_session.scalars(
-            select(Notification).where(Notification.user_id == user.id)
+            select(Notification).where(Notification.user == str(user.id))
         )
     ).all()
     assert len(rows) == 1
@@ -170,7 +170,7 @@ async def test_admin_mirror_ops_alert(db_session, monkeypatch):
     assert n == 1
     rows = (
         await db_session.scalars(
-            select(Notification).where(Notification.user_id == user.id)
+            select(Notification).where(Notification.user == str(user.id))
         )
     ).all()
     assert len(rows) == 1
@@ -219,7 +219,7 @@ async def test_admin_mirror_calibration_and_forecast_drift(db_session, monkeypat
     assert n2 == 1
     rows = (
         await db_session.scalars(
-            select(Notification).where(Notification.user_id == user.id)
+            select(Notification).where(Notification.user == str(user.id))
         )
     ).all()
     types = {r.type for r in rows}

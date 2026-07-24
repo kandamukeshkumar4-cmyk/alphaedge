@@ -175,3 +175,39 @@ def maybe_email_scanner_fired(
     return send_scanner_fired_email(
         scanner, run, settings=settings, smtp_factory=smtp_factory
     )
+
+
+def send_plain_text_email(
+    *,
+    to_addr: str,
+    subject: str,
+    body: str,
+    settings=None,
+    smtp_factory=None,
+) -> bool:
+    """Send one plain-text email via the shared SMTP ``_deliver`` helper.
+
+    Unlike scanner alerts (which require ``alert_email_to``), this path takes an
+    explicit ``to_addr`` so digests can reach each user. Skips silently when
+    ``smtp_host`` is unset or ``to_addr`` is empty. Paper research only.
+    """
+    settings = settings or get_settings()
+    host = (getattr(settings, "smtp_host", "") or "").strip()
+    dest = (to_addr or "").strip()
+    if not host or not dest:
+        return False
+    port = int(getattr(settings, "smtp_port", 587) or 587)
+    user = (getattr(settings, "smtp_user", "") or "").strip()
+    password = getattr(settings, "smtp_pass", "") or ""
+    from_addr = (getattr(settings, "smtp_from", "") or "").strip() or (
+        user or "noreply@localhost"
+    )
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = dest
+    msg.set_content(body)
+    return _deliver(
+        msg, host=host, port=port, user=user, password=password, smtp_factory=smtp_factory
+    )

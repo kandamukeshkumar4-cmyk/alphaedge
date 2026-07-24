@@ -528,6 +528,21 @@ async def persist_publish(session: AsyncSession, state: AnalystState, settings) 
     except Exception:  # noqa: BLE001 - an alert failure must not drop the brief
         logger.warning("Brief alert dispatch failed for %s", model.market_slug, exc_info=True)
 
+    # V90: in-app notify watchlist followers (respects in_app pref + 1h idempotency).
+    try:
+        from app.services.notification_producers import notify_watchers_brief_created
+
+        await notify_watchers_brief_created(
+            market_slug=model.market_slug,
+            headline=model.headline,
+            brief_id=brief_row.id,
+            session=session,
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Brief notification fan-out failed for %s", model.market_slug, exc_info=True
+        )
+
     return model
 
 

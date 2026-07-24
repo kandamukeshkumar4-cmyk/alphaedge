@@ -56,7 +56,7 @@ async def test_digest_idempotent_per_user_per_day(db_session):
     rows = (
         await db_session.scalars(
             select(Notification).where(
-                Notification.user_id == user.id,
+                Notification.user == str(user.id),
                 Notification.type == "digest",
             )
         )

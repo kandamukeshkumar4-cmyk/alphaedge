@@ -202,25 +202,54 @@ class NotifyPref(Base):
 
 
 class Notification(Base):
-    """Loop V24 N1: per-user in-app notification (no email/push).
+    """Loop V90 N1: per-user in-app notification (frozen FE contract).
 
-    Produced by order events, digests, and ops/drift mirrors. Delivery is
-    in-app only — list + mark-read APIs and (N4) the ``notifications`` WS channel.
+    ``user`` stores ``str(user.id)`` (same pattern as Subscription / Scanner.owner).
+    Producers may still pass UUID into the service helper; it normalizes to str.
     """
 
     __tablename__ = "notifications"
     __table_args__ = (
-        Index("ix_notifications_user_created", "user_id", "created_at"),
-        Index("ix_notifications_user_id", "user_id"),
+        Index("ix_notifications_user_created", "user", "created_at"),
+        Index("ix_notifications_user", "user"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    type: Mapped[str] = mapped_column(String(64), nullable=False)
-    title: Mapped[str] = mapped_column(String(256), nullable=False)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    link: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    user: Mapped[str] = mapped_column(String(64), nullable=False)
+    type: Mapped[str] = mapped_column(String(24), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(String(1000), nullable=False)
+    read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    link: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NotificationPreference(Base):
+    """Loop V90: per-user notification channel prefs (defaults all True)."""
+
+    __tablename__ = "notification_preferences"
+
+    user: Mapped[str] = mapped_column(String(64), primary_key=True)
+    email_digest: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    in_app: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    fired_alerts: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+
+class PushSubscription(Base):
+    """Loop V90 N5: stored web-push subscription JSON (no external send in v1)."""
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (Index("ix_push_subscriptions_user", "user"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user: Mapped[str] = mapped_column(String(64), nullable=False)
+    subscription: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

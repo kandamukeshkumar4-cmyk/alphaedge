@@ -283,11 +283,11 @@ async def test_notifications_only_read_and_older_than_90d(db_session):
         title: str,
     ) -> Notification:
         return Notification(
-            user_id=user.id,
+            user=str(user.id),
             type="test",
             title=title,
             body="body",
-            read_at=created_at + timedelta(hours=1) if read else None,
+            read=read,
             created_at=created_at,
         )
 
@@ -339,11 +339,11 @@ async def test_notifications_idempotent(db_session):
     created = now - timedelta(days=120)
     db_session.add(
         Notification(
-            user_id=user.id,
+            user=str(user.id),
             type="test",
             title="gone",
             body="b",
-            read_at=created + timedelta(hours=1),
+            read=True,
             created_at=created,
         )
     )

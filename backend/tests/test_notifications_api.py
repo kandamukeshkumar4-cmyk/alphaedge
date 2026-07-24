@@ -1,6 +1,6 @@
-"""Loop V24 N1 — in-app notification center API.
+"""Loop V90 N1 — in-app notification CRUD against the frozen FE contract.
 
-AUTHED list + mark-read. In-app only (no external delivery). Fixtures only.
+AUTHED list + mark-read + prefs defaults. Fixtures only.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from app.db.models import User
+from app.db.models import Notification, NotificationPreference, PushSubscription, User
 from app.db.session import get_db
 from app.main import app
 from app.services.notification_service import create_notification
@@ -59,193 +59,163 @@ async def test_list_empty_and_unread_zero(db_session):
         )
     assert r.status_code == 200
     body = r.json()
-    assert body["items"] == []
-    assert body["unread_count"] == 0
-    assert body["next_cursor"] is None
-    assert body["paper_trading_only"] is True
-    assert "email" not in body["disclaimer"].lower() or "no email" in body["disclaimer"].lower()
+    assert body == {"items": [], "unread": 0}
 
 
 @pytest.mark.asyncio
-async def test_list_cursor_and_unread_count(db_session):
+async def test_crud_create_list_mark_read(db_session):
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        token, user = await _signup_user(db_session, client, "n1-list@example.com")
+        token, user = await _signup_user(db_session, client, "n1-crud@example.com")
+        row = await create_notification(
+            db_session,
+            user_id=user.id,
+            type="scanner:fired",
+            title="Edge found",
+            body="Paper research only — no execution",
+            link="/scanners/abc",
+        )
+        await db_session.commit()
+
+        listed = await client.get(
+            "/api/v1/notifications",
+            params={"limit": 30},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert listed.status_code == 200
+        payload = listed.json()
+        assert payload["unread"] == 1
+        assert len(payload["items"]) == 1
+        item = payload["items"][0]
+        assert set(item) >= {
+            "id",
+            "type",
+            "title",
+            "body",
+            "read",
+            "created_at",
+            "link",
+        }
+        assert item["id"] == str(row.id)
+        assert item["type"] == "scanner:fired"
+        assert item["read"] is False
+        assert item["link"] == "/scanners/abc"
+
+        mark = await client.post(
+            f"/api/v1/notifications/{row.id}/read",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert mark.status_code == 204
+        assert mark.content == b""
+
+        listed2 = await client.get(
+            "/api/v1/notifications",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert listed2.json()["unread"] == 0
+        assert listed2.json()["items"][0]["read"] is True
+
+        # idempotent re-mark
+        mark2 = await client.post(
+            f"/api/v1/notifications/{row.id}/read",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert mark2.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read(db_session):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        token, user = await _signup_user(db_session, client, "n1-all@example.com")
         for i in range(3):
             await create_notification(
                 db_session,
                 user_id=user.id,
-                type="order_filled",
-                title=f"Fill {i}",
+                type="brief",
+                title=f"Brief {i}",
                 body=f"body {i}",
                 link=f"/markets/slug-{i}",
             )
         await db_session.commit()
 
-        r = await client.get(
-            "/api/v1/notifications",
-            params={"limit": 2},
+        r = await client.post(
+            "/api/v1/notifications/read-all",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
-        page1 = r.json()
-        assert len(page1["items"]) == 2
-        assert page1["unread_count"] == 3
-        assert page1["next_cursor"] == "2"
-        assert all(item["unread"] is True for item in page1["items"])
-
-        r2 = await client.get(
-            "/api/v1/notifications",
-            params={"limit": 2, "cursor": page1["next_cursor"]},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        page2 = r2.json()
-        assert len(page2["items"]) == 1
-        assert page2["next_cursor"] is None
-
-
-@pytest.mark.asyncio
-async def test_mark_one_read_idempotent(db_session):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        token, user = await _signup_user(db_session, client, "n1-read@example.com")
-        row = await create_notification(
-            db_session,
-            user_id=user.id,
-            type="order_filled",
-            title="t",
-            body="b",
-        )
-        await db_session.commit()
-        headers = {"Authorization": f"Bearer {token}"}
-
-        r1 = await client.post(
-            f"/api/v1/notifications/{row.id}/read", headers=headers
-        )
-        assert r1.status_code == 200
-        assert r1.json()["read_at"] is not None
-        first_read_at = r1.json()["read_at"]
+        assert r.json() == {"marked": 3}
 
         r2 = await client.post(
-            f"/api/v1/notifications/{row.id}/read", headers=headers
+            "/api/v1/notifications/read-all",
+            headers={"Authorization": f"Bearer {token}"},
         )
-        assert r2.status_code == 200
-        assert r2.json()["read_at"] == first_read_at
-
-        listed = await client.get("/api/v1/notifications", headers=headers)
-        assert listed.json()["unread_count"] == 0
-        assert listed.json()["items"][0]["unread"] is False
+        assert r2.json() == {"marked": 0}
 
 
 @pytest.mark.asyncio
-async def test_mark_read_other_users_404(db_session):
+async def test_mark_other_users_row_is_404(db_session):
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        _t1, user1 = await _signup_user(db_session, client, "n1-a@example.com")
+        token1, user1 = await _signup_user(db_session, client, "n1-a@example.com")
         token2, _user2 = await _signup_user(db_session, client, "n1-b@example.com")
         row = await create_notification(
             db_session,
             user_id=user1.id,
-            type="order_filled",
+            type="info",
             title="private",
-            body="nope",
+            body="mine",
         )
         await db_session.commit()
+
         r = await client.post(
             f"/api/v1/notifications/{row.id}/read",
             headers={"Authorization": f"Bearer {token2}"},
         )
-    assert r.status_code == 404
+        assert r.status_code == 404
 
-
-@pytest.mark.asyncio
-async def test_read_all_idempotent(db_session):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        token, user = await _signup_user(db_session, client, "n1-all@example.com")
-        for i in range(2):
-            await create_notification(
-                db_session,
-                user_id=user.id,
-                type="digest",
-                title=f"d{i}",
-                body="body",
-            )
-        await db_session.commit()
-        headers = {"Authorization": f"Bearer {token}"}
-
-        r1 = await client.post("/api/v1/notifications/read-all", headers=headers)
-        assert r1.status_code == 200
-        assert r1.json()["marked"] == 2
-
-        r2 = await client.post("/api/v1/notifications/read-all", headers=headers)
-        assert r2.status_code == 200
-        assert r2.json()["marked"] == 0
-
-        listed = await client.get("/api/v1/notifications", headers=headers)
-        assert listed.json()["unread_count"] == 0
-        assert all(i["unread"] is False for i in listed.json()["items"])
-
-
-@pytest.mark.asyncio
-async def test_unread_only_filter(db_session):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        token, user = await _signup_user(db_session, client, "n1-filt@example.com")
-        a = await create_notification(
-            db_session, user_id=user.id, type="a", title="a", body="a"
-        )
-        await create_notification(
-            db_session, user_id=user.id, type="b", title="b", body="b"
-        )
-        await db_session.commit()
-        headers = {"Authorization": f"Bearer {token}"}
-        await client.post(f"/api/v1/notifications/{a.id}/read", headers=headers)
-        r = await client.get(
+        # owner still unread
+        listed = await client.get(
             "/api/v1/notifications",
-            params={"unread_only": True},
-            headers=headers,
+            headers={"Authorization": f"Bearer {token1}"},
         )
-    assert r.status_code == 200
-    body = r.json()
-    assert len(body["items"]) == 1
-    assert body["items"][0]["title"] == "b"
-    assert body["unread_count"] == 1
+        assert listed.json()["unread"] == 1
 
 
-def test_migration_revision_id_under_32_chars():
-    import importlib.util
-    from pathlib import Path
-
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "alembic"
-        / "versions"
-        / "046_notifications.py"
+@pytest.mark.asyncio
+async def test_model_tables_defaults(db_session):
+    """N1 schema smoke: preferences defaults + push_subscriptions row shape."""
+    user = User(
+        email="n1-model@example.com",
+        display_name="N1",
+        hashed_password="x",
     )
-    spec = importlib.util.spec_from_file_location("m046", path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    assert mod.revision == "046_notifications"
-    assert len(mod.revision) < 32
-    assert mod.down_revision == "045_admin_cancel_suspend"
+    db_session.add(user)
+    await db_session.flush()
 
+    prefs = NotificationPreference(user=str(user.id))
+    db_session.add(prefs)
+    push = PushSubscription(
+        user=str(user.id),
+        subscription={"endpoint": "https://example.test/push", "keys": {"p256dh": "a"}},
+    )
+    db_session.add(push)
+    note = Notification(
+        user=str(user.id),
+        type="info",
+        title="t",
+        body="b",
+    )
+    db_session.add(note)
+    await db_session.commit()
 
-def test_openapi_documents_notification_routes():
-    """N4 polish — notification endpoints appear with summary + tags."""
-    schema = app.openapi()
-    paths = schema["paths"]
-    assert "/api/v1/notifications" in paths
-    assert "get" in paths["/api/v1/notifications"]
-    get_op = paths["/api/v1/notifications"]["get"]
-    assert get_op.get("summary")
-    assert "notifications" in get_op.get("tags", [])
-    assert "/api/v1/notifications/read-all" in paths
-    assert "/api/v1/notifications/{notification_id}/read" in paths
-
+    assert prefs.email_digest is True
+    assert prefs.in_app is True
+    assert prefs.fired_alerts is True
+    assert note.read is False
+    stored = await db_session.get(PushSubscription, push.id)
+    assert stored is not None
+    assert stored.subscription["endpoint"].startswith("https://")

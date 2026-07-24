@@ -156,6 +156,10 @@ class Settings(BaseSettings):
     scheduler_daily_digest_enabled: bool = Field(
         default=True, alias="SCHEDULER_DAILY_DIGEST_ENABLED"
     )
+    # Loop V90 N4: email notification digest at 13:00 UTC (in-process + ARQ).
+    scheduler_notification_digest_enabled: bool = Field(
+        default=True, alias="SCHEDULER_NOTIFICATION_DIGEST_ENABLED"
+    )
     # Loop V37 H3: JobRun retention sweep (flag-gated, default on).
     jobrun_retention_enabled: bool = Field(
         default=True, alias="JOBRUN_RETENTION_ENABLED"
