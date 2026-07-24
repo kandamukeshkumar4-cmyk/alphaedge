@@ -44,7 +44,12 @@ async def prices_feed(
     websocket: WebSocket,
     market: str = Query(..., min_length=1),
 ) -> None:
-    """Price stream — must not hold a DB session for the socket lifetime."""
+    """Per-market price stream via event_bus ``market.tick``.
+
+    Must not hold a DB session for the socket lifetime. Subscribes to the
+    shared in-process bus (same drop-oldest slow-subscriber throttle as
+    ``/feed``) and filters frames to ``market``'s slug.
+    """
     settings = get_settings()
     if not settings.paper_trading_only:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -70,27 +75,41 @@ async def prices_feed(
         if row is not None:
             yes = float(row[0])
 
-    no = round(1.0 - yes, 4)
     await websocket.accept()
-    await websocket.send_json({"slug": slug, "yes": yes, "no": no, "ts": int(time.time())})
+    await websocket.send_json(
+        {"slug": slug, "yes_price": yes, "ts": int(time.time())}
+    )
 
-    q = hub.subscribe(slug)
+    # Reuse the process-wide bus — do NOT introduce a second global.
+    bus = get_event_bus()
+    sub = bus.subscribe("market.tick")
     try:
         while True:
             try:
-                payload = await asyncio.wait_for(q.get(), timeout=_QUEUE_TIMEOUT_SEC)
+                payload = await asyncio.wait_for(sub.get(), timeout=_QUEUE_TIMEOUT_SEC)
             except asyncio.TimeoutError:
                 continue
-            yes = payload.get("yes", yes)
-            no = payload.get("no", no)
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("slug") != slug:
+                continue
+            raw = payload.get("yes_price", payload.get("yes"))
+            if raw is None:
+                continue
             try:
-                await websocket.send_json(payload)
+                await websocket.send_json(
+                    {
+                        "slug": slug,
+                        "yes_price": float(raw),
+                        "ts": int(payload.get("ts") or time.time()),
+                    }
+                )
             except Exception:
                 break
     except WebSocketDisconnect:
         pass
     finally:
-        hub.unsubscribe(slug, q)
+        sub.close()
 
 
 @router.websocket("/feed")
