@@ -109,9 +109,13 @@ export function StoryFeed() {
             data-testid="community-empty-state"
             className="rounded-2xl border border-border bg-surface px-6 py-12 text-center"
           >
-            <p className="text-base font-black text-text">No stories yet</p>
+            <p className="text-base font-black text-text">
+              {error ? "No community activity yet" : "No stories yet"}
+            </p>
             <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted">
-              Community notes will appear here as paper-market research is shared.
+              {error
+                ? "The feed could not be loaded. Nothing fabricated is shown while the community service is offline."
+                : "Community notes will appear here as paper-market research is shared."}
             </p>
           </section>
         ) : (

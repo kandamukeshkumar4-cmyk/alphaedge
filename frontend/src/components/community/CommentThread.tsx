@@ -89,14 +89,35 @@ export function CommentThread({ id, storyId, onClose, onCommentAdded }: CommentT
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canComment || !token || submitting) return;
+    const trimmed = body.trim();
+    if (!trimmed) return;
     setSubmitError(null);
     setSubmitting(true);
+
+    // Optimistic insert — rolled back if the server never accepted the post.
+    const optimisticId = `optimistic-comment-${Date.now()}`;
+    const optimistic: Comment = {
+      id: optimisticId,
+      actor: { handle: "you", display_name: "You", avatar_url: null },
+      body: trimmed,
+      created_at: new Date().toISOString(),
+    };
+    setComments((current) => [...(current ?? []), optimistic]);
+    setBody("");
+
     try {
-      const result = await addComment(token, storyId, body);
-      setComments((current) => [...(current ?? []), result.data]);
-      setBody("");
+      const result = await addComment(token, storyId, trimmed);
+      setComments((current) =>
+        (current ?? []).map((comment) =>
+          comment.id === optimisticId ? result.data : comment,
+        ),
+      );
       onCommentAdded();
     } catch (error) {
+      setComments((current) =>
+        (current ?? []).filter((comment) => comment.id !== optimisticId),
+      );
+      setBody(trimmed);
       if (isSocialApiError(error) && error.status === 422) {
         setSubmitError(error.message || "Comment must be between 1 and 500 characters.");
       } else {

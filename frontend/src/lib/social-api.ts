@@ -1,9 +1,10 @@
 /**
  * Loop 104 — community API client.
  *
- * The live API is attempted first. When the API is unavailable, typed in-memory
- * paper fixtures keep the read surfaces useful without pretending that a live
- * community action succeeded. UI components never call fetch directly.
+ * Live API only. Reads never invent community activity; mutations never invent
+ * success. On live miss the caller receives an empty/error outcome and the UI
+ * must surface an honest empty or offline state. UI components never call
+ * fetch directly.
  *
  * PAPER_TRADING_ONLY — stories are historical discussion records. This module
  * has no order, risk, sizing, or execution client.
@@ -229,58 +230,6 @@ function normalizeSharedWatchlist(raw: unknown): SharedWatchlist | null {
 }
 
 // ---------------------------------------------------------------------------
-// Typed paper fallback
-// ---------------------------------------------------------------------------
-
-const MOCK_ACTOR: Actor = {
-  handle: "paper-analyst",
-  display_name: "Paper Analyst",
-  avatar_url: null,
-};
-
-const MOCK_STORIES: Story[] = [
-  {
-    id: "mock-community-1",
-    kind: "forecast",
-    actor: MOCK_ACTOR,
-    market_slug: "nba-2025-01-15-lal-bos",
-    market_title: "Lakers vs Celtics",
-    headline: "The closing line is still the benchmark for this paper forecast",
-    body: "A research note on calibration, not a trading instruction.",
-    created_at: "2026-07-24T12:00:00.000Z",
-    reactions: { like: 3 },
-    reacted: false,
-    comment_count: 1,
-  },
-  {
-    id: "mock-community-2",
-    kind: "watchlist",
-    actor: MOCK_ACTOR,
-    market_slug: null,
-    market_title: null,
-    headline: "Shared watchlists keep market context visible to the desk",
-    body: "A watchlist is a research collection; it never submits an order.",
-    created_at: "2026-07-24T09:30:00.000Z",
-    reactions: { like: 1 },
-    reacted: false,
-    comment_count: 0,
-  },
-];
-
-const MOCK_COMMENTS: Record<string, Comment[]> = {
-  "mock-community-1": [
-    {
-      id: "mock-comment-1",
-      actor: { handle: "line-watcher", display_name: "Line Watcher", avatar_url: null },
-      body: "Useful distinction between research context and an executable action.",
-      created_at: "2026-07-24T12:20:00.000Z",
-    },
-  ],
-};
-
-let mockLikeCounts = new Map(MOCK_STORIES.map((story) => [story.id, story.reactions.like]));
-
-// ---------------------------------------------------------------------------
 // Fetch layer (the only place the UI talks to the social API)
 // ---------------------------------------------------------------------------
 
@@ -337,9 +286,12 @@ async function tryLiveJson<T>(
     }
     return { data: (await res.json()) as T, error: null };
   } catch {
-    // Network failure is the typed-fallback case; HTTP errors remain visible
-    // to callers so validation failures are not hidden.
-    return { data: null, error: null };
+    // Network / transport failure — callers must treat this as unavailable,
+    // not as success and not as fabricated content.
+    return {
+      data: null,
+      error: new SocialApiError("Community service is unavailable right now.", null),
+    };
   }
 }
 
@@ -348,7 +300,7 @@ function requireToken(token: string | null): string {
   return token;
 }
 
-/** Public story feed. Live first; paper fixture fallback when unavailable. */
+/** Public story feed. Live only — never invent community activity. */
 export async function listStories(
   limit = 20,
   cursor: string | null = null,
@@ -362,13 +314,11 @@ export async function listStories(
   );
   const normalized = normalizeStoryPage(live.data);
   if (normalized) return { data: normalized, source: "live" };
-  return {
-    data: { items: cursor ? [] : MOCK_STORIES, next_cursor: null },
-    source: "mock",
-  };
+  if (live.error) throw live.error;
+  throw new SocialApiError("The community feed is unavailable right now.", null);
 }
 
-/** Public comments for a story. */
+/** Public comments for a story. Live only — never invent discussion. */
 export async function listComments(
   storyId: string,
   limit = 50,
@@ -379,10 +329,11 @@ export async function listComments(
   );
   const normalized = normalizeCommentPage(live.data);
   if (normalized) return { data: normalized, source: "live" };
-  return { data: { items: MOCK_COMMENTS[storyId] ?? [] }, source: "mock" };
+  if (live.error) throw live.error;
+  throw new SocialApiError("Comments are unavailable right now.", null);
 }
 
-/** Add one comment. HTTP 422 is preserved for the inline composer error. */
+/** Add one comment. Throws on failure — never invents a successful post. */
 export async function addComment(
   token: string | null,
   storyId: string,
@@ -401,16 +352,10 @@ export async function addComment(
   const normalized = normalizeComment(live.data);
   if (normalized) return { data: normalized, source: "live" };
   if (live.error) throw live.error;
-  const fallback: Comment = {
-    id: `mock-comment-${Date.now()}`,
-    actor: { handle: "you", display_name: "You", avatar_url: null },
-    body: trimmed,
-    created_at: new Date().toISOString(),
-  };
-  return { data: fallback, source: "mock" };
+  throw new SocialApiError("Comment could not be posted.", null);
 }
 
-/** Optimistically add a paper like when the live endpoint is unavailable. */
+/** Add a like. Throws on failure — never invents a successful reaction. */
 export async function react(
   token: string | null,
   storyId: string,
@@ -424,12 +369,10 @@ export async function react(
   const normalized = normalizeReactionResponse(live.data);
   if (normalized) return { data: normalized, source: "live" };
   if (live.error) throw live.error;
-  const count = (mockLikeCounts.get(storyId) ?? 0) + 1;
-  mockLikeCounts.set(storyId, count);
-  return { data: { reactions: { like: count }, reacted: true }, source: "mock" };
+  throw new SocialApiError("Like could not be updated.", null);
 }
 
-/** Remove a paper like when the live endpoint is unavailable. */
+/** Remove a like. Throws on failure — never invents a successful unreact. */
 export async function unreact(
   token: string | null,
   storyId: string,
@@ -443,9 +386,7 @@ export async function unreact(
   const normalized = normalizeReactionResponse(live.data);
   if (normalized) return { data: normalized, source: "live" };
   if (live.error) throw live.error;
-  const count = Math.max(0, (mockLikeCounts.get(storyId) ?? 0) - 1);
-  mockLikeCounts.set(storyId, count);
-  return { data: { reactions: { like: count }, reacted: false }, source: "mock" };
+  throw new SocialApiError("Like could not be updated.", null);
 }
 
 /** Public shared watchlist. Empty fallback is honest when no live profile exists. */

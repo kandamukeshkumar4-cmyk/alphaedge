@@ -174,19 +174,78 @@ command timed out after 306607ms; no gate verdict emitted while backend pytest w
 
 Status: CHARTER PROOF GREEN; full repository gate remains unproven because its backend-owned run timed out.
 
-git log --oneline
-4301340 feat(loop104): add community e2e coverage
-6687e61 feat(loop104): add community story and watchlist surfaces
-ad49657 feat(loop104): add community social client
-9bfa413 merge(loop102): alpha runs/signal/hypotheses UI (Qwen, Grok rubric-PASS)
-00623cf feat(loop102): AR3 — proposed hypotheses section + alpha-runs E2E
-65a034b merge(loop103): PWA manifest + SEO/launch meta (Cursor; service worker skipped — no caching next to live prices)
-38713dc feat(loop103): P3 — PWA e2e + skip service worker (stale-data risk)
-34b8d5f feat(loop102): AR2 — latest-signal hero + run history on /alpha
-50ad8b5 feat(skills): graph-design — add Claude-5 context-engineering rules for node briefs
-ef6f5fc feat(loop103): P2 — SEO metadata, sitemap routes, per-page meta
-1d49e34 feat(loop102): AR1 — alpha-runs-api typed client, live-first + mock fallback
-d87eca4 feat(loop103): P1 — PWA manifest (AlphaEdge standalone)
-503654f fix(loop100): classify /alpha/hypotheses (public) + regen snapshot (203 paths/223 ops)
-44785c1 merge(loop100): alpha Idea Generator — proposes hypotheses, validator disposes
-0ec6e27 merge(loop101): real-time WebSocket price push + graceful poll fallback
+## Blocker fixes
+
+Audit: `AUDIT104-COMMUNITY.md` (VERDICT FAIL) — two honesty blockers only.
+
+### What changed
+
+1. **Blocker 1 (fabricated READ):** Deleted `MOCK_STORIES` / `MOCK_COMMENTS` / mock like counters from `frontend/src/lib/social-api.ts`. `listStories` and `listComments` now throw `SocialApiError` on live miss (never invent community activity). `StoryFeed` already surfaces the reject path; empty copy under error is “No community activity yet” with a visible `role="alert"`.
+2. **Blocker 2 (fabricated WRITE):** `addComment` / `react` / `unreact` throw on failure — no synthetic success objects. `CommentThread` posts optimistically then rolls back the temp comment, restores the draft, and shows “Comment could not be posted…”. `StoryCard` like path already rolled back on reject.
+
+Frozen contract field names / opaque `next_cursor` unchanged. Trader exports preserved. No backend/alembic. No sample-stories mode.
+
+### Pre-fix proof (tests must FAIL first)
+
+Confirmed against **unfixed** code (stash: source fix off, only the two new e2e tests applied):
+
+```text
+Running 2 tests using 1 worker
+
+  x 1 [chromium] › community_feed_shows_empty_state_not_fabricated_stories_when_api_fails
+      → expected community-empty-state visible; not found (silent mock path still rendered)
+  x 2 [chromium] › community_comment_surfaces_error_and_rolls_back_when_post_fails
+      → expected alert /could not be posted/; got empty next-route-announcer (fabricated write success)
+
+  2 failed
+```
+
+A test that passed before the fix would prove nothing; these two failed on the pre-fix tree as required.
+
+### `cd frontend && npm run typecheck`
+
+```text
+> alphaedge-frontend@0.1.0 typecheck
+> tsc --noEmit
+```
+
+Exit 0.
+
+### `cd frontend && npm run lint`
+
+```text
+> alphaedge-frontend@0.1.0 lint
+> eslint src --max-warnings=0
+```
+
+Exit 0.
+
+### `cd frontend && npx playwright test e2e/community.spec.ts --reporter=list`
+
+Executed with isolated `E2E_FE_PORT=31021` / `E2E_API_PORT=18021`.
+
+```text
+Running 7 tests using 1 worker
+
+  ok 1 [chromium] › e2e\community.spec.ts:65:7 › community stories › feed renders a story card (10.8s)
+  ok 2 [chromium] › e2e\community.spec.ts:76:7 › community stories › load more appends the next cursor page (2.5s)
+  ok 3 [chromium] › e2e\community.spec.ts:95:7 › community stories › logged-out composer is disabled with a sign-in affordance (2.4s)
+  ok 4 [chromium] › e2e\community.spec.ts:107:7 › community stories › like toggles optimistically and settles from the response (13.6s)
+  ok 5 [chromium] › e2e\community.spec.ts:126:7 › community stories › empty state renders when the API has no stories (2.5s)
+  ok 6 [chromium] › e2e\community.spec.ts:134:7 › community stories › community_feed_shows_empty_state_not_fabricated_stories_when_api_fails (3.4s)
+  ok 7 [chromium] › e2e\community.spec.ts:160:7 › community stories › community_comment_surfaces_error_and_rolls_back_when_post_fails (8.3s)
+
+  7 passed (1.9m)
+```
+
+Exit 0.
+
+### Noted, not fixed
+
+- `getSharedWatchlist` still returns a synthetic `{ handle, display_name: handle, items: [] }` with `source: "mock"` when live misses (softer fabrication; audit non-blocking).
+- `setWatchlistShare` still invents `{ public, share_url: "/w/me" }` on network miss after no HTTP error object — write fabrication outside the community story path; out of this node’s two-blocker charter.
+- App-wide silent-mock pattern in other clients (e.g. `alpha-api.ts`) deliberately untouched — separate node.
+- `avatar_url` still used as raw `<img src>` (contract-aligned).
+- No central nav link to `/community` (intentional; contested shared surface).
+
+AutoLab: not applicable (no iterative measure; honesty fix only).

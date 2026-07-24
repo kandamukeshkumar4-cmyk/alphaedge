@@ -130,4 +130,65 @@ test.describe("community stories", () => {
     await expect(page.getByTestId("community-empty-state")).toBeVisible();
     await expect(page.getByText("No stories yet")).toBeVisible();
   });
+
+  test("community_feed_shows_empty_state_not_fabricated_stories_when_api_fails", async ({
+    page,
+  }) => {
+    await page.route(/\/api\/v1\/social\/stories(?:\?.*)?$/, async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      await route.abort("failed");
+    });
+    await visitCommunity(page);
+
+    // Fabricated fixtures must never appear as live community activity.
+    await expect(page.getByTestId("story-card-mock-community-1")).toHaveCount(0);
+    await expect(page.getByTestId("story-card-mock-community-2")).toHaveCount(0);
+    await expect(page.getByText("Paper Analyst")).toHaveCount(0);
+    await expect(
+      page.getByText("The closing line is still the benchmark for this paper forecast"),
+    ).toHaveCount(0);
+
+    await expect(page.getByTestId("community-empty-state")).toBeVisible();
+    await expect(
+      page.getByRole("alert").filter({ hasText: /unavailable|could not be loaded/i }),
+    ).toBeVisible();
+  });
+
+  test("community_comment_surfaces_error_and_rolls_back_when_post_fails", async ({
+    page,
+  }) => {
+    const failedBody = "This comment must never stick if the post fails";
+    await signupPaperUser(page, { email: uniqueEmail("loop104-comment-fail") });
+    await mockStories(page, { items: [FIRST_STORY], next_cursor: null });
+    await page.route(/\/api\/v1\/social\/stories\/[^/]+\/comments(?:\?.*)?$/, async (route) => {
+      const method = route.request().method();
+      if (method === "GET") {
+        await fulfillJson(route, { items: [] });
+        return;
+      }
+      if (method === "POST") {
+        await route.abort("failed");
+        return;
+      }
+      await route.continue();
+    });
+    await visitCommunity(page);
+
+    await page.getByRole("button", { name: /0 comments/i }).click();
+    const composer = page.getByLabel("Add a comment");
+    await expect(composer).toBeEnabled();
+    await composer.fill(failedBody);
+    await page.getByRole("button", { name: "Post comment" }).click();
+
+    await expect(
+      page.getByRole("alert").filter({ hasText: /could not be posted/i }),
+    ).toBeVisible();
+    // Optimistic insert must roll back out of the thread (composer keeps the draft for retry).
+    await expect(page.locator("ul[aria-label='Story comments']")).toHaveCount(0);
+    await expect(page.getByText("No comments yet. Start the discussion.")).toBeVisible();
+    await expect(page.getByLabel("Add a comment")).toHaveValue(failedBody);
+  });
 });
