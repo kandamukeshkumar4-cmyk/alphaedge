@@ -10,10 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.deps import get_current_user
 from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
+from app.core.security import verify_admin_api_key
 from app.db.models import ResearchSession, Skill, SkillRating, User
 from app.db.session import get_db
 from app.schemas.skills import (
     SkillCreate,
+    SkillFeatureRequest,
+    SkillFeaturedListOut,
     SkillOut,
     SkillRateRequest,
     SkillRatingOut,
@@ -113,6 +116,18 @@ async def trending_skills(
 
     ranked = sort_trending_items(built, limit=limit)
     return SkillTrendingListOut(items=[SkillTrendingOut(**row) for row in ranked])
+
+
+@router.get("/featured", response_model=SkillFeaturedListOut)
+async def featured_skills(db: AsyncSession = Depends(get_db)) -> SkillFeaturedListOut:
+    skills = (
+        await db.scalars(
+            select(Skill)
+            .where(Skill.is_featured.is_(True))
+            .order_by(Skill.name.asc())
+        )
+    ).all()
+    return SkillFeaturedListOut(items=[_skill_out(s) for s in skills])
 
 
 @router.get("/{skill_id}", response_model=SkillOut)
@@ -216,6 +231,22 @@ async def rate_skill(
         db, user=str(user.id), ref_id=skill.id, stars=body.stars
     )
     return SkillRatingOut(avg=avg, count=count, my_stars=my_stars)
+
+
+@router.post("/{skill_id}/feature", response_model=SkillOut)
+async def feature_skill(
+    skill_id: UUID,
+    body: SkillFeatureRequest,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_admin_api_key),
+) -> SkillOut:
+    skill = await db.scalar(select(Skill).where(Skill.id == skill_id))
+    if skill is None:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    skill.is_featured = bool(body.is_featured)
+    await db.flush()
+    await db.refresh(skill)
+    return _skill_out(skill)
 
 
 @router.post("/{skill_id}/fork", response_model=SkillOut, status_code=status.HTTP_201_CREATED)

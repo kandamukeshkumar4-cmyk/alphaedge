@@ -11,12 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.deps import get_current_user, get_optional_user
 from app.api.v1.launch_limits import check_user_run_allowed, harden_create_fields
 from app.core.config import get_settings
+from app.core.security import verify_admin_api_key
 from app.db.models import Scanner, ScannerRating, ScannerRun, User
 from app.db.session import get_db
 from app.schemas.scanners import (
     ScannerCompileOut,
     ScannerCompileRequest,
     ScannerCreate,
+    ScannerFeatureRequest,
+    ScannerFeaturedListOut,
     ScannerOut,
     ScannerRateRequest,
     ScannerRatingOut,
@@ -305,6 +308,20 @@ async def trending_scanners(
     )
 
 
+@router.get("/featured", response_model=ScannerFeaturedListOut)
+async def featured_scanners(
+    db: AsyncSession = Depends(get_db),
+) -> ScannerFeaturedListOut:
+    scanners = (
+        await db.scalars(
+            select(Scanner)
+            .where(Scanner.is_featured.is_(True))
+            .order_by(Scanner.name.asc())
+        )
+    ).all()
+    return ScannerFeaturedListOut(items=[_scanner_out(s) for s in scanners])
+
+
 async def _last_error_for(db: AsyncSession, scanner_id: UUID) -> str | None:
     failed = await db.scalar(
         select(ScannerRun)
@@ -538,6 +555,22 @@ async def rate_scanner(
         db, user=str(user.id), ref_id=scanner.id, stars=body.stars
     )
     return ScannerRatingOut(avg=avg, count=count, my_stars=my_stars)
+
+
+@router.post("/{scanner_id}/feature", response_model=ScannerOut)
+async def feature_scanner(
+    scanner_id: UUID,
+    body: ScannerFeatureRequest,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_admin_api_key),
+) -> ScannerOut:
+    scanner = await db.scalar(select(Scanner).where(Scanner.id == scanner_id))
+    if scanner is None:
+        raise HTTPException(status_code=404, detail="Scanner not found")
+    scanner.is_featured = bool(body.is_featured)
+    await db.flush()
+    await db.refresh(scanner)
+    return _scanner_out(scanner, latest_run=await _latest_run(db, scanner.id))
 
 
 @router.post("/{scanner_id}/fork", response_model=ScannerOut, status_code=status.HTTP_201_CREATED)

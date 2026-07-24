@@ -383,3 +383,101 @@ async def test_scanners_trending_uses_recent_runs(db_session):
     finally:
         await client.aclose()
         app.dependency_overrides.clear()
+
+
+# --- M4: featured ---
+
+ADMIN_HEADERS = {"X-Admin-API-Key": "dev-admin-key"}
+WRONG_ADMIN = {"X-Admin-API-Key": "wrong-key"}
+
+
+@pytest.mark.asyncio
+async def test_skills_featured_list_and_admin_toggle(db_session):
+    a = _skill(name="feat-a", is_featured=False, is_public=True)
+    b = _skill(name="feat-b", is_featured=False, is_public=True)
+    db_session.add_all([a, b])
+    await db_session.flush()
+
+    client = await _api_client(db_session)
+    try:
+        empty = await client.get("/api/v1/skills/featured")
+        assert empty.status_code == 200
+        assert empty.json()["items"] == []
+
+        denied = await client.post(
+            f"/api/v1/skills/{a.id}/feature",
+            headers=WRONG_ADMIN,
+            json={"is_featured": True},
+        )
+        assert denied.status_code == 401
+
+        unauth = await client.post(
+            f"/api/v1/skills/{a.id}/feature",
+            json={"is_featured": True},
+        )
+        assert unauth.status_code in (401, 422)
+
+        toggled = await client.post(
+            f"/api/v1/skills/{a.id}/feature",
+            headers=ADMIN_HEADERS,
+            json={"is_featured": True},
+        )
+        assert toggled.status_code == 200, toggled.text
+        assert toggled.json()["is_featured"] is True
+
+        listed = await client.get("/api/v1/skills/featured")
+        assert listed.status_code == 200
+        items = listed.json()["items"]
+        assert len(items) == 1
+        assert items[0]["id"] == str(a.id)
+        assert items[0]["is_featured"] is True
+
+        off = await client.post(
+            f"/api/v1/skills/{a.id}/feature",
+            headers=ADMIN_HEADERS,
+            json={"is_featured": False},
+        )
+        assert off.status_code == 200
+        assert off.json()["is_featured"] is False
+        assert (await client.get("/api/v1/skills/featured")).json()["items"] == []
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_scanners_featured_list_and_admin_toggle(db_session):
+    s = _scanner(name="feat-scan", is_featured=False, is_public=True)
+    db_session.add(s)
+    await db_session.flush()
+
+    client = await _api_client(db_session)
+    try:
+        empty = await client.get("/api/v1/scanners/featured")
+        assert empty.status_code == 200
+        assert empty.json()["items"] == []
+
+        denied = await client.post(
+            f"/api/v1/scanners/{s.id}/feature",
+            headers=WRONG_ADMIN,
+            json={"is_featured": True},
+        )
+        assert denied.status_code == 401
+
+        on = await client.post(
+            f"/api/v1/scanners/{s.id}/feature",
+            headers=ADMIN_HEADERS,
+            json={"is_featured": True},
+        )
+        assert on.status_code == 200, on.text
+        assert on.json()["is_featured"] is True
+
+        listed = await client.get("/api/v1/scanners/featured")
+        assert listed.status_code == 200
+        items = listed.json()["items"]
+        assert len(items) == 1
+        assert items[0]["name"] == "feat-scan"
+        assert items[0]["is_featured"] is True
+    finally:
+        await client.aclose()
+        app.dependency_overrides.clear()

@@ -93,6 +93,10 @@ class ScannerTrendingOut(ScannerOut):
     trending_score: float
 
 
+class ScannerFeatureRequest(BaseModel):
+    is_featured: bool
+
+
 class ScannerFeaturedListOut(BaseModel):
     items: list[ScannerOut]
 

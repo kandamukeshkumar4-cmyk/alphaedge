@@ -48,6 +48,10 @@ class SkillTrendingOut(SkillOut):
     trending_score: float
 
 
+class SkillFeatureRequest(BaseModel):
+    is_featured: bool
+
+
 class SkillFeaturedListOut(BaseModel):
     items: list[SkillOut]
 
