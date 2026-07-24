@@ -234,12 +234,16 @@ function isAbortError(err: unknown): boolean {
   return err instanceof Error && err.name === "AbortError";
 }
 
+/** Live fetch is capped so a stalled network can never pin the palette. */
+export const SEARCH_LIVE_TIMEOUT_MS = 4_000;
+
 /**
  * Command-palette market search (frozen V91 contract). Live-first; on any
- * live failure (network down, non-OK, legacy shape) falls back to the PAPER
- * mock catalog so the palette always answers. Blank query short-circuits to
- * an empty result without a network call. Abort errors are rethrown so the
- * caller can drop stale, superseded requests.
+ * live failure (network down, non-OK, timeout, legacy shape) falls back to
+ * the PAPER mock catalog so the palette always answers. Blank query
+ * short-circuits to an empty result without a network call. Caller aborts
+ * are rethrown so the palette can drop stale, superseded requests; the
+ * internal timeout abort degrades to the mock instead.
  */
 export async function searchMarkets(
   q: string,
@@ -253,18 +257,25 @@ export async function searchMarkets(
   const apiBase = await ensureApiBase();
   if (hasLiveApi(apiBase)) {
     const params = new URLSearchParams({ q: query, limit: String(clamped) });
+    const internal = new AbortController();
+    const onCallerAbort = () => internal.abort();
+    signal?.addEventListener("abort", onCallerAbort);
+    const timer = setTimeout(() => internal.abort(), SEARCH_LIVE_TIMEOUT_MS);
     try {
       const response = await fetch(`${apiUrl("/api/v1/search", apiBase)}?${params.toString()}`, {
         cache: "no-store",
-        signal,
+        signal: internal.signal,
       });
       if (response.ok) {
         const parsed = normalizeSearchResponse(await response.json(), query);
         return { ...parsed, source: "live" };
       }
     } catch (err) {
-      if (isAbortError(err)) throw err; // stale request — caller discards it
-      // anything else falls through to the paper mock
+      if (signal?.aborted && isAbortError(err)) throw err; // stale — caller discards
+      // timeout / network failure → fall through to the paper mock
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onCallerAbort);
     }
   }
   return { ...mockSearch(query, clamped), source: "mock" };

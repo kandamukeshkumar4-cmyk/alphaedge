@@ -61,7 +61,10 @@ export function SearchCommand() {
         aria-keyshortcuts="Control+K"
         title="Search markets"
         onClick={() => setOpen(true)}
-        className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-surface px-2.5 text-muted transition hover:border-border-light hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        // `relative z-10`: at 1280px the header row overflows and the nav's
+        // position-relative links paint over this cluster — stay on top so
+        // the trigger stays clickable (no layout impact).
+        className="relative z-10 flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-surface px-2.5 text-muted transition hover:border-border-light hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         <MagnifierIcon className="h-4 w-4" />
         {hint ? (
