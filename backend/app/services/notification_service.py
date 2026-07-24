@@ -150,7 +150,7 @@ async def create_notification_idempotent(
         session, user=key, type=type, link=clipped_link, now=now
     )
     if existing is not None:
-        return existing
+        return None
     return await create_notification(
         session,
         user=key,

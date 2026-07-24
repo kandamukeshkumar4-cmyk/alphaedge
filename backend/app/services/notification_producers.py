@@ -321,19 +321,11 @@ async def _already_notified(
     ntype: str,
     link: str,
 ) -> bool:
-    """Dedupe per user + market + event via type+link (no new tables)."""
-    from sqlalchemy import select
+    """Dedupe per (user, type, link) within 1h (V90 frozen contract)."""
+    from app.services.notification_service import recent_duplicate
 
-    from app.db.models import Notification
-
-    existing = await session.scalar(
-        select(Notification.id)
-        .where(
-            Notification.user == str(user_id),
-            Notification.type == ntype,
-            Notification.link == link,
-        )
-        .limit(1)
+    existing = await recent_duplicate(
+        session, user=user_id, type=ntype, link=link
     )
     return existing is not None
 
@@ -384,10 +376,11 @@ async def notify_watchers_forecast_locked(
                 row = await create_notification_best_effort(
                     user_id=user_id,
                     type=_FORECAST_LOCKED_TYPE,
-                    title=f"Forecast locked: {title_label}"[:256],
+                    title=f"Forecast locked: {title_label}"[:200],
                     body=body,
                     link=link,
                     session=db,
+                    idempotent=True,
                 )
                 if row is not None:
                     created += 1
@@ -403,6 +396,116 @@ async def notify_watchers_forecast_locked(
             return n
     except Exception:  # noqa: BLE001
         logger.warning("notify_watchers_forecast_locked failed", exc_info=True)
+        return 0
+
+
+async def notify_scanner_fired(
+    *,
+    scanner,
+    run,
+    market_slug: str,
+    title: str,
+    session=None,
+) -> int:
+    """Insert in-app rows for scanner owner + subscribers. Never raises."""
+    try:
+        from sqlalchemy import select
+
+        from app.db.models import Subscription
+        from app.db.session import AsyncSessionLocal
+        from app.services.notification_service import create_notification_idempotent
+
+        async def _run(db) -> int:
+            targets: list[str] = []
+            owner = getattr(scanner, "owner", None)
+            if owner:
+                targets.append(str(owner))
+            subs = (
+                await db.scalars(
+                    select(Subscription.user).where(
+                        Subscription.ref_type == "scanner",
+                        Subscription.ref_id == scanner.id,
+                    )
+                )
+            ).all()
+            for u in subs:
+                key = str(u)
+                if key not in targets:
+                    targets.append(key)
+            if not targets:
+                return 0
+            link = f"/scanners/{scanner.id}"
+            body = f"{title} on {market_slug}"[:1000]
+            created = 0
+            for user_key in targets:
+                row = await create_notification_idempotent(
+                    db,
+                    user=user_key,
+                    type="scanner:fired",
+                    title=str(title)[:200],
+                    body=body,
+                    link=link,
+                )
+                if row is not None:
+                    created += 1
+            return created
+
+        if session is not None:
+            return await _run(session)
+
+        async with AsyncSessionLocal() as own:
+            n = await _run(own)
+            if n:
+                await own.commit()
+            return n
+    except Exception:  # noqa: BLE001
+        logger.warning("notify_scanner_fired failed", exc_info=True)
+        return 0
+
+
+async def notify_watchers_brief_created(
+    *,
+    market_slug: str,
+    headline: str,
+    brief_id: UUID | None = None,
+    session=None,
+) -> int:
+    """Notify watchlist followers when an analyst brief is published. Never raises."""
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.services.notification_service import create_notification_idempotent
+
+        async def _run(db) -> int:
+            watchers = await _watchers_for_slug(db, market_slug)
+            if not watchers:
+                return 0
+            link = f"/markets/{market_slug}"
+            if brief_id is not None:
+                link = f"/markets/{market_slug}?brief={brief_id}"
+            created = 0
+            for user_id in watchers:
+                row = await create_notification_idempotent(
+                    db,
+                    user_id=user_id,
+                    type="brief",
+                    title=f"Brief: {headline}"[:200],
+                    body=str(headline)[:1000],
+                    link=link[:300],
+                )
+                if row is not None:
+                    created += 1
+            return created
+
+        if session is not None:
+            return await _run(session)
+
+        async with AsyncSessionLocal() as own:
+            n = await _run(own)
+            if n:
+                await own.commit()
+            return n
+    except Exception:  # noqa: BLE001
+        logger.warning("notify_watchers_brief_created failed", exc_info=True)
         return 0
 
 
@@ -506,8 +609,8 @@ async def mirror_alert_to_admin_notifications(
                 row = await create_notification(
                     session,
                     user_id=user.id,
-                    type=alert_type[:64],
-                    title=f"Ops: {alert_type}",
+                    type=alert_type[:24],
+                    title=f"Ops: {alert_type}"[:200],
                     body=message,
                     link=(payload or {}).get("link"),
                 )

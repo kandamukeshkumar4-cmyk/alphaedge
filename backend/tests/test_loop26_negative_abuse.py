@@ -93,7 +93,7 @@ async def test_z4_idor_notifications_cross_user(db_session):
             f"/api/v1/notifications/{row.id}/read",
             headers=_auth(token_a),
         )
-        assert own.status_code == 200
+        assert own.status_code == 204
 
 
 @pytest.mark.asyncio
