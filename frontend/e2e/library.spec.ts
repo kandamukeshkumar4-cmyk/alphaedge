@@ -123,15 +123,13 @@ async function routeLibrary(
   options?: {
     failed?: SourceName[];
     empty?: boolean;
-    delayMs?: number;
+    waitForRelease?: Promise<void>;
   },
 ) {
   const failed = new Set(options?.failed ?? []);
   for (const source of Object.keys(SOURCE_PATTERNS) as SourceName[]) {
     await page.route(SOURCE_PATTERNS[source], async (route) => {
-      if (options?.delayMs) {
-        await new Promise((resolve) => setTimeout(resolve, options.delayMs));
-      }
+      if (options?.waitForRelease) await options.waitForRelease;
       if (failed.has(source)) {
         await fulfillJson(route, { detail: "unavailable" }, 503);
         return;
@@ -161,11 +159,16 @@ test.describe("Loop 104 live research library", () => {
 
   test("live artifacts load without substitution and remain filterable", async ({ page }) => {
     const errors = collectConsoleErrors(page);
-    await routeLibrary(page, { delayMs: 350 });
+    let releaseReads: () => void = () => {};
+    const readsReleased = new Promise<void>((resolve) => {
+      releaseReads = resolve;
+    });
+    await routeLibrary(page, { waitForRelease: readsReleased });
     await page.goto("/library", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await dismissOnboardingIfPresent(page);
 
     await expect(page.getByTestId("library-loading")).toBeVisible();
+    releaseReads();
     await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
     await expect(page.getByText("5 of 5 live sources responded.")).toBeVisible();
     await expect(page.getByTestId("library-card")).toHaveCount(6);

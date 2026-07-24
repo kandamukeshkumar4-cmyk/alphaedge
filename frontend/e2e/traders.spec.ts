@@ -51,9 +51,9 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function routeTraderReads(page: Page, delayMs = 0) {
+async function routeTraderReads(page: Page, waitForRelease?: Promise<void>) {
   await page.route("**/api/v1/leaderboard**", async (route) => {
-    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (waitForRelease) await waitForRelease;
     const url = route.request().url();
     const sort = new URL(url).searchParams.get("sort") ?? "realized_pnl";
     await fulfillJson(route, {
@@ -98,11 +98,16 @@ test.describe("Loop 104 live trader surfaces", () => {
     page,
   }) => {
     const errors = collectConsoleErrors(page);
-    await routeTraderReads(page, 350);
+    let releaseReads: () => void = () => {};
+    const readsReleased = new Promise<void>((resolve) => {
+      releaseReads = resolve;
+    });
+    await routeTraderReads(page, readsReleased);
     await page.goto("/traders", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await dismissOnboardingIfPresent(page);
 
     await expect(page.getByTestId("traders-loading")).toBeVisible();
+    releaseReads();
     await expect(page.getByRole("heading", { name: "Traders, with receipts" })).toBeVisible();
     await expect(page.getByTestId("trader-row")).toHaveCount(3);
     await expect(page.getByText("Ranked #1 by realized paper p&l", { exact: false })).toBeVisible();
