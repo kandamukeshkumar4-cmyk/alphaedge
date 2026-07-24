@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -88,23 +88,39 @@ _VALID_SORTS = {"volume", "traders", "newest", "active"}
 
 @router.get("/markets", response_model=list[MarketResponse])
 async def list_markets(
+    response: Response,
     category: str | None = None,
     sort: str = "volume",
     q: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ):
     if category is not None and category not in _VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category filter")
     if sort not in _VALID_SORTS:
         raise HTTPException(status_code=400, detail="Invalid sort parameter")
-    key = (category, sort, q)
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset must be >= 0")
+    key = (category, sort, q, limit, offset)
     cached = markets_cache.get(key)
     if cached is not None:
-        return cached
+        rows, total = cached
+        response.headers["X-Total-Count"] = str(total)
+        response.headers["X-Page-Limit"] = str(limit)
+        response.headers["X-Page-Offset"] = str(offset)
+        return rows
     svc = MarketService(db)
-    result = await svc.list_public_markets(category=category, sort=sort, q=q)
-    markets_cache.put(key, result)
-    return result
+    rows, total = await svc.list_public_markets(
+        category=category, sort=sort, q=q, limit=limit, offset=offset
+    )
+    markets_cache.put(key, (rows, total))
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Page-Limit"] = str(limit)
+    response.headers["X-Page-Offset"] = str(offset)
+    return rows
 
 
 @router.get("/search", response_model=list[UnifiedMarketSearchResult])
