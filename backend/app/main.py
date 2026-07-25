@@ -624,6 +624,55 @@ async def _forecast_autolock_loop() -> None:
             )
 
 
+async def _prediction_writer_loop() -> None:
+    """Loop107: the production writer for ``prediction_logs`` (in-process mirror
+    of ``cron(prediction_writer_task, minute={5, 35})``; prod has no ARQ worker).
+
+    Boot catch-up FIRST (never sleep-first): the task is idempotent per (market,
+    recency window), so a restart re-runs it safely instead of leaving the eight
+    PredictionLog readers empty for a whole cadence. Bounded top-N OPEN markets
+    per pass; pure quant, no LLM."""
+    from app.services.prediction_writer import prediction_writer_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        if summary.get("skipped"):
+            return str(summary.get("reason"))
+        return (
+            f"candidates={summary.get('candidates')} "
+            f"written={summary.get('written')} "
+            f"recent={summary.get('skipped_recent')} "
+            f"no_price={summary.get('skipped_no_market_price')}"
+        )
+
+    try:
+        record_heartbeat(
+            "prediction_writer", detail=_detail(await prediction_writer_task({}))
+        )
+    except Exception:
+        logger.error("Prediction writer boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "prediction_writer",
+            status="error",
+            detail="prediction writer boot catch-up failed",
+        )
+
+    while True:
+        await _paced_sleep(1800, settings.scheduler_idle_interval_sec)
+        try:
+            record_heartbeat(
+                "prediction_writer", detail=_detail(await prediction_writer_task({}))
+            )
+        except Exception:
+            logger.error("Prediction writer loop failed", exc_info=True)
+            record_heartbeat(
+                "prediction_writer",
+                status="error",
+                detail="prediction writer pass failed",
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -837,6 +886,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_external_market_bridge_loop())
     if settings.scheduler_external_autolock_enabled:
         asyncio.create_task(_forecast_autolock_loop())
+    if settings.scheduler_prediction_writer_enabled:
+        asyncio.create_task(_prediction_writer_loop())
     if settings.scheduler_drift_detect_enabled:
         asyncio.create_task(_drift_detect_loop())
     if settings.scheduler_ops_alerts_enabled:

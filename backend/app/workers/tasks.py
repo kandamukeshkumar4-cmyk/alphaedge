@@ -25,6 +25,7 @@ from app.workers.model_retrain import model_retrain_task
 from app.workers.external_market_bridge import external_market_bridge_task
 from app.workers.catalog_market_resolver import catalog_market_resolve_task
 from app.workers.forecast_autolock import forecast_autolock_task
+from app.services.prediction_writer import prediction_writer_task
 from app.workers.daily_digest import daily_digest_task
 from app.workers.jobrun_retention import jobrun_retention_task
 from app.workers.data_retention import data_retention_task
@@ -1292,6 +1293,7 @@ class WorkerSettings:
         model_retrain_task,
         external_market_bridge_task,
         forecast_autolock_task,
+        prediction_writer_task,
         daily_digest_task,
         send_notification_digest_task,
         jobrun_retention_task,
@@ -1319,6 +1321,10 @@ class WorkerSettings:
         cron(external_market_bridge_task, minute={20, 50}),
         # V16 V4: lock model forecasts pre-close so later venue resolution can grade them
         cron(forecast_autolock_task, minute={0, 30}),
+        # Loop107: the production writer for prediction_logs. Runs 5 min after
+        # the autolock pass so a freshly locked market is already on the books;
+        # idempotent per (market, 30-min window), so overlap is harmless.
+        cron(prediction_writer_task, minute={5, 35}),
         # weekly whale re-qualification (Mon 03:00); position snapshots every 3 min
         cron(refresh_whales_task, weekday={0}, hour={3}, minute={0}),
         cron(snapshot_whale_positions_task, minute=set(range(0, 60, 3))),
