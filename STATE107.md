@@ -169,7 +169,32 @@ unverified edit).
 
 ### `cd backend && uv run --extra dev pytest -q --basetemp=E:/polymarket-worktrees/loop107-predwriter/.ptf`
 
-FULL_SUITE_PLACEHOLDER
+**Deferred to the orchestrator by instruction.** The first full-suite run on
+this worktree died in `pytest_sessionfinish` with `OSError: [Errno 28] No space
+left on device` — the E: volume is at 0 bytes free (~85 sibling worktrees, each
+with its own `.venv`); this is a pre-existing environment condition, and other
+worktrees are out of charter so no space was reclaimed. That run reported 3
+failed / 7 errors; re-running exactly those with `--lf` produced:
+
+```
+1 failed, 9 passed in 73.35s (0:01:13)
+```
+
+i.e. 9 of the 10 were disk-full artefacts, and the single genuine regression was
+`test_loop105_caller_limits.py::test_opportunities_candidate_pool_not_truncated_by_default_limit`
+(`assert 0 == 20`), caused by the new default `signal_only` gate. It was fixed
+in `bbbd808` by seeding the validator PASS verdict the test implicitly relied on
+(assertions unchanged) and re-verified together with the other opportunity-path
+suites:
+
+```
+.............ssssssssssss                                                [100%]
+13 passed, 12 skipped in 19.95s
+```
+
+A clean full-suite line is NOT claimed here. Per the coordinator's instruction
+the orchestrator runs the full backend suite separately; I did not re-run it
+after the audit fixes.
 
 ## 8. Commits
 
