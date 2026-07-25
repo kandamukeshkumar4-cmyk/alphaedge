@@ -1,0 +1,31 @@
+You are a junior engineer on AlphaEdge (paper-trading prediction-market SIMULATION).
+Work directory: E:/polymarket-worktrees/loop108-ensemble — cd there FIRST and stay there.
+ONE bounded task. Do exactly this, nothing else. No refactors, no reformatting, no other files.
+If unclear, STOP and write the question into STATE108-ENSEMBLE.md instead of guessing.
+
+CONTEXT: frontend/src/app/eval/page.tsx line ~74 fetches `${API}/api/v1/ensemble/autolab`. That
+endpoint returns 404 in production (it does not exist yet). The section (data-testid
+"ensemble-autolab-section", ~line 110) must not render hollow zeros or a broken state — it must
+say honestly that this measurement does not exist yet.
+
+TASK: in frontend/src/app/eval/page.tsx ONLY:
+1. Read the file first. Find how the autolab fetch result is stored and how the section renders.
+2. Make the failure path explicit: when the fetch rejects OR returns non-ok (404 included), set the
+   state to a distinct "unavailable" value (e.g. null vs undefined distinction, or a small
+   {status:"unavailable"} object — follow whatever pattern the file already uses for other fetches).
+3. In the ensemble-autolab-section, when unavailable, render exactly this text inside the section:
+     "Ensemble AutoLab: not yet measured. This section will populate when the ensemble evaluation
+      pipeline ships."
+   Keep it plain DOM text (screen-reader readable). Keep the section and its data-testid present.
+   Do NOT invent numbers, placeholders that look like data, or a fake chart.
+4. Do NOT change any other section, fetch, or number on the page.
+5. Verify (FOREGROUND, wait):
+     cd frontend && npm run typecheck
+     cd frontend && npm run lint
+6. Write STATE108-ENSEMBLE.md: your git diff, then the LITERAL verbatim last lines of typecheck and
+   lint. Paste exactly; never summarize tool output.
+7. Commit: git add -A && git commit -m "fix(loop108): honest not-yet-measured state for ensemble autolab"
+
+RULES: no secrets, no push, no deploy, no new dependencies. Only frontend/src/app/eval/page.tsx and
+STATE108-ENSEMBLE.md may change. Two failures on the same command -> stop and record the error
+verbatim in STATE108-ENSEMBLE.md.

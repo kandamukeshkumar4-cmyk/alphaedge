@@ -1,0 +1,24 @@
+[0m
+> build · nemotron-3-ultra-free
+[0m
+[0m→ [0mRead frontend/src/app/eval/page.tsx
+Now I understand the current implementation. The fetch already handles 404 by returning `notRun`, but the task wants a distinct "unavailable" state with specific text. Let me make the changes.
+[0m
+[0m← [0mEdit frontend/src/app/eval/page.tsx
+Index: E:\polymarket-worktrees\loop108-ensemble\frontend\src\app\eval\page.tsx
+===================================================================
+--- E:\polymarket-worktrees\loop108-ensemble\frontend\src\app\eval\page.tsx
++++ E:\polymarket-worktrees\loop108-ensemble\frontend\src\app\eval\page.tsx
+@@ -30,9 +30,9 @@
+ 
+ // U08 — AutoLab measurement result from /api/v1/ensemble/autolab
+ type AutoLabMeasurement = {
+   ensemble_enabled: boolean;
+-  outcome: "insufficient_data" | "measured" | "not_run";
++  outcome: "insufficient_data" | "measured" | "not_run" | "unavailable";
+   baseline_brier: number | null;
+   ensemble_brier: number | null;
+   n_samples: number;
+   notes: string;
+
+[0m
