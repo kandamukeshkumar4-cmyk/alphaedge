@@ -58,6 +58,8 @@ _ALL_LOOPS: tuple[str, ...] = (
     "catalog_market_resolve",
     "external_market_bridge",
     "forecast_autolock",
+    "prediction_writer",
+    "generic_artifact_retrain",
     "drift_detect",
     "ops_alerts",
     "portfolio_equity",

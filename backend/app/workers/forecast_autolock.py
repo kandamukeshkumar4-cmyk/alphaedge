@@ -123,6 +123,13 @@ async def autolock_forecasts(
     locked = skipped = errors = 0
     forecaster: Forecaster | None = None
     service = ForecastService(session, correlation_id="worker:forecast-autolock")
+    from app.forecasting.generic_artifact import (
+        hours_to_resolution,
+        load_active_generic_artifact,
+    )
+
+    # ACTIVE generic artifact only. Inactive registry rows are never loaded.
+    active_artifact = await load_active_generic_artifact(session)
     for market in markets:
         try:
             adapter_snapshot = get_adapter(market.platform).fetch_snapshot(
@@ -137,10 +144,25 @@ async def autolock_forecasts(
                 skipped += 1
                 continue
 
-            prediction = ForecastService.predict(
-                market.external_id,
-                implied_yes=float(implied),
+            ttr_hours = hours_to_resolution(close_or_lock_at=market.close_at, now=now)
+            category = (
+                market.category.strip()
+                if isinstance(market.category, str) and market.category.strip()
+                else None
             )
+            if active_artifact is None:
+                prediction = ForecastService.predict(
+                    market.external_id,
+                    implied_yes=float(implied),
+                )
+            else:
+                prediction = ForecastService.predict(
+                    market.external_id,
+                    implied_yes=float(implied),
+                    artifact=active_artifact,
+                    category=category,
+                    time_to_resolution_hours=ttr_hours,
+                )
             if prediction is None:
                 skipped += 1
                 continue

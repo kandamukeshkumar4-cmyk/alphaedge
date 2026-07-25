@@ -22,8 +22,18 @@ from app.db.models import (
 )
 from app.events.bus import DomainEventBus
 from app.forecasting import scoring
+from app.forecasting.generic_artifact import (
+    ActiveGenericArtifact,
+    fill_locktime_predict_features,
+    inject_artifact_paths,
+    load_active_generic_artifact,
+)
 from app.forecasting.market_source import get_adapter
-from app.forecasting.predictor import ForecastPrediction, predict_market
+from app.forecasting.predictor import (
+    PRODUCER_ARTIFACT,
+    ForecastPrediction,
+    predict_market,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +46,8 @@ class ForecastProvenance:
     ``artifact_digest``/``model_version`` stay None whenever the model registry
     could not supply them, which is the honest record and is counted rather than
     filled in. ``model_type`` names the *producing* path (see predictor
-    PRODUCER_* constants), not ``settings.ml_model_type`` — today's lock path
-    supplies no artifact, so no ML model runs and stamping "xgboost" here would
-    be a fabrication.
+    PRODUCER_* constants), not ``settings.ml_model_type`` — stamping an ML type
+    when no artifact ran would be a fabrication.
     """
 
     model_type: str | None = None
@@ -90,8 +99,22 @@ class ForecastService:
         self.events = DomainEventBus(session, correlation_id)
 
     @staticmethod
-    def predict(slug: str, implied_yes: float = 0.5) -> MarketDetailForecastResult | None:
-        """Return a paper forecast for catalog markets when the predictor is available."""
+    def predict(
+        slug: str,
+        implied_yes: float = 0.5,
+        *,
+        artifact: ActiveGenericArtifact | None = None,
+        category: str | None = None,
+        time_to_resolution_hours: float | None = None,
+    ) -> MarketDetailForecastResult | None:
+        """Return a paper forecast for catalog markets when the predictor is available.
+
+        When ``artifact`` is supplied and every lock-time feature column can be
+        filled, paths are injected and ``producer=artifact``. Missing any feature
+        → paths are omitted → implied passthrough (never invent a fill value).
+        Inactive artifacts must not be passed here (callers load via
+        ``load_active_generic_artifact`` only).
+        """
         # The exact payload handed to the predictor, captured before the call so
         # the provenance records what was actually sent rather than a rebuild.
         features: dict[str, object] = {
@@ -99,6 +122,31 @@ class ForecastService:
             "implied_yes": implied_yes,
             "market_implied": implied_yes,
         }
+        used_artifact: ActiveGenericArtifact | None = None
+        if artifact is not None:
+            missing = fill_locktime_predict_features(
+                features,
+                artifact,
+                implied_yes=implied_yes,
+                category=category,
+                time_to_resolution_hours=time_to_resolution_hours,
+            )
+            if not missing:
+                inject_artifact_paths(features, artifact)
+                used_artifact = artifact
+            else:
+                # Incomplete lock-time features → strip any partial fills and
+                # leave the original three-key passthrough payload intact.
+                features = {
+                    "market_slug": slug,
+                    "implied_yes": implied_yes,
+                    "market_implied": implied_yes,
+                }
+                logger.info(
+                    "ForecastService.predict passthrough for %s: missing features %s",
+                    slug,
+                    missing,
+                )
         try:
             prediction = predict_market(features)
         except Exception:
@@ -113,26 +161,52 @@ class ForecastService:
             model_prob=round(prediction.predicted_prob, 4),
             clv_gate_passed=clv_gate_passed,
             provisional=not clv_gate_passed,
-            provenance=ForecastService._provenance(prediction, features),
+            provenance=ForecastService._provenance(
+                prediction, features, artifact=used_artifact
+            ),
+        )
+
+    @staticmethod
+    async def predict_with_registry(
+        session: AsyncSession,
+        slug: str,
+        implied_yes: float = 0.5,
+        *,
+        category: str | None = None,
+        time_to_resolution_hours: float | None = None,
+    ) -> MarketDetailForecastResult | None:
+        """Load the ACTIVE generic artifact (if any) then ``predict``."""
+        artifact = await load_active_generic_artifact(session)
+        return ForecastService.predict(
+            slug,
+            implied_yes=implied_yes,
+            artifact=artifact,
+            category=category,
+            time_to_resolution_hours=time_to_resolution_hours,
         )
 
     @staticmethod
     def _provenance(
-        prediction: ForecastPrediction, features: Mapping[str, object]
+        prediction: ForecastPrediction,
+        features: Mapping[str, object],
+        *,
+        artifact: ActiveGenericArtifact | None = None,
     ) -> ForecastProvenance:
         """Describe the producing model without ever inventing an identifier.
 
-        The registry is not consulted by the lock path today: no caller supplies
-        ``model_artifact_path``, so ``predict_market`` loads no artifact and
-        there is no digest or version to read. Those stay None and are counted
-        by the A/B preflight (V56 P3) instead of being filled from
-        ``settings.ml_model_type``, which would attribute a market-implied
-        passthrough to a model that never ran.
+        Digest/version are stamped only when the artifact path actually ran
+        (``producer=artifact`` and a bundle was injected). Passthrough leaves
+        them None so the A/B preflight can count honest unknowns.
         """
+        model_version = None
+        digest = None
+        if artifact is not None and prediction.producer == PRODUCER_ARTIFACT:
+            model_version = artifact.model_version
+            digest = artifact.artifact_digest
         return ForecastProvenance(
             model_type=prediction.producer,
-            model_version=None,
-            artifact_digest=None,
+            model_version=model_version,
+            artifact_digest=digest,
             feature_schema_digest=feature_schema_digest(features),
             feature_payload={key: _jsonable(value) for key, value in features.items()},
         )

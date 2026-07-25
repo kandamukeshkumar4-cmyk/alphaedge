@@ -41,6 +41,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import JobRun, Market, MarketStatus, OddsSnapshot, PredictionLog
+from app.forecasting.generic_artifact import (
+    hours_to_resolution,
+    load_active_generic_artifact,
+)
 from app.services.forecast_service import ForecastService
 
 logger = logging.getLogger(__name__)
@@ -165,6 +169,10 @@ async def write_model_predictions(
         session, [market.slug for market in tradeable], cutoff
     )
 
+    # Load ACTIVE generic artifact once per pass. Inactive / missing → None →
+    # ForecastService falls through to implied passthrough per market.
+    active_artifact = await load_active_generic_artifact(session)
+
     for market in tradeable:
         if market.slug in recent:
             funnel["skipped_recent"] += 1
@@ -180,7 +188,22 @@ async def write_model_predictions(
                 funnel["skipped_no_market_price"] += 1
                 continue
 
-            prediction = ForecastService.predict(market.slug, implied_yes=implied)
+            ttr_hours = hours_to_resolution(close_or_lock_at=market.lock_at, now=now)
+            category = (
+                market.category.strip()
+                if isinstance(market.category, str) and market.category.strip()
+                else None
+            )
+            if active_artifact is None:
+                prediction = ForecastService.predict(market.slug, implied_yes=implied)
+            else:
+                prediction = ForecastService.predict(
+                    market.slug,
+                    implied_yes=implied,
+                    artifact=active_artifact,
+                    category=category,
+                    time_to_resolution_hours=ttr_hours,
+                )
             if prediction is None:
                 funnel["errors"] += 1
                 continue

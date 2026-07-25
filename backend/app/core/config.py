@@ -597,6 +597,19 @@ class Settings(BaseSettings):
     # Registers via D1 but NEVER auto-activates (human decision / E06).
     ml_retrain_enabled: bool = Field(default=False, alias="ML_RETRAIN_ENABLED")
     ml_retrain_min_rows: int = Field(default=20, alias="ML_RETRAIN_MIN_ROWS")
+    # Loop110 — weekly generic-logistic artifact retrain on forecast_scores.
+    # DEFAULT-ON by design: accrue INACTIVE registry rows for human activation.
+    # Dual-wired; always registers with activate=False (never auto-activates).
+    # Per-run writes are bounded by weekly cadence + single-flight + min_rows.
+    scheduler_generic_artifact_retrain_enabled: bool = Field(
+        default=True, alias="SCHEDULER_GENERIC_ARTIFACT_RETRAIN_ENABLED"
+    )
+    generic_artifact_retrain_min_rows: int = Field(
+        default=20, alias="GENERIC_ARTIFACT_RETRAIN_MIN_ROWS"
+    )
+    generic_artifact_min_category_count: int = Field(
+        default=5, alias="GENERIC_ARTIFACT_MIN_CATEGORY_COUNT"
+    )
     # Backtest replay nightly job (U10) — OFF by default.
     # When enabled, runs a nightly replay on configured market slugs and publishes
     # results to backtest_runs for the track record.
