@@ -115,6 +115,27 @@ async def _top_signal(db: AsyncSession, slug: str) -> dict[str, Any] | None:
     }
 
 
+def _opportunities_empty_reason(
+    funnel: dict[str, int],
+    dir_filter: str | None,
+    min_liquidity: int,
+) -> str | None:
+    """Machine-stable reason when count==0; None when rows returned."""
+    if funnel["returned"] > 0:
+        return None
+    if funnel["candidates_open"] == 0:
+        return "no_open_candidates"
+    if funnel["with_model_p"] == 0:
+        return "no_model_predictions"
+    if funnel["with_market_p"] == 0:
+        return "no_market_prices"
+    if funnel["after_min_liquidity"] == 0 and min_liquidity > 0:
+        return "filtered_by_min_liquidity"
+    if funnel["after_direction"] == 0 and dir_filter is not None:
+        return "filtered_by_direction"
+    return "no_rankable_edges"
+
+
 @router.get("/opportunities")
 async def get_opportunities(
     request: Request,
@@ -147,6 +168,21 @@ async def get_opportunities(
         if getattr(m.status, "value", str(m.status)).lower() == "open"
     ][:_MAX_CANDIDATES]
 
+    # DIAGNOSIS106-OPPS: real funnel counts so an honest empty is EXPLAINABLE
+    # (where candidates fall out of the pipeline). Response-computed only —
+    # nothing persisted, zero migrations. Empty stays a valid outcome; this
+    # only names WHY it is empty.
+    funnel = {
+        "candidates_scanned": 0,
+        "candidates_open": 0,
+        "with_model_p": 0,
+        "with_market_p": 0,
+        "after_min_liquidity": 0,
+        "after_direction": 0,
+        "returned": 0,
+    }
+    funnel["candidates_open"] = len(candidates)
+
     slugs = [m.slug for m in candidates]
     model_probs = await _latest_model_probs(db, slugs)
 
@@ -155,19 +191,23 @@ async def get_opportunities(
         model_p = model_probs.get(m.slug)
         if model_p is None:
             continue  # honest exclusion — no model probability, never faked
-        liquidity = int(m.volume or 0)
-        if liquidity < min_liquidity:
-            continue
+        funnel["with_model_p"] += 1
         book = await OrderBookService(db).get_l2(m.id, depth=10)
         market_p = _book_reference_price(book)
         if market_p is None:
             market_p = m.yes_price  # fall back to the odds-snapshot yes_price
         if market_p is None:
             continue  # no market price → no edge to rank; honest exclusion
+        funnel["with_market_p"] += 1
+        liquidity = int(m.volume or 0)
+        if liquidity < min_liquidity:
+            continue
+        funnel["after_min_liquidity"] += 1
         edge = round(abs(model_p - market_p), 4)
         row_direction = "YES" if model_p > market_p else "NO"
         if dir_filter is not None and row_direction != dir_filter:
             continue
+        funnel["after_direction"] += 1
         rows.append(
             {
                 "slug": m.slug,
@@ -185,6 +225,7 @@ async def get_opportunities(
     # stable deterministic order.
     rows.sort(key=lambda r: (-r["edge"], -r["liquidity"], r["slug"]))
     rows = rows[:limit]
+    funnel["returned"] = len(rows)
 
     # Perf (V12 Q02): the top_signal lookup is one query per market and does NOT
     # affect ranking, so resolve it ONLY for the ≤limit rows we actually return
@@ -192,12 +233,17 @@ async def get_opportunities(
     for row in rows:
         row["top_signal"] = await _top_signal(db, row["slug"])
 
+    # UNVERIFIED / deferred: the plan's OPTIONAL read-only alpha context field
+    # (alpha_model_edge_valid) is intentionally NOT added this ticket —
+    # funnel-only keeps this public GET free of new latency / dependency risk.
     response: dict[str, Any] = {
         "opportunities": rows,
         "count": len(rows),
         "limit": limit,
         "min_liquidity": min_liquidity,
         "direction": dir_filter,
+        "funnel": funnel,
+        "empty_reason": _opportunities_empty_reason(funnel, dir_filter, min_liquidity),
         "paper_trading_only": settings.paper_trading_only,
         "signal_only": True,
         "disclaimer": OPPORTUNITIES_DISCLAIMER,
