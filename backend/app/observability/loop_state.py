@@ -46,6 +46,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "catalog_market_resolve": 900,
     "external_market_bridge": 900,
     "forecast_autolock": 900,
+    "prediction_writer": 1800,  # _paced_sleep(1800, ...)
     "drift_detect": 3600,
     "ops_alerts": 900,
     "portfolio_equity": 21600,

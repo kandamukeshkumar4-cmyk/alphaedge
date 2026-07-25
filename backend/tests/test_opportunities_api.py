@@ -10,9 +10,11 @@ from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import func, select
 
 from app.core import opportunities_cache
 from app.db.models import (
+    AlphaRun,
     Market,
     MarketStatus,
     OddsSnapshot,
@@ -82,7 +84,38 @@ async def _add_market(
     await db_session.flush()
 
 
+async def _seed_validator_verdict(db_session, *, valid: bool, t_stat: float) -> None:
+    """Persist an alpha validator report exactly as ``AlphaRunService`` writes it.
+
+    Loop107: the opportunity board reads this verdict — it never recomputes the
+    statistics. Tests that exercise ranking/filtering seed the VALID branch so
+    the ranking contract stays covered; the gate tests seed the rejecting branch
+    (or nothing at all) that production actually reports today.
+    """
+    db_session.add(
+        AlphaRun(
+            run_date=datetime.now(UTC).date(),
+            status="genuine_edge" if valid else "no_signal",
+            result={
+                "validations": [
+                    {
+                        "name": "model_edge",
+                        "valid": valid,
+                        "t_stat": t_stat,
+                        "reason": None if valid else "insufficient_oos_edge",
+                    }
+                ]
+            },
+            rejection_reasons=[],
+        )
+    )
+    await db_session.flush()
+
+
 async def _seed(db_session) -> None:
+    # The ranking/filter contract below is about ordering, not about whether the
+    # family is validated — so seed the validator's PASS branch explicitly.
+    await _seed_validator_verdict(db_session, valid=True, t_stat=3.4)
     # edge 0.30, YES lean, high liquidity
     await _add_market(db_session, "big-edge", volume=5000, model_p=0.80, yes_price=0.50)
     # edge 0.05, YES lean
@@ -235,6 +268,7 @@ async def test_funnel_counts_with_seeded_edges(db_session):
 async def test_empty_reason_filtered_by_min_liquidity(db_session):
     # One open market WITH model + price but tiny volume: the empty is the
     # liquidity floor, and the funnel proves the row existed before the floor.
+    await _seed_validator_verdict(db_session, valid=True, t_stat=3.4)
     await _add_market(db_session, "liq-only", volume=100, model_p=0.90, yes_price=0.50)
     r = await _get("/api/v1/opportunities?min_liquidity=1000")
     assert r.status_code == 200
@@ -248,6 +282,7 @@ async def test_empty_reason_filtered_by_min_liquidity(db_session):
 @pytest.mark.asyncio
 async def test_empty_reason_filtered_by_direction(db_session):
     # Only YES-lean edges seeded → asking for NO leans empties the list.
+    await _seed_validator_verdict(db_session, valid=True, t_stat=3.4)
     await _add_market(db_session, "yes-lean", volume=5000, model_p=0.80, yes_price=0.50)
     r = await _get("/api/v1/opportunities?direction=NO")
     assert r.status_code == 200
@@ -310,3 +345,89 @@ async def test_top_signal_resolved_only_for_returned_rows(db_session, monkeypatc
     assert len(rows) == 2
     assert calls == [row["slug"] for row in rows]
     assert len(calls) == 2
+
+
+# Loop107 CLV gate: an edge is NEVER presented as validated until the alpha
+# validator's report says the factor family beat the closing line out-of-sample.
+# The board being empty is the correct outcome, not a bug to work around.
+
+
+@pytest.mark.asyncio
+async def test_signal_only_true_blocks_unvalidated_edges_even_with_predictions(
+    db_session,
+):
+    # Production's actual state: the validator REJECTS model_edge (t=-3.19).
+    await _seed_validator_verdict(db_session, valid=False, t_stat=-3.19)
+    await _add_market(db_session, "big-edge", volume=5000, model_p=0.80, yes_price=0.50)
+    await _add_market(db_session, "no-lean", volume=3000, model_p=0.30, yes_price=0.50)
+
+    r = await _get("/api/v1/opportunities")
+    assert r.status_code == 200
+    body = r.json()
+    # Model probabilities EXIST — the writer did its job — and the board is
+    # still empty because the edge is not validated.
+    assert body["funnel"]["with_model_p"] == 2
+    assert body["funnel"]["with_market_p"] == 2
+    assert body["opportunities"] == []
+    assert body["count"] == 0
+    assert body["signal_only"] is True
+    assert body["validated"] is False
+    assert body["validated_factor_family"] == "model_edge"
+
+
+@pytest.mark.asyncio
+async def test_after_signal_gate_counter_and_no_validated_edge_reason(db_session):
+    await _seed_validator_verdict(db_session, valid=False, t_stat=-3.19)
+    await _add_market(db_session, "big-edge", volume=5000, model_p=0.80, yes_price=0.50)
+
+    r = await _get("/api/v1/opportunities")
+    body = r.json()
+    funnel = body["funnel"]
+    assert funnel["with_model_p"] > 0
+    assert funnel["after_signal_gate"] == 0
+    assert funnel["returned"] == 0
+    assert body["empty_reason"] == "no_validated_edge"
+
+
+@pytest.mark.asyncio
+async def test_no_alpha_runs_at_all_yields_no_validated_edge(db_session):
+    """AUDIT107 fix 2: ZERO validator reports — not a rejecting one.
+
+    Predictions and market prices both exist, so the board could rank rows; the
+    only thing missing is validation evidence. Absence of evidence is not
+    evidence of an edge, so the gate stays shut.
+    """
+    # Deliberately NO AlphaRun row is seeded here.
+    assert (await db_session.execute(select(func.count()).select_from(AlphaRun))).scalar() == 0
+    await _add_market(db_session, "big-edge", volume=5000, model_p=0.80, yes_price=0.50)
+    await _add_market(db_session, "no-lean", volume=3000, model_p=0.30, yes_price=0.50)
+
+    r = await _get("/api/v1/opportunities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["signal_only"] is True
+    assert body["validated"] is False
+    assert body["opportunities"] == []
+    assert body["count"] == 0
+    assert body["funnel"]["with_model_p"] == 2
+    assert body["funnel"]["with_market_p"] == 2
+    assert body["funnel"]["after_signal_gate"] == 0
+    assert body["empty_reason"] == "no_validated_edge"
+
+
+@pytest.mark.asyncio
+async def test_signal_only_false_rows_carry_validated_false_marker(db_session):
+    await _seed_validator_verdict(db_session, valid=False, t_stat=-3.19)
+    await _add_market(db_session, "big-edge", volume=5000, model_p=0.80, yes_price=0.50)
+    await _add_market(db_session, "no-lean", volume=3000, model_p=0.30, yes_price=0.50)
+
+    r = await _get("/api/v1/opportunities?signal_only=false")
+    assert r.status_code == 200
+    body = r.json()
+    rows = body["opportunities"]
+    # Raw gaps are visible for inspection ONLY because they are labelled.
+    assert [row["slug"] for row in rows] == ["big-edge", "no-lean"]
+    assert body["signal_only"] is False
+    assert body["validated"] is False
+    assert all(row["validated"] is False for row in rows)
+    assert body["funnel"]["after_signal_gate"] == 2

@@ -188,6 +188,15 @@ class Settings(BaseSettings):
     scheduler_data_retention_enabled: bool = Field(
         default=True, alias="SCHEDULER_DATA_RETENTION_ENABLED"
     )
+    # Loop107: the production writer for prediction_logs (dual-wired in-process
+    # loop + ARQ cron). Bounded top-N OPEN markets per pass, pure quant, no LLM.
+    scheduler_prediction_writer_enabled: bool = Field(
+        default=True, alias="SCHEDULER_PREDICTION_WRITER_ENABLED"
+    )
+    prediction_writer_batch: int = Field(default=50, alias="PREDICTION_WRITER_BATCH")
+    prediction_writer_window_sec: int = Field(
+        default=1800, alias="PREDICTION_WRITER_WINDOW_SEC"
+    )
     # Loop V24 N2: comma-separated user emails that receive ops/drift
     # notifications mirrored from AlertDispatchService (in-app only).
     notification_admin_emails: str = Field(
