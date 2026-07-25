@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Evaluation
 from app.db.session import get_db
 from app.eval.forecast_drift import list_drift_snapshots
-from app.eval.service import EvalService
 
 router = APIRouter(prefix="/api/v1/eval", tags=["evaluation"])
 
@@ -33,22 +32,62 @@ async def list_evaluations(
 
 @router.get("/aggregates")
 async def get_aggregates(db: AsyncSession = Depends(get_db)):
-    svc = EvalService(db)
-    agg = await svc.compute_aggregates()
+    """Public eval summary from scored LIVE forecasts (forecast_scores),
+    same family as /calibration/latest and /track-record. Not the legacy
+    evaluations table.
+    """
+    from app.api.v1.calibration import _collect_calibration_data
+    from app.backtesting.metrics import brier_score, calibration_error
+
+    predictions, outcomes, _last = await _collect_calibration_data(db)
+    n = len(predictions)
+    if n == 0:
+        return {
+            "window_days": 7,  # label only; no time filter (parity with prior API)
+            "mean_brier": 0.0,
+            "calibration_error": 0.0,
+            "market_count": 0,
+        }
     return {
-        "window_days": agg.window_days,
-        "mean_brier": float(agg.mean_brier),
-        "calibration_error": float(agg.calibration_error),
-        "market_count": agg.market_count,
+        "window_days": 7,
+        "mean_brier": float(brier_score(predictions, outcomes)),
+        "calibration_error": float(calibration_error(predictions, outcomes)),
+        "market_count": n,
     }
 
 
 @router.get("/calibration")
 async def calibration_curve(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Evaluation))
-    evals = list(result.scalars().all())
-    svc = EvalService(db)
-    return {"bins": svc.calibration_bins(evals)}
+    """Calibration bins from scored LIVE forecasts (forecast_scores).
+    Bin shape preserved for frontend/src/lib/calibration-api.ts.
+    """
+    from app.api.v1.calibration import _collect_calibration_data
+
+    predictions, outcomes, _last = await _collect_calibration_data(db)
+    return {"bins": _forecast_calibration_bins(predictions, outcomes, n_bins=10)}
+
+
+def _forecast_calibration_bins(
+    predictions: list[float],
+    outcomes: list[int],
+    n_bins: int = 10,
+) -> list[dict]:
+    bins = [
+        {"bin": i, "count": 0, "mean_pred": 0.0, "mean_outcome": 0.0}
+        for i in range(n_bins)
+    ]
+    for p, y in zip(predictions, outcomes, strict=True):
+        if p is None:
+            continue
+        idx = min(max(int(float(p) * n_bins), 0), n_bins - 1)
+        bins[idx]["count"] += 1
+        bins[idx]["mean_pred"] += float(p)
+        bins[idx]["mean_outcome"] += int(y)
+    for b in bins:
+        if b["count"]:
+            b["mean_pred"] /= b["count"]
+            b["mean_outcome"] /= b["count"]
+    return bins
 
 
 @router.get(
