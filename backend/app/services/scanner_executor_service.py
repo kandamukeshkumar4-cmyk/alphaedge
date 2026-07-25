@@ -9,7 +9,7 @@ import asyncio
 import logging
 import random
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -19,12 +19,17 @@ from app.api.v1.market_candles import _build_market_candles
 from app.db.models import Market, MarketStatus, Scanner, ScannerRun
 from app.services.forecast_service import ForecastService
 from app.services.market_service import MarketService
+from app.services.scanner_compiler_service import (
+    CLOSING_SOON_DEFAULT_HOURS,
+    CROSS_VENUE_DEFAULT_MIN_GAP,
+)
 from app.services.scanner_heal_service import (
     classify_step_error,
     coerce_numeric_strings,
     market_slug_from_error,
     repair_action_for,
 )
+from app.services.venue_gap_service import VenueGapService
 from app.services.whale_flow_service import WhaleFlowService
 from app.signals.news_signal import fetch_news_signal
 from app.signals.sentiment_trend import load_sentiment_trend
@@ -326,6 +331,95 @@ async def _step_model_edge(db: AsyncSession, candidates: list[dict[str, Any]]) -
     return annotated
 
 
+async def _step_cross_venue_divergence(
+    db: AsyncSession, candidates: list[dict[str, Any]], *, min_gap: float
+) -> list[dict[str, Any]]:
+    """Keep markets whose PM↔Kalshi mirror price gap is at least ``min_gap``.
+
+    Mirror pairing and the gap itself come from the existing venue-gap tables
+    (``venue_market_matches`` → ``venue_gaps``); no new matching logic here.
+    Markets with no stored mirror are SKIPPED — absence of a pair is not
+    evidence of a zero gap. Current venue prices only: no resolution data.
+    """
+    svc = VenueGapService(db)
+    kept: list[dict[str, Any]] = []
+    for cand in candidates:
+        row = await svc.gap_for_slug(str(cand.get("market_slug") or ""))
+        if row is None:
+            continue
+        abs_gap = float(row.abs_gap)
+        if abs_gap < float(min_gap):
+            continue
+        cand = dict(cand)
+        reads = dict(cand.get("reads") or {})
+        reads["CROSS_VENUE_DIVERGENCE"] = {
+            "pm_slug": row.pm_slug,
+            "ks_slug": row.ks_slug,
+            "pm_implied": float(row.pm_implied),
+            "ks_implied": float(row.ks_implied),
+            "gap": float(row.gap),
+            "abs_gap": abs_gap,
+            "min_gap": float(min_gap),
+            "match_confidence": float(row.match_confidence or 0.0),
+            "stale": bool(row.stale),
+        }
+        cand["reads"] = reads
+        kept.append(cand)
+    kept.sort(
+        key=lambda c: float(
+            (c.get("reads") or {}).get("CROSS_VENUE_DIVERGENCE", {}).get("abs_gap") or 0.0
+        ),
+        reverse=True,
+    )
+    return kept
+
+
+async def _step_closing_soon(
+    db: AsyncSession, candidates: list[dict[str, Any]], *, within_hours: int
+) -> list[dict[str, Any]]:
+    """Keep still-open markets locking within ``within_hours`` of now.
+
+    Compares against ``datetime.now(UTC)`` only (no look-ahead). Markets with
+    no lock timestamp are SKIPPED rather than treated as never-closing.
+    """
+    if not candidates:
+        return []
+    slugs = [str(c.get("market_slug") or "") for c in candidates]
+    rows = (await db.scalars(select(Market).where(Market.slug.in_(slugs)))).all()
+    by_slug = {m.slug: m for m in rows}
+
+    now = datetime.now(UTC)
+    horizon = now + timedelta(hours=int(within_hours))
+    kept: list[dict[str, Any]] = []
+    for cand in candidates:
+        market = by_slug.get(str(cand.get("market_slug") or ""))
+        if market is None or market.status != MarketStatus.OPEN:
+            continue
+        lock_at = market.lock_at
+        if lock_at is None:
+            continue
+        if lock_at.tzinfo is None:
+            lock_at = lock_at.replace(tzinfo=UTC)
+        if lock_at < now or lock_at > horizon:
+            continue
+        hours_to_lock = (lock_at - now).total_seconds() / 3600.0
+        cand = dict(cand)
+        reads = dict(cand.get("reads") or {})
+        reads["CLOSING_SOON"] = {
+            "lock_at": lock_at.isoformat(),
+            "hours_to_lock": round(hours_to_lock, 4),
+            "within_hours": int(within_hours),
+        }
+        cand["reads"] = reads
+        kept.append(cand)
+    kept.sort(
+        key=lambda c: float(
+            (c.get("reads") or {}).get("CLOSING_SOON", {}).get("hours_to_lock") or 0.0
+        )
+    )
+    return kept
+
+
 def _step_direction_alignment(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     kept: list[dict[str, Any]] = []
     for cand in candidates:
@@ -361,6 +455,20 @@ async def _run_step(
         return await _step_news_sentiment(db, candidates)
     if stype == "MODEL_EDGE":
         return await _step_model_edge(db, candidates)
+    if stype == "CROSS_VENUE_DIVERGENCE":
+        raw_gap = step.get("min_gap", CROSS_VENUE_DEFAULT_MIN_GAP)
+        try:
+            min_gap = float(raw_gap)
+        except (TypeError, ValueError):
+            min_gap = float(CROSS_VENUE_DEFAULT_MIN_GAP)
+        return await _step_cross_venue_divergence(db, candidates, min_gap=min_gap)
+    if stype == "CLOSING_SOON":
+        raw_hours = step.get("within_hours", CLOSING_SOON_DEFAULT_HOURS)
+        try:
+            within_hours = int(raw_hours)
+        except (TypeError, ValueError):
+            within_hours = int(CLOSING_SOON_DEFAULT_HOURS)
+        return await _step_closing_soon(db, candidates, within_hours=within_hours)
     if stype == "DIRECTION_ALIGNMENT":
         return _step_direction_alignment(candidates)
     # Unknown step types are no-ops (still checkpointed by caller).
