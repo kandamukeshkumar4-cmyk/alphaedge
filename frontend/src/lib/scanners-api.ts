@@ -47,7 +47,9 @@ export type ScannerStepType =
   | "PRICE_TREND"
   | "NEWS_SENTIMENT"
   | "MODEL_EDGE"
-  | "DIRECTION_ALIGNMENT";
+  | "DIRECTION_ALIGNMENT"
+  | "CROSS_VENUE_DIVERGENCE"
+  | "CLOSING_SOON";
 
 export type ScannerStep = {
   type: ScannerStepType;
@@ -237,6 +239,8 @@ export const SCANNER_STEP_TYPES: readonly ScannerStepType[] = [
   "NEWS_SENTIMENT",
   "MODEL_EDGE",
   "DIRECTION_ALIGNMENT",
+  "CROSS_VENUE_DIVERGENCE",
+  "CLOSING_SOON",
 ];
 
 function normalizeStep(raw: unknown): ScannerStep | null {
@@ -480,6 +484,10 @@ export function stepLabel(step: ScannerStep): string {
       return "Model vs market";
     case "DIRECTION_ALIGNMENT":
       return "Direction alignment";
+    case "CROSS_VENUE_DIVERGENCE":
+      return "Cross-Venue Divergence";
+    case "CLOSING_SOON":
+      return "Closing Soon";
   }
 }
 
@@ -517,7 +525,9 @@ export function relativeTimeLabel(iso: string, nowMs: number = Date.now()): stri
 
 /** Does the candidate's reads map carry a read for this step type? */
 export function candidateHasRead(cand: ScannerCandidate, type: ScannerStepType): boolean {
-  return cand.reads[type] !== undefined;
+  // The loop109 step types carry no read shape on ScannerReads yet — widen
+  // the index so they resolve to `undefined` (absent) instead of a type error.
+  return (cand.reads as Partial<Record<ScannerStepType, unknown>>)[type] !== undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -596,6 +606,11 @@ function mockRead(step: ScannerStep, marketIndex: number): ScannerReads {
     }
     case "DIRECTION_ALIGNMENT":
       return { DIRECTION_ALIGNMENT: { aligned: marketIndex % 2 === 0 } };
+    case "CROSS_VENUE_DIVERGENCE":
+      // loop109 step types carry no mock read shape yet — empty reads.
+      return {};
+    case "CLOSING_SOON":
+      return {};
   }
 }
 
