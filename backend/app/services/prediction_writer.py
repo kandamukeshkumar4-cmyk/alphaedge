@@ -31,6 +31,7 @@ What this writer does, and deliberately does NOT do:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -54,6 +55,17 @@ MAX_PREDICTION_BATCH = 200
 # Idempotency / freshness window. A slug predicted inside this window is left
 # alone, so the 30-minute cadence writes at most one row per market per window.
 DEFAULT_PREDICTION_WINDOW_SEC = 30 * 60
+
+# AUDIT107 fix 1 — single-flight. The writer is dual-wired (in-process
+# wall-clock loop + ARQ cron) and in production BOTH live inside the same
+# uvicorn process, so the boot catch-up and a cron pass can overlap. The
+# recency check is check-then-write, so two overlapping passes could each see
+# an empty recent set and double-insert. This lock serializes passes within the
+# process; the candidate SELECT additionally takes row locks with
+# ``skip_locked`` (the same mechanism ``forecast_autolock`` uses for its dual
+# wiring) so a genuinely separate ARQ worker process cannot claim the same
+# markets either.
+_PASS_LOCK = asyncio.Lock()
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -120,6 +132,11 @@ async def write_model_predictions(
                 .where(Market.status == MarketStatus.OPEN)
                 .order_by(Market.volume.desc(), Market.slug.asc())
                 .limit(bounded_limit)
+                # Cross-process single flight, mirroring forecast_autolock: a
+                # concurrent pass in another process skips rows this pass holds
+                # instead of scoring them twice. (No-op on SQLite in tests; the
+                # in-process _PASS_LOCK covers the deployed single-process case.)
+                .with_for_update(skip_locked=True)
             )
         )
         .scalars()
@@ -217,7 +234,10 @@ async def prediction_writer_task(ctx: dict[str, Any]) -> dict[str, Any]:
     session_factory = ctx.get("session_factory") or AsyncSessionLocal
     limit = int(ctx.get("limit", settings.prediction_writer_batch))
     window_sec = int(ctx.get("window_sec", settings.prediction_writer_window_sec))
-    async with session_factory() as session:
+    # Single flight: whichever wiring gets here first completes and COMMITS its
+    # pass before the other reads the recency window, so the two entry points
+    # cannot double-insert for the same slug inside one window.
+    async with _PASS_LOCK, session_factory() as session:
         try:
             summary = await write_model_predictions(
                 session,

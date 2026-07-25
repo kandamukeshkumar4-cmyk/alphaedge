@@ -177,3 +177,84 @@ FULL_SUITE_PLACEHOLDER
 - `949b0b9` feat(loop107): dual-wire the prediction writer (in-process loop + ARQ cron)
 - `a9304e5` feat(loop107): CLV-gate the opportunity board on the alpha validator verdict
 - `bbbd808` test(loop107): seed the validator PASS verdict in the caller-limits pool test
+
+## Audit fixes
+
+Responding to `AUDIT107-PREDWRITER.md` (VERDICT: PASS WITH FIXES). Exactly the
+two required items were addressed; nothing else was changed.
+
+### Fix 1 — concurrent dual-write could double-insert
+
+`backend/app/services/prediction_writer.py`:
+
+- Module-level `_PASS_LOCK = asyncio.Lock()` now wraps the whole
+  `prediction_writer_task` session block, so whichever wiring arrives first
+  COMMITS before the other reads the recency window. This is the mechanism that
+  matches the real deployment: prod has no ARQ worker, so the in-process
+  wall-clock loop and the cron entry point live in the SAME uvicorn process.
+- The candidate `SELECT` additionally takes `.with_for_update(skip_locked=True)`
+  — the same row-claim mechanism `app/workers/forecast_autolock.py` uses for its
+  dual wiring — so a genuinely separate worker process cannot claim the same
+  markets. (No-op on SQLite; the lock covers the tested path.)
+- No migration, no unique constraint, no schema change.
+
+The guard is load-bearing, verified by neutralising it in a throwaway test
+(deleted after the run — it is not part of the suite): with `_PASS_LOCK`
+monkeypatched to a no-op async context manager the same concurrent scenario
+yields **2** rows:
+
+```
+>       assert len(rows) == 1, f"ROWS_WITHOUT_LOCK={len(rows)}"
+E       AssertionError: ROWS_WITHOUT_LOCK=2
+E       assert 2 == 1
+1 failed in 32.42s
+```
+
+With the lock in place the committed test
+`test_dual_wiring_cannot_double_insert_same_window` drives BOTH entry points
+concurrently through `asyncio.gather` and asserts exactly one row, one
+`written`, one `skipped_recent`.
+
+### Fix 2 — gate test honesty
+
+`backend/tests/test_opportunities_api.py`: the misleading second half of
+`test_after_signal_gate_counter_and_no_validated_edge_reason` (it claimed a "no
+report at all" path while a rejecting `AlphaRun` was still seeded) was removed,
+and a dedicated `test_no_alpha_runs_at_all_yields_no_validated_edge` now
+exercises the real zero-report branch: it first ASSERTS `count(AlphaRun) == 0`,
+seeds predictions + prices, then requires `signal_only=true` to return an empty
+board with `validated: false`, `after_signal_gate: 0` and
+`empty_reason: "no_validated_edge"` (with `with_model_p == 2`,
+`with_market_p == 2` proving the rows were otherwise rankable).
+
+### Verbatim proofs
+
+`cd backend && uv run --extra dev pytest -q tests/test_loop107_prediction_writer.py tests/test_opportunities_api.py --basetemp=E:/polymarket-worktrees/loop107-predwriter/.ptaudit2`
+
+```
+......................                                                   [100%]
+22 passed in 49.62s
+```
+
+(5 writer tests + 17 opportunities tests: the original 13, plus 4 gate tests.)
+
+`cd backend && uv run --extra dev ruff check app tests`
+
+```
+All checks passed!
+```
+
+Regression spot-check on the neighbouring PredictionLog readers,
+`cd backend && uv run --extra dev pytest -q tests/test_loop105_caller_limits.py tests/test_desk_api.py tests/test_screener_api.py --basetemp=E:/polymarket-worktrees/loop107-predwriter/.ptc`
+
+```
+.......                                                                  [100%]
+7 passed in 28.54s
+```
+
+Full backend suite intentionally NOT re-run here — the orchestrator runs it
+separately, per instruction.
+
+### Audit-fix commit
+
+- `fix(loop107): single-flight writer + zero-run gate test`

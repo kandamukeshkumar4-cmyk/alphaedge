@@ -10,6 +10,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import func, select
 
 from app.core import opportunities_cache
 from app.db.models import (
@@ -387,13 +388,31 @@ async def test_after_signal_gate_counter_and_no_validated_edge_reason(db_session
     assert funnel["returned"] == 0
     assert body["empty_reason"] == "no_validated_edge"
 
-    # With NO validator report at all the gate stays shut: absence of evidence
-    # is not evidence of an edge.
-    opportunities_cache.invalidate()
-    await _add_market(db_session, "other", volume=4000, model_p=0.20, yes_price=0.50)
-    r2 = await _get("/api/v1/opportunities")
-    assert r2.json()["empty_reason"] == "no_validated_edge"
-    assert r2.json()["funnel"]["after_signal_gate"] == 0
+
+@pytest.mark.asyncio
+async def test_no_alpha_runs_at_all_yields_no_validated_edge(db_session):
+    """AUDIT107 fix 2: ZERO validator reports — not a rejecting one.
+
+    Predictions and market prices both exist, so the board could rank rows; the
+    only thing missing is validation evidence. Absence of evidence is not
+    evidence of an edge, so the gate stays shut.
+    """
+    # Deliberately NO AlphaRun row is seeded here.
+    assert (await db_session.execute(select(func.count()).select_from(AlphaRun))).scalar() == 0
+    await _add_market(db_session, "big-edge", volume=5000, model_p=0.80, yes_price=0.50)
+    await _add_market(db_session, "no-lean", volume=3000, model_p=0.30, yes_price=0.50)
+
+    r = await _get("/api/v1/opportunities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["signal_only"] is True
+    assert body["validated"] is False
+    assert body["opportunities"] == []
+    assert body["count"] == 0
+    assert body["funnel"]["with_model_p"] == 2
+    assert body["funnel"]["with_market_p"] == 2
+    assert body["funnel"]["after_signal_gate"] == 0
+    assert body["empty_reason"] == "no_validated_edge"
 
 
 @pytest.mark.asyncio

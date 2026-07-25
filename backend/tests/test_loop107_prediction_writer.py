@@ -8,11 +8,13 @@ skips markets that are resolved or already locked out, and never records a
 field that was not knowable at prediction time.
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import (
     Market,
@@ -21,7 +23,10 @@ from app.db.models import (
     OrderOutcome,
     PredictionLog,
 )
-from app.services.prediction_writer import write_model_predictions
+from app.services.prediction_writer import (
+    prediction_writer_task,
+    write_model_predictions,
+)
 
 
 async def _market(
@@ -195,3 +200,43 @@ async def test_writer_never_writes_lookahead_fields(db_session):
     assert banned.isdisjoint(row.explanation.keys())
     # And no resolution value leaked in under another key name.
     assert "YES" not in {str(v) for v in row.explanation.values()}
+
+
+@pytest.mark.asyncio
+async def test_dual_wiring_cannot_double_insert_same_window(engine):
+    """AUDIT107 fix 1: the two wirings are single-flight.
+
+    The writer is dual-wired — an in-process wall-clock loop AND an ARQ cron —
+    and in production both live in the same uvicorn process. The recency check
+    is check-then-write, so overlapping passes could each see an empty window
+    and insert. Drive BOTH entry points concurrently and assert the window
+    still holds exactly one row.
+    """
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as setup:
+        await _market(setup, "dual-wired", volume=5000, yes_price=0.60)
+        await setup.commit()
+
+    # Both entry points are prediction_writer_task: the ARQ cron calls it and
+    # so does _prediction_writer_loop (boot catch-up + every pass).
+    results = await asyncio.gather(
+        prediction_writer_task({"session_factory": factory}),
+        prediction_writer_task({"session_factory": factory}),
+    )
+
+    async with factory() as check:
+        rows = (
+            (
+                await check.execute(
+                    select(PredictionLog).where(
+                        PredictionLog.market_slug == "dual-wired"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(rows) == 1
+    # One pass wrote it; the other honestly reported the row as already recent.
+    assert sorted(result["written"] for result in results) == [0, 1]
+    assert sum(result["skipped_recent"] for result in results) == 1
