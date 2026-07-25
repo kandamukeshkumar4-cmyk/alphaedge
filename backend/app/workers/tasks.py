@@ -956,6 +956,9 @@ def _wallet_stats_from_trades(trades):
     )
 
 
+WHALE_POSITION_WALLET_LIMIT = 50
+
+
 async def snapshot_whale_positions_task(ctx: dict) -> dict:
     """Every ~3 min: snapshot qualified wallets' positions and diff into whale_delta
     events that feed the alignment scorer. Read-only; no execution."""
@@ -970,10 +973,17 @@ async def snapshot_whale_positions_task(ctx: dict) -> dict:
 
     connector = PolymarketDataApiConnector()
     deltas = wallets = 0
+    limit = int(ctx.get("wallet_limit") or WHALE_POSITION_WALLET_LIMIT)
     async with AsyncSessionLocal() as session:
         addresses = (
             await session.execute(
-                select(TrackedWallet.wallet_address).where(TrackedWallet.qualified.is_(True))
+                select(TrackedWallet.wallet_address)
+                .where(TrackedWallet.qualified.is_(True))
+                # Loop111 fix B: bounded per pass (one upstream HTTP call per
+                # wallet). Highest realized PnL first so the cap keeps the
+                # whales the smart-money surfaces actually care about.
+                .order_by(TrackedWallet.realized_pnl.desc())
+                .limit(limit)
             )
         ).scalars().all()
         service = WhaleTrackerService(session)

@@ -674,6 +674,56 @@ async def _prediction_writer_loop() -> None:
             )
 
 
+async def _whale_positions_loop() -> None:
+    """Loop111 fix B: the production writer for ``wallet_position_snapshots``
+    and whale-delta ``whale_events`` (in-process mirror of
+    ``cron(snapshot_whale_positions_task, minute=*/3)``; prod has no ARQ worker).
+
+    Boot catch-up FIRST (never sleep-first): ``snapshot_and_diff`` is idempotent
+    per (wallet, market) snapshot — a restart re-snapshots safely rather than
+    leaving ``GET /api/v1/smart-money`` at ``wallet_count: 0`` for a cadence.
+    Bounded to the top ``WHALE_POSITION_WALLET_LIMIT`` qualified wallets per
+    pass; single-flight by construction (one task awaiting sequentially).
+    Read-only upstream, no order path, no LLM."""
+    from app.workers.tasks import snapshot_whale_positions_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        if summary.get("skipped"):
+            return f"skipped:{summary.get('reason')}"
+        return f"wallets={summary.get('wallets', 0)} deltas={summary.get('deltas', 0)}"
+
+    try:
+        record_heartbeat(
+            "whale_positions", detail=_detail(await snapshot_whale_positions_task({}))
+        )
+    except Exception:
+        logger.error("Whale positions boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "whale_positions",
+            status="error",
+            detail="whale positions boot catch-up failed",
+        )
+
+    while True:
+        await _paced_sleep(
+            max(60, int(settings.whale_positions_interval_sec or 180)),
+            settings.scheduler_idle_interval_sec,
+        )
+        try:
+            record_heartbeat(
+                "whale_positions", detail=_detail(await snapshot_whale_positions_task({}))
+            )
+        except Exception:
+            logger.error("Whale positions loop failed", exc_info=True)
+            record_heartbeat(
+                "whale_positions",
+                status="error",
+                detail="whale positions pass failed",
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -875,6 +925,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_whale_refresh_loop())
     if settings.scheduler_whale_flow_enabled:
         asyncio.create_task(_whale_flow_loop())
+    if settings.scheduler_whale_positions_enabled:
+        asyncio.create_task(_whale_positions_loop())
     if settings.scheduler_venue_gap_enabled:
         asyncio.create_task(_venue_gap_loop())
     if settings.scheduler_wc2026_resolve_enabled:

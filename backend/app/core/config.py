@@ -104,6 +104,15 @@ class Settings(BaseSettings):
     scheduler_whale_refresh_enabled: bool = Field(
         default=True, alias="SCHEDULER_WHALE_REFRESH_ENABLED"
     )
+    # Loop111 fix B: in-process mirror of cron(snapshot_whale_positions_task).
+    # Prod runs uvicorn only (no ARQ worker), so without this the
+    # wallet_position_snapshots table has no production writer.
+    scheduler_whale_positions_enabled: bool = Field(
+        default=True, alias="SCHEDULER_WHALE_POSITIONS_ENABLED"
+    )
+    whale_positions_interval_sec: int = Field(
+        default=180, alias="WHALE_POSITIONS_INTERVAL_SEC"
+    )
     scheduler_wc2026_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
     )

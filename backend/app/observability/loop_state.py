@@ -39,6 +39,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "scanner_scheduler": 300,
     "whale_refresh": 604800,  # 7 * 86400
     "whale_flow": 60,  # max(30, WHALE_FLOW_INTERVAL_SEC=60)
+    "whale_positions": 180,  # max(60, WHALE_POSITIONS_INTERVAL_SEC=180)
     "venue_gap": 60,  # max(30, VENUE_GAP_INTERVAL_SEC=60)
     "wc2026_resolve": 600,
     "external_resolve": 900,
