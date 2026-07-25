@@ -1,0 +1,27 @@
+You are a junior engineer on AlphaEdge (paper-trading prediction-market SIMULATION).
+Work directory: E:/polymarket-worktrees/loop108-nav — cd there FIRST and stay there.
+This is ONE tiny task. Do exactly this, nothing else. Do not refactor, do not reformat, do not
+touch any other file. If anything is unclear, STOP and write the question into STATE108-NAV.md
+instead of guessing.
+
+TASK: the /usage page (live usage dashboard) exists and works but is unreachable — it appears in
+NO navigation. Add it to the app's navigation registry.
+
+STEPS:
+1. Open frontend/src/lib/feature-registry.ts. Study how ONE existing entry in FEATURE_GROUPS is
+   written (fields, ordering, icon usage). Copy that exact pattern.
+2. Add ONE entry for the /usage route in the most fitting existing group (look for a group with
+   system/account/meta pages; do NOT create a new group). Label: "Usage". Description: one short
+   honest line, e.g. "Your paper-trading activity and API usage stats.".
+3. Do NOT edit SiteHeader.tsx or any component — the header renders from the registry.
+4. Verify (run in FOREGROUND, wait for each):
+     cd frontend && npm run typecheck
+     cd frontend && npm run lint
+5. Write STATE108-NAV.md containing: the exact diff of your change (git diff), then the LITERAL
+   verbatim last lines of typecheck and lint output. Never summarize tool output in your own words;
+   paste it exactly.
+6. Commit: git add -A && git commit -m "feat(loop108): surface /usage in feature registry nav"
+
+RULES: no secrets, no push, no deploy, no new dependencies, no other files. Only
+frontend/src/lib/feature-registry.ts and STATE108-NAV.md may change. If typecheck or lint fails
+twice, stop and record the error verbatim in STATE108-NAV.md.
