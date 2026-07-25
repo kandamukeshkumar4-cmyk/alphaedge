@@ -852,18 +852,45 @@ VENUE_GAP_JOB_NAME = "venue_gap_task"
 
 
 async def venue_gap_task(ctx: dict) -> dict:
-    """Loop V58 D2: recompute PM↔Kalshi implied gaps from odds snapshots."""
+    """Loop V58 D2: recompute PM↔Kalshi implied gaps from odds snapshots.
+
+    Loop111 fix A: run the venue *matcher* at the head of the pass. Before this,
+    ``VenueMatchService.match_open_catalog()`` had zero production callers, so
+    ``venue_market_matches`` was permanently empty and this loop refreshed gaps
+    over nothing (prod: ``upserted=0``). Matching is bounded per pass
+    (``VENUE_GAP_MATCH_LIMIT`` caps both the per-venue catalog scan and the
+    number of accepted pairs), idempotent (``_upsert_one`` updates the existing
+    (pm_slug, ks_slug) row rather than inserting a duplicate), and isolated:
+    a matcher failure or an empty match result must never stop the gap refresh.
+    """
     from app.db.session import AsyncSessionLocal
     from app.services.venue_gap_service import VenueGapService
+    from app.services.venue_match_service import VenueMatchService
 
     settings = get_settings()
     if not settings.venue_gap_enabled:
         return {"skipped": True, "reason": "VENUE_GAP_ENABLED=false"}
 
+    match_limit = int(getattr(settings, "venue_gap_match_limit", 200) or 200)
+
     async with AsyncSessionLocal() as session:
+        matched: int | None = None
+        try:
+            rows = await VenueMatchService(session).match_open_catalog(
+                max_pairs=match_limit,
+                catalog_limit=match_limit,
+            )
+            matched = len(rows)
+        except Exception as error:  # noqa: BLE001 - matching must not starve gap refresh
+            logger.warning("Venue match pass failed: %s", error)
+            await session.rollback()
+
         service = VenueGapService(session)
         summary = await service.refresh_gaps()
         await session.commit()
+
+    summary = dict(summary)
+    summary["matched"] = matched
     return summary
 
 

@@ -479,6 +479,7 @@ async def _venue_gap_loop() -> None:
                     detail = f"skipped:{summary.get('reason')}"
                 else:
                     detail = (
+                        f"matched={summary.get('matched')} "
                         f"upserted={summary.get('upserted', 0)} "
                         f"skipped_odds={summary.get('skipped_missing_odds', 0)}"
                     )
