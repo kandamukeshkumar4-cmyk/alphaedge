@@ -60,7 +60,7 @@ export function TradeTerminal({ initialSlug }: { initialSlug?: string }) {
   useEffect(() => {
     let dead = false;
     setLoadingMarkets(true);
-    fetchMarkets({})
+    fetchMarkets({ limit: 500 })
       .then((rows) => {
         if (dead) return;
         const live = rows.filter((m) => m.slug.startsWith("pm-") || m.slug.startsWith("ks-"));

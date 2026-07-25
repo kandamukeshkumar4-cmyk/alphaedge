@@ -495,6 +495,8 @@ export type MarketFilterParams = {
   category?: string;
   sort?: "volume" | "traders" | "newest" | "active";
   q?: string;
+  limit?: number;
+  offset?: number;
 };
 
 /** Map UI/backend category labels to valid GET /markets category query values. */
@@ -518,11 +520,18 @@ export function toApiCategory(category: string): string | undefined {
 // the same GET /markets; without coalescing the homepage alone can fire 5+
 // identical requests per cycle and trip SlowAPI 429s on the free-tier API.
 const MARKETS_CACHE_TTL_MS = 4000;
-type MarketsCacheEntry = { promise: Promise<CardMarket[]>; expiresAt: number };
+export type MarketsPageResult = { items: CardMarket[]; total: number };
+type MarketsCacheEntry = { promise: Promise<MarketsPageResult>; expiresAt: number };
 const marketsCache = new Map<string, MarketsCacheEntry>();
 
 function marketsCacheKey(params?: MarketFilterParams): string {
-  return [params?.category ?? "", params?.sort ?? "", params?.q ?? ""].join("|");
+  return [
+    params?.category ?? "",
+    params?.sort ?? "",
+    params?.q ?? "",
+    params?.limit ?? "",
+    params?.offset ?? "",
+  ].join("|");
 }
 
 /** Test hook: reset the shared markets cache. */
@@ -531,6 +540,13 @@ export function __clearMarketsCache(): void {
 }
 
 export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMarket[]> {
+  const page = await fetchMarketsPage(params);
+  return page.items;
+}
+
+export async function fetchMarketsPage(
+  params?: MarketFilterParams,
+): Promise<MarketsPageResult> {
   const key = marketsCacheKey(params);
   const now = Date.now();
   const cached = marketsCache.get(key);
@@ -548,10 +564,10 @@ export async function fetchMarkets(params?: MarketFilterParams): Promise<CardMar
   return promise;
 }
 
-async function fetchMarketsUncached(params?: MarketFilterParams): Promise<CardMarket[]> {
+async function fetchMarketsUncached(params?: MarketFilterParams): Promise<MarketsPageResult> {
   const apiBase = await ensureApiBase();
   if (!hasLiveApi(apiBase)) {
-    return [];
+    return { items: [], total: 0 };
   }
 
   const origin =
@@ -566,6 +582,8 @@ async function fetchMarketsUncached(params?: MarketFilterParams): Promise<CardMa
   }
   if (params?.sort) url.searchParams.set("sort", params.sort);
   if (params?.q) url.searchParams.set("q", params.q);
+  if (params?.limit != null) url.searchParams.set("limit", String(params.limit));
+  if (params?.offset != null) url.searchParams.set("offset", String(params.offset));
 
   // Relative fetch when same-origin proxy is active (keeps cookies/origin clean).
   const href = apiBase ? url.toString() : `${url.pathname}${url.search}`;
@@ -574,10 +592,14 @@ async function fetchMarketsUncached(params?: MarketFilterParams): Promise<CardMa
     // Degraded API (e.g. HF free-tier 503) must never surface as an uncaught
     // pageerror on every route that probes markets from the shared header/ticker.
     console.warn(`Markets HTTP ${response.status} — using empty catalog`);
-    return [];
+    return { items: [], total: 0 };
   }
   const markets = (await response.json()) as ApiMarketCatalogItem[];
-  return apiCatalogToMarkets(markets);
+  const items = apiCatalogToMarkets(markets);
+  const totalRaw = response.headers?.get?.("X-Total-Count");
+  const parsed = totalRaw != null && totalRaw !== "" ? Number(totalRaw) : NaN;
+  const total = Number.isFinite(parsed) ? parsed : items.length;
+  return { items, total };
 }
 
 export type PatchMeRequest = {

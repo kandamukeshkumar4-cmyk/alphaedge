@@ -18,8 +18,9 @@ function okResponse() {
   return {
     ok: true,
     status: 200,
+    headers: { get: () => null },
     json: async () => [API_MARKET],
-  } as Response;
+  } as unknown as Response;
 }
 
 describe("fetchMarkets shared cache", () => {
@@ -67,7 +68,9 @@ describe("fetchMarkets shared cache", () => {
     await fetchMarkets({});
     await fetchMarkets({ category: "sports" });
     await fetchMarkets({ sort: "volume" });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await fetchMarkets({ limit: 100, offset: 0 });
+    await fetchMarkets({ limit: 100, offset: 100 });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("sends the additive active sort to the market catalog", async () => {
