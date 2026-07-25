@@ -194,6 +194,100 @@ async def test_honest_empty(db_session):
     assert body["count"] == 0
 
 
+# DIAGNOSIS106-OPPS: the honest empty must be EXPLAINABLE — stable
+# empty_reason + real funnel counts, never fabricated rows.
+
+
+@pytest.mark.asyncio
+async def test_honest_empty_includes_empty_reason_no_model(db_session):
+    # No markets / no PredictionLog seeded at all: the empty names itself and
+    # proves no model probability was invented to fill the list.
+    r = await _get("/api/v1/opportunities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["opportunities"] == []
+    assert body["count"] == 0
+    # With nothing seeded the funnel stops at the open-candidate gate; the
+    # contract allows either reason depending on the seed.
+    assert body["empty_reason"] in {"no_model_predictions", "no_open_candidates"}
+    assert body["funnel"]["with_model_p"] == 0
+
+
+@pytest.mark.asyncio
+async def test_funnel_counts_with_seeded_edges(db_session):
+    await _seed(db_session)
+    r = await _get("/api/v1/opportunities")
+    assert r.status_code == 200
+    body = r.json()
+    # Non-empty → no empty reason.
+    assert body["empty_reason"] is None
+    funnel = body["funnel"]
+    # big-edge, small-edge, low-liq, no-lean, no-price carry a PredictionLog
+    # (no-model does not).
+    assert funnel["with_model_p"] >= 4
+    assert funnel["returned"] == body["count"]
+    # Ranking unchanged from test_ranking_highest_edge_first.
+    slugs = [row["slug"] for row in body["opportunities"]]
+    assert slugs == ["low-liq", "big-edge", "no-lean", "small-edge"]
+
+
+@pytest.mark.asyncio
+async def test_empty_reason_filtered_by_min_liquidity(db_session):
+    # One open market WITH model + price but tiny volume: the empty is the
+    # liquidity floor, and the funnel proves the row existed before the floor.
+    await _add_market(db_session, "liq-only", volume=100, model_p=0.90, yes_price=0.50)
+    r = await _get("/api/v1/opportunities?min_liquidity=1000")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["opportunities"] == []
+    assert body["empty_reason"] == "filtered_by_min_liquidity"
+    assert body["funnel"]["with_model_p"] == 1
+    assert body["funnel"]["after_min_liquidity"] == 0
+
+
+@pytest.mark.asyncio
+async def test_empty_reason_filtered_by_direction(db_session):
+    # Only YES-lean edges seeded → asking for NO leans empties the list.
+    await _add_market(db_session, "yes-lean", volume=5000, model_p=0.80, yes_price=0.50)
+    r = await _get("/api/v1/opportunities?direction=NO")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["opportunities"] == []
+    assert body["empty_reason"] == "filtered_by_direction"
+
+
+@pytest.mark.asyncio
+async def test_empty_reason_no_open_candidates(db_session):
+    # Only RESOLVED markets (which DO carry a PredictionLog): resolved markets
+    # have a known outcome — no live edge — so the candidate set is empty.
+    now = datetime.now(UTC)
+    db_session.add(
+        Market(
+            slug="resolved-1",
+            title="Market resolved-1",
+            question="?",
+            status=MarketStatus.RESOLVED,
+            volume=5000,
+        )
+    )
+    await db_session.flush()
+    db_session.add(
+        PredictionLog(
+            market_slug="resolved-1",
+            predicted_prob=Decimal("0.80"),
+            confidence=Decimal("0.7"),
+            predicted_at=now - timedelta(hours=1),
+        )
+    )
+    await db_session.flush()
+    r = await _get("/api/v1/opportunities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["opportunities"] == []
+    assert body["empty_reason"] == "no_open_candidates"
+    assert body["funnel"]["candidates_open"] == 0
+
+
 @pytest.mark.asyncio
 async def test_top_signal_resolved_only_for_returned_rows(db_session, monkeypatch):
     """Perf regression guard (V12 Q02): the per-slug top_signal lookup runs once
