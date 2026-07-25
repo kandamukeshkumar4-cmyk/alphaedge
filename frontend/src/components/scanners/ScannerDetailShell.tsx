@@ -91,6 +91,10 @@ function readPill(
     }
     case "DIRECTION_ALIGNMENT":
       return null; // alignment renders as the checkmark column, not a pill
+    case "CROSS_VENUE_DIVERGENCE":
+      return null; // loop109 types carry no candidate read shape yet — no pill
+    case "CLOSING_SOON":
+      return null;
   }
 }
 
@@ -762,6 +766,10 @@ function narrationForStep(step: ScannerStep): string {
       return "Computing model edge";
     case "DIRECTION_ALIGNMENT":
       return "Scoring alignment";
+    case "CROSS_VENUE_DIVERGENCE":
+      return "Comparing venue prices";
+    case "CLOSING_SOON":
+      return "Scanning closing markets";
   }
 }
 

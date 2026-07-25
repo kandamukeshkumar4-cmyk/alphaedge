@@ -26,6 +26,8 @@ const STEP_ABBREV: Record<ScannerStepType, string> = {
   NEWS_SENTIMENT: "news",
   MODEL_EDGE: "model",
   DIRECTION_ALIGNMENT: "align",
+  CROSS_VENUE_DIVERGENCE: "venue",
+  CLOSING_SOON: "closing",
 };
 
 function staggerClass(index: number): string {

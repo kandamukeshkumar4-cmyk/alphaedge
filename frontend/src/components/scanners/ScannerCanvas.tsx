@@ -126,6 +126,10 @@ function stepBlurb(step: ScannerStep): string {
       return "Model prob vs market mid (paper)";
     case "DIRECTION_ALIGNMENT":
       return "Keep only agreeing directions";
+    case "CROSS_VENUE_DIVERGENCE":
+      return "Price gap between Polymarket and Kalshi for the same event.";
+    case "CLOSING_SOON":
+      return "Markets locking within the next N hours.";
   }
 }
 
