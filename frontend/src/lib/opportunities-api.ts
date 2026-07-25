@@ -47,6 +47,28 @@ export type OpportunitiesResponse = {
   limit: number;
   min_liquidity: number;
   direction: string | null;
+  /**
+   * DIAGNOSIS106-OPPS: real per-stage pipeline counts so an honest empty is
+   * explainable. Absent only against an older backend that predates it.
+   */
+  funnel?: {
+    candidates_scanned: number;
+    candidates_open: number;
+    with_model_p: number;
+    with_market_p: number;
+    after_min_liquidity: number;
+    after_direction: number;
+    returned: number;
+  };
+  /** Machine-stable reason the list is empty; null when rows were returned. */
+  empty_reason?:
+    | "no_open_candidates"
+    | "no_model_predictions"
+    | "no_market_prices"
+    | "filtered_by_min_liquidity"
+    | "filtered_by_direction"
+    | "no_rankable_edges"
+    | null;
   paper_trading_only: boolean;
   signal_only: boolean;
   disclaimer: string;
@@ -89,6 +111,10 @@ export type OpportunitiesView = {
   count: number;
   /** Rows available before client filters (for honest "filtered out" copy). */
   totalBeforeFilter: number;
+  /** Backend's machine-stable reason the list is empty (null when rows exist). */
+  emptyReason: OpportunitiesResponse["empty_reason"] | null;
+  /** Backend funnel counts (null when the backend didn't report them). */
+  funnel: OpportunitiesResponse["funnel"] | null;
   disclaimer: string;
   cached: boolean;
 };
@@ -185,6 +211,8 @@ export function buildOpportunitiesView(
     rows,
     count: rows.length,
     totalBeforeFilter: all.length,
+    emptyReason: raw?.empty_reason ?? null,
+    funnel: raw?.funnel ?? null,
     disclaimer,
     cached: raw?.cached === true,
   };

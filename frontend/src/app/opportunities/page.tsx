@@ -58,6 +58,31 @@ export default function OpportunitiesPage() {
 
   const topEdge = view.rows[0]?.edge ?? 0;
 
+  // DIAGNOSIS106-OPPS: the honest empty explains ITSELF — branch on the
+  // backend's machine-stable empty_reason, keeping the unreachable and
+  // client-filter fallbacks. Copy never implies fabricated edges.
+  function emptyStateBody(): string {
+    if (raw === null) {
+      return "The scanner is unreachable — live edges need the backend API.";
+    }
+    switch (raw.empty_reason) {
+      case "no_model_predictions":
+        return "No open market has a stored model probability yet. Edges are ranked only from real PredictionLog rows — never fabricated. The model-vs-market scanner stays empty until predictions are written for live markets.";
+      case "no_open_candidates":
+        return "No open markets are in the current candidate set (top volume slice). Resolved or locked markets are not ranked as live edges.";
+      case "no_market_prices":
+        return "Model probabilities exist, but no market price (book or odds snapshot) is available to form an edge.";
+      case "filtered_by_min_liquidity":
+        return "Edges exist, but all are below the current min-liquidity control. Lower the floor to see more.";
+      case "filtered_by_direction":
+        return "Edges exist, but none match the YES/NO direction filter. Choose All to see every ranked edge.";
+      default:
+        return view.totalBeforeFilter === 0
+          ? "No open market currently has both a model probability and a market price to rank — edges appear only from real predictions, never fabricated."
+          : "Every ranked edge was filtered out by the current direction / min-liquidity controls. Loosen a filter to see more.";
+    }
+  }
+
   return (
     <PageShell width="medium">
       <PageHeader
@@ -126,13 +151,7 @@ export default function OpportunitiesPage() {
       ) : view.rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-8 text-sm text-muted">
           <p className="font-semibold text-text">No opportunities meet the filter right now.</p>
-          <p className="mt-1">
-            {raw === null
-              ? "The scanner is unreachable — live edges need the backend API."
-              : view.totalBeforeFilter === 0
-                ? "No open market currently has both a model probability and a market price to rank — edges appear only from real predictions, never fabricated."
-                : "Every ranked edge was filtered out by the current direction / min-liquidity controls. Loosen a filter to see more."}
-          </p>
+          <p className="mt-1">{emptyStateBody()}</p>
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
