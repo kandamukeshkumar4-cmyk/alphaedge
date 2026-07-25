@@ -1,8 +1,14 @@
-"""Loop110 — first real generic artifact pipeline (trainer + wiring + retrain)."""
+"""Loop110 — first real generic artifact pipeline (trainer + wiring + retrain).
+
+Synthetic seed rows intentionally set category≡outcome (Sports/Culture alternate
+with outcome = index % 2). Seed Briers are a synthetic-data artefact — never
+model-quality evidence.
+"""
 
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -36,6 +42,7 @@ from app.forecasting.generic_trainer import (
     build_feature_columns,
     load_generic_training_rows,
     locktime_feature_row,
+    select_categories,
     train_generic_artifact,
 )
 from app.forecasting.predictor import PRODUCER_ARTIFACT, PRODUCER_IMPLIED_PASSTHROUGH
@@ -182,8 +189,10 @@ async def test_predict_uses_active_artifact_and_records_producer(
     assert prediction.provenance.model_type == PRODUCER_ARTIFACT
     assert prediction.provenance.artifact_digest is not None
     assert prediction.provenance.model_version == "test.active.1"
-    # Model may differ from market; at minimum producer proves the path ran.
-    assert prediction.model_prob != pytest.approx(0.42) or True
+    # Real asserts (replaces vacuous `or True`). Seed maps Sports→0 by
+    # construction, so allow closed [0,1]; require finite calibrated prob.
+    assert math.isfinite(prediction.model_prob)
+    assert 0.0 <= prediction.model_prob <= 1.0
 
 
 @pytest.mark.asyncio
@@ -357,12 +366,77 @@ def test_metrics_recorded_include_brier_vs_closing_line(tmp_path: Path):
     assert "brier_vs_closing_line" in metrics
     assert "implied_passthrough_brier" in metrics
     assert "model_brier" in metrics
+    assert "model_brier_on_closing_subset" in metrics
     assert metrics["closing_line_brier"] is not None
     assert metrics["fold_metrics"]
     for fold in metrics["fold_metrics"]:
         assert "closing_line_brier" in fold
         assert "implied_passthrough_brier" in fold
         assert "model_brier" in fold
+        assert "model_brier_on_closing_subset" in fold
+
+    # Apples-to-apples: when some eval rows lack closing, also report model
+    # Brier on the closing-complete subset (closing_line_n < n).
+    partial = _synthetic_rows(24, with_closing=True)
+    for index, row in enumerate(partial):
+        if index % 3 == 0:
+            row.pop("closing_implied", None)
+    partial_result = train_generic_artifact(
+        partial,
+        tmp_path / "metrics_partial_closing",
+        min_category_count=5,
+    )
+    partial_metrics = partial_result["metrics"]
+    assert partial_metrics["closing_line_n"] < partial_metrics["oos_n"]
+    assert partial_metrics["model_brier_on_closing_subset"] is not None
+    assert math.isfinite(partial_metrics["model_brier_on_closing_subset"])
+    assert partial_metrics["closing_line_brier"] is not None
+    for fold in partial_metrics["fold_metrics"]:
+        if fold["closing_line_n"] < fold["n"]:
+            assert fold["model_brier_on_closing_subset"] is not None
+
+
+def test_fold_category_vocab_excludes_eval_only_categories(tmp_path: Path):
+    """Per-fold select_categories uses train rows only — eval-only cats stay out."""
+    rows = _synthetic_rows(24)
+    # Politics appears only on the newest 6 rows (will land in eval for early folds
+    # while still meeting min_count=3 on the full set / late train windows).
+    for row in rows[-6:]:
+        row["category"] = "Politics"
+        row["lock_category"] = "Politics"
+
+    # Sanity: global select on all rows would keep Politics.
+    all_kept, _ = select_categories(rows, min_count=3)
+    assert "Politics" in all_kept
+
+    result = train_generic_artifact(
+        rows,
+        tmp_path / "fold_vocab",
+        min_category_count=3,
+        train_window_size=4,
+        eval_window_size=2,
+        embargo_resolved_rows=1,
+    )
+    # Shipped artifact freezes vocab on full train — Politics may be present.
+    assert "Politics" in result["categories"]
+
+    # Any fold whose train slice has no Politics must exclude it from fold vocab.
+    folds = build_v40_folds(
+        rows, train_window_size=4, eval_window_size=2, embargo_resolved_rows=1
+    )
+    assert len(folds) == len(result["metrics"]["fold_metrics"])
+    saw_eval_only_exclusion = False
+    for fold, fold_metric in zip(folds, result["metrics"]["fold_metrics"]):
+        train_cats = {
+            (r.get("lock_category") or r.get("category")) for r in fold.train_rows
+        }
+        eval_cats = {
+            (r.get("lock_category") or r.get("category")) for r in fold.eval_rows
+        }
+        if "Politics" in eval_cats and "Politics" not in train_cats:
+            assert "Politics" not in fold_metric["categories"]
+            saw_eval_only_exclusion = True
+    assert saw_eval_only_exclusion
 
 
 @pytest.mark.asyncio

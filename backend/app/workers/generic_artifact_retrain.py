@@ -3,6 +3,10 @@
 Population A = forecast_scores LIVE resolved rows. Dual-wired (in-process wall
 clock + ARQ cron). Single-flight via asyncio.Lock so overlapping cron/loop
 passes cannot double-register. Registered versions always land inactive.
+
+Ops (DEFAULT-ON): weekly retrain accrues INACTIVE artifacts for human
+activation. Per-run writes are bounded by weekly cadence, single-flight, and
+min_rows — timestamped dirs under artifacts/generic_retrain/.
 """
 
 from __future__ import annotations

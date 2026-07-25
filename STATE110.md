@@ -65,6 +65,11 @@ $ cd backend && uv run --extra dev pytest -q --basetemp=E:/polymarket-worktrees/
 
 ## Local trainer run (fold Briers)
 
+**SYNTHETIC-DATA ARTEFACT — NOT MODEL QUALITY.** Seed is `_synthetic_rows(24)`:
+`outcome = index % 2` and `category = Sports if even else Culture`, so
+**category≡label by construction**. Digits below reproduce that toy pattern
+(AUDIT110 §1 class (c)); never cite as edge or production signal.
+
 Synthetic N=24 seed rows (Sports/Culture, lock-time features + closing_implied). Artifact landed inactive.
 
 ```text
@@ -91,19 +96,47 @@ activate= False
 
 ---
 
+## Ops note — retrain DEFAULT-ON
+
+Orchestrator decision: `SCHEDULER_GENERIC_ARTIFACT_RETRAIN_ENABLED` stays
+**DEFAULT-ON**. Intent: weekly dual-wired retrain accrues **INACTIVE** registry
+rows + disk artifacts for human activation (never auto-activate). Per-run
+writes are already bounded: weekly cadence, `asyncio.Lock` single-flight,
+`GENERIC_ARTIFACT_RETRAIN_MIN_ROWS`, and one timestamped dir under
+`artifacts/generic_retrain/`.
+
+---
+
 ## What shipped
 
-1. **Trainer** `app/forecasting/generic_trainer.py` — calibrated sklearn logistic, `build_v40_folds` embargo walk-forward, lock-time category one-hots (min-count drop, no padding), joblib model + calibrator + `feature_columns.json` sidecar, metrics include model / implied-passthrough / closing-line Brier per fold + overall.
+1. **Trainer** `app/forecasting/generic_trainer.py` — calibrated sklearn logistic, `build_v40_folds` embargo walk-forward, lock-time category one-hots (min-count drop, no padding; **per-fold vocab on train only**, shipped vocab frozen on full train), joblib model + calibrator + `feature_columns.json` sidecar, metrics include model / implied-passthrough / closing-line Brier per fold + overall (+ `model_brier_on_closing_subset` for apples-to-apples when `closing_line_n < n`).
 2. **Loader** `app/forecasting/generic_artifact.py` — ACTIVE registry only when sidecar contract present.
 3. **Wiring** — `ForecastService.predict` injects paths when features complete; missing feature → passthrough (never invent). `prediction_writer` + `forecast_autolock` load active artifact once per pass.
-4. **Retrain** `app/workers/generic_artifact_retrain.py` — weekly dual-wired (wall-clock + ARQ Mon 04:30), single-flight, always `activate=False`.
-5. **Tests** `tests/test_loop110_artifacts.py` — 8 required names + locktime loader kill-shot.
+4. **Retrain** `app/workers/generic_artifact_retrain.py` — weekly dual-wired (wall-clock + ARQ Mon 04:30), single-flight, always `activate=False`, DEFAULT-ON accrue+human-activate.
+5. **Tests** `tests/test_loop110_artifacts.py` — required names + locktime loader kill-shot + fold-vocab exclusion.
 
 ## AutoLab
 
-AutoLab: baseline=passthrough producer for generic markets (scout-confirmed) | benchmark=tests/test_loop110_artifacts.py + walk-forward Brier vs implied/closing | iterations=1 (trainer+wiring+retrain green) | budget=1/mission | outcome=improved (artifact path wired; CLV display authority untouched)
+AutoLab: baseline=passthrough producer for generic markets (scout-confirmed) | benchmark=tests/test_loop110_artifacts.py + walk-forward Brier vs implied/closing | iterations=1 (trainer+wiring+retrain green) + audit-fix pass | budget=2/mission | outcome=improved (artifact path wired; seed metrics labeled synthetic artefact; CLV display authority untouched)
 
 ## Extra scope noticed (not fixed)
 
 - `prediction_writer` was missing from `_ALL_LOOPS` before this loop; added alongside `generic_artifact_retrain` for heartbeat visibility.
 - Prod N=206 not exercised in CI (no prod DB); trainer proven on synthetic seed.
+
+## Audit fixes
+
+AUDIT110 §7 — five items implemented (fold-safe category vocab, seed labelled
+synthetic artefact, real predict asserts, apples-to-apples closing subset
+Brier, retrain DEFAULT-ON ops note).
+
+```text
+$ cd backend && uv run --extra dev pytest -q tests/test_loop110_artifacts.py --basetemp=E:/polymarket-worktrees/loop110-artifacts/.ptx
+..........                                                               [100%]
+10 passed in 10.08s
+```
+
+```text
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```

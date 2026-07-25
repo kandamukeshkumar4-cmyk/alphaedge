@@ -5,6 +5,10 @@ values knowable at lock time: market_implied_probability, time_to_resolution_hou
 and one-hot category from the lock-time AlphaFactorSnapshot (never a post-lock
 taxonomy edit). Walk-forward uses build_v40_folds (embargo included).
 
+Category vocabulary is selected per fold on **train rows only**; the shipped
+artifact freezes vocabulary on the full train set. Synthetic seed metrics
+(category≡label by construction) are a data artefact — never model quality.
+
 Outputs match ``_artifact_probability``: joblib model (predict_proba), joblib
 calibrator (predict), plus a feature_columns sidecar the legacy XGB trainer
 omits. Never auto-activates a registry row.
@@ -98,7 +102,11 @@ def select_categories(
     *,
     min_count: int = DEFAULT_MIN_CATEGORY_COUNT,
 ) -> tuple[list[str], list[str]]:
-    """Return (kept, dropped) category labels from lock-time category only."""
+    """Return (kept, dropped) category labels from lock-time category only.
+
+    Callers must pass the train slice only for walk-forward folds so eval-only
+    categories cannot enter that fold's feature vocabulary.
+    """
     counts: Counter[str] = Counter()
     for row in rows:
         category = row.get("lock_category")
@@ -206,17 +214,29 @@ def _fold_briers(
         for c, o in zip(closing, outcomes)
         if c is not None
     ]
+    model_on_closing = [
+        float(m)
+        for m, c in zip(model_probs, closing)
+        if c is not None
+    ]
     if closing_pairs:
         closing_brier = brier_score(
             [p for p, _ in closing_pairs],
             [o for _, o in closing_pairs],
         )
+        # Apples-to-apples: model Brier on the same closing-complete subset.
+        model_brier_on_closing_subset = brier_score(
+            model_on_closing,
+            [o for _, o in closing_pairs],
+        )
     else:
         closing_brier = None
+        model_brier_on_closing_subset = None
     return {
         "model_brier": model_brier,
         "implied_passthrough_brier": implied_brier,
         "closing_line_brier": closing_brier,
+        "model_brier_on_closing_subset": model_brier_on_closing_subset,
         "closing_line_n": len(closing_pairs),
         "n": len(outcomes),
     }
@@ -231,7 +251,11 @@ def train_generic_artifact(
     eval_window_size: int = DEFAULT_EVAL_WINDOW_SIZE,
     embargo_resolved_rows: int = DEFAULT_EMBARGO_RESOLVED_ROWS,
 ) -> dict[str, Any]:
-    """Walk-forward train + persist model/calibrator/feature_columns sidecar."""
+    """Walk-forward train + persist model/calibrator/feature_columns sidecar.
+
+    Per-fold category vocabulary is fit on train rows only. The shipped
+    artifact freezes vocabulary on the full train set after OOS readout.
+    """
     materialized = [dict(row) for row in rows]
     # Drop rows missing base lock-time features — never fabricate.
     valid = [
@@ -244,10 +268,6 @@ def train_generic_artifact(
         and row.get("resolved_at") is not None
         and row.get("close_at") is not None
     ]
-    categories, dropped_categories = select_categories(
-        valid, min_count=min_category_count
-    )
-    feature_columns = build_feature_columns(categories)
 
     folds = build_v40_folds(
         valid,
@@ -262,8 +282,17 @@ def train_generic_artifact(
     oos_outcomes: list[int] = []
 
     for index, fold in enumerate(folds):
-        x_train, y_train = _matrix(fold.train_rows, feature_columns, categories)
-        x_eval, y_eval = _matrix(fold.eval_rows, feature_columns, categories)
+        # Fold-safe vocab: train rows only (eval-only categories stay out).
+        fold_categories, fold_dropped = select_categories(
+            fold.train_rows, min_count=min_category_count
+        )
+        fold_feature_columns = build_feature_columns(fold_categories)
+        x_train, y_train = _matrix(
+            fold.train_rows, fold_feature_columns, fold_categories
+        )
+        x_eval, y_eval = _matrix(
+            fold.eval_rows, fold_feature_columns, fold_categories
+        )
         model = _fit_model(x_train, y_train)
         raw_train = _predict_proba(model, x_train)
         raw_eval = _predict_proba(model, x_eval)
@@ -293,6 +322,8 @@ def train_generic_artifact(
         metrics["fold"] = index
         metrics["train_n"] = len(fold.train_rows)
         metrics["eval_n"] = len(fold.eval_rows)
+        metrics["categories"] = list(fold_categories)
+        metrics["dropped_categories"] = list(fold_dropped)
         metrics["embargoed_forecast_ids"] = list(fold.embargoed_forecast_ids)
         fold_metrics.append(metrics)
         oos_model.extend(calibrated)
@@ -301,6 +332,11 @@ def train_generic_artifact(
         oos_outcomes.extend(int(v) for v in y_eval)
 
     # Final fit on all valid rows (after walk-forward readout).
+    # Freeze shipped vocabulary on the full train set.
+    categories, dropped_categories = select_categories(
+        valid, min_count=min_category_count
+    )
+    feature_columns = build_feature_columns(categories)
     x_all, y_all = _matrix(valid, feature_columns, categories)
     final_model = _fit_model(x_all, y_all)
     raw_all = _predict_proba(final_model, x_all)
@@ -324,6 +360,7 @@ def train_generic_artifact(
         "model_brier": None,
         "implied_passthrough_brier": None,
         "closing_line_brier": None,
+        "model_brier_on_closing_subset": None,
         "closing_line_n": 0,
         "n": 0,
     }
@@ -351,6 +388,7 @@ def train_generic_artifact(
         "model_brier": overall.get("model_brier"),
         "implied_passthrough_brier": overall.get("implied_passthrough_brier"),
         "closing_line_brier": overall.get("closing_line_brier"),
+        "model_brier_on_closing_subset": overall.get("model_brier_on_closing_subset"),
         "brier_vs_closing_line": overall.get("closing_line_brier"),
         "closing_line_n": overall.get("closing_line_n"),
         "oos_n": overall.get("n"),
