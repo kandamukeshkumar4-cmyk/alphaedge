@@ -79,10 +79,18 @@ class VenueMatchService:
         *,
         min_confidence: float = 0.75,
         max_pairs: int = 5_000,
+        catalog_limit: int | None = None,
     ) -> list[VenueMarketMatch]:
-        """Score open pm-/ks- catalog markets (greedy best Kalshi per Polymarket)."""
-        pm_markets = await self._open_by_source("polymarket", "pm-")
-        ks_markets = await self._open_by_source("kalshi", "ks-")
+        """Score open pm-/ks- catalog markets (greedy best Kalshi per Polymarket).
+
+        ``catalog_limit`` bounds how many OPEN markets are pulled *per venue*
+        before the O(pm x ks) scan, so a periodic caller (the venue gap loop)
+        stays cheap on a large catalog. Soonest-closing markets win the cap —
+        they are the ones a cross-venue gap can still be acted on for. That is
+        scheduled metadata (``lock_at``), never an outcome, so no look-ahead.
+        """
+        pm_markets = await self._open_by_source("polymarket", "pm-", limit=catalog_limit)
+        ks_markets = await self._open_by_source("kalshi", "ks-", limit=catalog_limit)
         candidates: list[MatchCandidate] = []
         for pm in pm_markets:
             best: ScoredMatch | None = None
@@ -119,12 +127,16 @@ class VenueMatchService:
                 break
         return await self.match_and_persist(candidates, min_confidence=min_confidence)
 
-    async def _open_by_source(self, source: str, slug_prefix: str) -> list[Market]:
+    async def _open_by_source(
+        self, source: str, slug_prefix: str, *, limit: int | None = None
+    ) -> list[Market]:
         stmt = select(Market).where(
             Market.source == source,
             Market.status == MarketStatus.OPEN,
             Market.slug.startswith(slug_prefix),
         )
+        if limit is not None and limit > 0:
+            stmt = stmt.order_by(Market.lock_at.asc()).limit(int(limit))
         result = await self.session.scalars(stmt)
         return list(result.all())
 
