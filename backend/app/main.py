@@ -673,6 +673,34 @@ async def _prediction_writer_loop() -> None:
             )
 
 
+async def _generic_artifact_retrain_loop() -> None:
+    """Loop110: weekly generic-logistic retrain (in-process mirror of the ARQ
+    cron). Always registers activate=False; human activation only."""
+    from app.workers.generic_artifact_retrain import generic_artifact_retrain_task
+
+    while True:
+        await _paced_sleep(604800, max(604800, settings.scheduler_idle_interval_sec))
+        try:
+            summary = await generic_artifact_retrain_task({})
+            detail = None
+            if isinstance(summary, dict):
+                if summary.get("skipped"):
+                    detail = str(summary.get("reason"))
+                else:
+                    detail = (
+                        f"version={summary.get('version')} "
+                        f"n={summary.get('row_count')} activated=false"
+                    )
+            record_heartbeat("generic_artifact_retrain", detail=detail)
+        except Exception:
+            logger.error("Generic artifact retrain loop failed", exc_info=True)
+            record_heartbeat(
+                "generic_artifact_retrain",
+                status="error",
+                detail="generic artifact retrain pass failed",
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -890,6 +918,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_forecast_autolock_loop())
     if settings.scheduler_prediction_writer_enabled:
         asyncio.create_task(_prediction_writer_loop())
+    if settings.scheduler_generic_artifact_retrain_enabled:
+        asyncio.create_task(_generic_artifact_retrain_loop())
     if settings.scheduler_drift_detect_enabled:
         asyncio.create_task(_drift_detect_loop())
     if settings.scheduler_ops_alerts_enabled:
