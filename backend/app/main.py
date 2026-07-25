@@ -845,6 +845,8 @@ async def lifespan(app: FastAPI):
         await seed_signal_events(session)
         from app.services.skill_seed_service import seed_default_skills
         await seed_default_skills(session)
+        from app.services.scanner_seed_service import seed_starter_scanners
+        await seed_starter_scanners(session)
         await session.commit()
     from app.data.streams.runner import background_loop_plan
 
