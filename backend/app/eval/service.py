@@ -81,6 +81,7 @@ class EvalService:
         return _snapshot_probability(linked_snapshot)
 
     async def compute_aggregates(self, window_days: int = 7) -> EvalAggregate:
+        """Legacy Evaluation table; public HTTP now uses forecast_scores."""
         result = await self.session.execute(select(Evaluation))
         evals = list(result.scalars().all())
         if not evals:
