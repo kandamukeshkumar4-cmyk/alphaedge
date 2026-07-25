@@ -37,36 +37,31 @@ from app.observability.loop_state import LOOP_INTERVALS, snapshot
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
 
-# Every loop the lifespan can start, in addition to the data-stream plan, so the
-# endpoint answers "is the scheduler alive?" even when WS streams are off.
-_ALL_LOOPS: tuple[str, ...] = (
-    "price_feed",
-    "live_ingest",
-    "live_tick",
-    "eval",
-    "kalshi_ws",
-    "polymarket_ws",
-    "news_scan",
-    "weather_scan",
-    "morning_research",
-    "whale_refresh",
-    "whale_flow",
-    "venue_gap",
-    "wc2026_resolve",
-    "external_resolve",
-    "forecast_model_ab",
-    "catalog_market_resolve",
-    "external_market_bridge",
-    "forecast_autolock",
-    "drift_detect",
-    "ops_alerts",
-    "portfolio_equity",
-    "daily_digest",
-    "jobrun_retention",
-    "data_retention",
-    "heartbeat_manager",
-    "pod_runner",
-)
+# Registry-derived base list (kept as a module constant because tests and
+# callers assert membership against it).
+_ALL_LOOPS: tuple[str, ...] = tuple(LOOP_INTERVALS.keys())
+
+
+def _all_loops(beats: dict[str, Any]) -> tuple[str, ...]:
+    """Every loop this endpoint should report on.
+
+    Loop111 fix C: this used to be a hardcoded tuple that drifted out of sync
+    with the loops the app actually starts — six live loops (``prediction_writer``,
+    ``scanner_scheduler``, ``news_mispricing``, ``unusual_flow``, ``alpha_model``,
+    ``notification_digest``) were recording heartbeats and were invisible here,
+    which is exactly the blind spot that let "reader with no writer" defects
+    hide in prod. It is now *derived*:
+
+    1. ``LOOP_INTERVALS`` (``app/observability/loop_state.py``) — the authoritative
+       registry of known loops and their cadence, in its canonical order, so a
+       future loop registered there appears automatically; plus
+    2. any loop that has actually recorded a heartbeat but is not (yet) in the
+       registry — an unregistered live loop must never be silently dropped.
+
+    Never invents a loop: names come only from the registry or from a real beat.
+    """
+    extra = sorted(name for name in beats if name not in LOOP_INTERVALS)
+    return (*_ALL_LOOPS, *extra)
 
 
 @router.get("/loops")
@@ -76,7 +71,7 @@ async def get_loops() -> dict[str, Any]:
     beats = snapshot()
 
     loops: list[dict[str, Any]] = []
-    for name in _ALL_LOOPS:
+    for name in _all_loops(beats):
         hb = beats.get(name)
         interval = LOOP_INTERVALS.get(name)
         loops.append(
