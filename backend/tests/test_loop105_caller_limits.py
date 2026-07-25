@@ -7,7 +7,13 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.core import opportunities_cache
-from app.db.models import Market, MarketStatus, OddsSnapshot, PredictionLog
+from app.db.models import (
+    AlphaRun,
+    Market,
+    MarketStatus,
+    OddsSnapshot,
+    PredictionLog,
+)
 from app.db.session import get_db
 from app.main import app
 
@@ -40,6 +46,23 @@ async def test_opportunities_candidate_pool_not_truncated_by_default_limit(db_se
     enter the candidate pool and cannot appear in the ranked opportunities list.
     """
     now = datetime.now(UTC)
+    # Loop107: this test asserts CANDIDATE-POOL breadth, not edge validity. The
+    # opportunity board's default signal_only gate lists a row only when the
+    # alpha validator's latest persisted report marks `model_edge` valid, so
+    # seed that PASS verdict explicitly to keep the pool assertion meaningful.
+    db_session.add(
+        AlphaRun(
+            run_date=now.date(),
+            status="genuine_edge",
+            result={
+                "validations": [
+                    {"name": "model_edge", "valid": True, "t_stat": 3.4, "reason": None}
+                ]
+            },
+            rejection_reasons=[],
+        )
+    )
+    await db_session.flush()
     markets: list[Market] = []
     snapshots: list[OddsSnapshot] = []
     preds: list[PredictionLog] = []
