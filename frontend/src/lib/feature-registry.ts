@@ -265,6 +265,12 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         href: "/home",
         blurb: "Your personal desk home.",
       },
+      {
+        id: "usage",
+        label: "Usage",
+        href: "/usage",
+        blurb: "Your paper-trading activity and API usage stats.",
+      },
     ],
   },
   {

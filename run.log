@@ -1,0 +1,34 @@
+[0m
+> build · north-mini-code-free
+[0m
+[0m→ [0mRead frontend/src/lib/feature-registry.ts
+[0m
+[0m← [0mEdit frontend/src/lib/feature-registry.ts
+Index: E:\polymarket-worktrees\loop108-nav\frontend\src\lib\feature-registry.ts
+===================================================================
+--- E:\polymarket-worktrees\loop108-nav\frontend\src\lib\feature-registry.ts
++++ E:\polymarket-worktrees\loop108-nav\frontend\src\lib\feature-registry.ts
+@@ -264,8 +264,14 @@
+       label: "Home",
+       href: "/home",
+       blurb: "Your personal desk home.",
+     },
++    {
++      id: "usage",
++      label: "Usage",
++      href: "/usage",
++      blurb: "Your paper-trading activity and API usage stats.",
++    },
+   ],
+ },
+ {
+   id: "system",
+
+[0m
+[0m$ [0mcd frontend && npm run typecheck
+> alphaedge-frontend@0.1.0 typecheck
+> tsc --noEmit
+
+'tsc' is not recognized as an internal or external command,
+operable program or batch file.
+[0m
