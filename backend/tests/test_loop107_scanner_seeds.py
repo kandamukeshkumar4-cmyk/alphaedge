@@ -26,7 +26,8 @@ EXPECTED_NAMES = {entry["name"] for entry in STARTER_SCANNERS}
 
 def test_seeds_compile_through_the_real_compiler():
     """Each seed spec passes the compiler's schema check with zero warnings."""
-    assert 5 <= len(STARTER_SCANNERS) <= 8
+    # Loop109 added two DSL starters (cross-venue divergence, closing soon).
+    assert 5 <= len(STARTER_SCANNERS) <= 10
     for entry in STARTER_SCANNERS:
         spec = entry["spec"]
         assert is_valid_compiled_spec(spec), f"{entry['name']} rejected by compiler"

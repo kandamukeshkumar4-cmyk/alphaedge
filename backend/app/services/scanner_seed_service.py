@@ -179,6 +179,44 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
             steps=[{"type": "MODEL_EDGE"}],
         ),
     },
+    # Loop109 starters for the two new DSL capabilities. NOT featured:
+    # featured curation is a pending product decision.
+    {
+        "name": "Cross-Venue Divergence",
+        "description": "Finds the same event priced differently on Polymarket vs Kalshi.",
+        "cooldown_minutes": 180,
+        "is_featured": False,
+        "spec": _spec(
+            name="Cross-Venue Divergence",
+            categories=_ALL_CATEGORIES,
+            minimum_volume=0,
+            interval_minutes=60,
+            cooldown_minutes=180,
+            steps=[{"type": "CROSS_VENUE_DIVERGENCE", "min_gap": 0.05}],
+        ),
+    },
+    {
+        "name": "Closing Soon, High Volume",
+        "description": "High-volume markets locking within 24 hours.",
+        "cooldown_minutes": 240,
+        "is_featured": False,
+        "spec": _spec(
+            name="Closing Soon, High Volume",
+            # Universe is volume-ranked by the executor; minimum_volume matches
+            # the "High-Volume Momentum" starter. PRICE_TREND is the scored
+            # signal step (CLOSING_SOON is a filter, so on its own it would trip
+            # the "no signal steps" warning every seed must avoid).
+            categories=_ALL_CATEGORIES,
+            minimum_volume=25000,
+            interval_minutes=240,
+            cooldown_minutes=240,
+            steps=[
+                {"type": "CLOSING_SOON", "within_hours": 24},
+                {"type": "PRICE_TREND", "window_days": 1},
+            ],
+            limit=10,
+        ),
+    },
 ]
 
 
@@ -205,7 +243,8 @@ async def seed_starter_scanners(db: AsyncSession) -> int:
                 version=1,
                 status="active",
                 is_public=True,
-                is_featured=True,
+                # Loop107 starters ship featured; entries may opt out.
+                is_featured=bool(entry.get("is_featured", True)),
                 cooldown_minutes=int(entry["cooldown_minutes"]),
             )
         )
