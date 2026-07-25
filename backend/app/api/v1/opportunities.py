@@ -24,6 +24,15 @@ so a trader can find the biggest edges right now in ONE call. Each row:
   (``{family, citation}`` reusing the J02 feed builder + H03 citation), or
   ``null``.
 
+**CLV GATE (Loop107).** ``signal_only`` defaults to ``true``: a row is listed
+ONLY when the alpha validator's latest persisted report marks the ranked factor
+family (``model_edge``) VALID out-of-sample. The validator currently rejects it,
+so the default board is EMPTY and the funnel says why — ``after_signal_gate=0``,
+``empty_reason="no_validated_edge"``. That empty is the correct, honest outcome:
+an edge that has not beaten the closing line is never presented as validated.
+``signal_only=false`` exposes the raw gaps for inspection, and every such row —
+plus the response itself — carries ``validated: false``.
+
 **PUBLIC GET.** Composition of EXISTING services only — no new pipeline, no new
 table, persists nothing, order write path never imported. This is a ranked view,
 NEVER an order feed. Cacheable (desk-cache TTL pattern; additive ``cached``
@@ -42,7 +51,7 @@ from app.api.v1.alerts_feed import _build_alert_feed, _family_of
 from app.core import opportunities_cache
 from app.core.config import get_settings
 from app.core.http_etag import etag_json_response
-from app.db.models import PredictionLog
+from app.db.models import AlphaRun, PredictionLog
 from app.db.session import get_db
 from app.services.market_service import MarketService
 from app.services.order_book_service import OrderBookService
@@ -59,6 +68,37 @@ OPPORTUNITIES_DISCLAIMER = (
 
 # A public GET must never do unbounded work: cap the candidate markets we score.
 _MAX_CANDIDATES = 200
+
+# Loop107 CLV gate. The gap this endpoint ranks IS the ``model_edge`` factor
+# family: |model P(YES) − market P(YES)|. The binding law is that an edge is
+# never PRESENTED as validated until it has beaten the closing line
+# out-of-sample, and the independent alpha validator currently REJECTS
+# model_edge. So the default board reads the validator's LATEST PERSISTED
+# report (``AlphaRun.result["validations"]``) and shows nothing unless that
+# report marks the family valid. This endpoint never recomputes the statistics
+# and never writes to app/alpha — it only obeys the verdict already recorded.
+_OPPORTUNITY_FACTOR_FAMILY = "model_edge"
+
+
+async def _factor_family_validated(db: AsyncSession, family: str) -> bool:
+    """Did the validator's latest persisted report mark ``family`` valid?
+
+    No report at all → NOT validated (the honest default: absence of evidence is
+    not evidence of edge). Read-only; the stats are the validator's, not ours.
+    """
+    run = await db.scalar(
+        select(AlphaRun).order_by(AlphaRun.run_date.desc(), AlphaRun.id.desc()).limit(1)
+    )
+    if run is None:
+        return False
+    result = run.result if isinstance(run.result, dict) else {}
+    validations = result.get("validations")
+    if not isinstance(validations, list):
+        return False
+    for item in validations:
+        if isinstance(item, dict) and item.get("name") == family:
+            return bool(item.get("valid"))
+    return False
 
 
 async def _latest_model_probs(
@@ -129,6 +169,10 @@ def _opportunities_empty_reason(
         return "no_model_predictions"
     if funnel["with_market_p"] == 0:
         return "no_market_prices"
+    # Loop107: the board is empty because the edge family is not validated
+    # out-of-sample — the correct outcome, not a bug and not something to relax.
+    if funnel["after_signal_gate"] == 0:
+        return "no_validated_edge"
     if funnel["after_min_liquidity"] == 0 and min_liquidity > 0:
         return "filtered_by_min_liquidity"
     if funnel["after_direction"] == 0 and dir_filter is not None:
@@ -142,6 +186,15 @@ async def get_opportunities(
     limit: int = Query(default=20, ge=1, le=100),
     min_liquidity: int = Query(default=0, ge=0),
     direction: str | None = Query(default=None),
+    signal_only: bool = Query(
+        default=True,
+        description=(
+            "Default true: only edges whose factor family the alpha validator's "
+            "latest report marks VALID are listed. Set false to inspect raw "
+            "model-vs-market gaps — those rows are explicitly marked "
+            "validated=false and are NOT a validated edge."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     # Normalize the optional direction filter (honest 200 on a bad value → no
@@ -152,7 +205,13 @@ async def get_opportunities(
         if d in ("YES", "NO"):
             dir_filter = d
 
-    cache_key = ("opportunities", limit, min_liquidity, dir_filter or "")
+    cache_key = (
+        "opportunities",
+        limit,
+        min_liquidity,
+        dir_filter or "",
+        bool(signal_only),
+    )
     if settings.desk_cache_enabled:
         cached_body = opportunities_cache.get(cache_key, settings.desk_cache_ttl_sec)
         if cached_body is not None:
@@ -177,6 +236,7 @@ async def get_opportunities(
         "candidates_open": 0,
         "with_model_p": 0,
         "with_market_p": 0,
+        "after_signal_gate": 0,
         "after_min_liquidity": 0,
         "after_direction": 0,
         "returned": 0,
@@ -185,6 +245,9 @@ async def get_opportunities(
 
     slugs = [m.slug for m in candidates]
     model_probs = await _latest_model_probs(db, slugs)
+
+    # Loop107 CLV gate: read the validator's verdict once per request.
+    validated = await _factor_family_validated(db, _OPPORTUNITY_FACTOR_FAMILY)
 
     rows: list[dict[str, Any]] = []
     for m in candidates:
@@ -199,6 +262,12 @@ async def get_opportunities(
         if market_p is None:
             continue  # no market price → no edge to rank; honest exclusion
         funnel["with_market_p"] += 1
+        # The gate. signal_only (default) refuses to list an edge whose factor
+        # family the validator has not marked valid out-of-sample. An empty
+        # board here is the CORRECT answer, never a reason to relax the gate.
+        if signal_only and not validated:
+            continue
+        funnel["after_signal_gate"] += 1
         liquidity = int(m.volume or 0)
         if liquidity < min_liquidity:
             continue
@@ -218,6 +287,8 @@ async def get_opportunities(
                 "direction": row_direction,
                 "yes_price": m.yes_price,
                 "liquidity": liquidity,
+                # Never present an unvalidated gap as a validated edge.
+                "validated": validated,
             }
         )
 
@@ -233,9 +304,6 @@ async def get_opportunities(
     for row in rows:
         row["top_signal"] = await _top_signal(db, row["slug"])
 
-    # UNVERIFIED / deferred: the plan's OPTIONAL read-only alpha context field
-    # (alpha_model_edge_valid) is intentionally NOT added this ticket —
-    # funnel-only keeps this public GET free of new latency / dependency risk.
     response: dict[str, Any] = {
         "opportunities": rows,
         "count": len(rows),
@@ -245,7 +313,10 @@ async def get_opportunities(
         "funnel": funnel,
         "empty_reason": _opportunities_empty_reason(funnel, dir_filter, min_liquidity),
         "paper_trading_only": settings.paper_trading_only,
-        "signal_only": True,
+        "signal_only": bool(signal_only),
+        # The validator's verdict for the ranked factor family, verbatim.
+        "validated": validated,
+        "validated_factor_family": _OPPORTUNITY_FACTOR_FAMILY,
         "disclaimer": OPPORTUNITIES_DISCLAIMER,
         "generated_at": datetime.now(UTC).isoformat(),
         "cached": False,
