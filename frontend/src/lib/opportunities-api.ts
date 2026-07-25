@@ -68,6 +68,7 @@ export type OpportunitiesResponse = {
     | "filtered_by_min_liquidity"
     | "filtered_by_direction"
     | "no_rankable_edges"
+    | "no_validated_edge"
     | null;
   paper_trading_only: boolean;
   signal_only: boolean;
