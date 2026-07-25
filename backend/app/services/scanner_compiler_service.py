@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 from typing import Any, Literal
 
@@ -15,7 +16,18 @@ from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
-_SIGNAL_TYPES = frozenset({"WHALE_FLOW", "PRICE_TREND", "NEWS_SENTIMENT", "MODEL_EDGE"})
+# Steps that produce a scored read (CROSS_VENUE_DIVERGENCE scores a venue
+# mispricing, so it counts as a signal). CLOSING_SOON is a pure filter and
+# deliberately stays out of this set.
+_SIGNAL_TYPES = frozenset(
+    {
+        "WHALE_FLOW",
+        "PRICE_TREND",
+        "NEWS_SENTIMENT",
+        "MODEL_EDGE",
+        "CROSS_VENUE_DIVERGENCE",
+    }
+)
 _KNOWN_STEP_TYPES = frozenset(
     {
         "WHALE_FLOW",
@@ -23,12 +35,24 @@ _KNOWN_STEP_TYPES = frozenset(
         "NEWS_SENTIMENT",
         "MODEL_EDGE",
         "DIRECTION_ALIGNMENT",
+        "CROSS_VENUE_DIVERGENCE",
+        "CLOSING_SOON",
     }
 )
 _KNOWN_CATEGORIES = frozenset({"nba", "sports", "election", "crypto"})
 _INTERVAL_MIN = 5
 _INTERVAL_MAX = 1440
 _LLM_PLANNER_TIMEOUT_SECONDS = 10.0
+
+# Loop109 step params. Ranges are enforced by is_valid_compiled_spec (the
+# write-side authority) exactly like interval_minutes / categories.
+CROSS_VENUE_MIN_GAP_MIN = 0.01
+CROSS_VENUE_MIN_GAP_MAX = 0.5
+CROSS_VENUE_DEFAULT_MIN_GAP = 0.05
+CROSS_VENUE_NOISY_MIN_GAP = 0.02
+CLOSING_SOON_HOURS_MIN = 1
+CLOSING_SOON_HOURS_MAX = 168
+CLOSING_SOON_DEFAULT_HOURS = 24
 
 CompilerMode = Literal["deterministic", "llm-assisted"]
 
@@ -41,6 +65,9 @@ _PLANNER_SYSTEM_PROMPT = (
     f"Allowed step types: {sorted(_KNOWN_STEP_TYPES)}. "
     f"Allowed categories: {sorted(_KNOWN_CATEGORIES)}. "
     f"interval_minutes must be between {_INTERVAL_MIN} and {_INTERVAL_MAX}. "
+    "CROSS_VENUE_DIVERGENCE takes min_gap (float "
+    f"{CROSS_VENUE_MIN_GAP_MIN}..{CROSS_VENUE_MIN_GAP_MAX}); CLOSING_SOON takes "
+    f"within_hours (integer {CLOSING_SOON_HOURS_MIN}..{CLOSING_SOON_HOURS_MAX}). "
     "Never recommend trades, sizes, or order placement."
 )
 
@@ -216,6 +243,50 @@ def _llm_provider_configured(settings: Settings) -> bool:
     return bool(api_key and str(api_key).strip())
 
 
+def _step_min_gap(step: dict[str, Any]) -> float | None:
+    """CROSS_VENUE_DIVERGENCE min_gap, or None when unusable."""
+    raw = step.get("min_gap", CROSS_VENUE_DEFAULT_MIN_GAP)
+    if isinstance(raw, bool):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def _step_within_hours(step: dict[str, Any]) -> int | None:
+    """CLOSING_SOON within_hours, or None when unusable (whole hours only)."""
+    raw = step.get("within_hours", CLOSING_SOON_DEFAULT_HOURS)
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, float):
+        if not math.isfinite(raw) or raw != int(raw):
+            return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _valid_step_params(step: dict[str, Any]) -> bool:
+    """Per-type parameter range check (Loop109). Unparameterised types pass."""
+    step_type = step.get("type")
+    if step_type == "CROSS_VENUE_DIVERGENCE":
+        gap = _step_min_gap(step)
+        if gap is None:
+            return False
+        return CROSS_VENUE_MIN_GAP_MIN <= gap <= CROSS_VENUE_MIN_GAP_MAX
+    if step_type == "CLOSING_SOON":
+        hours = _step_within_hours(step)
+        if hours is None:
+            return False
+        return CLOSING_SOON_HOURS_MIN <= hours <= CLOSING_SOON_HOURS_MAX
+    return True
+
+
 def is_valid_compiled_spec(spec: Any) -> bool:
     """Whitelist/schema check shared by deterministic and LLM-assisted paths.
 
@@ -231,6 +302,8 @@ def is_valid_compiled_spec(spec: Any) -> bool:
             return False
         step_type = step.get("type")
         if step_type not in _KNOWN_STEP_TYPES:
+            return False
+        if not _valid_step_params(step):
             return False
 
     schedule = spec.get("schedule")
@@ -336,6 +409,25 @@ def validate_spec(spec: dict[str, Any]) -> list[str]:
     ]
     if not signal_steps:
         warnings.append("no signal steps")
+
+    closing_steps = [
+        s for s in steps if isinstance(s, dict) and s.get("type") == "CLOSING_SOON"
+    ]
+    if len(closing_steps) > 1:
+        warnings.append("duplicate CLOSING_SOON step")
+    for step in closing_steps:
+        hours = _step_within_hours(step)
+        if hours is not None and interval and hours * 60 < interval:
+            warnings.append("closing window shorter than scan interval")
+            break
+
+    for step in steps:
+        if not isinstance(step, dict) or step.get("type") != "CROSS_VENUE_DIVERGENCE":
+            continue
+        gap = _step_min_gap(step)
+        if gap is not None and gap < CROSS_VENUE_NOISY_MIN_GAP:
+            warnings.append("cross-venue min_gap below 0.02 will surface noise")
+            break
 
     delivery = spec.get("delivery") if isinstance(spec.get("delivery"), dict) else {}
     try:
