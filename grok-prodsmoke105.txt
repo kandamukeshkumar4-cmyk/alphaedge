@@ -1,0 +1,55 @@
+You are the post-deploy verifier on AlphaEdge (paper-trading prediction-market SIMULATION).
+Write your report to PRODSMOKE105.md in E:/polymarket-worktrees/_integration. READ-ONLY against
+production: GET requests only. Never POST/PUT/DELETE to prod, never mutate, never deploy.
+
+=== WHAT JUST SHIPPED ===
+Wave 105 deployed: honest source labelling (8 surfaces), markets pagination (X-Total-Count headers + Load more UI), alpha validation provenance (validator now computes real t-stats; model_edge honestly REJECTED vs closing line at t=-3.19 on 154 obs), a11y fixes, calibration bins path fix (/api/v1/eval/calibration).
+/traders and /library routes (both were previously DEAD — /traders was a 0-byte page.tsx returning
+404 in prod), and a /community stories UI plus /w/[handle] shared watchlists.
+  API:      https://alphaedge-api-production-b9db.up.railway.app
+  Frontend: https://alphaedge-frontend-three.vercel.app
+
+Already confirmed by the orchestrator (do not re-do, extend beyond it):
+  /api/v1/social/stories -> 200 with real derived story data; /api/v1/watchlist/shared/demo -> 404
+  (correct per contract); /health paper_trading_only: true.
+
+=== CHECKS ===
+ 1. **Previously-dead routes are alive.** GET the frontend routes /traders, /library, /community and
+    a /traders/<name> detail. Record HTTP status AND whether the HTML contains real content vs an
+    empty shell. /traders returned 404 before this deploy — confirm it no longer does.
+ 2. **New API surface.** GET each: /api/v1/social/stories (+ with ?limit=2 and then follow the
+    returned next_cursor once), /api/v1/social/stories/{id}/comments for a real story id from the
+    feed. Confirm the response shapes match: Story needs id, kind, actor{handle,display_name,
+    avatar_url}, market_slug, market_title, headline, body, created_at, reactions{like},
+    reacted, comment_count. Report ANY missing or extra field.
+ 3. **Pagination actually paginates.** Using ?limit=2, follow next_cursor for 2-3 pages. Assert no
+    story id appears on two pages and no obvious gap. A cursor bug here was caught pre-merge; verify
+    the fix holds against real production data (which has real timestamp collisions).
+ 4. **Anonymous safety.** As an anonymous caller, confirm `reacted` is false everywhere and that
+    the USER-auth routes are NOT reachable without auth. Do this by GET only — do NOT attempt a POST.
+    Instead report what the OpenAPI/docs say the auth class is, or note UNVERIFIED.
+ 5. **No regressions on existing surfaces.** GET: /health, /api/v1/markets, /api/v1/signals/dashboard,
+    /api/v1/home, /api/v1/feed, /api/v1/screener, /api/v1/alpha/report, /api/v1/leaderboard,
+    /api/v1/track-record. Any 5xx, or any that previously returned data and now returns empty, is a
+    REGRESSION — flag it loudly. Note response times; flag anything over ~3s.
+ 6. **Paper guardrail in prod.** Confirm /health still reports paper_trading_only true. Spot-check the
+    /community and /trade HTML for any copy implying real money, real execution, or funding rails.
+ 7. **Truthfulness spot-check.** The community feed must NOT show fabricated stories. Its client had
+    a fabricate-on-failure bug that was fixed pre-merge (MOCK_STORIES deleted). Confirm the deployed
+    /community page shows either real stories or an honest empty state — never invented ones. Known
+    fabricated fixture names to grep the HTML for: "demo-trader", "Lakers vs Celtics" as a story.
+
+=== OUTPUT: PRODSMOKE105.md ===
+  ## VERDICT: HEALTHY | DEGRADED | BROKEN
+  ## Route + endpoint table (path -> status -> time -> real content? -> notes)
+  ## Contract conformance (field-by-field for Story/Comment)
+  ## Pagination walk (page 1/2/3 ids, any overlap or gap)
+  ## Regressions vs pre-deploy (cite the earlier GAPMAP104.md numbers where useful)
+  ## Paper-guardrail + truthfulness findings
+  ## UNVERIFIED
+Evidence or it does not go in: paste the actual status line / JSON fragment. Never guess.
+
+=== RULES ===
+- GET only against prod. No mutations, no POST, no deploy, no push. One output file.
+- NEVER print, echo or set a secret/token/API key. Needs one -> "NEEDS USER: <what>".
+- Budget: 2 retries per failing request, then mark UNVERIFIED and move on. Stop when the file is done.
