@@ -426,17 +426,48 @@ async def _scanner_scheduler_loop() -> None:
 
 async def _whale_refresh_loop() -> None:
     """Weekly whale re-qualification (mirrors
-    ``cron(refresh_whales_task, weekday={0}, hour={3})``)."""
+    ``cron(refresh_whales_task, weekday={0}, hour={3})``).
+
+    Loop112: boot catch-up FIRST (never sleep-first). Prod uvicorn has no ARQ
+    worker; the prior sleep-7d-first pattern left ``whale_refresh status=never``
+    and ``TrackedWallet`` empty, starving smart-money surfaces at wallets=0.
+    ``upsert_qualification`` is idempotent per wallet.
+    """
     from app.workers.tasks import refresh_whales_task
 
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        if summary.get("skipped"):
+            return f"skipped:{summary.get('reason')}"
+        return (
+            f"evaluated={summary.get('evaluated', 0)} "
+            f"qualified={summary.get('qualified', 0)}"
+        )
+
+    try:
+        record_heartbeat(
+            "whale_refresh", detail=_detail(await refresh_whales_task({}))
+        )
+    except Exception:
+        logger.error("Whale refresh boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "whale_refresh",
+            status="error",
+            detail="whale refresh boot catch-up failed",
+        )
+
     while True:
-        await asyncio.sleep(7 * 86400)
+        await _paced_sleep(604800, max(604800, settings.scheduler_idle_interval_sec))
         try:
-            await refresh_whales_task({})
-            record_heartbeat("whale_refresh")
+            record_heartbeat(
+                "whale_refresh", detail=_detail(await refresh_whales_task({}))
+            )
         except Exception:
             logger.error("Whale refresh loop failed", exc_info=True)
-            record_heartbeat("whale_refresh", status="error", detail="whale refresh pass failed")
+            record_heartbeat(
+                "whale_refresh", status="error", detail="whale refresh pass failed"
+            )
 
 
 async def _whale_flow_loop() -> None:
