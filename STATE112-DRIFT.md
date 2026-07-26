@@ -228,3 +228,110 @@ All checks passed!
 ```
 2162 passed, 30 skipped in 427.36s (0:07:07)
 ```
+
+## Deadlock resilience
+
+The first production deploy of 067 died with `psycopg2.errors.DeadlockDetected`
+and was rolled back (prod unharmed, still on 066). Cause class: a Railway
+rolling deploy keeps the OLD app instance's ~32 loops writing to these tables
+while 067's single big transaction took `ACCESS EXCLUSIVE` locks across many
+tables in sequence — inverse lock ordering versus the live writers. The scratch
+exercise could not see this: it has no concurrent writers.
+
+067 was restructured (the 63 fixes, backfill literals and downgrade mirror are
+exactly the same set; only the execution shape changed):
+
+1. **One short transaction per table.** The run happens inside
+   `op.get_context().autocommit_block()`; each table's batch is bracketed by
+   explicit `BEGIN` / `COMMIT`. A deadlock now costs one table's batch, and
+   locks are released between tables instead of being held to the end.
+2. **Bounded waiting.** Each batch issues `SET LOCAL lock_timeout = '5s'` and
+   `SET LOCAL statement_timeout = '60s'`. The migration yields to live traffic
+   rather than queueing ahead of it, and `statement_timeout` also caps the table
+   scan that `SET NOT NULL` performs while holding the lock.
+3. **Retries inside the migration.** `_run_batch()` retries a batch up to
+   `MAX_ATTEMPTS = 3` (sleeps 1s, 3s) on a retryable SQLSTATE — `40P01`
+   deadlock_detected, `55P03` lock_not_available, `57014` query_canceled,
+   `40001` serialization_failure. Exhaustion raises a `RuntimeError` naming the
+   table and telling the operator that re-running resumes.
+4. **Idempotency (mandatory now that commits are per table).** Each batch
+   re-reads `information_schema.columns` and only touches columns still in the
+   wrong state, so a crashed run is resumable and a re-run is a no-op for
+   tables already done. `downgrade()` applies the mirror guard (only columns
+   currently `NOT NULL`).
+
+Tables are processed in sorted order, columns sorted within a table
+(`_fixes_by_table()`), so lock order is deterministic across upgrade, downgrade
+and retries. Offline (`--sql`) mode is refused with an explicit message, since
+the migration reads the catalog and manages its own transactions.
+
+### `uv run --extra dev pytest tests/test_migration_exercise.py -q` (scratch PG; upgrade -> downgrade base -> upgrade)
+
+```
+...                                                                      [100%]
+3 passed in 20.44s
+```
+
+### Resumability after a simulated crash (scratch PG)
+
+`upgrade head`, then manually `DROP NOT NULL` on `orders.status` /
+`orders.created_at` and reset `alembic_version` to 066 — the state a mid-run
+crash leaves behind — then `upgrade head` again:
+
+```
+A after upgrade head      : orders.status is_nullable = NO
+B simulated partial crash : orders.status is_nullable = YES | markets.status is_nullable = NO
+C after resumed upgrade   : orders.status is_nullable = NO | orders.created_at is_nullable = NO | version = 067_notnull_parity
+D after downgrade to 066  : orders.status is_nullable = YES
+E after re-upgrade        : orders.status is_nullable = NO
+scratch database dropped: alphaedge_resume_699899f3
+```
+
+Line C is the point: the resumed run re-applied only the reverted table and was
+a no-op for tables already committed (`markets` was untouched at B and stayed
+`NO`).
+
+### Concurrent-writer behaviour (scratch PG; a second session holding ROW EXCLUSIVE on `orders`)
+
+```
+--- A/ lock held throughout: a concurrent writer holds ROW EXCLUSIVE on "orders" for 60s ---
+RESULT A/ lock held throughout: RuntimeError: 067_notnull_parity: could not complete the batch for table 'orders' (SQLSTATE 55P03, attempt 3/3, retryable). Earlier tables are already committed, so re-running `alembic upgrade head` resumes from here - each batch skips columns that are already in the target state. If this keeps happening, quiesce the writers on this table (scale the old instance to 0) and re-run.
+  earlier table committed anyway? markets.status is_nullable = NO
+  blocked table left alone?      orders.status is_nullable = YES
+--- B/ lock released mid-retry: a concurrent writer holds ROW EXCLUSIVE on "orders" for 9s ---
+RESULT B/ lock released mid-retry: upgrade completed; orders.status is_nullable = NO
+```
+
+Case A shows the failure is now contained: bounded at 5s per attempt, earlier
+tables committed, blocked table untouched, resumable. Case B shows a transient
+conflict is absorbed by the retry.
+
+**Honest limit:** this synthetic conflict exercises the lock-timeout, retry and
+resume paths, but it is one writer holding one table. The real failure mode —
+~32 loops of an old instance interleaving writes across many tables during a
+rolling deploy, and a true deadlock (`40P01`) rather than a lock timeout
+(`55P03`) — **remains exercised only in production**. The restructure is
+designed so that if it still deadlocks, the blast radius is one table's batch
+and `alembic upgrade head` can simply be run again. Recommended deploy order is
+unchanged: prefer draining or scaling the old instance to 0 first.
+
+### `uv run alembic heads`
+
+```
+067_notnull_parity (head)
+```
+
+### `uv run --extra dev ruff check app tests alembic/versions/067_notnull_json_parity.py`
+
+```
+All checks passed!
+```
+
+### `uv run --extra dev pytest -q` (full backend suite)
+
+```
+2162 passed, 30 skipped in 459.65s (0:07:39)
+```
+
+The parity baseline (61 entries) is unchanged by this restructure — the set of
+columns 067 fixes is identical, so `git status backend/tests/` stays clean.
