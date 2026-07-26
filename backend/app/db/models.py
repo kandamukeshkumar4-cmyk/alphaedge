@@ -334,9 +334,16 @@ class PodEquitySnapshot(Base):
 
 class Market(Base):
     __tablename__ = "markets"
+    # loop112: revision 001 created markets.slug with a table-level UNIQUE
+    # constraint (``markets_slug_key``) *plus* a plain index. Declaring
+    # ``unique=True`` on the column instead produced a unique *index*, so the
+    # parity harness saw the DDL constraint as "extra". Slug uniqueness is
+    # semantically correct, so the model is brought in line with the DDL
+    # rather than the constraint being dropped from the database.
+    __table_args__ = (UniqueConstraint("slug", name="markets_slug_key"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="Sports")
