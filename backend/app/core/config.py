@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     scheduler_model_retrain_enabled: bool = Field(
         default=True, alias="SCHEDULER_MODEL_RETRAIN_ENABLED"
     )
+    scheduler_nightly_backtest_enabled: bool = Field(
+        default=True, alias="SCHEDULER_NIGHTLY_BACKTEST_ENABLED"
+    )
     scheduler_wc2026_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
     )

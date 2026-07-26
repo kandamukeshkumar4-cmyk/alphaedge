@@ -826,6 +826,49 @@ async def _model_retrain_loop() -> None:
             )
 
 
+async def _nightly_backtest_loop() -> None:
+    """Loop112: nightly backtest mirror of ``cron(nightly_backtest_task, hour={2})``.
+
+    Flag-gated inside the task (``BACKTEST_NIGHTLY_ENABLED``, default OFF). Boot
+    catch-up first — never sleep-first. Paper-only replay → ``backtest_runs``.
+    """
+    from app.workers.tasks import nightly_backtest_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        if summary.get("skipped"):
+            return f"skipped:{summary.get('reason')}"
+        results = summary.get("results") or {}
+        return f"slugs={len(results)}"
+
+    try:
+        record_heartbeat(
+            "nightly_backtest", detail=_detail(await nightly_backtest_task({}))
+        )
+    except Exception:
+        logger.error("Nightly backtest boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "nightly_backtest",
+            status="error",
+            detail="nightly backtest boot catch-up failed",
+        )
+
+    while True:
+        await _paced_sleep(86400, max(86400, settings.scheduler_idle_interval_sec))
+        try:
+            record_heartbeat(
+                "nightly_backtest", detail=_detail(await nightly_backtest_task({}))
+            )
+        except Exception:
+            logger.error("Nightly backtest loop failed", exc_info=True)
+            record_heartbeat(
+                "nightly_backtest",
+                status="error",
+                detail="nightly backtest pass failed",
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -1031,6 +1074,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_whale_positions_loop())
     if settings.scheduler_model_retrain_enabled:
         asyncio.create_task(_model_retrain_loop())
+    if settings.scheduler_nightly_backtest_enabled:
+        asyncio.create_task(_nightly_backtest_loop())
     if settings.scheduler_venue_gap_enabled:
         asyncio.create_task(_venue_gap_loop())
     if settings.scheduler_wc2026_resolve_enabled:
