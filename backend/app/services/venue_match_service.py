@@ -10,6 +10,7 @@ from typing import Any, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.db.models import Market, MarketStatus, VenueMarketMatch
 from app.signals.matching import (
     ResolutionMatch,
@@ -114,8 +115,11 @@ class VenueMatchService:
         (``last_scan_stats``, also logged) make prod passes observable instead
         of a silent ``matched=0``.
         """
-        pm_markets = await self._open_by_source("polymarket", "pm-", limit=catalog_limit)
-        ks_markets = await self._open_by_source("kalshi", "ks-", limit=catalog_limit)
+        settings = get_settings()
+        actual_catalog_limit = getattr(settings, "venue_match_catalog_limit", 500)
+
+        pm_markets = await self._open_by_source("polymarket", "pm-", limit=actual_catalog_limit)
+        ks_markets = await self._open_by_source("kalshi", "ks-", limit=actual_catalog_limit)
         stats: dict[str, float | int] = {
             "pm_scanned": len(pm_markets),
             "ks_scanned": len(ks_markets),
@@ -130,6 +134,8 @@ class VenueMatchService:
         for pm in pm_markets:
             best: ScoredMatch | None = None
             for ks in ks_markets:
+                if int(stats["pairs_scored"]) >= max_pairs:
+                    break
                 cand = MatchCandidate(
                     pm_slug=pm.slug,
                     ks_slug=ks.slug,
@@ -170,7 +176,7 @@ class VenueMatchService:
                     best = scored
             if best is not None:
                 candidates.append(best.candidate)
-            if len(candidates) >= max_pairs:
+            if len(candidates) >= max_pairs or int(stats["pairs_scored"]) >= max_pairs:
                 break
         rows = await self.match_and_persist(candidates, min_confidence=min_confidence)
         stats["matched"] = len(rows)
@@ -187,7 +193,11 @@ class VenueMatchService:
             Market.slug.startswith(slug_prefix),
         )
         if limit is not None and limit > 0:
-            stmt = stmt.order_by(Market.lock_at.asc()).limit(int(limit))
+            if source == "polymarket":
+                # Smarter candidacy: within the window, sort PM candidates by volume DESC then lock_at (liquid markets first)
+                stmt = stmt.order_by(Market.volume.desc(), Market.lock_at.asc()).limit(int(limit))
+            else:
+                stmt = stmt.order_by(Market.lock_at.asc()).limit(int(limit))
         result = await self.session.scalars(stmt)
         return list(result.all())
 

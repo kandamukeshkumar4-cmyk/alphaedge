@@ -344,6 +344,7 @@ class Settings(BaseSettings):
     scheduler_venue_gap_enabled: bool = Field(
         default=True, alias="SCHEDULER_VENUE_GAP_ENABLED"
     )
+    venue_match_catalog_limit: int = Field(default=500, alias="VENUE_MATCH_CATALOG_LIMIT")
 
     # Loop V59 — code-only position heartbeat (no LLM). Default off.
     heartbeat_manager_enabled: bool = Field(
