@@ -352,17 +352,25 @@ def _as_utc(value: datetime) -> datetime:
 
 
 def _is_placeholder_end(value: datetime) -> bool:
-    """True for venue-default placeholder end dates (loop112).
+    """True for venue-default placeholder end dates (loop112/114).
 
-    Kalshi parks long-horizon markets on New Year midnights (2031-01-01,
-    2045-01-01, ...); Polymarket uses year-end (Dec 31 23:59). A date
-    disagreement that involves one of these is a catalog artifact, not evidence
-    of two different events, so it must not hard-zero the pair.
+    Prod parks long-horizon locks on year-boundary calendar days at a whole
+    hour (VERIFY112: Dec 31 00:00, Jan 1 15:00) — not only Jan-1 midnight /
+    Dec-31 23:59. A lock is placeholder-shaped iff it falls on Dec 30–Jan 2
+    AND the time-of-day is a whole hour (minute==0, second==0). The classic
+    Polymarket Dec 31 23:59 signature is kept (not a whole hour). Mid-season
+    game locks stay sharp.
     """
     utc = _as_utc(value)
-    if utc.month == 1 and utc.day == 1 and utc.hour == 0 and utc.minute == 0:
-        return utc.second == 0 and utc.microsecond == 0
-    return utc.month == 12 and utc.day == 31 and utc.hour == 23 and utc.minute == 59
+    # Classic Polymarket year-end signature (loop112); minute=59 ≠ whole hour.
+    if utc.month == 12 and utc.day == 31 and utc.hour == 23 and utc.minute == 59:
+        return True
+    in_year_boundary = (utc.month == 12 and utc.day >= 30) or (
+        utc.month == 1 and utc.day <= 2
+    )
+    if not in_year_boundary:
+        return False
+    return utc.minute == 0 and utc.second == 0 and utc.microsecond == 0
 
 
 def _candidate_name_tokens(title: str) -> set[str]:
