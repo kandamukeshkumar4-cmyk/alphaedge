@@ -133,6 +133,46 @@ $ cd backend && uv run --extra dev pytest -q tests/test_loop112_matcher.py tests
 All checks passed!
 ```
 
+## Test hardening
+
+Per AUDIT112-MATCHER.md findings N1 (medium) and T1 (high, test-proof) —
+`backend/tests/test_loop112_matcher.py` ONLY; no service code touched:
+
+- **N1 (floors must bind on pairs that earn sub-scores):** the set-B
+  Anthropic/SpaceX controls score absolute 0.0 and would stay unmatched under
+  any positive floor, so they cannot prove the new floors bind. Added the
+  audit's boundary cases: the adjacent-day Lakers pair is now pinned at
+  exactly **0.20** (soft date pass + close-time 0.15 + title-partial 0.05, no
+  entity credit) below the 0.50 floor; a new catalog BTC-style pair is pinned
+  at **0.20** (close-time 0.15 + title-partial 0.05, `entity_mismatch`); and a
+  new `match_open_catalog` e2e seeds both boundary pairs and asserts
+  `below_threshold == 2`, `matched == 0`, nothing persisted,
+  `max_confidence == 0.20`. Set-B zero-score controls kept as bottom-floor
+  regressions.
+- **T1 (old-rules vs current dual assertion):** test-file-only shadow scorer
+  `_score_pre_loop112` encodes the documented pre-loop112 rules (any UTC
+  day-diff → conf 0; entity full-set equality only; weights
+  0.40/0.35/0.15/0.10; no Jaccard tiers, no person-name rule, no placeholder
+  soft-pass). The dual test asserts the A1 pair scores conf **0.0 /
+  unconfirmed** (`resolution_date_reject`) under the OLD rules, then
+  conf **>= 0.50 / confirmed** under current code.
+
+20 → 23 tests.
+
+```
+$ cd backend && uv run --extra dev pytest -q tests/test_loop112_matcher.py --basetemp=E:/polymarket-worktrees/loop112-matcher/.ptx
+.......................                                                  [100%]
+23 passed in 6.20s
+
+$ cd backend && uv run --extra dev ruff check app tests
+All checks passed!
+```
+
+AutoLab: baseline=20 passed (tests/test_loop112_matcher.py, verified in audit
+proof run) | benchmark=`uv run --extra dev pytest -q
+tests/test_loop112_matcher.py` + ruff | iterations=1 (23 passed, ruff clean) |
+budget=n/a | outcome=improved
+
 ## Regression (outside charter verify; must stay green — "G02 false-positive
 date tests still green", "no paper-trading guardrail regressions")
 

@@ -18,7 +18,7 @@ Paper-trading simulation only: no order path, no LLM calls, no secrets.
 from __future__ import annotations
 
 import inspect
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -26,8 +26,13 @@ from sqlalchemy import select
 from app.db.models import Market, MarketStatus, VenueMarketMatch
 from app.services.venue_match_service import VenueMatchService
 from app.signals.matching import (
+    ResolutionMatch,
     ResolutionTerms,
+    _as_utc,
+    _entity_set,
     _is_placeholder_end,
+    _title_token_jaccard,
+    _title_tokens,
     match_resolution_terms,
     match_venue_markets,
     titles_share_content_token,
@@ -64,6 +69,87 @@ def _venue_match(pm_title: str, ks_title: str, **overrides):
     }
     kwargs.update(overrides)
     return match_venue_markets(pm_title, ks_title, **kwargs)
+
+
+def _score_pre_loop112(
+    pm_title: str,
+    ks_title: str,
+    *,
+    pm_close_time: datetime | None,
+    ks_close_time: datetime | None,
+    pm_event_id: str | None = None,
+    ks_event_id: str | None = None,
+    pm_entities: tuple[str, ...] | None = None,
+    ks_entities: tuple[str, ...] | None = None,
+    min_confidence: float = 0.75,
+    close_tolerance: timedelta = timedelta(hours=1),
+) -> ResolutionMatch:
+    """Shadow scorer for the documented pre-loop112 rules (audit T1).
+
+    Test-only proof harness — the service code is NOT modified. Encodes the
+    rules AUDIT112-MATCHER.md check 3 documents for the old matcher:
+
+    - Date: ANY differing UTC calendar day between close times hard-rejects
+      to confidence 0.0 — no placeholder soft-pass, no adjacent-day grace.
+    - event_id: exact equality → 0.40.
+    - Entity: FULL-SET equality only → 0.35 (no Jaccard tiers, no candidate
+      proper-name rule — the structural reason real pairs never scored).
+    - Close time within tolerance → 0.15. Title Jaccard >= 0.50 → 0.10
+      (no partial tier).
+    - Same title-token entity defaults as ``match_venue_markets``.
+    """
+    if pm_close_time is not None and ks_close_time is not None:
+        if _as_utc(pm_close_time).date() != _as_utc(ks_close_time).date():
+            return ResolutionMatch(
+                status="unconfirmed",
+                confidence=0.0,
+                reasons=("resolution_date_reject",),
+                warning="resolution dates differ",
+            )
+
+    score = 0.0
+    reasons: list[str] = []
+
+    pm_event = (pm_event_id or "").strip().lower()
+    ks_event = (ks_event_id or "").strip().lower()
+    if pm_event and ks_event:
+        if pm_event == ks_event:
+            score += 0.40
+            reasons.append("event_id_match")
+        else:
+            reasons.append("event_id_mismatch")
+    else:
+        reasons.append("event_id_missing")
+
+    pm_ents = pm_entities if pm_entities is not None else tuple(sorted(_title_tokens(pm_title)))
+    ks_ents = ks_entities if ks_entities is not None else tuple(sorted(_title_tokens(ks_title)))
+    pm_set, ks_set = _entity_set(pm_ents), _entity_set(ks_ents)
+    if pm_set and ks_set:
+        if pm_set == ks_set:
+            score += 0.35
+            reasons.append("entity_match")
+        else:
+            reasons.append("entity_mismatch")
+
+    if pm_close_time is not None and ks_close_time is not None:
+        if abs(_as_utc(pm_close_time) - _as_utc(ks_close_time)) <= close_tolerance:
+            score += 0.15
+            reasons.append("close_time_match")
+        else:
+            reasons.append("close_time_mismatch")
+
+    title_jaccard = _title_token_jaccard(pm_title, ks_title)
+    if title_jaccard >= 0.50:
+        score += 0.10
+        reasons.append(f"title_token_match(jaccard={title_jaccard:.2f})")
+    else:
+        reasons.append(f"title_token_mismatch(jaccard={title_jaccard:.2f})")
+
+    confidence = round(min(score, 1.0), 4)
+    status = "confirmed" if confidence >= min_confidence else "unconfirmed"
+    return ResolutionMatch(
+        status=status, confidence=confidence, reasons=tuple(reasons), warning=""
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +231,10 @@ class TestDateRuleSoftenedForPlaceholders:
         1 day delta) is the same event.
 
         Failed before: hard reject → 0.0 despite the 1h close-time agreement.
-        Floor check: it still does NOT confirm — soft scoring alone (0.20)
-        stays well below the persist floor.
+        Floor check (audit N1 boundary case): it still does NOT confirm — the
+        pair earns real sub-scores, exactly 0.20 = close-time 0.15 +
+        title-partial 0.05 (soft date pass, no entity credit), which stays
+        well below the 0.50 persist floor.
         """
         match = _venue_match(
             "Lakers vs Celtics tonight",
@@ -156,8 +244,10 @@ class TestDateRuleSoftenedForPlaceholders:
             min_confidence=PERSIST_FLOOR,
         )
         assert "resolution_date_reject" not in match.reasons
+        assert any(r.startswith("resolution_date_soft_pass") for r in match.reasons)
         assert "close_time_match" in match.reasons
         assert match.status == "unconfirmed"
+        assert match.confidence == pytest.approx(0.20)
         assert match.confidence < PERSIST_FLOOR
 
     def test_placeholder_signature_detection(self):
@@ -300,6 +390,70 @@ class TestControlsStillUnconfirmed:
         )  # default min_confidence=0.75
         assert match.status == "confirmed"
         assert match.confidence >= 0.75
+
+
+# ---------------------------------------------------------------------------
+# Audit N1 — floor pressure: controls that EARN sub-scores yet stay below
+# the persist floor (the set-B fixtures score absolute 0.0, which would stay
+# unmatched under ANY positive floor and therefore cannot prove floors bind)
+# ---------------------------------------------------------------------------
+
+
+class TestFloorPressureBoundaryCases:
+    def test_btc_catalog_pair_earns_sub_scores_but_stays_below_floor(self):
+        """Catalog BTC-style boundary pair: one shared topic word (Bitcoin),
+        different question cadence, same sharp lock. Earns close-time 0.15 +
+        title-partial 0.05 = exactly 0.20 — real sub-score pressure that the
+        0.50 floor still holds back.
+        """
+        match = _venue_match(
+            "Will Bitcoin hit 100k this week?",
+            "Bitcoin above 100k by Friday",
+            pm_close_time=datetime(2026, 7, 31, 16, 0, tzinfo=UTC),
+            ks_close_time=datetime(2026, 7, 31, 16, 0, tzinfo=UTC),
+            min_confidence=PERSIST_FLOOR,
+        )
+        assert match.confidence == pytest.approx(0.20)
+        assert match.status == "unconfirmed"
+        assert match.confidence < PERSIST_FLOOR
+        assert "close_time_match" in match.reasons
+        assert any(r.startswith("title_token_partial") for r in match.reasons)
+        assert "entity_mismatch" in match.reasons  # one shared word is not an entity match
+        assert "resolution_date_reject" not in match.reasons
+
+
+# ---------------------------------------------------------------------------
+# Audit T1 — behaviour-real proof: A1 fails under the documented
+# pre-loop112 rules and confirms under the current code (dual assertion)
+# ---------------------------------------------------------------------------
+
+
+class TestOldRulesShadowScore:
+    def test_a1_fails_under_old_rules_and_confirms_under_current(self):
+        """Same production pair, same inputs, both rule sets.
+
+        Pre-loop112: the placeholder lock disagreement (2026-12-31 vs
+        2045-01-01) is ANY-day-diff → hard 0.0; even bypassed, full-set
+        entity equality fails and title-only credit caps at 0.10 << 0.75.
+        Current code: soft date pass + person-name entity credit + full
+        title → 0.55, confirmed at the catalog persist floor.
+        """
+        old = _score_pre_loop112(
+            A1_PM,
+            A1_KS,
+            pm_close_time=PM_PLACEHOLDER_LOCK,
+            ks_close_time=KS_PLACEHOLDER_LOCK,
+            pm_event_id="0x95f2c1a4-condition-id",
+            ks_event_id="KXNISRAELPM-26",
+            min_confidence=PERSIST_FLOOR,
+        )
+        assert old.confidence == 0.0
+        assert old.status == "unconfirmed"
+        assert "resolution_date_reject" in old.reasons
+
+        new = _venue_match(A1_PM, A1_KS, min_confidence=PERSIST_FLOOR)
+        assert new.confidence >= PERSIST_FLOOR
+        assert new.status == "confirmed"
 
 
 # ---------------------------------------------------------------------------
@@ -479,3 +633,72 @@ async def test_match_open_catalog_counts_date_rejects_in_stats(db_session):
     assert stats["date_rejects"] == 1
     assert stats["matched"] == 0
     assert stats["max_confidence"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_match_open_catalog_counts_boundary_pairs_below_threshold(db_session):
+    """Audit N1 at the catalog seam: pairs that EARN sub-scores must still be
+    held back by the 0.50 floor — counted as ``below_threshold``, not
+    persisted, and not vanished into a silent zero.
+
+    Seeds the two audit boundary pairs, each scoring 0.20 (close-time 0.15 +
+    title-partial 0.05): the adjacent-day Lakers pair (soft date pass) and the
+    same-lock BTC pair (different question cadence).
+    """
+    db_session.add(
+        _market(
+            slug="pm-lakers-tonight",
+            source="polymarket",
+            title="Lakers vs Celtics tonight",
+            external_id="pm-cond-lal-tonight",
+            lock_at=datetime(2026, 1, 15, 23, 30, tzinfo=UTC),
+        )
+    )
+    db_session.add(
+        _market(
+            slug="ks-lakers-beat-celtics",
+            source="kalshi",
+            title="Will Lakers beat Celtics?",
+            external_id="KXNBA-LALBOS-TONIGHT",
+            lock_at=datetime(2026, 1, 16, 0, 30, tzinfo=UTC),
+        )
+    )
+    db_session.add(
+        _market(
+            slug="pm-btc-100k-week",
+            source="polymarket",
+            title="Will Bitcoin hit 100k this week?",
+            external_id="pm-cond-btc-week",
+            lock_at=datetime(2026, 7, 31, 16, 0, tzinfo=UTC),
+        )
+    )
+    db_session.add(
+        _market(
+            slug="ks-btc-100k-friday",
+            source="kalshi",
+            title="Bitcoin above 100k by Friday",
+            external_id="KXBTC-26JUL31",
+            lock_at=datetime(2026, 7, 31, 16, 0, tzinfo=UTC),
+        )
+    )
+    await db_session.commit()
+
+    service = VenueMatchService(db_session)
+    rows = await service.match_open_catalog()  # defaults: floor 0.50
+
+    # Both boundary pairs score 0.20 < 0.50: nothing persists.
+    assert rows == []
+    stored = list((await db_session.scalars(select(VenueMarketMatch))).all())
+    assert stored == []
+
+    stats = service.last_scan_stats
+    assert stats["pm_scanned"] == 2
+    assert stats["ks_scanned"] == 2
+    # Each pair shares a >=4-char token (lakers/celtics, bitcoin/100k); the
+    # two cross-topic combinations skip the scorer.
+    assert stats["pairs_scored"] == 2
+    assert stats["pairs_skipped_prefilter"] == 2
+    assert stats["date_rejects"] == 0  # adjacent-day delta soft-passes
+    assert stats["below_threshold"] == 2  # both at 0.20, held by the floor
+    assert stats["matched"] == 0
+    assert stats["max_confidence"] == pytest.approx(0.20)
