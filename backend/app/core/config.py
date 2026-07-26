@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     whale_positions_interval_sec: int = Field(
         default=180, alias="WHALE_POSITIONS_INTERVAL_SEC"
     )
+    # Loop112: in-process mirror of cron(model_retrain_task). Task still gated
+    # by ML_RETRAIN_ENABLED (default OFF); loop is individually killable.
+    scheduler_model_retrain_enabled: bool = Field(
+        default=True, alias="SCHEDULER_MODEL_RETRAIN_ENABLED"
+    )
     scheduler_wc2026_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
     )

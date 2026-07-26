@@ -783,6 +783,49 @@ async def _whale_positions_loop() -> None:
             )
 
 
+async def _model_retrain_loop() -> None:
+    """Loop112: daily XGBoost retrain mirror of ``cron(model_retrain_task, hour={4})``.
+
+    Flag-gated inside the task (``ML_RETRAIN_ENABLED``, default OFF). Boot
+    catch-up first — never sleep-first. Registers with ``activate=False``.
+    """
+    from app.workers.model_retrain import model_retrain_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        if summary.get("skipped"):
+            return f"skipped:{summary.get('reason')}"
+        return (
+            f"version={summary.get('version')} "
+            f"n={summary.get('row_count')} activated=false"
+        )
+
+    try:
+        record_heartbeat(
+            "model_retrain", detail=_detail(await model_retrain_task({}))
+        )
+    except Exception:
+        logger.error("Model retrain boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "model_retrain",
+            status="error",
+            detail="model retrain boot catch-up failed",
+        )
+
+    while True:
+        await _paced_sleep(86400, max(86400, settings.scheduler_idle_interval_sec))
+        try:
+            record_heartbeat(
+                "model_retrain", detail=_detail(await model_retrain_task({}))
+            )
+        except Exception:
+            logger.error("Model retrain loop failed", exc_info=True)
+            record_heartbeat(
+                "model_retrain", status="error", detail="model retrain pass failed"
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -986,6 +1029,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_whale_flow_loop())
     if settings.scheduler_whale_positions_enabled:
         asyncio.create_task(_whale_positions_loop())
+    if settings.scheduler_model_retrain_enabled:
+        asyncio.create_task(_model_retrain_loop())
     if settings.scheduler_venue_gap_enabled:
         asyncio.create_task(_venue_gap_loop())
     if settings.scheduler_wc2026_resolve_enabled:

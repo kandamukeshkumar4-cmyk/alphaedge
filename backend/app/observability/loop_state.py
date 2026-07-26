@@ -40,6 +40,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "whale_refresh": 604800,  # 7 * 86400
     "whale_flow": 60,  # max(30, WHALE_FLOW_INTERVAL_SEC=60)
     "whale_positions": 180,  # max(60, WHALE_POSITIONS_INTERVAL_SEC=180)
+    "model_retrain": 86400,  # daily; task still gated by ML_RETRAIN_ENABLED
     "venue_gap": 60,  # max(30, VENUE_GAP_INTERVAL_SEC=60)
     "wc2026_resolve": 600,
     "external_resolve": 900,
