@@ -9,9 +9,19 @@ they use fuzzy-title + entity + date signals.  No code was copied from them.
 Match-confidence is a weighted sum of four independent sub-scores:
 
   event_id_match      0.40  (cross-platform IDs rarely align, so a hit is decisive)
-  entity_match        0.35  (normalized entity set equality)
+  entity_match        0.40  (entity Jaccard >= 0.80, or same candidate proper name)
+  entity_partial      0.20  (entity Jaccard in [0.50, 0.80) — near-match, not equality)
   close_time_match    0.15  (close dates within tolerance)
-  title_token_match   0.10  (fuzzy Jaccard overlap of title tokens — the new signal)
+  title_token_match   0.15  (title Jaccard >= 0.50; +0.05 for >= 0.25)
+
+Loop112 (MATCHER-DIAG112): production catalogs never share cross-venue event IDs
+(Polymarket condition ids vs Kalshi tickers) and never carry curated entity lists,
+so the old weight math (event_id 0.40 + full-set entity equality 0.35) was
+unreachable on live data — 0.75 could not be scored without synthetic fixture
+IDs.  Entity scoring is now a Jaccard near-match with a partial tier, plus a
+proper-name ("Event: Candidate") overlap rule, so real same-event pairs can
+confirm at the catalog persist floor (0.50, see VenueMatchService) while the
+strict 0.75 gate stays the default for direct callers.
 
 The total is clamped to [0.0, 1.0].  "confirmed" requires confidence >= min_confidence
 (default 0.75).
@@ -31,6 +41,39 @@ from typing import Literal
 
 
 MatchStatus = Literal["confirmed", "unconfirmed"]
+
+# Sub-score weights (loop112 rebalance — see module docstring). event_id stays
+# 0.40: a cross-venue hit is still decisive; the existing suite pins it there.
+WEIGHT_EVENT_ID_MATCH = 0.40
+WEIGHT_ENTITY_MATCH = 0.40
+WEIGHT_ENTITY_PARTIAL = 0.20
+WEIGHT_CLOSE_TIME_MATCH = 0.15
+WEIGHT_TITLE_MATCH = 0.15
+WEIGHT_TITLE_PARTIAL = 0.05
+
+# Entity near-match tiers (loop112): Jaccard of the normalized entity sets.
+# Full-set equality is nearly impossible across venues' different phrasing, so
+# >= 0.80 counts as a match and [0.50, 0.80) earns partial credit. Below 0.50
+# the sets disagree and score nothing — the floor that keeps pairs from
+# confirming on one shared generic word.
+ENTITY_JACCARD_FULL = 0.80
+ENTITY_JACCARD_PARTIAL = 0.50
+
+# Title token Jaccard tiers (unchanged thresholds, raised full credit).
+TITLE_JACCARD_FULL = 0.50
+TITLE_JACCARD_PARTIAL = 0.25
+
+# Date hard-reject floors (loop112, plan B): a differing-calendar-day pair is
+# hard-zeroed only when the dates are at most DATE_REJECT_MAX_DAY_DELTA days
+# apart AND both timestamps are "sharp". Small deltas on real timestamps mean
+# genuinely different resolution days (game 1 vs game 2); huge deltas mean a
+# venue placeholder end date, which carries no resolution signal.
+DATE_REJECT_MAX_DAY_DELTA = 1
+
+# Multi-outcome ("Event: Candidate") proper-name rule floor: a right-hand
+# candidate name must be at least this many tokens to upgrade the entity
+# sub-score. One token ("Anthropic") is brand overlap, not a same-person match.
+MIN_CANDIDATE_NAME_TOKENS = 2
 
 # Token-match stop-words — too common across *all* markets to be discriminative.
 _STOP_WORDS: frozenset[str] = frozenset(
@@ -76,43 +119,60 @@ def match_resolution_terms(
 ) -> ResolutionMatch:
     """Return a ResolutionMatch with a confidence score in [0.0, 1.0].
 
-    Sub-scores and weights::
+    Sub-scores and weights (loop112)::
 
-        event_id_match   0.40
-        entity_match     0.35
-        close_time_match 0.15
-        title_token_match 0.10   (new in U11)
+        event_id_match    0.40
+        entity_match      0.40   (Jaccard >= 0.80, or same candidate name)
+        entity_partial    0.20   (Jaccard in [0.50, 0.80))
+        close_time_match  0.15
+        title_token_match 0.15   (>= 0.25 Jaccard earns a 0.05 partial)
 
     At least one of event_id or entity must be present for a "confirmed" result;
-    title-only matches are intentionally capped at 0.10 to avoid false-positives
+    title-only matches are intentionally capped at 0.15 to avoid false-positives
     on broadly-named markets (e.g. "Will X happen?" titles).
 
-    Hard rule (G02): when both sides have a close/resolution timestamp and the
-    UTC calendar dates differ, the pair NEVER matches (confidence 0).
+    Hard rule (G02, softened by loop112): when both sides have a close/resolution
+    timestamp and the UTC calendar dates differ, the pair NEVER matches
+    (confidence 0) when the dates are more than ``DATE_REJECT_MAX_DAY_DELTA``
+    day(s) apart AND both timestamps are "sharp" (real timestamps, not venue
+    placeholder ends like Kalshi 2045-01-01 or Polymarket Dec-31 23:59).
+    Placeholder-vs-real or adjacent-day disagreements carry no resolution
+    signal, so they are not fatal: the pair continues to soft scoring and only
+    forfeits the close-time sub-score (``resolution_date_soft_pass``).
     Same-day pairs still use ``close_tolerance`` for the soft close-time score.
     """
-    # ---- G02 hard reject: different resolution calendar dates --------------
-    if first.close_at is not None and second.close_at is not None:
-        first_day = first.close_at.astimezone(UTC).date()
-        second_day = second.close_at.astimezone(UTC).date()
-        if first_day != second_day:
-            return ResolutionMatch(
-                status="unconfirmed",
-                confidence=0.0,
-                reasons=("resolution_date_reject",),
-                warning="resolution dates differ",
-            )
-
     score = 0.0
     reasons: list[str] = []
     warnings: list[str] = []
+
+    # ---- G02 hard reject: different resolution calendar dates --------------
+    if first.close_at is not None and second.close_at is not None:
+        first_utc = _as_utc(first.close_at)
+        second_utc = _as_utc(second.close_at)
+        first_day = first_utc.date()
+        second_day = second_utc.date()
+        if first_day != second_day:
+            day_delta = abs((first_day - second_day).days)
+            if not _is_placeholder_end(first_utc) and not _is_placeholder_end(
+                second_utc
+            ) and day_delta > DATE_REJECT_MAX_DAY_DELTA:
+                return ResolutionMatch(
+                    status="unconfirmed",
+                    confidence=0.0,
+                    reasons=("resolution_date_reject",),
+                    warning="resolution dates differ",
+                )
+            # Placeholder-granularity or adjacent-day disagreement: not fatal.
+            # close_time_match below will withhold its credit on its own.
+            reasons.append(f"resolution_date_soft_pass(day_delta={day_delta})")
+            warnings.append("resolution dates differ; placeholder/adjacent, not fatal")
 
     # ---- sub-score 1: event_id (weight 0.40) --------------------------------
     first_event = _normalized_text(first.event_id)
     second_event = _normalized_text(second.event_id)
     if first_event and second_event:
         if first_event == second_event:
-            score += 0.40
+            score += WEIGHT_EVENT_ID_MATCH
             reasons.append("event_id_match")
         else:
             reasons.append("event_id_mismatch")
@@ -120,13 +180,27 @@ def match_resolution_terms(
     else:
         reasons.append("event_id_missing")
 
-    # ---- sub-score 2: entity set (weight 0.35) -------------------------------
+    # ---- sub-score 2: entity near-match (weight 0.40 / partial 0.20) ---------
     first_entities = _entity_set(first.normalized_entities)
     second_entities = _entity_set(second.normalized_entities)
     if first_entities and second_entities:
-        if first_entities == second_entities:
-            score += 0.35
+        entity_jaccard = _jaccard(first_entities, second_entities)
+        if _candidate_name_overlap(
+            first.title, second.title, first_entities, second_entities
+        ):
+            # Kalshi "Event: Candidate" form: the discriminating entity is the
+            # proper name on the right of the colon, and it is the same person/
+            # team on both sides. Full credit even though the full title-token
+            # sets differ across venues' phrasing.
+            score += WEIGHT_ENTITY_MATCH
             reasons.append("entity_match")
+            reasons.append("entity_person_name_match")
+        elif entity_jaccard >= ENTITY_JACCARD_FULL:
+            score += WEIGHT_ENTITY_MATCH
+            reasons.append("entity_match")
+        elif entity_jaccard >= ENTITY_JACCARD_PARTIAL:
+            score += WEIGHT_ENTITY_PARTIAL
+            reasons.append(f"entity_partial(jaccard={entity_jaccard:.2f})")
         else:
             reasons.append("entity_mismatch")
             warnings.append("normalized entities differ")
@@ -135,8 +209,8 @@ def match_resolution_terms(
 
     # ---- sub-score 3: close time (weight 0.15) --------------------------------
     if first.close_at is not None and second.close_at is not None:
-        if abs(first.close_at - second.close_at) <= close_tolerance:
-            score += 0.15
+        if abs(_as_utc(first.close_at) - _as_utc(second.close_at)) <= close_tolerance:
+            score += WEIGHT_CLOSE_TIME_MATCH
             reasons.append("close_time_match")
         else:
             reasons.append("close_time_mismatch")
@@ -144,14 +218,14 @@ def match_resolution_terms(
     else:
         reasons.append("close_time_missing")
 
-    # ---- sub-score 4: fuzzy title token Jaccard (weight 0.10) ---------------
+    # ---- sub-score 4: fuzzy title token Jaccard (weight 0.15) ---------------
     title_jaccard = _title_token_jaccard(first.title, second.title)
-    if title_jaccard >= 0.50:
-        score += 0.10
+    if title_jaccard >= TITLE_JACCARD_FULL:
+        score += WEIGHT_TITLE_MATCH
         reasons.append(f"title_token_match(jaccard={title_jaccard:.2f})")
-    elif title_jaccard >= 0.25:
+    elif title_jaccard >= TITLE_JACCARD_PARTIAL:
         # Partial signal — not enough alone but recorded for diagnostics.
-        score += 0.05
+        score += WEIGHT_TITLE_PARTIAL
         reasons.append(f"title_token_partial(jaccard={title_jaccard:.2f})")
     else:
         reasons.append(f"title_token_mismatch(jaccard={title_jaccard:.2f})")
@@ -197,8 +271,12 @@ def match_venue_markets(
     """Match a Polymarket market against a Kalshi market (G02 venue seam).
 
     Entities default to content tokens extracted from each title when not
-    supplied. Different UTC resolution dates hard-reject via
-    ``match_resolution_terms``.
+    supplied. The entity sub-score is a Jaccard near-match (partial credit at
+    >= 0.50) plus a proper-name rule for Kalshi "Event: Candidate" titles —
+    same candidate name on both sides earns full entity credit even though the
+    full token sets differ. Different UTC resolution dates hard-reject only for
+    sharp near-term timestamps; venue placeholder ends soft-pass (see
+    ``match_resolution_terms``).
     """
     pm_ents = pm_entities if pm_entities is not None else tuple(sorted(_title_tokens(pm_title)))
     ks_ents = ks_entities if ks_entities is not None else tuple(sorted(_title_tokens(ks_title)))
@@ -253,8 +331,81 @@ def _title_token_jaccard(title_a: str, title_b: str) -> float:
     tokens_b = _title_tokens(title_b)
     if not tokens_a and not tokens_b:
         return 0.0
-    union = tokens_a | tokens_b
+    return _jaccard(tokens_a, tokens_b)
+
+
+def _jaccard(set_a: set[str], set_b: set[str]) -> float:
+    """Jaccard similarity of two token sets; empty union scores 0.0."""
+    union = set_a | set_b
     if not union:
         return 0.0
-    intersection = tokens_a & tokens_b
-    return len(intersection) / len(union)
+    return len(set_a & set_b) / len(union)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalize to aware UTC. Naive timestamps are treated as UTC — SQLite
+    test databases drop tzinfo, and ``astimezone`` on a naive value would
+    reinterpret it as machine-local time."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _is_placeholder_end(value: datetime) -> bool:
+    """True for venue-default placeholder end dates (loop112).
+
+    Kalshi parks long-horizon markets on New Year midnights (2031-01-01,
+    2045-01-01, ...); Polymarket uses year-end (Dec 31 23:59). A date
+    disagreement that involves one of these is a catalog artifact, not evidence
+    of two different events, so it must not hard-zero the pair.
+    """
+    utc = _as_utc(value)
+    if utc.month == 1 and utc.day == 1 and utc.hour == 0 and utc.minute == 0:
+        return utc.second == 0 and utc.microsecond == 0
+    return utc.month == 12 and utc.day == 31 and utc.hour == 23 and utc.minute == 59
+
+
+def _candidate_name_tokens(title: str) -> set[str]:
+    """Content tokens to the right of the last ':' (Kalshi "Event: Candidate").
+
+    Titles without a colon have no explicit candidate side and return the
+    empty set.
+    """
+    if ":" not in title:
+        return set()
+    return _title_tokens(title.rsplit(":", 1)[-1])
+
+
+def _candidate_name_overlap(
+    title_a: str,
+    title_b: str,
+    tokens_a: set[str],
+    tokens_b: set[str],
+) -> bool:
+    """Same proper-name candidate on both sides of a multi-outcome pair?
+
+    When one title carries the Kalshi "Event: Candidate" colon form, extract
+    the right-hand candidate name and require the FULL name (>= 2 tokens —
+    a single token is brand overlap, not a person/team match) to appear in the
+    other side's entity tokens. Checked symmetrically.
+    """
+    candidate_b = _candidate_name_tokens(title_b)
+    if len(candidate_b) >= MIN_CANDIDATE_NAME_TOKENS and candidate_b <= tokens_a:
+        return True
+    candidate_a = _candidate_name_tokens(title_a)
+    return len(candidate_a) >= MIN_CANDIDATE_NAME_TOKENS and candidate_a <= tokens_b
+
+
+def titles_share_content_token(title_a: str, title_b: str, *, min_len: int = 4) -> bool:
+    """Cheap prefilter for the O(pm x ks) catalog scan (loop112).
+
+    True when the two titles share at least one non-stop-word token of length
+    >= ``min_len``. A real cross-venue same-event pair always shares a proper
+    name or keyword that long; pairs that share none cannot reach the entity
+    or title sub-scores, so the scan skips them instead of scoring them.
+    """
+    tokens_a = {t for t in _title_tokens(title_a) if len(t) >= min_len}
+    if not tokens_a:
+        return False
+    tokens_b = {t for t in _title_tokens(title_b) if len(t) >= min_len}
+    return bool(tokens_a & tokens_b)

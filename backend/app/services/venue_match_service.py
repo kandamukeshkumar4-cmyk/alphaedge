@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Sequence
@@ -10,7 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Market, MarketStatus, VenueMarketMatch
-from app.signals.matching import ResolutionMatch, match_venue_markets
+from app.signals.matching import (
+    ResolutionMatch,
+    match_venue_markets,
+    titles_share_content_token,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,10 @@ class VenueMatchService:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        # Per-pass scan diagnostics (loop112): populated by match_open_catalog
+        # so callers/heartbeats can see max_confidence > 0 even when nothing
+        # persisted, instead of a silent zero.
+        self.last_scan_stats: dict[str, float | int] | None = None
 
     async def match_and_persist(
         self,
@@ -77,20 +88,44 @@ class VenueMatchService:
     async def match_open_catalog(
         self,
         *,
-        min_confidence: float = 0.75,
+        min_confidence: float = 0.50,
         max_pairs: int = 5_000,
         catalog_limit: int | None = None,
     ) -> list[VenueMarketMatch]:
         """Score open pm-/ks- catalog markets (greedy best Kalshi per Polymarket).
+
+        ``min_confidence`` here is the PERSIST floor only (loop112): 0.50,
+        matching the gap loop's ``VENUE_GAP_MIN_CONFIDENCE``. Live catalogs
+        never share cross-venue event IDs, so the strict 0.75 gate that direct
+        ``match_and_persist`` callers keep is unreachable without synthetic
+        fixture IDs; real same-event pairs (person markets, topical twins)
+        score ~0.55 on entity + title alone. Every persisted row still carries
+        its confidence and stale flag, so downstream consumers keep gating.
 
         ``catalog_limit`` bounds how many OPEN markets are pulled *per venue*
         before the O(pm x ks) scan, so a periodic caller (the venue gap loop)
         stays cheap on a large catalog. Soonest-closing markets win the cap —
         they are the ones a cross-venue gap can still be acted on for. That is
         scheduled metadata (``lock_at``), never an outcome, so no look-ahead.
+
+        Pairs sharing no content token of length >= 4 are skipped before
+        scoring (loop112 prefilter): they cannot reach the entity or title
+        sub-scores, which keeps a 500x500 scan cheap. Per-pass stats
+        (``last_scan_stats``, also logged) make prod passes observable instead
+        of a silent ``matched=0``.
         """
         pm_markets = await self._open_by_source("polymarket", "pm-", limit=catalog_limit)
         ks_markets = await self._open_by_source("kalshi", "ks-", limit=catalog_limit)
+        stats: dict[str, float | int] = {
+            "pm_scanned": len(pm_markets),
+            "ks_scanned": len(ks_markets),
+            "pairs_scored": 0,
+            "pairs_skipped_prefilter": 0,
+            "max_confidence": 0.0,
+            "date_rejects": 0,
+            "below_threshold": 0,
+            "matched": 0,
+        }
         candidates: list[MatchCandidate] = []
         for pm in pm_markets:
             best: ScoredMatch | None = None
@@ -105,6 +140,12 @@ class VenueMatchService:
                     pm_event_id=pm.external_id,
                     ks_event_id=ks.external_id,
                 )
+                if not titles_share_content_token(cand.pm_title, cand.ks_title):
+                    stats["pairs_skipped_prefilter"] = (
+                        int(stats["pairs_skipped_prefilter"]) + 1
+                    )
+                    continue
+                stats["pairs_scored"] = int(stats["pairs_scored"]) + 1
                 match = match_venue_markets(
                     cand.pm_title,
                     cand.ks_title,
@@ -116,7 +157,13 @@ class VenueMatchService:
                     ks_event_id=cand.ks_event_id,
                     min_confidence=min_confidence,
                 )
+                stats["max_confidence"] = max(
+                    float(stats["max_confidence"]), match.confidence
+                )
+                if "resolution_date_reject" in match.reasons:
+                    stats["date_rejects"] = int(stats["date_rejects"]) + 1
                 if match.confidence < min_confidence:
+                    stats["below_threshold"] = int(stats["below_threshold"]) + 1
                     continue
                 scored = ScoredMatch(candidate=cand, match=match)
                 if best is None or scored.match.confidence > best.match.confidence:
@@ -125,7 +172,11 @@ class VenueMatchService:
                 candidates.append(best.candidate)
             if len(candidates) >= max_pairs:
                 break
-        return await self.match_and_persist(candidates, min_confidence=min_confidence)
+        rows = await self.match_and_persist(candidates, min_confidence=min_confidence)
+        stats["matched"] = len(rows)
+        self.last_scan_stats = stats
+        logger.info("venue match pass: %s", stats)
+        return rows
 
     async def _open_by_source(
         self, source: str, slug_prefix: str, *, limit: int | None = None

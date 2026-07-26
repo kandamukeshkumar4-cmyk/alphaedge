@@ -337,7 +337,10 @@ class Settings(BaseSettings):
     venue_gap_min_confidence: float = Field(
         default=0.5, alias="VENUE_GAP_MIN_CONFIDENCE"
     )
-    venue_gap_match_limit: int = Field(default=200, alias="VENUE_GAP_MATCH_LIMIT")
+    # Loop112: 200 soonest-lock per venue missed the best human pairs (the
+    # Israel-PM PM market sat at rank ~348; open KS count is <500 anyway).
+    # 500 covers them while the shared-token prefilter keeps the scan cheap.
+    venue_gap_match_limit: int = Field(default=500, alias="VENUE_GAP_MATCH_LIMIT")
     scheduler_venue_gap_enabled: bool = Field(
         default=True, alias="SCHEDULER_VENUE_GAP_ENABLED"
     )
