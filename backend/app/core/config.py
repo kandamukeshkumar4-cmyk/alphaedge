@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     scheduler_market_snapshots_enabled: bool = Field(
         default=True, alias="SCHEDULER_MARKET_SNAPSHOTS_ENABLED"
     )
+    scheduler_order_expiry_enabled: bool = Field(
+        default=True, alias="SCHEDULER_ORDER_EXPIRY_ENABLED"
+    )
     scheduler_wc2026_resolve_enabled: bool = Field(
         default=True, alias="SCHEDULER_WC2026_RESOLVE_ENABLED"
     )

@@ -916,6 +916,49 @@ async def _market_snapshots_loop() -> None:
             )
 
 
+async def _order_expiry_loop() -> None:
+    """Loop112: per-minute GTD expiry mirror of ``cron(order_expiry_task)``.
+
+    Boot catch-up first — never sleep-first. Bounded batch via
+    ``DEFAULT_EXPIRY_BATCH_SIZE`` / ``MAX_EXPIRY_BATCH_SIZE``; cancels through
+    the canonical ``OrderBookService.cancel_order`` path only.
+    """
+    from app.workers.order_expiry import order_expiry_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        return (
+            f"scanned={summary.get('scanned', 0)} "
+            f"expired={summary.get('expired', 0)} "
+            f"skipped={summary.get('skipped', 0)}"
+        )
+
+    try:
+        record_heartbeat(
+            "order_expiry", detail=_detail(await order_expiry_task({}))
+        )
+    except Exception:
+        logger.error("Order expiry boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "order_expiry",
+            status="error",
+            detail="order expiry boot catch-up failed",
+        )
+
+    while True:
+        await _paced_sleep(60, settings.scheduler_idle_interval_sec)
+        try:
+            record_heartbeat(
+                "order_expiry", detail=_detail(await order_expiry_task({}))
+            )
+        except Exception:
+            logger.error("Order expiry loop failed", exc_info=True)
+            record_heartbeat(
+                "order_expiry", status="error", detail="order expiry pass failed"
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -1125,6 +1168,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_nightly_backtest_loop())
     if settings.scheduler_market_snapshots_enabled:
         asyncio.create_task(_market_snapshots_loop())
+    if settings.scheduler_order_expiry_enabled:
+        asyncio.create_task(_order_expiry_loop())
     if settings.scheduler_venue_gap_enabled:
         asyncio.create_task(_venue_gap_loop())
     if settings.scheduler_wc2026_resolve_enabled:

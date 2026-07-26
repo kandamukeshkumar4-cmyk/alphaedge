@@ -43,6 +43,7 @@ LOOP_INTERVALS: dict[str, int] = {
     "model_retrain": 86400,  # daily; task still gated by ML_RETRAIN_ENABLED
     "nightly_backtest": 86400,  # daily; task gated by BACKTEST_NIGHTLY_ENABLED
     "market_snapshots": 3600,  # hourly capture_market_snapshots_task
+    "order_expiry": 60,  # per-minute GTD expiry sweep
     "venue_gap": 60,  # max(30, VENUE_GAP_INTERVAL_SEC=60)
     "wc2026_resolve": 600,
     "external_resolve": 900,
