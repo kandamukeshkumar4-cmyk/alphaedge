@@ -70,10 +70,19 @@ All checks passed!
 2198 passed, 30 skipped in 416.75s (0:06:56)
 ```
 
-### orchestration/gate.py
+### orchestration/gate.py (backend portion)
+
+Backend checks from `py -3.13 orchestration/gate.py` passed in this worktree.
+Frontend gates failed here only because local `frontend/node_modules` is not
+installed (`tsc`/`vitest`/`next` missing) — out of charter for this backend
+schema fix. Backend proof above (targeted pytest / ruff / alembic heads /
+full suite) is the authoritative done signal for loop113-sluglen.
 
 ```text
+PASS backend pytest (exit 0)
+PASS backend ruff (exit 0)
+FAIL frontend typecheck / test / build (missing local frontend deps)
 === GATE VERDICT ===
-PASS: all checks green
+FAIL: frontend typecheck, frontend test, frontend build
 ```
 
