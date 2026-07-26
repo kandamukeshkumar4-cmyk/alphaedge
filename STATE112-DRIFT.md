@@ -6,15 +6,15 @@ Branch `loop112-driftfix/node`, based on integration tip `c907973`.
 
 | | before | after |
 |---|---|---|
-| baseline entries (`backend/tests/migration_parity_baseline.json`) | 125 | **62** |
-| NULLABILITY MISMATCH | 114 | 52 |
+| baseline entries (`backend/tests/migration_parity_baseline.json`) | 125 | **61** |
+| NULLABILITY MISMATCH | 114 | 51 |
 | TYPE MISMATCH (db=JSONB models=JSON) | 10 | 10 |
 | EXTRA UNIQUE CONSTRAINT `markets_slug_key` | 1 | 0 |
 
-63 drift entries closed. New revision: `backend/alembic/versions/067_notnull_json_parity.py`
+64 drift entries closed (63 in the first pass + 1 from audit finding F1). New revision: `backend/alembic/versions/067_notnull_json_parity.py`
 (revision id `067_notnull_parity`, 18 chars, `down_revision = "066_alpha_validation"`).
 
-## 1. Nullability — 62 fixed, 52 deliberately skipped
+## 1. Nullability — 63 fixed, 51 deliberately skipped
 
 Safety rule applied (conservative by design): a column is altered **only** when the
 model itself tells us what a legacy NULL should have been —
@@ -29,7 +29,7 @@ Every such column is backfilled first
 `ALTER TABLE ... SET NOT NULL`, so the migration cannot fail on existing prod
 rows. ALTERs are grouped per table in `NOT_NULL_FIXES`.
 
-Fixed (62, by table): accounts(cash_balance, created_at, is_system) ·
+Fixed (63, by table): accounts(cash_balance, created_at, is_system) ·
 agent_run_steps(created_at, input_data, output_data) ·
 agent_runs(created_at, graph_version, status) · alerts(acknowledged, created_at,
 payload) · dataset_snapshots(created_at, row_count) · domain_events(occurred_at,
@@ -37,7 +37,7 @@ payload) · eval_aggregates(computed_at, market_count, window_days) ·
 evaluations(actual_outcome, created_at, pnl) · external_markets(created_at) ·
 failed_jobs(attempts, created_at, payload) · feature_snapshots(created_at,
 features) · feature_versions(created_at) · fills(created_at) ·
-forecast_logs(locked_at) · forecast_scores(scored_at) · forecasters(created_at) ·
+forecast_logs(locked_at) · forecast_scores(scored_at) · forecasters(created_at) · job_runs(started_at) ·
 ledger(created_at, description) · market_snapshots(captured_at) ·
 markets(created_at, status) · model_versions(created_at, metrics) ·
 odds_snapshots(source) · orders(created_at, filled_quantity, status) ·
@@ -47,7 +47,7 @@ prompt_versions(created_at) · signal_events(created_at) ·
 tracked_wallets(created_at, updated_at) · training_runs(created_at, metrics,
 status) · venue_market_matches(reasons) · wallet_positions(captured_at).
 
-**Skipped (52) — no safe default exists.** These stay in the baseline. They are
+**Skipped (51) — no safe default exists.** These stay in the baseline. They are
 foreign keys, measurements and identity/free-text fields; there is no value we
 could invent for a legacy NULL, and a failed production migration is worse than
 a smaller shrink. Closing them needs a prod data audit (`SELECT count(*) ...
@@ -62,7 +62,7 @@ failed_jobs.job_name, feature_snapshots.feature_hash,
 feature_snapshots.market_slug, feature_versions.name,
 feature_versions.schema_hash, feature_versions.version, fills.buy_order_id,
 fills.market_id, fills.outcome, fills.price, fills.quantity,
-fills.sell_order_id, job_runs.job_name, job_runs.started_at, job_runs.status,
+fills.sell_order_id, job_runs.job_name, job_runs.status,
 ledger.account_id, ledger.amount, ledger.balance_after, ledger.entry_type,
 model_versions.artifact_path, model_versions.name, model_versions.version,
 odds_snapshots.captured_at, odds_snapshots.implied_yes,
@@ -111,7 +111,7 @@ index). This is the only model line touched.
 
 ## 4. Downgrade
 
-`downgrade()` mirrors `upgrade()`: `DROP NOT NULL` for the same 62 columns in
+`downgrade()` mirrors `upgrade()`: `DROP NOT NULL` for the same 63 columns in
 reverse order. It is exercised for real — the `migrated_dsn` fixture runs
 `upgrade head -> downgrade base -> upgrade head`.
 
@@ -176,10 +176,55 @@ All checks passed!
    there; on real data they are what makes `SET NOT NULL` safe.
 2. Decide on the 10 JSONB model declarations (section 2) — a separate, cheap,
    migration-free follow-up.
-3. The 52 skipped columns need a per-column NULL count against prod before a
+3. The 51 skipped columns need a per-column NULL count against prod before a
    follow-up ratchet loop.
 
 AutoLab: baseline=125 baselined drift entries (loop111 harness, green) |
 benchmark=`pytest tests/test_migration_exercise.py` entry count |
-iterations=1 + best result 62 entries (-63) | budget=1/2 |
+iterations=2 + best result 61 entries (-64) | budget=2/2 |
 outcome=improved
+
+## F1 fix (audit finding, AUDIT112-DRIFT.md)
+
+Verdict was PASS WITH FINDINGS; single low-severity finding F1: `job_runs.started_at`
+(`app/db/models.py:1222`) carries `server_default=func.now()` and therefore
+qualifies under this loop's own safety rule, but it was left in the skip list —
+a first-pass classification slip, not a deliberate exclusion. It is now the 63rd
+entry in `NOT_NULL_FIXES` (`UPDATE "job_runs" SET "started_at" = now() WHERE
+"started_at" IS NULL`, then `SET NOT NULL`; mirrored `DROP NOT NULL` in
+`downgrade()`). The other two `job_runs` columns (`job_name`, `status`) have no
+default and correctly remain skipped. Baseline 62 -> 61.
+
+### `pytest tests/test_migration_exercise.py::test_model_ddl_parity -q -s` (before regeneration)
+
+```
+[loop111] scratch database created: alphaedge_migtest_b5399deda5a6 on localhost:5432/postgres
+[loop111] 1 baseline drift entries are now FIXED; shrink tests/migration_parity_baseline.json:
+  NULLABILITY MISMATCH | job_runs.started_at | db=True models=False
+[loop111] model/DDL parity: 61 total drift entries, 62 baselined, 0 new
+```
+
+### `uv run --extra dev pytest tests/test_migration_exercise.py -q` (after regeneration)
+
+```
+...                                                                      [100%]
+3 passed in 9.38s
+```
+
+### `uv run alembic heads`
+
+```
+067_notnull_parity (head)
+```
+
+### `uv run --extra dev ruff check app tests`
+
+```
+All checks passed!
+```
+
+### `uv run --extra dev pytest -q` (full backend suite, re-run after F1)
+
+```
+2162 passed, 30 skipped in 427.36s (0:07:07)
+```

@@ -86,6 +86,7 @@ NOT_NULL_FIXES: tuple[tuple[str, str, str], ...] = (
     ("forecast_logs", "locked_at", "now()"),
     ("forecast_scores", "scored_at", "now()"),
     ("forecasters", "created_at", "now()"),
+    ("job_runs", "started_at", "now()"),
     ("ledger", "created_at", "now()"),
     ("ledger", "description", "''"),
     ("market_snapshots", "captured_at", "now()"),
