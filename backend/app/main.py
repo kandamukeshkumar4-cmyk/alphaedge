@@ -705,25 +705,84 @@ async def _prediction_writer_loop() -> None:
             )
 
 
+async def _has_generic_artifact_retrain_this_week(
+    now: datetime | None = None,
+) -> bool:
+    """Idempotency guard mirroring ``ResearchDigestService._has_digest_today``.
+
+    The model registry records each inactive generic retrain via
+    ``ModelVersion.created_at`` for ``MODEL_NAME``.
+    """
+    from sqlalchemy import func, select
+
+    from app.db.models import ModelVersion
+    from app.db.session import AsyncSessionLocal
+    from app.forecasting.generic_artifact import MODEL_NAME
+
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    else:
+        now = now.astimezone(timezone.utc)
+    cutoff = now - timedelta(days=7)
+    async with AsyncSessionLocal() as session:
+        count = await session.scalar(
+            select(func.count())
+            .select_from(ModelVersion)
+            .where(
+                ModelVersion.name == MODEL_NAME,
+                ModelVersion.created_at >= cutoff,
+            )
+        )
+    return bool(count and count > 0)
+
+
 async def _generic_artifact_retrain_loop() -> None:
-    """Loop110: weekly generic-logistic retrain (in-process mirror of the ARQ
-    cron). Always registers activate=False; human activation only."""
+    """Loop110/112: weekly generic-logistic retrain (in-process mirror of the ARQ
+    cron). Always registers activate=False; human activation only.
+
+    Loop112: boot catch-up FIRST, gated by a week-window registry check so
+    restarts do not sleep 7d before the first heartbeat (status was permanently
+    ``never`` under sleep-first). Weekly cadence otherwise unchanged.
+    """
     from app.workers.generic_artifact_retrain import generic_artifact_retrain_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        if summary.get("skipped"):
+            return str(summary.get("reason"))
+        return (
+            f"version={summary.get('version')} "
+            f"n={summary.get('row_count')} activated=false"
+        )
+
+    try:
+        if await _has_generic_artifact_retrain_this_week():
+            record_heartbeat(
+                "generic_artifact_retrain",
+                detail="skipped:retrain_exists_this_week",
+            )
+        else:
+            record_heartbeat(
+                "generic_artifact_retrain",
+                detail=_detail(await generic_artifact_retrain_task({})),
+            )
+    except Exception:
+        logger.error("Generic artifact retrain boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "generic_artifact_retrain",
+            status="error",
+            detail="generic artifact retrain boot catch-up failed",
+        )
 
     while True:
         await _paced_sleep(604800, max(604800, settings.scheduler_idle_interval_sec))
         try:
-            summary = await generic_artifact_retrain_task({})
-            detail = None
-            if isinstance(summary, dict):
-                if summary.get("skipped"):
-                    detail = str(summary.get("reason"))
-                else:
-                    detail = (
-                        f"version={summary.get('version')} "
-                        f"n={summary.get('row_count')} activated=false"
-                    )
-            record_heartbeat("generic_artifact_retrain", detail=detail)
+            record_heartbeat(
+                "generic_artifact_retrain",
+                detail=_detail(await generic_artifact_retrain_task({})),
+            )
         except Exception:
             logger.error("Generic artifact retrain loop failed", exc_info=True)
             record_heartbeat(
