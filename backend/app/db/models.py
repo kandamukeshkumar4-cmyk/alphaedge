@@ -22,6 +22,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy import JSON
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -494,7 +495,7 @@ class DomainEvent(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False, default=dict)
     correlation_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -533,7 +534,7 @@ class FeatureSnapshot(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     market_slug: Mapped[str] = mapped_column(String(128), index=True)
-    features: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    features: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     feature_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -548,7 +549,7 @@ class ModelVersion(Base):
     # SHA-256 (or equivalent) of the training dataset used to fit this version.
     # Nullable for rows registered before Loop V15 D1; new registrations require it.
     training_data_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -594,7 +595,7 @@ class TrainingRun(Base):
         ForeignKey("dataset_snapshots.id"), nullable=True
     )
     status: Mapped[str] = mapped_column(String(32), default="completed")
-    metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -663,7 +664,7 @@ class Alert(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     alert_type: Mapped[str] = mapped_column(String(64))
     message: Mapped[str] = mapped_column(Text)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -996,8 +997,8 @@ class AgentRunStep(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     agent_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent_runs.id"))
     step_name: Mapped[str] = mapped_column(String(64))
-    input_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    output_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    input_data: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
+    output_data: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1206,7 +1207,7 @@ class FailedJob(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     job_name: Mapped[str] = mapped_column(String(128))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     error: Mapped[str] = mapped_column(Text)
     attempts: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -1312,7 +1313,7 @@ class MarketSnapshot(Base):
     )
     implied_probability: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4), nullable=True)
     source: Mapped[str] = mapped_column(String(64), default="manual")
-    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1376,7 +1377,7 @@ class ForecastLog(Base):
         _pg_enum(ForecastSource, name="forecast_source"),
         default=ForecastSource.WEB,
     )
-    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     time_to_resolution_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     locked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
