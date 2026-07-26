@@ -869,6 +869,53 @@ async def _nightly_backtest_loop() -> None:
             )
 
 
+async def _market_snapshots_loop() -> None:
+    """Loop112: hourly market-snapshot mirror of
+    ``cron(capture_market_snapshots_task, minute={0})``.
+
+    Boot catch-up first — never sleep-first. Bounded by configured connector
+    slug/ticker lists inside the capture helper.
+    """
+    from app.workers.tasks import capture_market_snapshots_task
+
+    def _detail(summary: object) -> str | None:
+        if not isinstance(summary, dict):
+            return None
+        return (
+            f"fetched={summary.get('fetched', 0)} "
+            f"ingested={summary.get('ingested', 0)} "
+            f"failed={summary.get('failed', 0)}"
+        )
+
+    try:
+        record_heartbeat(
+            "market_snapshots",
+            detail=_detail(await capture_market_snapshots_task({})),
+        )
+    except Exception:
+        logger.error("Market snapshots boot catch-up failed", exc_info=True)
+        record_heartbeat(
+            "market_snapshots",
+            status="error",
+            detail="market snapshots boot catch-up failed",
+        )
+
+    while True:
+        await _paced_sleep(3600, settings.scheduler_idle_interval_sec)
+        try:
+            record_heartbeat(
+                "market_snapshots",
+                detail=_detail(await capture_market_snapshots_task({})),
+            )
+        except Exception:
+            logger.error("Market snapshots loop failed", exc_info=True)
+            record_heartbeat(
+                "market_snapshots",
+                status="error",
+                detail="market snapshots pass failed",
+            )
+
+
 async def _drift_detect_loop() -> None:
     """Loop15 D2: rolling Brier/ECE drift over ForecastScore (read-only);
     in-process mirror of the ARQ cron."""
@@ -1076,6 +1123,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_model_retrain_loop())
     if settings.scheduler_nightly_backtest_enabled:
         asyncio.create_task(_nightly_backtest_loop())
+    if settings.scheduler_market_snapshots_enabled:
+        asyncio.create_task(_market_snapshots_loop())
     if settings.scheduler_venue_gap_enabled:
         asyncio.create_task(_venue_gap_loop())
     if settings.scheduler_wc2026_resolve_enabled:
