@@ -71,10 +71,13 @@ async def test_long_slugs_persist_in_match_upsert(db_session):
     assert len(stored[0].ks_slug) == 200
 
 
-def test_migration_068_single_head():
-    """Alembic must have exactly one head: 068_sluglen_text."""
+def test_migration_068_chains_to_069():
+    """068 remains on the linear chain; head is 069 after the ident sweep."""
     cfg = Config(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     script = ScriptDirectory.from_config(cfg)
+    rev = script.get_revision("068_sluglen_text")
+    assert rev is not None
+    assert rev.down_revision == "067_notnull_parity"
     heads = script.get_heads()
-    assert list(heads) == ["068_sluglen_text"], f"expected single 068 head, got {heads!r}"
+    assert list(heads) == ["069_ident_text"], f"expected single 069 head, got {heads!r}"

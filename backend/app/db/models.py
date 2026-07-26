@@ -114,7 +114,7 @@ class PaperOrder(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(Text, nullable=False)
     side: Mapped[str] = mapped_column(String(3), nullable=False)
     outcome: Mapped[str] = mapped_column(String(3), nullable=False, default="yes")
     shares: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
@@ -159,7 +159,7 @@ class Watchlist(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -258,7 +258,7 @@ class MarketResolution(Base):
     __tablename__ = "market_resolutions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     outcome: Mapped[str] = mapped_column(String(3), nullable=False)
     resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -344,7 +344,7 @@ class Market(Base):
     __table_args__ = (UniqueConstraint("slug", name="markets_slug_key"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    slug: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="Sports")
@@ -356,9 +356,9 @@ class Market(Base):
     resolution: Mapped[str] = mapped_column(Text, default="")
     tournament_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(32), default="seed", server_default="seed")
-    external_slug: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
-    external_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    clob_token_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    external_slug: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    external_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    clob_token_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     last_synced_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -513,13 +513,13 @@ class OddsSnapshot(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    market_slug: Mapped[str] = mapped_column(String(128), index=True)
+    market_slug: Mapped[str] = mapped_column(Text, index=True)
     implied_yes: Mapped[Decimal] = mapped_column(Numeric(6, 4))
     source: Mapped[str] = mapped_column(String(64), default="fixture")
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     book: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    event_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    platform_market_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    event_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    platform_market_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     market_type: Mapped[str] = mapped_column(String(32), default="binary")
     outcome_name: Mapped[str] = mapped_column(String(128), default="Yes")
@@ -533,7 +533,7 @@ class FeatureSnapshot(Base):
     __tablename__ = "feature_snapshots"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    market_slug: Mapped[str] = mapped_column(String(128), index=True)
+    market_slug: Mapped[str] = mapped_column(Text, index=True)
     features: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(postgresql.JSONB(), "postgresql"), default=dict)
     feature_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -614,7 +614,7 @@ class PredictionLog(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     market_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("markets.id"), nullable=True)
-    market_slug: Mapped[str] = mapped_column(String(128), index=True)
+    market_slug: Mapped[str] = mapped_column(Text, index=True)
     model_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("model_versions.id"), nullable=True
     )
@@ -680,7 +680,7 @@ class SignalEvent(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_type: Mapped[str] = mapped_column(String(32), nullable=False)
     platform: Mapped[str] = mapped_column(String(64), nullable=False)
-    market_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_id: Mapped[str] = mapped_column(Text, nullable=False)
     headline_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -743,7 +743,7 @@ class TrackedWallet(Base):
     __table_args__ = (Index("ix_tracked_wallets_qualified_roi", "qualified", "roi"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    wallet_address: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    wallet_address: Mapped[str] = mapped_column(Text, unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(128), default="")
     realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
     unrealized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
@@ -770,7 +770,7 @@ class WalletPosition(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tracked_wallet_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tracked_wallets.id"))
     platform: Mapped[str] = mapped_column(String(64), nullable=False)
-    market_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_id: Mapped[str] = mapped_column(Text, nullable=False)
     outcome: Mapped[str] = mapped_column(String(32), nullable=False)
     side: Mapped[str] = mapped_column(String(32), nullable=False)
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
@@ -804,8 +804,8 @@ class WalletPositionSnapshot(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    wallet_address: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    wallet_address: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
     outcome: Mapped[str] = mapped_column(String(8), default="YES")
     size: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
     avg_price: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0"))
@@ -829,15 +829,15 @@ class WhaleEvent(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    wallet: Mapped[str] = mapped_column(String(64), nullable=False)
+    wallet: Mapped[str] = mapped_column(Text, nullable=False)
     side: Mapped[str] = mapped_column(String(16), nullable=False)  # BUY / SELL
     outcome: Mapped[str] = mapped_column(String(8), nullable=False, default="YES")
     size: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
     notional: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
-    market_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
-    tx_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
+    market_id: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    tx_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     trade_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -858,7 +858,7 @@ class MarketSentimentSnapshot(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
     sentiment_score: Mapped[float] = mapped_column(Float, nullable=False)
     volume_score: Mapped[float] = mapped_column(Float, nullable=False)
     sources_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -910,8 +910,8 @@ class AnalystBrief(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
-    trigger_event_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger_event_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     headline: Mapped[str] = mapped_column(String(160), nullable=False)
     body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
@@ -942,7 +942,7 @@ class BriefClaim(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     brief_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("analyst_briefs.id"))
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
     direction: Mapped[str] = mapped_column(String(16), nullable=False)
     horizon_minutes: Mapped[int] = mapped_column(Integer, default=60)
     confidence: Mapped[float] = mapped_column(Numeric(6, 4), default=0)
@@ -1017,7 +1017,7 @@ class ResearchSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     question: Mapped[str] = mapped_column(Text, nullable=False)
-    market_slug: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    market_slug: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -1277,7 +1277,7 @@ class ExternalMarket(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     platform: Mapped[Platform] = mapped_column(_pg_enum(Platform, name="platform"))
-    external_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    external_id: Mapped[str] = mapped_column(Text, nullable=False)
     url: Mapped[str] = mapped_column(String(512), default="")
     title: Mapped[str] = mapped_column(String(256), default="")
     category: Mapped[str] = mapped_column(String(64), default="Uncategorized")
@@ -1453,7 +1453,7 @@ class AgentCloneRun(Base):
     )
     # Stable clone_id for querying all runs across versions.
     clone_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="pending")  # pending|running|done|error
     # Serialised list of AgentTraceStep dicts.
     trace: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
@@ -1617,7 +1617,7 @@ class BacktestRun(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
     clone_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -1659,7 +1659,7 @@ class AgentMemory(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    market_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    market_slug: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False, default="General")
     question: Mapped[str] = mapped_column(Text, nullable=False, default="")
     outcome: Mapped[str] = mapped_column(String(8), nullable=False)  # YES | NO | VOID
@@ -1716,7 +1716,7 @@ class HeartbeatDecisionLog(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    position_ref: Mapped[str] = mapped_column(String(256), nullable=False)
+    position_ref: Mapped[str] = mapped_column(Text, nullable=False)
     rule_fired: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     inputs_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     action_taken: Mapped[str] = mapped_column(String(32), nullable=False)
