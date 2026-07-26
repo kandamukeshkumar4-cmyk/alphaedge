@@ -696,8 +696,8 @@ class VenueMarketMatch(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pm_slug: Mapped[str] = mapped_column(String(128), nullable=False)
-    ks_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    pm_slug: Mapped[str] = mapped_column(Text, nullable=False)
+    ks_slug: Mapped[str] = mapped_column(Text, nullable=False)
     pm_title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     ks_title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -882,8 +882,8 @@ class VenueGap(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pm_slug: Mapped[str] = mapped_column(String(128), nullable=False)
-    ks_slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    pm_slug: Mapped[str] = mapped_column(Text, nullable=False)
+    ks_slug: Mapped[str] = mapped_column(Text, nullable=False)
     pm_implied: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
     ks_implied: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
     gap: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)  # pm - ks

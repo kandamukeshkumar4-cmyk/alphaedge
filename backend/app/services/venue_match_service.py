@@ -69,6 +69,8 @@ class VenueMatchService:
         *,
         now: datetime | None = None,
     ) -> list[VenueMarketMatch]:
+        # loop113 / migration 068: pm_slug and ks_slug are sa.Text (unbounded).
+        # Do not re-tighten to String(128) — prod slugs beyond rank ~200 exceed 128 chars.
         ts = now or datetime.now(UTC)
         rows: list[VenueMarketMatch] = []
         for item in scored:
