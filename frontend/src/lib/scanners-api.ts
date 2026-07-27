@@ -1015,11 +1015,54 @@ function asList(live: unknown): unknown[] | null {
 // ---------------------------------------------------------------------------
 
 export type CompileScannerResult = {
+  status: "ready" | "needs_clarification";
+  draft_id: string | null;
   spec: ScannerSpec;
+  spec_partial: ScannerSpec | null;
+  questions: ClarifyQuestion[];
   /** Loop V88 (V2) — which compiler path produced the spec. */
   compiler: ScannerCompiler;
   /** Loop V88 (V2) — deterministic post-compile warnings (never blocking). */
   warnings: string[];
+  source: ApiSource;
+};
+
+export type ClarifyQuestionKind =
+  | "schedule"
+  | "threshold"
+  | "universe"
+  | "delivery"
+  | "other";
+
+export type ClarifyQuestion = {
+  id: string;
+  question: string;
+  kind: ClarifyQuestionKind;
+  suggestions: string[];
+};
+
+export type CompileAnswer = {
+  question_id: string;
+  answer: string;
+};
+
+export type CompileScannerInput = {
+  prompt: string;
+  answers?: CompileAnswer[];
+  draft_id?: string | null;
+};
+
+export type TestfireResult = {
+  draft_id: string;
+  run: ScannerRun;
+  summary: {
+    status: string;
+    is_test: boolean;
+    test_mode: boolean;
+    counts: ScannerRunCounts;
+    error: string | null;
+  };
+  top_matches: ScannerCandidate[];
   source: ApiSource;
 };
 
@@ -1034,28 +1077,320 @@ function asWarnings(value: unknown): string[] {
     .filter((w) => w.length > 0);
 }
 
+function asClarifyQuestions(value: unknown): ClarifyQuestion[] {
+  if (!Array.isArray(value)) return [];
+  const out: ClarifyQuestion[] = [];
+  for (const raw of value) {
+    const rec = asRecord(raw);
+    const kind = rec.kind;
+    if (
+      kind !== "schedule" &&
+      kind !== "threshold" &&
+      kind !== "universe" &&
+      kind !== "delivery" &&
+      kind !== "other"
+    ) {
+      continue;
+    }
+    const id = typeof rec.id === "string" ? rec.id : "";
+    const question = typeof rec.question === "string" ? rec.question : "";
+    if (!id || !question) continue;
+    const suggestions = Array.isArray(rec.suggestions)
+      ? rec.suggestions.filter((s): s is string => typeof s === "string")
+      : [];
+    out.push({ id, question, kind, suggestions });
+  }
+  return out;
+}
+
+/** Loop 116 — local clarify decisions mirroring the backend (mock path). */
+function localClarifyKinds(prompt: string, spec: ScannerSpec): ClarifyQuestionKind[] {
+  const lower = prompt.toLowerCase();
+  const needs: ClarifyQuestionKind[] = [];
+  const hasSchedule =
+    /\bevery\s+\d+\s*(?:minutes?|hours?|mins?|hrs?)\b/.test(lower) ||
+    /\bevery\s+hour\b/.test(lower) ||
+    /\bdaily\b/.test(lower);
+  if (!hasSchedule) needs.push("schedule");
+  const vague = /\b(big|heavy|soon|large|huge|significant|high)\b/.test(lower);
+  const numeric =
+    /(?:volume\s+above|min(?:imum)?\s+volume|above\s+)\s*\d/.test(lower) ||
+    /\btop\s+\d+\b/.test(lower);
+  if (vague && !numeric) needs.push("threshold");
+  if (spec.universe.categories.length === 0) needs.push("universe");
+  if (/\b(?:email|notify|notification|delivery|sms|webhook|inbox|alert\s+me)\b/.test(lower)) {
+    needs.push("delivery");
+  }
+  return needs;
+}
+
+function localQuestionsFor(kinds: ClarifyQuestionKind[]): ClarifyQuestion[] {
+  const out: ClarifyQuestion[] = [];
+  kinds.slice(0, 3).forEach((kind, i) => {
+    if (kind === "schedule") {
+      out.push({
+        id: `q${i + 1}_schedule`,
+        question: "How often should this scanner run?",
+        kind,
+        suggestions: ["Every 15 minutes", "Every 30 minutes", "Every hour", "Daily"],
+      });
+    } else if (kind === "threshold") {
+      out.push({
+        id: `q${i + 1}_threshold`,
+        question: "What numeric threshold should we use (volume or top-N)?",
+        kind,
+        suggestions: ["Volume above 10,000", "Volume above 50,000", "Top 10 markets"],
+      });
+    } else if (kind === "universe") {
+      out.push({
+        id: `q${i + 1}_universe`,
+        question: "Which market universe should we scan?",
+        kind,
+        suggestions: ["NBA", "Sports", "Election", "Crypto"],
+      });
+    } else if (kind === "delivery") {
+      out.push({
+        id: `q${i + 1}_delivery`,
+        question: "How should matches be delivered? (in-app only today)",
+        kind,
+        suggestions: ["In-app only", "In-app when matches fire", "Stored in-app (paper sim)"],
+      });
+    }
+  });
+  return out;
+}
+
+type MockDraft = {
+  draft_id: string;
+  prompt: string;
+  spec: ScannerSpec;
+  round: number;
+  answerTexts: string[];
+};
+
+let mockDrafts: Record<string, MockDraft> = {};
+
+function applyLocalAnswer(spec: ScannerSpec, kind: ClarifyQuestionKind, answer: string): ScannerSpec {
+  const next = normalizeSpec(spec);
+  const lower = answer.toLowerCase();
+  if (kind === "schedule") {
+    if (/\bdaily\b/.test(lower)) next.schedule.interval_minutes = 1440;
+    else if (/\bevery\s+hour\b|\bhourly\b/.test(lower)) next.schedule.interval_minutes = 60;
+    else {
+      const m = lower.match(/(\d+)\s*(?:minutes?|mins?)/);
+      if (m) next.schedule.interval_minutes = Number(m[1]);
+      else {
+        const h = lower.match(/(\d+)\s*(?:hours?|hrs?)/);
+        if (h) next.schedule.interval_minutes = Number(h[1]) * 60;
+      }
+    }
+  } else if (kind === "threshold") {
+    const vol = lower.match(/(?:volume\s+above|above)\s*(\d[\d,]*)/);
+    if (vol) next.universe.minimum_volume = Number(vol[1].replace(/,/g, ""));
+    const top = lower.match(/\btop\s+(\d+)\b/);
+    if (top) next.limit = Number(top[1]);
+  } else if (kind === "universe") {
+    for (const cat of ["nba", "sports", "election", "crypto"] as const) {
+      if (new RegExp(`\\b${cat}\\b`).test(lower) && !next.universe.categories.includes(cat)) {
+        next.universe.categories.push(cat);
+      }
+    }
+  } else if (kind === "delivery") {
+    next.delivery.in_app = true;
+    next.delivery.email = false;
+  }
+  return next;
+}
+
+function compileConversationalLocal(input: CompileScannerInput): CompileScannerResult {
+  let draft = input.draft_id ? mockDrafts[input.draft_id] : undefined;
+  if (!draft) {
+    const prompt = input.prompt;
+    const spec = compileSpecLocal(prompt);
+    draft = {
+      draft_id: nextMockId("draft"),
+      prompt,
+      spec,
+      round: 0,
+      answerTexts: [],
+    };
+  }
+  let spec = draft.spec;
+  if (input.answers?.length) {
+    // Pending questions inferred from prior needs.
+    const priorKinds = localClarifyKinds(
+      [draft.prompt, ...draft.answerTexts].join("\n"),
+      spec,
+    );
+    const qs = localQuestionsFor(priorKinds);
+    for (const ans of input.answers) {
+      const q = qs.find((item) => item.id === ans.question_id);
+      if (!q) continue;
+      spec = applyLocalAnswer(spec, q.kind, ans.answer);
+      draft.answerTexts.push(ans.answer);
+    }
+  }
+  const combined = [draft.prompt, ...draft.answerTexts].join("\n");
+  const needs = localClarifyKinds(combined, spec);
+  if (needs.length > 0 && draft.round < 2) {
+    const questions = localQuestionsFor(needs);
+    draft.spec = spec;
+    draft.round += 1;
+    mockDrafts[draft.draft_id] = draft;
+    return {
+      status: "needs_clarification",
+      draft_id: draft.draft_id,
+      spec,
+      spec_partial: spec,
+      questions,
+      compiler: "deterministic",
+      warnings: specWarningsLocal(spec),
+      source: "mock",
+    };
+  }
+  spec.delivery.in_app = true;
+  spec.delivery.email = false;
+  draft.spec = spec;
+  draft.round = Math.max(draft.round, 2);
+  mockDrafts[draft.draft_id] = draft;
+  const warnings = specWarningsLocal(spec);
+  if (needs.length > 0) warnings.push("best-effort: clarification rounds exhausted");
+  return {
+    status: "ready",
+    draft_id: draft.draft_id,
+    spec,
+    spec_partial: null,
+    questions: [],
+    compiler: "deterministic",
+    warnings,
+    source: "mock",
+  };
+}
+
 /** Compile plain English into a scanner spec preview. POST /compile. */
 export async function compileScanner(
   text: string,
   token: string | null = null,
 ): Promise<CompileScannerResult> {
+  return compileScannerConversational({ prompt: text }, token);
+}
+
+/** Loop 116 — conversational compile with optional answers + draft_id. */
+export async function compileScannerConversational(
+  input: CompileScannerInput,
+  token: string | null = null,
+): Promise<CompileScannerResult> {
   const live = await tryLiveJson<unknown>("/api/v1/scanners/compile", token, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({
+      prompt: input.prompt,
+      answers: input.answers ?? undefined,
+      draft_id: input.draft_id ?? undefined,
+    }),
   });
   const specRec = asRecord(live);
-  if (live && specRec.spec !== undefined) {
+  if (live && (specRec.spec !== undefined || specRec.spec_partial !== undefined)) {
+    const status =
+      specRec.status === "needs_clarification" ? "needs_clarification" : "ready";
+    const rawSpec = status === "ready" ? specRec.spec : (specRec.spec_partial ?? specRec.spec);
     return {
-      spec: normalizeSpec(specRec.spec),
+      status,
+      draft_id: typeof specRec.draft_id === "string" ? specRec.draft_id : null,
+      spec: normalizeSpec(rawSpec),
+      spec_partial:
+        status === "needs_clarification"
+          ? normalizeSpec(specRec.spec_partial ?? specRec.spec)
+          : null,
+      questions: asClarifyQuestions(specRec.questions),
       compiler: asCompiler(specRec.compiler),
       warnings: asWarnings(specRec.warnings),
       source: "live",
     };
   }
-  // Mock: the local keyword parser is the deterministic compiler (no local
-  // LLM path), and warnings mirror the backend's validate_spec.
-  const spec = compileSpecLocal(text);
-  return { spec, compiler: "deterministic", warnings: specWarningsLocal(spec), source: "mock" };
+  return compileConversationalLocal(input);
+}
+
+/** Dry-run a ready compile draft. POST /compile/testfire. */
+export async function testfireCompileDraft(
+  draftId: string,
+  token: string | null = null,
+): Promise<TestfireResult> {
+  const live = await tryLiveJson<unknown>("/api/v1/scanners/compile/testfire", token, {
+    method: "POST",
+    body: JSON.stringify({ draft_id: draftId }),
+  });
+  if (live) {
+    const rec = asRecord(live);
+    const run = normalizeScannerRun(rec.run);
+    if (run) {
+      const summaryRec = asRecord(rec.summary);
+      const countsRec = asRecord(summaryRec.counts);
+      const topRaw = Array.isArray(rec.top_matches) ? rec.top_matches : [];
+      return {
+        draft_id: typeof rec.draft_id === "string" ? rec.draft_id : draftId,
+        run,
+        summary: {
+          status: typeof summaryRec.status === "string" ? summaryRec.status : run.status,
+          is_test: summaryRec.is_test !== false,
+          test_mode: summaryRec.test_mode !== false,
+          counts: {
+            universe: asNumber(countsRec.universe),
+            candidates: asNumber(countsRec.candidates),
+            aligned: asNumber(countsRec.aligned),
+          },
+          error: typeof summaryRec.error === "string" ? summaryRec.error : run.error,
+        },
+        top_matches: topRaw
+          .map((c) => normalizeCandidate(c))
+          .filter((c): c is ScannerCandidate => c !== null),
+        source: "live",
+      };
+    }
+  }
+  // Mock testfire — synthetic candidates (draft may be absent after remount).
+  const now = new Date().toISOString();
+  const run: ScannerRun = {
+    id: nextMockId("run"),
+    scanner_id: nextMockId("scn"),
+    started_at: now,
+    finished_at: now,
+    status: "completed",
+    checkpoint: null,
+    result: {
+      candidates: [
+        {
+          market_slug: "nba-2025-01-15-lal-bos",
+          title: "Lakers vs Celtics",
+          reads: {},
+          aligned: true,
+        },
+      ],
+      top_pick: {
+        market_slug: "nba-2025-01-15-lal-bos",
+        title: "Lakers vs Celtics",
+        reads: {},
+        aligned: true,
+      },
+      counts: { universe: 1, candidates: 1, aligned: 1 },
+    },
+    error: null,
+    duration_ms: 12,
+    is_test: true,
+    repairs: [],
+  };
+  return {
+    draft_id: draftId,
+    run,
+    summary: {
+      status: "completed",
+      is_test: true,
+      test_mode: true,
+      counts: { universe: 1, candidates: 1, aligned: 1 },
+      error: null,
+    },
+    top_matches: run.result?.candidates ?? [],
+    source: "mock",
+  };
 }
 
 export type CreateScannerInput = {
