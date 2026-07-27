@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { RunArtifact } from "@/components/scanners/RunArtifact";
 import { ScannerCanvas } from "@/components/scanners/ScannerCanvas";
 import { ScannerStatusPill } from "@/components/scanners/ScannerStatusPill";
 import { PageShell } from "@/components/ui/kit";
@@ -1105,6 +1106,18 @@ export function ScannerDetailShell({ id }: { id: string }) {
             key={narrationKey}
             steps={scanner.spec.steps}
             onDone={stopNarration}
+          />
+        ) : null}
+
+        {/* loop116 — the rendered run document. Sits ABOVE the step list; the
+            step list below is untouched. Renders nothing when the backend has
+            no artifact for this run. */}
+        {latestRun ? (
+          <RunArtifact
+            scannerId={scanner.id}
+            runId={latestRun.id}
+            token={token}
+            className="mt-6"
           />
         ) : null}
 

@@ -73,6 +73,12 @@ test.describe("V84 Scanner Studio", () => {
     await expect(page.getByTestId("scanner-candidates")).toBeVisible();
     await expect(page.getByTestId("scanner-runs-history")).toBeVisible();
 
+    // loop116 — the run artifact is LIVE-ONLY on purpose: this spec runs on the
+    // in-memory mock, so no document may appear. Fabricating a fired dashboard
+    // is exactly what this surface exists to replace. The step list below it
+    // must be unaffected (asserted above).
+    await expect(page.getByTestId("scanner-run-artifact")).toHaveCount(0);
+
     assertNoConsoleErrors(errors, "/scanners/[id]");
   });
 

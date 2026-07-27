@@ -1231,6 +1231,188 @@ export async function listScannerRuns(
 }
 
 // ---------------------------------------------------------------------------
+// Run artifact (loop116) — the rendered fired-alert dashboard document.
+// GET /api/v1/scanners/{id}/runs/{run_id}/artifact. Public for public
+// scanners, owner-only for private ones (backend mirrors scanner visibility).
+// Narrative text is research-only by backend contract: it never carries a
+// trade instruction, a stake, or a side.
+// ---------------------------------------------------------------------------
+
+export type ArtifactKpi = { label: string; value: string | number; delta?: number };
+
+export type ArtifactStepCounter = {
+  index: number;
+  step: string;
+  type: string;
+  in: number;
+  out: number;
+  /** False when the funnel point was inferred, not recorded by the executor. */
+  measured: boolean;
+};
+
+export type ArtifactMatch = {
+  market_slug: string;
+  title: string;
+  category: string | null;
+  /** Implied YES captured during the run — a reading, never a live quote. */
+  price: number | null;
+  volume: number | null;
+  lock_at: string | null;
+  /** Composite signal strength across the step reads (research metric). */
+  score: number;
+  scores: Record<string, Record<string, unknown>>;
+};
+
+export type ArtifactChart = {
+  type: "bar" | "line";
+  title: string;
+  value_label: string;
+  series: { label: string; market_slug: string; value: number }[];
+  empty_reason: string | null;
+};
+
+export type ArtifactNarrative = {
+  what_this_means: string;
+  what_to_do_now: string[];
+  /** "llm" | "llm-filtered" | "deterministic" — which path wrote the prose. */
+  generator: string;
+  /** True when trade language was stripped from the model's output. */
+  filtered: boolean;
+};
+
+export type ScannerRunArtifact = {
+  artifact_version: number;
+  headline: string;
+  fired: boolean;
+  run_meta: {
+    scanner_id: string;
+    scanner_name: string;
+    run_id: string;
+    status: string;
+    started_at: string | null;
+    finished_at: string | null;
+    duration_ms: number | null;
+    interval_minutes: number;
+    next_run_at: string | null;
+    is_test: boolean;
+    spec_version: number;
+    paper_trading_only: boolean;
+  };
+  kpis: ArtifactKpi[];
+  step_counters: ArtifactStepCounter[];
+  matches: ArtifactMatch[];
+  chart: ArtifactChart;
+  narrative: ArtifactNarrative;
+  generated_at: string;
+  /** "stored" (written at run completion) | "on-read" (assembled for this GET). */
+  source: string;
+};
+
+function normalizeArtifact(raw: unknown): ScannerRunArtifact | null {
+  const rec = asRecord(raw);
+  if (typeof rec.headline !== "string" || !rec.headline) return null;
+  const meta = asRecord(rec.run_meta);
+  const chart = asRecord(rec.chart);
+  const narrative = asRecord(rec.narrative);
+  const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+  return {
+    artifact_version: asNumber(rec.artifact_version, 1),
+    headline: rec.headline,
+    fired: rec.fired === true,
+    run_meta: {
+      scanner_id: String(meta.scanner_id ?? ""),
+      scanner_name: String(meta.scanner_name ?? ""),
+      run_id: String(meta.run_id ?? ""),
+      status: String(meta.status ?? ""),
+      started_at: typeof meta.started_at === "string" ? meta.started_at : null,
+      finished_at: typeof meta.finished_at === "string" ? meta.finished_at : null,
+      duration_ms: typeof meta.duration_ms === "number" ? meta.duration_ms : null,
+      interval_minutes: asNumber(meta.interval_minutes, 60),
+      next_run_at: typeof meta.next_run_at === "string" ? meta.next_run_at : null,
+      is_test: meta.is_test === true,
+      spec_version: asNumber(meta.spec_version, 1),
+      paper_trading_only: meta.paper_trading_only !== false,
+    },
+    kpis: list(rec.kpis).map((k) => {
+      const kr = asRecord(k);
+      const value = kr.value;
+      return {
+        label: String(kr.label ?? ""),
+        value: typeof value === "number" ? value : String(value ?? "—"),
+        ...(typeof kr.delta === "number" ? { delta: kr.delta } : {}),
+      };
+    }),
+    step_counters: list(rec.step_counters).map((c) => {
+      const cr = asRecord(c);
+      return {
+        index: asNumber(cr.index),
+        step: String(cr.step ?? "STEP"),
+        type: String(cr.type ?? cr.step ?? "STEP"),
+        in: asNumber(cr.in),
+        out: asNumber(cr.out),
+        measured: cr.measured !== false,
+      };
+    }),
+    matches: list(rec.matches).map((m) => {
+      const mr = asRecord(m);
+      return {
+        market_slug: String(mr.market_slug ?? ""),
+        title: String(mr.title ?? mr.market_slug ?? ""),
+        category: typeof mr.category === "string" ? mr.category : null,
+        price: typeof mr.price === "number" ? mr.price : null,
+        volume: typeof mr.volume === "number" ? mr.volume : null,
+        lock_at: typeof mr.lock_at === "string" ? mr.lock_at : null,
+        score: asNumber(mr.score),
+        scores: asRecord(mr.scores) as Record<string, Record<string, unknown>>,
+      };
+    }),
+    chart: {
+      type: chart.type === "line" ? "line" : "bar",
+      title: String(chart.title ?? "Signal strength by matched market"),
+      value_label: String(chart.value_label ?? ""),
+      series: list(chart.series).map((s) => {
+        const sr = asRecord(s);
+        return {
+          label: String(sr.label ?? ""),
+          market_slug: String(sr.market_slug ?? ""),
+          value: asNumber(sr.value),
+        };
+      }),
+      empty_reason:
+        typeof chart.empty_reason === "string" ? chart.empty_reason : null,
+    },
+    narrative: {
+      what_this_means: String(narrative.what_this_means ?? ""),
+      what_to_do_now: list(narrative.what_to_do_now).map((a) => String(a)),
+      generator: String(narrative.generator ?? "deterministic"),
+      filtered: narrative.filtered === true,
+    },
+    generated_at: String(rec.generated_at ?? ""),
+    source: String(rec.source ?? "stored"),
+  };
+}
+
+/**
+ * Rendered dashboard artifact for one run. Live only — there is no mock
+ * artifact, because inventing a fired dashboard would be exactly the kind of
+ * fake payoff this surface exists to replace. Returns null when the backend
+ * has none (or the run is not visible), and the UI simply omits the document.
+ */
+export async function getRunArtifact(
+  scannerId: string,
+  runId: string,
+  token: string | null = null,
+): Promise<{ artifact: ScannerRunArtifact | null; source: ApiSource }> {
+  const live = await tryLiveJson<unknown>(
+    `/api/v1/scanners/${encodeURIComponent(scannerId)}/runs/${encodeURIComponent(runId)}/artifact`,
+    token,
+  );
+  const artifact = live ? normalizeArtifact(live) : null;
+  if (artifact) return { artifact, source: "live" };
+  return { artifact: null, source: "mock" };
+}
+
+// ---------------------------------------------------------------------------
 // Pre-publish + versioning endpoints (Loop V86 — X1/X2).
 // test-run / test-email / publish / rollback / versions. Live first, mock
 // fallback. publish surfaces the backend's 409 "run a test first" so the UI
