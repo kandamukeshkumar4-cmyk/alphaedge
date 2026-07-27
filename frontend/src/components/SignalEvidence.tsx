@@ -11,7 +11,7 @@ export function SignalEvidenceBlock({ evidence }: { evidence: SignalEvidence }) 
         <p className="mt-1 text-sm font-semibold text-text">{evidence.headline}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
           {evidence.modelP !== null ? (
-            <span className="font-mono">model {(evidence.modelP * 100).toFixed(0)}%</span>
+            <span className="font-mono">forecast {(evidence.modelP * 100).toFixed(0)}%</span>
           ) : null}
           {evidence.marketP !== null ? (
             <span className="font-mono">market {(evidence.marketP * 100).toFixed(0)}%</span>

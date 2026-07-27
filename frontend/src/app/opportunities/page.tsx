@@ -94,7 +94,7 @@ export default function OpportunitiesPage() {
     }
     switch (raw.empty_reason) {
       case "no_model_predictions":
-        return "No open market has a stored model probability yet. Edges are ranked only from real PredictionLog rows — never fabricated. The model-vs-market scanner stays empty until predictions are written for live markets.";
+        return "No open market has a stored forecast probability yet. Edges are ranked only from real PredictionLog rows — never fabricated. The forecast-vs-market scanner stays empty until predictions are written for live markets.";
       case "no_validated_edge":
         return "No validated edges right now. Model predictions exist, but none currently beat the closing line out-of-sample. This board only lists edges that survive validation — an empty list is the model being honest, not the app being broken.";
       case "no_open_candidates":

@@ -415,7 +415,7 @@ export function DecisionCard({ slug, className, deviationMessage }: Props) {
             role="status"
             className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200"
           >
-            Provisional — model not yet CLV-validated
+            Provisional — forecast not yet CLV-validated
           </p>
         )}
 

@@ -132,7 +132,7 @@ function RunResult({ view }: { view: BacktestRunView }) {
           }
           hint={view.lastUpdatedLabel ? `updated ${view.lastUpdatedLabel}` : undefined}
         />
-        <Tile label="Model Brier" value={view.brierLabel} hint={view.brierVerdict ?? undefined} />
+        <Tile label="Model Brier — market-baseline" value={view.brierLabel} hint={view.brierVerdict ?? undefined} />
         <Tile label="Market Brier" value={view.marketBrierLabel} hint="implied-price baseline" />
         <Tile
           label="Flat-stake ROI"

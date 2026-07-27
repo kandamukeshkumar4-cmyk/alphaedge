@@ -4,7 +4,7 @@ import { pageMetadata } from "@/lib/site-metadata";
 
 export const metadata: Metadata = pageMetadata({
   title: "Opportunities",
-  description: "Model-vs-market opportunity board for paper research.",
+  description: "Forecast-vs-market opportunity board for paper research.",
   path: "/opportunities",
 });
 

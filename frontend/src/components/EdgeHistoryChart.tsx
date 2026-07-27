@@ -47,9 +47,9 @@ function Chart({ view }: { view: EdgeHistoryView }) {
       viewBox={`0 0 ${W} ${H}`}
       className="h-auto w-full"
       role="img"
-      aria-label={`Model vs market edge history over ${view.windowLabel}`}
+      aria-label={`Forecast vs market edge history over ${view.windowLabel}`}
     >
-      <title>Model vs market edge history over {view.windowLabel}</title>
+      <title>Forecast vs market edge history over {view.windowLabel}</title>
       <desc>{desc}</desc>
       {/* baseline + mid gridline (50%) */}
       <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} className="stroke-border" strokeWidth={1} />
@@ -106,7 +106,7 @@ export function EdgeHistoryChart({ slug }: { slug: string }) {
   if (!loaded) {
     return (
       <div className="mt-4">
-        <SectionTitle>Model vs market history</SectionTitle>
+        <SectionTitle>Forecast vs market history</SectionTitle>
         <div className="skeleton mt-2 h-32 w-full rounded-xl" aria-hidden />
       </div>
     );
@@ -115,7 +115,7 @@ export function EdgeHistoryChart({ slug }: { slug: string }) {
   if (!view || !view.found || !view.available) {
     return (
       <div className="mt-4">
-        <SectionTitle>Model vs market history</SectionTitle>
+        <SectionTitle>Forecast vs market history</SectionTitle>
         <p className="mt-1.5 text-xs text-muted">
           {view === null || view.slug === ""
             ? "Edge history unreachable — the chart needs the backend API."
@@ -130,9 +130,9 @@ export function EdgeHistoryChart({ slug }: { slug: string }) {
   const last = view.points[view.points.length - 1];
 
   return (
-    <section className="mt-4" aria-label="Model vs market edge history">
+    <section className="mt-4" aria-label="Forecast vs market edge history">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionTitle>Model vs market history</SectionTitle>
+        <SectionTitle>Forecast vs market history</SectionTitle>
         {view.latest?.edgeLabel ? (
           <span
             className={cn(
@@ -156,7 +156,7 @@ export function EdgeHistoryChart({ slug }: { slug: string }) {
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-2">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 rounded-full bg-primary" aria-hidden />
-          model {view.latest?.modelLabel ?? "—"}
+          forecast {view.latest?.modelLabel ?? "—"}
         </span>
         {view.hasMarketLine ? (
           <span className="inline-flex items-center gap-1.5">

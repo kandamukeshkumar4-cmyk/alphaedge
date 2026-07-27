@@ -97,10 +97,10 @@ function SnapshotCard({ view }: { view: ShareSnapshotView }) {
           )}
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">Model vs market</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">Forecast vs market</p>
           {view.edgeLabel || view.modelLabel ? (
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm font-bold">
-              {view.modelLabel ? <span className="text-text">model {view.modelLabel}</span> : null}
+              {view.modelLabel ? <span className="text-text">forecast {view.modelLabel}</span> : null}
               {view.marketLabel ? <span className="text-muted">market {view.marketLabel}</span> : null}
               {view.edgeLabel ? (
                 <span className={cn("font-black", EDGE_TONE[view.edgeTone])}>edge {view.edgeLabel}</span>

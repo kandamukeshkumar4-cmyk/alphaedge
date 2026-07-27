@@ -27,7 +27,7 @@ export function BriefEvidencePanel({
   return (
     <section className="mt-8 rounded-2xl border border-border bg-surface p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-        Model vs market
+        Forecast vs market
       </h2>
 
       {hasMetrics ? (

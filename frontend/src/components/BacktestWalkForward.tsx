@@ -128,7 +128,7 @@ export function BacktestWalkForward() {
       {/* Model-vs-market tiles */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label="Resolved" value={`n=${view.nLabel}`} hint={view.lastUpdatedLabel ? `updated ${view.lastUpdatedLabel}` : undefined} />
-        <Tile label="Model Brier" value={view.brierLabel} hint={view.brierVerdict ?? undefined} />
+        <Tile label="Model Brier — market-baseline" value={view.brierLabel} hint={view.brierVerdict ?? undefined} />
         <Tile label="Market Brier" value={view.marketBrierLabel} hint="implied-price baseline" />
         <Tile
           label="Flat-stake ROI"
