@@ -1,6 +1,6 @@
 import MarketDetailClient from "./market-detail-client";
 import { getMarket, MARKETS } from "@/lib/mock-data";
-import { fetchMarketDetailApi } from "@/lib/alphaedge-api";
+import { fetchMarketDetail, fetchMarketDetailApi } from "@/lib/alphaedge-api";
 import { formatMarketLabel } from "@/lib/signals-dashboard-view-model";
 
 // Live Kalshi/Polymarket slugs are discovered at runtime and can't be
@@ -36,8 +36,24 @@ export default async function MarketDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  // SSR-fetch the live detail so the market question (not the raw slug) is in
-  // the first paint for pm-/ks- slugs; the client still refreshes it.
-  const initialDetail = await fetchMarketDetailApi(slug);
-  return <MarketDetailClient slug={slug} initialDetail={initialDetail} />;
+  // SSR-fetch the live detail AND the live catalog row so the first paint is
+  // the real market.
+  //
+  // Loop117 (D14): the server used to fetch only `/detail`, while the "Showing
+  // demo market data. Connect the API…" banner and the fabricated sample order
+  // book keyed off the API-backed market, which was client-only state. Every
+  // server render therefore claimed the API was disconnected and shipped a
+  // synthetic book — what crawlers, no-JS clients and the first paint saw —
+  // even though the API was up and serving an empty book.
+  const [initialDetail, initialMarket] = await Promise.all([
+    fetchMarketDetailApi(slug),
+    fetchMarketDetail(slug),
+  ]);
+  return (
+    <MarketDetailClient
+      slug={slug}
+      initialDetail={initialDetail}
+      initialMarket={initialMarket}
+    />
+  );
 }

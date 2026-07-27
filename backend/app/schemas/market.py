@@ -380,9 +380,11 @@ class PaperAccountResponse(BaseModel):
 
 
 class MarketDetailOutcome(BaseModel):
+    # Loop117 D5: honest null when the market has no stored price anywhere —
+    # the detail path must never invent a 0.5 the rest of the API disagrees with.
     label: str
-    implied_prob: float
-    price: float
+    implied_prob: Optional[float] = None
+    price: Optional[float] = None
 
 
 class MarketDetailForecast(BaseModel):
@@ -397,6 +399,10 @@ class MarketDetailResponse(BaseModel):
     category: str
     status: str
     outcomes: list[MarketDetailOutcome]
+    # Loop117 D5: which store the outcome price came from — "odds_snapshot"
+    # (the same source /markets, /prices/latest and /candles serve),
+    # "order_book", "catalog_spec" or "unavailable".
+    price_source: str = "unavailable"
     forecast: Optional[MarketDetailForecast] = None
     volume_usd: int
     traders: int

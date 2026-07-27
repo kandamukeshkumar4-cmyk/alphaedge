@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -9,10 +11,18 @@ class NewsSignalItem(BaseModel):
 
 
 class MarketExplainerResponse(BaseModel):
+    """Model-vs-market explanation for one market.
+
+    Loop117: ``available`` is False (with null probabilities) when the market
+    has no stored price and no logged forecast — the honest shape for "no
+    prediction available", served as a 200 instead of a 404.
+    """
+
     slug: str
-    model_prob: float
-    market_implied: float
-    edge: float
+    available: bool = True
+    model_prob: Optional[float] = None
+    market_implied: Optional[float] = None
+    edge: Optional[float] = None
     edge_direction: str
     confidence_label: str
     news_signals: list[NewsSignalItem] = Field(default_factory=list)
@@ -20,4 +30,6 @@ class MarketExplainerResponse(BaseModel):
     provisional: bool
     explanation: str = ""
     model_used: str = "deterministic"
+    # Which store ``market_implied`` came from — see services/market_lookup.py.
+    price_source: str = "unavailable"
     paper_trading_only: bool = True

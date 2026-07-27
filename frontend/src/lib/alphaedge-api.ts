@@ -663,7 +663,15 @@ export type MarketDetailApi = {
   title: string;
   category: string;
   status: "open" | "locked" | "resolved";
-  outcomes: Array<{ label: string; implied_prob: number; price: number }>;
+  // Loop117 (D5): the backend returns an honest null when a market has no
+  // stored price anywhere — it no longer invents 0.5.
+  outcomes: Array<{
+    label: string;
+    implied_prob: number | null;
+    price: number | null;
+  }>;
+  /** "odds_snapshot" | "order_book" | "catalog_spec" | "unavailable". */
+  price_source?: string;
   forecast: {
     model_prob: number;
     clv_gate_passed: boolean;
@@ -747,6 +755,11 @@ export async function fetchCatalogMarketForDetail(
   }
 }
 
+/** A usable price, or null — guards against nulls and NaN from the wire. */
+function finitePrice(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export function mergeApiDetailForCards(
   detail: MarketDetailApi,
   localMarkets: CardMarket[],
@@ -754,8 +767,13 @@ export function mergeApiDetailForCards(
   const local = localMarkets.find((market) => market.slug === detail.slug);
   const yes = detail.outcomes.find((outcome) => outcome.label === "YES");
   const no = detail.outcomes.find((outcome) => outcome.label === "NO");
-  const yesPrice = yes?.price ?? 0.5;
-  const noPrice = no?.price ?? 0.5;
+  // Loop117 (D5/D1b): the detail price wins, then the catalog row, then the
+  // "no price" convention (0) — never a made-up 0.5, and never NaN.
+  const yesPrice = finitePrice(yes?.price) ?? finitePrice(local?.outcomes[0]?.price) ?? 0;
+  const noPrice =
+    finitePrice(no?.price) ??
+    finitePrice(local?.outcomes[1]?.price) ??
+    (yesPrice > 0 ? Math.round((1 - yesPrice) * 10000) / 10000 : 0);
 
   return {
     id: local?.id ?? detail.slug,

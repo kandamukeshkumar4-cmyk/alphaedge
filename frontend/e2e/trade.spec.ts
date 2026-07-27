@@ -86,8 +86,12 @@ test.describe("Q3 trade journey", () => {
       .first();
     await expect(toastOrPos).toBeVisible({ timeout: 30_000 });
 
-    // Position card after fill
-    await expect(page.getByText(/My Position/i)).toBeVisible({ timeout: 20_000 });
+    // Position card after fill. loop105 (0444579) renamed the card heading to
+    // "My Paper Position" for honest paper-trade labelling; this assertion was
+    // masked until loop117 stopped the market page crashing before the click.
+    await expect(page.getByText(/My Paper Position/i)).toBeVisible({
+      timeout: 20_000,
+    });
 
     // 3) Portfolio: position + balance change
     await page.goto("/portfolio", {
@@ -122,7 +126,7 @@ test.describe("Q3 trade journey", () => {
       timeout: 60_000,
     });
     await dismissOnboardingIfPresent(page);
-    await expect(page.getByText(/My Position/i)).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByText(/My Paper Position/i)).toBeVisible({ timeout: 25_000 });
     const sellBtn = page.getByRole("button", { name: /Sell \d+ shares/i });
     await expect(sellBtn).toBeVisible({ timeout: 15_000 });
     await sellBtn.click();

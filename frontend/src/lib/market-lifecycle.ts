@@ -53,7 +53,9 @@ export function marketCloseCountdown(
 
 type DetailLifecycleEvidence = {
   status: Market["status"];
-  outcomes: Array<{ label: string; price: number }>;
+  // Loop117 (D5): a detail payload may carry an honest null price when the
+  // market has no stored quote — the guard below already ignores non-numbers.
+  outcomes: Array<{ label: string; price: number | null }>;
 };
 
 /**

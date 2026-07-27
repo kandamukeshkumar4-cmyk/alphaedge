@@ -315,17 +315,24 @@ async def _prediction_context_for_analyze(
         return dict(cached)
 
     try:
-        from app.api.v1.market_prediction import _implied_prob_from_catalog
         from app.forecasting.predictor import predict_market
+        from app.services.market_lookup import get_catalog_market, resolve_implied_yes
         from app.services.market_service import CATALOG_SLUGS
 
-        if slug not in CATALOG_SLUGS:
+        # Loop117 D1: the catalog, not the 22-slug seed set, decides scorability.
+        if slug not in CATALOG_SLUGS and await get_catalog_market(db, slug) is None:
             return {
                 "unscorable_reason": "this market is outside the prediction catalog",
             }
+        # Loop117 D5: score against the same implied price /markets serves.
+        anchor = await resolve_implied_yes(db, slug)
+        if not anchor.available:
+            return {
+                "unscorable_reason": "this market has no stored price to score against",
+            }
         prediction = await asyncio.to_thread(
             predict_market,
-            {"market_slug": slug, "implied_yes": _implied_prob_from_catalog(slug)},
+            {"market_slug": slug, "implied_yes": anchor.price},
         )
         result = {
             "model_prob": round(float(prediction.predicted_prob), 4),
@@ -446,11 +453,11 @@ async def _enrich_analyze_context(
     # Catalog implied as fallback market price when DB price absent.
     if out.get("market_price") is None:
         try:
-            from app.api.v1.market_prediction import _implied_prob_from_catalog
-            from app.services.market_service import CATALOG_SLUGS
+            from app.services.market_lookup import resolve_implied_yes
 
-            if slug in CATALOG_SLUGS:
-                out["market_price"] = round(_implied_prob_from_catalog(slug), 4)
+            anchor = await resolve_implied_yes(db, slug)
+            if anchor.available:
+                out["market_price"] = anchor.price
         except Exception:
             pass
 

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.db.models import PredictionLog
+from app.db.session import get_db
 from app.forecasting.ensemble_providers import ensemble_forecast
 from app.forecasting.predictor import predict_market
 from app.forecasting.router import ModelRouter
@@ -12,23 +16,13 @@ from app.schemas.market_prediction import (
     EnsembleForecast,
     MarketPredictionResponse,
 )
-from app.services import market_service
+from app.services.market_lookup import ImpliedYes, get_catalog_market, resolve_implied_yes
 from app.services.market_service import CATALOG_SLUGS
 
 router = APIRouter(prefix="/api/v1", tags=["markets"])
 settings = get_settings()
 
-
-def _implied_prob_from_catalog(slug: str) -> float:
-    catalog = getattr(market_service, "CATALOG", None)
-    if isinstance(catalog, dict) and slug in catalog:
-        entry = catalog[slug]
-        if isinstance(entry, dict):
-            if "implied_prob" in entry:
-                return float(entry["implied_prob"])
-            if "implied_yes" in entry:
-                return float(entry["implied_yes"])
-    return 0.5
+NO_PREDICTION_REASON = "no prediction available: market has no stored price and no logged forecast"
 
 
 def _is_provisional(slug: str, is_edge: bool, reason: str) -> bool:
@@ -39,12 +33,63 @@ def _is_provisional(slug: str, is_edge: bool, reason: str) -> bool:
     return False
 
 
-@router.get("/markets/{slug}/prediction", response_model=MarketPredictionResponse)
-async def get_market_prediction(slug: str) -> MarketPredictionResponse:
-    if slug not in CATALOG_SLUGS:
+async def require_catalog_market(db: AsyncSession, slug: str) -> None:
+    """404 only when the catalog itself does not list *slug* (Loop117 D1).
+
+    Seed slugs short-circuit: they are catalog members by construction, and the
+    bundled demo catalog must stay readable without a seeded database.
+    """
+    if slug in CATALOG_SLUGS:
+        return
+    if await get_catalog_market(db, slug) is None:
         raise HTTPException(status_code=404, detail="Market not found")
 
-    implied_prob = _implied_prob_from_catalog(slug)
+
+async def has_logged_prediction(db: AsyncSession, slug: str) -> bool:
+    """True when a ``PredictionLog`` row exists for *slug*."""
+    return (
+        await db.scalar(
+            select(PredictionLog.id).where(PredictionLog.market_slug == slug).limit(1)
+        )
+    ) is not None
+
+
+async def prediction_anchor(db: AsyncSession, slug: str) -> ImpliedYes:
+    """The unified market-implied YES the whole model chain scores against (D5)."""
+    return await resolve_implied_yes(db, slug)
+
+
+@router.get("/markets/{slug}/prediction", response_model=MarketPredictionResponse)
+async def get_market_prediction(
+    slug: str, db: AsyncSession = Depends(get_db)
+) -> MarketPredictionResponse:
+    """Model read for any market the catalog lists.
+
+    Loop117: a market outside the 22-slug seed set is no longer a 404 (D1), the
+    market anchor is the same price ``/markets`` serves (D5), and a market with
+    nothing to score gets an honest ``available: false`` body rather than a 404
+    or a fabricated 0.5 (``prediction_absent_is_honest_not_404``).
+    """
+    await require_catalog_market(db, slug)
+
+    anchor = await prediction_anchor(db, slug)
+    if not anchor.available and not await has_logged_prediction(db, slug):
+        return MarketPredictionResponse(
+            slug=slug,
+            available=False,
+            predicted_prob=None,
+            confidence=0.0,
+            edge=None,
+            is_edge=False,
+            reason=NO_PREDICTION_REASON,
+            provisional=True,
+            market_implied=None,
+            price_source=anchor.source,
+            paper_trading_only=settings.paper_trading_only,
+            ensemble=None,
+        )
+
+    implied_prob = anchor.price if anchor.price is not None else 0.5
     prediction = await asyncio.to_thread(
         predict_market,
         {
@@ -60,12 +105,15 @@ async def get_market_prediction(slug: str) -> MarketPredictionResponse:
 
     return MarketPredictionResponse(
         slug=slug,
+        available=True,
         predicted_prob=prediction.predicted_prob,
         confidence=prediction.confidence,
         edge=prediction.edge,
         is_edge=prediction.is_edge,
         reason=prediction.reason,
         provisional=_is_provisional(slug, prediction.is_edge, prediction.reason),
+        market_implied=anchor.price,
+        price_source=anchor.source,
         paper_trading_only=settings.paper_trading_only,
         ensemble=ensemble,
     )
