@@ -13,7 +13,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { fetchMarketCandles } from "@/lib/alphaedge-api";
+import { fetchMarketCandlesMeta } from "@/lib/alphaedge-api";
 import { useMarketPrice } from "@/hooks/useMarketPrice";
 import { generateCandles, cents, type Candle } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
@@ -23,6 +23,35 @@ import {
   readLwcChartTheme,
   type LwcChartTheme,
 } from "@/lib/chart-colors";
+
+const STALE_CANDLE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Provenance copy for non-live candle envelopes.
+ * Backend `source`: live | db (real ticks + pad) | seed (fully synthetic).
+ * Client-generated fallback (no API candles) is also labelled synthetic.
+ */
+function chartProvenanceLabel(
+  source: string | null,
+  candles: Candle[] | null,
+): string | null {
+  if (candles === null || source === null) {
+    return "Synthetic chart — generated from sample data, not live candles.";
+  }
+  if (source === "live") return null;
+  if (source === "seed") {
+    return "Synthetic chart — generated from sample data, not live candles.";
+  }
+  // db (padded) or any other non-live discriminator
+  const last = candles[candles.length - 1];
+  if (!last) return "Chart data padded; not live candles.";
+  const lastMs = last.time * 1000;
+  if (Number.isFinite(lastMs) && Date.now() - lastMs > STALE_CANDLE_MS) {
+    const date = new Date(lastMs).toISOString().slice(0, 10);
+    return `Chart data padded; last real tick ${date}`;
+  }
+  return "Chart data padded; includes synthetic gaps.";
+}
 
 // QuestFlow Trade terminal chips: 5m · 15m · 1h · 6h · 1d · 1w · 1m · All
 type RangeKey = "5m" | "15m" | "1h" | "6h" | "1d" | "1w" | "1m" | "All";
@@ -101,6 +130,8 @@ export function PriceChart({
   const [range, setRange] = useState<RangeKey>("1d");
   const [mode, setMode] = useState<Mode>("area");
   const [apiCandles, setApiCandles] = useState<Candle[] | null>(null);
+  /** Backend candle `source` discriminator (`live` / `db` / `seed`); null = client synth. */
+  const [candleSource, setCandleSource] = useState<string | null>(null);
   const [last, setLast] = useState(endPrice);
   const [hovered, setHovered] = useState<number | null>(null);
   const [openPrice, setOpenPrice] = useState(endPrice);
@@ -208,9 +239,14 @@ export function PriceChart({
 
   useEffect(() => {
     let cancelled = false;
-    fetchMarketCandles(slug, cfg.points).then((candles) => {
-      if (!cancelled) {
-        setApiCandles(candles);
+    fetchMarketCandlesMeta(slug, cfg.points).then((meta) => {
+      if (cancelled) return;
+      if (meta && meta.candles.length > 0) {
+        setApiCandles(meta.candles);
+        setCandleSource(meta.source);
+      } else {
+        setApiCandles(null);
+        setCandleSource(null);
       }
     });
     return () => {
@@ -222,6 +258,8 @@ export function PriceChart({
   useEffect(() => {
     const candles =
       apiCandles ?? generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    // API-provided candles (including seed/db) are "api mode"; only the
+    // client-side generateCandles fallback is fully local synthetic.
     isApiModeRef.current = apiCandles !== null;
     dataRef.current = candles;
     const areaData = candles.map((c) => ({
@@ -381,11 +419,18 @@ export function PriceChart({
           </div>
         </div>
       </div>
-      {apiCandles === null ? (
-        <p className="mt-3 text-center text-xs text-muted-2">
-          Synthetic chart — generated from sample data, not live candles.
-        </p>
-      ) : null}
+      {(() => {
+        const label = chartProvenanceLabel(candleSource, apiCandles);
+        return label ? (
+          <p
+            data-testid="price-chart-provenance"
+            data-candle-source={candleSource ?? "client"}
+            className="mt-3 text-center text-xs text-muted-2"
+          >
+            {label}
+          </p>
+        ) : null;
+      })()}
 
       <div
         ref={containerRef}

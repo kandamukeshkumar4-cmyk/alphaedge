@@ -263,6 +263,11 @@ export async function fetchMemories(
   }
 }
 
+/**
+ * Fetch candles only — drops the backend `source` discriminator.
+ * Prefer {@link fetchMarketCandlesMeta} when provenance labelling is required
+ * (live / db-padded / seed).
+ */
 export async function fetchMarketCandles(
   slug: string,
   points = 90,
