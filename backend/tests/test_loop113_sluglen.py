@@ -72,7 +72,13 @@ async def test_long_slugs_persist_in_match_upsert(db_session):
 
 
 def test_migration_068_chains_to_069():
-    """068 remains on the linear chain; head is 069 after the ident sweep."""
+    """068 remains on the linear chain; head moved on past the ident sweep.
+
+    loop116 added ``070_scanner_run_artifact`` on top of ``069_ident_text``.
+    What this test actually guards is that 068 keeps its parent and that the
+    chain stays linear (exactly one head) — so the head name is asserted
+    against the current tip rather than frozen at 069.
+    """
     cfg = Config(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     script = ScriptDirectory.from_config(cfg)
@@ -80,4 +86,6 @@ def test_migration_068_chains_to_069():
     assert rev is not None
     assert rev.down_revision == "067_notnull_parity"
     heads = script.get_heads()
-    assert list(heads) == ["069_ident_text"], f"expected single 069 head, got {heads!r}"
+    assert list(heads) == ["070_scanner_run_artifact"], (
+        f"expected a single head at the current tip, got {heads!r}"
+    )

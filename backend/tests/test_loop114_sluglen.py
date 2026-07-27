@@ -81,9 +81,18 @@ async def test_long_identifiers_persist_across_swept_tables(db_session):
 
 
 def test_migration_069_single_head():
-    """Alembic must have exactly one head: 069_ident_text."""
+    """Alembic must have exactly one head, and 069 must stay on the chain.
+
+    loop116 added ``070_scanner_run_artifact`` on top of 069, so the tip name
+    moved. The invariant this test exists to protect — a linear chain with a
+    single head, with 069 still reachable — is asserted directly.
+    """
     cfg = Config(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
-    assert list(heads) == ["069_ident_text"], f"expected single 069 head, got {heads!r}"
+    assert list(heads) == ["070_scanner_run_artifact"], (
+        f"expected a single head at the current tip, got {heads!r}"
+    )
+    assert script.get_revision("069_ident_text") is not None
+    assert script.get_revision("070_scanner_run_artifact").down_revision == "069_ident_text"

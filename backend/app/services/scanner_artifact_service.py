@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -570,11 +570,14 @@ async def _narrative(
     raw_what = str(parsed.get("what_this_means") or "")[:900]
     raw_actions = [str(a) for a in _as_list(parsed.get("what_to_do_now"))][:8]
 
+    # "filtered" is decided by the detector, not by string comparison: rejoining
+    # kept sentences normalizes whitespace and would otherwise report a false
+    # positive on perfectly clean output.
+    filtered = contains_trade_language(raw_what) or any(
+        contains_trade_language(a) for a in raw_actions
+    )
     clean_what = filter_trade_language(raw_what)
     clean_actions = filter_action_items(raw_actions)
-    filtered = clean_what != raw_what.strip() or len(clean_actions) != len(
-        [a for a in raw_actions if a.strip()]
-    )
 
     if not clean_what or not clean_actions:
         # Fully (or critically) stripped: the deterministic template stands.
@@ -651,8 +654,6 @@ async def assemble_run_artifact(
     started = _aware(run.started_at)
     next_run_at = None
     if started is not None and interval > 0:
-        from datetime import timedelta
-
         next_run_at = (started + timedelta(minutes=interval)).isoformat()
 
     previous_aligned = await _previous_aligned(db, run)

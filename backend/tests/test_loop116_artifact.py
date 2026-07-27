@@ -510,6 +510,92 @@ async def test_stored_artifact_is_served_verbatim(db_session):
 
 
 # ---------------------------------------------------------------------------
+# Executor wiring — a real run stamps its own artifact
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_executor_stamps_artifact_and_measured_step_counters(
+    db_session, monkeypatch
+):
+    """End-to-end: run_scanner() persists run.artifact with a MEASURED funnel."""
+    from app.services.scanner_executor_service import run_scanner
+
+    async def _no_network_news(topic: str, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service.fetch_news_signal", _no_network_news
+    )
+
+    for slug in ("loop116-exec-a", "loop116-exec-b"):
+        await _seed_market(db_session, slug, volume=33000)
+
+    scanner = Scanner(
+        name="Executor wiring probe",
+        spec=SPEC,
+        status="active",
+        is_public=True,
+        owner=None,
+    )
+    db_session.add(scanner)
+    await db_session.flush()
+
+    run = await run_scanner(db_session, scanner)
+
+    assert run.status in {"completed", "empty"}
+    assert isinstance(run.artifact, dict), "executor must stamp the artifact"
+    assert run.artifact["run_meta"]["run_id"] == str(run.id)
+    assert run.artifact["headline"]
+    # The funnel is measured by the executor, never inferred.
+    counters = run.artifact["step_counters"]
+    assert [c["step"] for c in counters] == ["WHALE_FLOW", "PRICE_TREND", "MODEL_EDGE"]
+    assert all(c["measured"] for c in counters)
+    assert counters[0]["in"] == run.result["counts"]["universe"]
+    assert run.result["step_counters"] == [
+        {k: c[k] for k in ("index", "step", "type", "in", "out")} for c in counters
+    ]
+    # Paper law holds on the deterministic path too.
+    assert not contains_trade_language(run.artifact["narrative"]["what_this_means"])
+    for action in run.artifact["narrative"]["what_to_do_now"]:
+        assert not contains_trade_language(action)
+
+
+@pytest.mark.asyncio
+async def test_executor_stamps_an_honest_artifact_on_an_empty_universe(
+    db_session, monkeypatch
+):
+    """No open market matches the universe filter -> empty run, honest artifact."""
+    from app.services.scanner_executor_service import run_scanner
+
+    async def _no_network_news(topic: str, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "app.services.scanner_executor_service.fetch_news_signal", _no_network_news
+    )
+
+    scanner = Scanner(
+        name="Empty universe probe",
+        spec={**SPEC, "universe": {"categories": ["no-such-category"], "minimum_volume": 0}},
+        status="active",
+        is_public=True,
+        owner=None,
+    )
+    db_session.add(scanner)
+    await db_session.flush()
+
+    run = await run_scanner(db_session, scanner)
+
+    assert run.status == "empty"
+    assert isinstance(run.artifact, dict)
+    assert run.artifact["fired"] is False
+    assert run.artifact["matches"] == []
+    assert run.artifact["chart"]["empty_reason"] == "No open markets in the universe."
+    assert "no open markets to scan" in run.artifact["headline"]
+
+
+# ---------------------------------------------------------------------------
 # Standing guardrail
 # ---------------------------------------------------------------------------
 
