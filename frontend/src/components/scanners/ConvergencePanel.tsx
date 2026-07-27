@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SegTabs } from "@/components/ui/kit";
 import { useAuth } from "@/hooks/useAuth";
-import { apiHost } from "@/lib/api";
+import { API_BASE, apiUrl, ensureApiBase } from "@/lib/alphaedge-api";
 
 type ScannerInfo = {
   id: string;
@@ -55,20 +56,26 @@ export function ConvergencePanel() {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    fetch(`${apiHost}/api/v1/scanners/convergence?scope=${scope}&min_scanners=2`, { headers })
-      .then((res) => {
+    void (async () => {
+      try {
+        const base = (await ensureApiBase()) || API_BASE;
+        const url = apiUrl(
+          `/api/v1/scanners/convergence?scope=${scope}&min_scanners=2`,
+          base,
+        );
+        const res = await fetch(url, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((json: ConvergenceResponse) => {
+        const json = (await res.json()) as ConvergenceResponse;
         if (!dead) setData(json);
-      })
-      .catch((err) => {
-        if (!dead) setError(String(err));
-      })
-      .finally(() => {
+      } catch (err) {
+        if (!dead) {
+          setError(err instanceof Error ? err.message : String(err));
+          setData(null);
+        }
+      } finally {
         if (!dead) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       dead = true;
@@ -103,14 +110,19 @@ export function ConvergencePanel() {
           </p>
           {data.items.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-surface/40 p-6 text-center text-sm text-muted">
-              No markets appear in 2 or more scanners.
+              No market appears in multiple scanners right now.
             </div>
           ) : (
             <div className="grid gap-4">
               {data.items.map((item) => (
                 <div key={item.market_slug} className="rounded-xl border border-border/60 bg-surface p-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="font-bold text-text">{item.market_title}</h3>
+                    <Link
+                      href={`/markets/${item.market_slug}`}
+                      className="font-bold text-text hover:text-primary"
+                    >
+                      {item.market_title}
+                    </Link>
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                       {item.scanner_count} scanners
                     </span>
@@ -118,8 +130,16 @@ export function ConvergencePanel() {
                   <div className="text-xs text-muted">
                     Volume: ${item.combined.volume.toLocaleString()} | Price: {item.combined.price ?? "N/A"}
                   </div>
-                  <div className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-2">
-                    Found in: {item.scanners.map((s) => s.name).join(", ")}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-2">
+                    <span>Found in:</span>
+                    {item.scanners.map((s) => (
+                      <span
+                        key={s.id}
+                        className="rounded-full border border-border/60 bg-surface-2 px-2 py-0.5 font-semibold text-muted"
+                      >
+                        {s.name}
+                      </span>
+                    ))}
                   </div>
                 </div>
               ))}

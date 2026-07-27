@@ -10,6 +10,13 @@ from app.main import app
 from app.services.market_service import MarketService
 
 
+@pytest.fixture(autouse=True)
+def _clear_overrides():
+    """Never leak the get_db override into sibling test modules."""
+    yield
+    app.dependency_overrides.pop(get_db, None)
+
+
 async def _client_for(db_session):
     async def override_get_db():
         yield db_session

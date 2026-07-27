@@ -1488,6 +1488,7 @@ app.include_router(feed_router)
 app.include_router(agent_trace_router)
 app.include_router(terminal_router)
 app.include_router(skills_router)
+app.include_router(scanner_convergence_router)  # literal /scanners/convergence before /{scanner_id}
 app.include_router(scanners_router)
 app.include_router(search_router)
 app.include_router(alpha_router)
@@ -1527,7 +1528,6 @@ app.include_router(models_router)
 app.include_router(admin_router)
 app.include_router(agent_admin_router)
 app.include_router(metrics_router)
-app.include_router(scanner_convergence_router)
 
 
 @app.get(

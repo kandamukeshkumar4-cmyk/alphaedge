@@ -157,6 +157,18 @@ export function ScannersShell() {
         </div>
 
         {activeTab === "list" ? (
+          <>
+            <ScannerComposer
+              token={isReady ? token : null}
+              onCreated={(scanner) => upsert(scanner)}
+            />
+
+            <div className="mt-8">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <h2 className="text-base font-black tracking-tight text-text sm:text-lg">
+                  Your scanners
+                </h2>
+                {scanners !== null ? (
                   <span className="font-mono text-[11px] font-bold text-muted-2">
                     {scanners.length} total
                   </span>

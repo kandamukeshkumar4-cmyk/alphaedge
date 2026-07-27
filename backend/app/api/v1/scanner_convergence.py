@@ -63,7 +63,13 @@ async def get_scanner_convergence(
             select(ScannerRun)
             .where(
                 ScannerRun.scanner_id == scanner.id,
-                ScannerRun.status == "completed",
+                # scanner_executor_service finishes a successful run as
+                # "completed" (candidates) or "empty" (none). Both are terminal
+                # successes, so both must be eligible as "the latest run" —
+                # otherwise a scanner that just found nothing would keep
+                # resurrecting stale matches from an older run.
+                ScannerRun.status.in_(("completed", "empty")),
+                ScannerRun.is_test.is_(False),
             )
             .order_by(ScannerRun.started_at.desc())
             .limit(1)

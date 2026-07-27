@@ -1342,6 +1342,15 @@
    ]
   }
  },
+ "/api/v1/scanners/convergence": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Get Scanner Convergence",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
  "/api/v1/scanners/featured": {
   "get": {
    "has_success_response": true,
