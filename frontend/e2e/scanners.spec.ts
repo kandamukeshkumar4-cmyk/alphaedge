@@ -259,4 +259,56 @@ test.describe("V84 Scanner Studio", () => {
 
     assertNoConsoleErrors(errors, "/scanners compile feedback (V2)");
   });
+
+  test("loop116 — clarify → answer → ready → testfire renders", async ({ page }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/scanners", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await dismissOnboardingIfPresent(page);
+    await expect(page.getByTestId("scanners-page")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("onboarding-overlay")).toHaveCount(0);
+
+    // Ambiguous prompt → clarifying questions (schedule + threshold + delivery).
+    const input = page.getByTestId("scanners-request-input");
+    await input.click();
+    await input.fill("");
+    await input.pressSequentially(
+      "Alert me about big NBA whale flow movers soon",
+      { delay: 8 },
+    );
+    await expect(input).toHaveValue(/Alert me about big NBA/);
+    await expect(page.getByTestId("scanners-compile")).toBeEnabled();
+    await page.getByTestId("scanners-compile").click();
+    await expect(page.getByTestId("scanners-clarify")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("scanners-authoring-chat")).toBeVisible();
+    await expect(page.getByTestId("scanners-clarify-question").first()).toBeVisible();
+
+    // Click suggestions for each pending question, then submit.
+    const questions = page.getByTestId("scanners-clarify-question");
+    const count = await questions.count();
+    for (let i = 0; i < count; i += 1) {
+      const q = questions.nth(i);
+      await q.getByTestId("scanners-clarify-suggestion").first().click();
+    }
+    await page.getByTestId("scanners-clarify-submit").click();
+
+    // May need a second round — answer again if clarify still visible.
+    await page.waitForTimeout(400);
+    if (await page.getByTestId("scanners-clarify").isVisible().catch(() => false)) {
+      const q2 = page.getByTestId("scanners-clarify-question");
+      const n2 = await q2.count();
+      for (let i = 0; i < n2; i += 1) {
+        await q2.nth(i).getByTestId("scanners-clarify-suggestion").first().click();
+      }
+      await page.getByTestId("scanners-clarify-submit").click();
+    }
+
+    await expect(page.getByTestId("scanners-preview")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("scanners-testfire")).toBeVisible();
+    await page.getByTestId("scanners-testfire").click();
+    await expect(page.getByTestId("scanners-testfire-result")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("scanners-testfire-matches")).toBeVisible();
+    await expect(page.getByTestId("scanners-create")).toBeVisible();
+
+    assertNoConsoleErrors(errors, "/scanners conversational authoring");
+  });
 });

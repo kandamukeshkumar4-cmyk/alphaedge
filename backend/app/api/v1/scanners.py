@@ -15,6 +15,7 @@ from app.core.security import verify_admin_api_key
 from app.db.models import Scanner, ScannerRating, ScannerRun, User
 from app.db.session import get_db
 from app.schemas.scanners import (
+    ClarifyQuestionOut,
     ScannerCompileOut,
     ScannerCompileRequest,
     ScannerCreate,
@@ -25,6 +26,8 @@ from app.schemas.scanners import (
     ScannerRatingOut,
     ScannerRunOut,
     ScannerTestEmailOut,
+    ScannerTestfireOut,
+    ScannerTestfireRequest,
     ScannerTrendingListOut,
     ScannerTrendingOut,
     ScannerUpdate,
@@ -35,12 +38,20 @@ from app.services.marketplace_trending_service import (
     recent_window_start,
     sort_trending_items,
 )
-from app.services.scanner_compiler_service import compile_scanner_flow
+from app.services.scanner_compiler_service import (
+    compile_scanner_conversational,
+    get_compile_draft,
+)
 from app.services.scanner_email_service import send_scanner_test_email, smtp_configured
 from app.services.scanner_executor_service import run_scanner
 from app.services.scanner_version_service import apply_spec_change, rollback_scanner_spec
 
 router = APIRouter(prefix="/api/v1/scanners", tags=["scanners"])
+
+# Scratch owner for compile-testfire scanners. Hidden from list/trending
+# (is_public=False and never matches a real user id). Exists only because
+# ScannerRun.scanner_id is a required FK — not a published user scanner.
+_COMPILE_DRAFT_OWNER = "__compile_draft__"
 
 
 def _enforce_run_rate(user: User) -> None:
@@ -158,13 +169,119 @@ async def _get_visible_scanner(
 
 @router.post("/compile", response_model=ScannerCompileOut)
 async def compile_scanner(body: ScannerCompileRequest) -> ScannerCompileOut:
-    """Preview NL→spec compile (deterministic, optional LLM assist). Does not persist."""
+    """Conversational NL→spec compile (loop116).
+
+    Deterministic clarification decisions (schedule / threshold / universe /
+    delivery). Optional LLM planner may phrase the base spec but never silently
+    invents thresholds — gaps become questions (max 3/round, max 2 rounds then
+    best-effort ready). Drafts are process-local scratch keyed by draft_id.
+    """
     settings = get_settings()
-    result = await compile_scanner_flow(body.text, settings)
+    answers = [
+        {"question_id": a.question_id, "answer": a.answer}
+        for a in (body.answers or [])
+    ]
+    result = await compile_scanner_conversational(
+        prompt=body.resolved_prompt(),
+        answers=answers,
+        draft_id=body.draft_id,
+        settings=settings,
+    )
+    if result.get("error") == "draft_not_found":
+        raise HTTPException(status_code=404, detail="draft not found")
+
+    status = str(result.get("status") or "ready")
+    if status == "needs_clarification":
+        questions = [
+            ClarifyQuestionOut(**q) for q in (result.get("questions") or [])
+        ]
+        partial = dict(result.get("spec_partial") or {})
+        return ScannerCompileOut(
+            status="needs_clarification",
+            draft_id=str(result["draft_id"]),
+            spec=partial,  # soft back-compat for clients that only read spec
+            spec_partial=partial,
+            questions=questions,
+            compiler=result.get("compiler") or "deterministic",
+            warnings=list(result.get("warnings") or []),
+        )
+
     return ScannerCompileOut(
-        spec=result["spec"],
-        compiler=result["compiler"],
+        status="ready",
+        draft_id=str(result["draft_id"]),
+        spec=dict(result.get("spec") or {}),
+        spec_partial=None,
+        questions=[],
+        compiler=result.get("compiler") or "deterministic",
         warnings=list(result.get("warnings") or []),
+    )
+
+
+@router.post("/compile/testfire", response_model=ScannerTestfireOut)
+async def testfire_compile_draft(
+    body: ScannerTestfireRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ScannerTestfireOut:
+    """Dry-run a ready compile draft via the real executor (is_test=true).
+
+    Does not publish a user scanner. A scratch Scanner row with owner
+    ``__compile_draft__`` is created solely to satisfy ScannerRun's FK; it is
+    never public and never appears in the owner's list. The run is persisted
+    with ``is_test=true`` and silent (no feed rows / no email).
+    """
+    draft = get_compile_draft(body.draft_id)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="draft not found")
+    if str(draft.get("status") or "") != "ready":
+        raise HTTPException(status_code=409, detail="draft not ready")
+    spec = dict(draft.get("spec") or {})
+    if not isinstance(spec.get("steps"), list) or not spec["steps"]:
+        raise HTTPException(status_code=400, detail="draft has no steps")
+
+    scratch = Scanner(
+        name=str(spec.get("name") or "Compile draft")[:120],
+        description="compile-testfire scratch (not a published scanner)",
+        owner=_COMPILE_DRAFT_OWNER,
+        spec=spec,
+        version=1,
+        status="draft",
+        is_public=False,
+        cooldown_minutes=int(
+            (spec.get("delivery") or {}).get("cooldown_minutes") or 120
+        )
+        if isinstance(spec.get("delivery"), dict)
+        else 120,
+    )
+    db.add(scratch)
+    await db.flush()
+    run = await run_scanner(db, scratch, test_mode=True)
+    result = run.result if isinstance(run.result, dict) else {}
+    candidates = result.get("candidates") if isinstance(result.get("candidates"), list) else []
+    top_pick = result.get("top_pick") if isinstance(result.get("top_pick"), dict) else None
+    top_matches: list[dict] = []
+    if top_pick is not None:
+        top_matches.append(top_pick)
+    for cand in candidates:
+        if not isinstance(cand, dict):
+            continue
+        if top_pick is not None and cand.get("market_slug") == top_pick.get("market_slug"):
+            continue
+        top_matches.append(cand)
+        if len(top_matches) >= 5:
+            break
+    counts = result.get("counts") if isinstance(result.get("counts"), dict) else {}
+    summary = {
+        "status": run.status,
+        "is_test": bool(run.is_test),
+        "test_mode": bool(result.get("test_mode")),
+        "counts": counts,
+        "error": run.error,
+    }
+    return ScannerTestfireOut(
+        draft_id=body.draft_id,
+        run=_run_out(run),
+        summary=summary,
+        top_matches=top_matches,
     )
 
 

@@ -238,6 +238,7 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("post", "/api/v1/scanners/"): "user",
     ("post", "/api/v1/scanners/compile"): "public",
     ("get", "/api/v1/scanners/convergence"): "optional_user",
+    ("post", "/api/v1/scanners/compile/testfire"): "public",
     ("get", "/api/v1/scanners/featured"): "public",
     ("get", "/api/v1/scanners/trending"): "public",
     ("get", "/api/v1/scanners/{scanner_id}"): "public",
@@ -484,8 +485,10 @@ def _no_network(monkeypatch):
 def test_auth_class_table_covers_snapshot_surface():
     """197 paths in the snapshot; every operation has an auth class."""
     snap = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert len(snap) == 210, f"expected 210 paths, got {len(snap)}"
-    assert len(_OPS) == 231, f"expected 231 ops, got {len(_OPS)}"
+    # Loop 116: +1 path (/scanners/compile/testfire). Prior: 209 paths / 230 ops.
+    # Deltas vs prior freeze: loop116 merge: convergence + testfire; paths 209→211, ops 230→232.
+    assert len(snap) == 211, f"expected 211 paths, got {len(snap)}"
+    assert len(_OPS) == 232, f"expected 232 ops, got {len(_OPS)}"
     counts: dict[str, int] = {}
     for _m, _p, auth in _OPS:
         counts[auth] = counts.get(auth, 0) + 1
@@ -493,7 +496,7 @@ def test_auth_class_table_covers_snapshot_surface():
     assert counts["user"] == 70
     assert counts["optional_user"] == 4
     assert counts["admin_metrics"] == 1
-    assert counts["public"] == 115
+    assert counts["public"] == 116
 
 
 # Soft-checked app defects (must still not be uncaught). Loop V27 cleared

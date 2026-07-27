@@ -17,6 +17,9 @@ export async function skipOnboarding(page: Page): Promise<void> {
   await page.addInitScript((coachKey: string) => {
     try {
       localStorage.setItem("alphaedge.onboarded", "true");
+      // Orientation tour gate (OnboardingTour / isFirstRun) — distinct from the
+      // modal key above. Without this, a full-screen overlay intercepts clicks.
+      localStorage.setItem("ae_onboarded_v1", "true");
       localStorage.setItem(coachKey, "true");
     } catch {
       /* ignore */
