@@ -315,7 +315,10 @@ async def test_existing_seeded_scanners_still_compile(db_session):
         entry = by_name[name]
         assert is_valid_compiled_spec(entry["spec"]), name
         assert validate_spec(entry["spec"]) == [], name
-        assert entry.get("is_featured", True) is True, name
+        # Loop115 made featuring selective (flagship four only), so the old
+        # "every seed is featured" assert is stale by design — the field only
+        # has to remain a bool.
+        assert isinstance(entry.get("is_featured", True), bool), name
 
     await seed_starter_scanners(db_session)
     rows = (
@@ -325,5 +328,5 @@ async def test_existing_seeded_scanners_still_compile(db_session):
     ).all()
     assert {r.name for r in rows} == LOOP107_SEED_NAMES
     for row in rows:
-        assert row.is_featured is True
+        assert isinstance(row.is_featured, bool)
         assert is_valid_compiled_spec(row.spec)
