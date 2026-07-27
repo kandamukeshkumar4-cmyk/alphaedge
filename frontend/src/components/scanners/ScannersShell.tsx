@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ScannerCard } from "@/components/scanners/ScannerCard";
+import { ConvergencePanel } from "@/components/scanners/ConvergencePanel";
 import { ScannerComposer } from "@/components/scanners/ScannerComposer";
-import { PageHeader, PageShell } from "@/components/ui/kit";
+import { PageHeader, PageShell, SegTabs } from "@/components/ui/kit";
 import { useAuth } from "@/hooks/useAuth";
 import {
   getScanner,
@@ -70,6 +71,7 @@ export function ScannersShell() {
   const [scanners, setScanners] = useState<Scanner[] | null>(null);
   const [source, setSource] = useState<ApiSource>("mock");
   const [runningIds, setRunningIds] = useState<ReadonlySet<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<"list" | "convergence">("list");
 
   useEffect(() => {
     if (!isReady) return;
@@ -143,54 +145,59 @@ export function ScannersShell() {
           }
         />
 
-        <ScannerComposer
-          token={isReady ? token : null}
-          onCreated={(scanner) => upsert(scanner)}
-        />
-
-        <div className="mt-8">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <h2 className="text-base font-black tracking-tight text-text sm:text-lg">
-              Your scanners
-            </h2>
-            {scanners !== null ? (
-              <span className="font-mono text-[11px] font-bold text-muted-2">
-                {scanners.length} total
-              </span>
-            ) : null}
-          </div>
-
-          <p
-            data-testid="scanners-paper-banner"
-            className="mb-4 rounded-lg border border-primary/25 bg-primary-dim/40 px-3 py-2 font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-primary"
-          >
-            Paper research only — scanner alerts are signals, never orders.
-          </p>
-
-          {scanners === null ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
-              <CardSkeleton />
-              <CardSkeleton />
-              <CardSkeleton />
-            </div>
-          ) : scanners.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {scanners.map((scanner, i) => (
-                <ScannerCard
-                  key={scanner.id}
-                  scanner={scanner}
-                  index={i}
-                  running={runningIds.has(scanner.id)}
-                  onRun={(id) => void handleRun(id)}
-                  onPause={(id) => void handlePause(id)}
-                  onResume={(id) => void handleResume(id)}
-                />
-              ))}
-            </div>
-          )}
+        <div className="mb-6">
+          <SegTabs
+            value={activeTab}
+            onChange={setActiveTab}
+            options={[
+              { value: "list", label: "My Scanners" },
+              { value: "convergence", label: "Convergence" },
+            ]}
+          />
         </div>
+
+        {activeTab === "list" ? (
+                  <span className="font-mono text-[11px] font-bold text-muted-2">
+                    {scanners.length} total
+                  </span>
+                ) : null}
+              </div>
+
+              <p
+                data-testid="scanners-paper-banner"
+                className="mb-4 rounded-lg border border-primary/25 bg-primary-dim/40 px-3 py-2 font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-primary"
+              >
+                Paper research only — scanner alerts are signals, never orders.
+              </p>
+
+              {scanners === null ? (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+                  <CardSkeleton />
+                  <CardSkeleton />
+                  <CardSkeleton />
+                </div>
+              ) : scanners.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {scanners.map((scanner, i) => (
+                    <ScannerCard
+                      key={scanner.id}
+                      scanner={scanner}
+                      index={i}
+                      running={runningIds.has(scanner.id)}
+                      onRun={(id) => void handleRun(id)}
+                      onPause={(id) => void handlePause(id)}
+                      onResume={(id) => void handleResume(id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <ConvergencePanel />
+        )}
       </div>
     </PageShell>
   );
