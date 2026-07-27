@@ -540,6 +540,23 @@ _UNIVERSE_SUGGESTIONS: tuple[str, ...] = (
     "Crypto",
 )
 
+# Human labels for every known step type — suggestions for the "what signal
+# should we scan for?" question asked when a draft would otherwise reach
+# ready with zero steps (tester defect D2; testfire 400s on empty steps).
+_STEP_TYPE_LABELS: tuple[tuple[str, str], ...] = (
+    ("WHALE_FLOW", "Whale flow"),
+    ("PRICE_TREND", "Price trend"),
+    ("NEWS_SENTIMENT", "News sentiment"),
+    ("MODEL_EDGE", "Model edge"),
+    ("DIRECTION_ALIGNMENT", "Direction alignment"),
+    ("CROSS_VENUE_DIVERGENCE", "Cross-venue divergence"),
+    ("CLOSING_SOON", "Closing soon"),
+)
+_SIGNAL_STEP_SUGGESTIONS: tuple[str, ...] = tuple(
+    label for _, label in _STEP_TYPE_LABELS
+)
+_NO_STEPS_WARNING = "no signal steps — add one before test-firing"
+
 # In-process draft scratch (mirrors launch_limits — single API process).
 _compile_drafts: dict[str, dict[str, Any]] = {}
 
@@ -637,9 +654,9 @@ def _question_for_kind(kind: ClarifyKind, index: int) -> dict[str, Any]:
         }
     return {
         "id": f"q{index}_other",
-        "question": "Can you clarify this detail?",
+        "question": "What signal should this scanner watch for?",
         "kind": "other",
-        "suggestions": [],
+        "suggestions": list(_SIGNAL_STEP_SUGGESTIONS),
     }
 
 
@@ -847,10 +864,35 @@ async def compile_scanner_conversational(
             "warnings": validate_spec(spec),
         }
 
+    # Never silently ready with zero steps — testfire rejects empty specs
+    # with 400 "draft has no steps" (tester defect D2). While clarify rounds
+    # remain, ask what signal to scan for (kind "other") instead of ready.
+    steps_so_far = spec.get("steps") if isinstance(spec.get("steps"), list) else []
+    if not steps_so_far and round_n < MAX_CLARIFY_ROUNDS:
+        questions = [_question_for_kind("other", 1)]
+        asked_kinds.add(str(questions[0].get("kind")))
+        draft["asked_kinds"] = sorted(asked_kinds)
+        draft["pending_questions"] = questions
+        draft["round"] = round_n + 1
+        draft["status"] = "needs_clarification"
+        _save_compile_draft(draft)
+        return {
+            "status": "needs_clarification",
+            "draft_id": draft["draft_id"],
+            "spec_partial": spec,
+            "questions": questions,
+            "compiler": draft.get("compiler") or "deterministic",
+            "warnings": validate_spec(spec),
+        }
+
     # Ready — either no gaps, or best-effort after max rounds.
     warnings = validate_spec(spec)
     if needs and round_n >= MAX_CLARIFY_ROUNDS:
         warnings = list(warnings) + ["best-effort: clarification rounds exhausted"]
+    if not steps_so_far:
+        # Best-effort ready after max rounds with an empty spec: never silent
+        # — carry a warning the UI can surface before test-firing.
+        warnings = list(warnings) + [_NO_STEPS_WARNING]
     # Enforce honest delivery defaults on ready specs.
     delivery = spec.setdefault("delivery", {})
     if isinstance(delivery, dict):

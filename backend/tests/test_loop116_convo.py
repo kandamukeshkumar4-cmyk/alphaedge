@@ -294,3 +294,82 @@ async def test_delivery_suggestions_never_promise_email(db_session):
     joined = " ".join(qs[0]["suggestions"]).lower()
     assert "email" not in joined
     assert "inbox" not in joined
+
+
+@pytest.mark.asyncio
+async def test_vague_prompt_without_steps_asks_signal_question(db_session):
+    """D2: zero-step spec must not reach ready silently — ask what signal to
+    scan for (kind "other", suggestions = human labels of the 7 step types).
+    """
+    # Logistics fully specified, but no signal keyword → steps == [].
+    prompt = "Find big movers in NBA every 30 minutes, volume above 10000"
+    async with await _client_for(db_session) as client:
+        resp = await client.post(
+            "/api/v1/scanners/compile", json={"prompt": prompt}
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "needs_clarification", body
+    assert body["spec_partial"]["steps"] == []
+    other_qs = [q for q in body["questions"] if q["kind"] == "other"]
+    assert other_qs, body["questions"]
+    q = other_qs[0]
+    assert "signal" in q["question"].lower()
+    joined = " ".join(q["suggestions"]).lower()
+    for label in (
+        "whale flow",
+        "price trend",
+        "news sentiment",
+        "model edge",
+        "direction alignment",
+        "cross-venue divergence",
+        "closing soon",
+    ):
+        assert label in joined, (label, q["suggestions"])
+
+
+@pytest.mark.asyncio
+async def test_best_effort_ready_with_no_steps_carries_warning(db_session):
+    """D2: after max clarify rounds, a still-stepless draft may go ready but
+    never silently — it carries the no-signal-steps warning for the UI.
+    """
+    prompt = "find big movers"  # vague everything; never yields a step
+    async with await _client_for(db_session) as client:
+        r1 = await client.post(
+            "/api/v1/scanners/compile", json={"prompt": prompt}
+        )
+        assert r1.status_code == 200, r1.text
+        b1 = r1.json()
+        assert b1["status"] == "needs_clarification"
+        draft_id = b1["draft_id"]
+        # Non-resolving answers burn both clarify rounds.
+        r2 = await client.post(
+            "/api/v1/scanners/compile",
+            json={
+                "prompt": prompt,
+                "draft_id": draft_id,
+                "answers": [
+                    {"question_id": q["id"], "answer": "not sure"}
+                    for q in b1["questions"]
+                ],
+            },
+        )
+        assert r2.status_code == 200, r2.text
+        b2 = r2.json()
+        assert b2["status"] == "needs_clarification"
+        r3 = await client.post(
+            "/api/v1/scanners/compile",
+            json={
+                "prompt": prompt,
+                "draft_id": draft_id,
+                "answers": [
+                    {"question_id": q["id"], "answer": "still not sure"}
+                    for q in b2["questions"]
+                ],
+            },
+        )
+        assert r3.status_code == 200, r3.text
+        b3 = r3.json()
+    assert b3["status"] == "ready"
+    assert b3["spec"]["steps"] == []
+    assert "no signal steps — add one before test-firing" in b3["warnings"]
