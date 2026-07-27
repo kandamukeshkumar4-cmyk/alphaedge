@@ -1168,6 +1168,11 @@ class ScannerRun(Base):
     # loop86 F-B: pre-publish test runs are flagged; they never write alert feed
     # rows or emails, and the publish gate requires one before draft->active.
     is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # loop116: rendered dashboard document for this run (headline / KPIs / step
+    # counters / matches / chart / narrative). Presentation only — assembled by
+    # scanner_artifact_service at completion; null for runs recorded earlier or
+    # for failed runs, in which case the artifact endpoint assembles on read.
+    artifact: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     scanner: Mapped["Scanner"] = relationship(back_populates="runs")
 
