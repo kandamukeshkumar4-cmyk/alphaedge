@@ -1,19 +1,21 @@
 /**
- * Loop 102 AR1 — Alpha runs / latest signal / hypotheses typed client.
+ * Alpha runs / latest signal / hypotheses typed client.
  *
- * Backend contract (loop102 alpha router, `backend/app/api/v1/alpha.py`):
+ * Backend contract (loop97 `AlphaRunService`, `backend/app/api/v1/alpha.py`):
  *   GET /api/v1/alpha/runs ->
- *     {items: [{id, started_at, finished_at, status, residual_alpha,
- *      t_stat, signal_emitted}]}
+ *     {latest, runs: [{id, run_date, status, result, rejection_reasons, …}],
+ *      paper_trading_only}
  *   GET /api/v1/alpha/latest-signal ->
- *     {emitted, residual_alpha, t_stat, evidence, weights?, created_at}
+ *     {run_date, signal: {label, status, weights, residual_alpha_t_stat, …},
+ *      rejection_reasons, paper_trading_only}
+ *     — or {signal: null, reason: "no_alpha_runs", paper_trading_only} when empty
  *   GET /api/v1/alpha/hypotheses ->
- *     {items: [{name, description, predicted_direction, validated, reason}]}
+ *     {run_date, hypotheses: {proposed, verdicts, survivors, rejected, …},
+ *      rejection_reasons, paper_trading_only}
  *
- * The live API is attempted first; on any failure the caller gets an
- * in-memory PAPER mock so the /alpha research view works while the backend
- * is absent. All fetch wiring lives in this one file — UI components never
- * call `fetch` themselves.
+ * Live API first. On any failure / unparseable shape the caller gets an honest
+ * empty payload with source "mock" — never fabricated seed rows. UI empty-states
+ * already cover the zero-data case.
  *
  * PAPER_TRADING_ONLY — research output only; nothing here constructs orders.
  * A signal shows only when the residual alpha beats the closing line
@@ -23,7 +25,7 @@
 import { apiUrl, ensureApiBase, hasLiveApi } from "@/lib/alphaedge-api";
 
 // ---------------------------------------------------------------------------
-// Types (backend contract)
+// Types (UI view-model; mapped from the backend envelope)
 // ---------------------------------------------------------------------------
 
 export type AlphaRun = {
@@ -121,24 +123,64 @@ function asStringOrNull(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
+function runDateToIso(runDate: string | null): string | null {
+  if (!runDate) return null;
+  // Backend sends YYYY-MM-DD; UI formatters parse via Date.parse.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(runDate)) return `${runDate}T00:00:00.000Z`;
+  return runDate;
+}
+
+function formatRejectionEvidence(reasons: unknown): string {
+  if (!Array.isArray(reasons) || reasons.length === 0) return "";
+  const parts: string[] = [];
+  for (const entry of reasons) {
+    const rec = asRecord(entry);
+    const factor =
+      asStringOrNull(rec.factor) ??
+      asStringOrNull(rec.hypothesis) ??
+      asStringOrNull(rec.node);
+    const reason = asStringOrNull(rec.reason);
+    if (factor && reason) parts.push(`${factor}: ${reason}`);
+    else if (reason) parts.push(reason);
+  }
+  return parts.join("; ");
+}
+
 function normalizeRun(raw: unknown, index: number): AlphaRun {
   const rec = asRecord(raw);
+  const result = asRecord(rec.result);
+  const decomp = asRecord(result.decomposition);
+  const signal = asRecord(result.signal);
+  const status = asStringOrNull(rec.status) ?? "unknown";
+  const runDateIso = runDateToIso(asStringOrNull(rec.run_date));
+  const residual =
+    asFiniteNumber(decomp.residual_alpha) ??
+    asFiniteNumber(rec.residual_alpha);
+  const tStat =
+    asFiniteNumber(decomp.residual_alpha_t_stat) ??
+    asFiniteNumber(signal.residual_alpha_t_stat) ??
+    asFiniteNumber(rec.t_stat);
+
   return {
     id: asStringOrNull(rec.id) ?? `run_${index + 1}`,
-    started_at: asStringOrNull(rec.started_at) ?? "",
-    finished_at: asStringOrNull(rec.finished_at),
-    status: asStringOrNull(rec.status) ?? "unknown",
-    residual_alpha: asFiniteNumber(rec.residual_alpha),
-    t_stat: asFiniteNumber(rec.t_stat),
-    signal_emitted: rec.signal_emitted === true,
+    started_at: asStringOrNull(rec.started_at) ?? runDateIso ?? "",
+    finished_at: asStringOrNull(rec.finished_at) ?? runDateIso,
+    status,
+    residual_alpha: residual,
+    t_stat: tStat,
+    signal_emitted:
+      rec.signal_emitted === true ||
+      status === "genuine_edge" ||
+      asStringOrNull(signal.status) === "genuine_edge",
   };
 }
 
+/** Parse `{latest, runs, paper_trading_only}` — the real prod envelope. */
 function normalizeRuns(raw: unknown): AlphaRuns | null {
   const rec = asRecord(raw);
-  if (!Array.isArray(rec.items)) return null;
+  if (!Array.isArray(rec.runs)) return null;
   return {
-    items: rec.items.map((item, i) => normalizeRun(item, i)),
+    items: rec.runs.map((item, i) => normalizeRun(item, i)),
     paper_trading_only: rec.paper_trading_only !== false,
   };
 }
@@ -156,160 +198,154 @@ function normalizeWeights(raw: unknown): Record<string, number> | null {
   return count > 0 ? weights : null;
 }
 
+/**
+ * Parse `{run_date, signal, rejection_reasons, paper_trading_only}` or the
+ * empty `{signal: null, reason: "no_alpha_runs", …}` shape.
+ */
 function normalizeLatestSignal(raw: unknown): LatestSignal | null {
   const rec = asRecord(raw);
-  if (typeof rec.emitted !== "boolean") return null;
+  // Require the prod discriminator (`signal` key) — never invent rows.
+  if (!("signal" in rec)) return null;
+
+  const signalRaw = rec.signal;
+  const paper = rec.paper_trading_only !== false;
+  const runDateIso = runDateToIso(asStringOrNull(rec.run_date));
+
+  if (signalRaw === null || signalRaw === undefined) {
+    return {
+      emitted: false,
+      residual_alpha: null,
+      t_stat: null,
+      evidence: asStringOrNull(rec.reason) ?? "",
+      weights: null,
+      created_at: runDateIso,
+      paper_trading_only: paper,
+    };
+  }
+
+  const signal = asRecord(signalRaw);
+  const status = asStringOrNull(signal.status) ?? "no_signal";
+  const emitted = status === "genuine_edge";
+  const label = asStringOrNull(signal.label);
+  const rejectionEvidence = formatRejectionEvidence(rec.rejection_reasons);
+  let evidence = "";
+  if (emitted) {
+    evidence = label ?? "";
+  } else if (rejectionEvidence) {
+    evidence = rejectionEvidence;
+  } else if (label) {
+    evidence = label;
+  }
+
   return {
-    emitted: rec.emitted,
-    residual_alpha: asFiniteNumber(rec.residual_alpha),
-    t_stat: asFiniteNumber(rec.t_stat),
-    evidence: asStringOrNull(rec.evidence) ?? "",
-    weights: normalizeWeights(rec.weights),
-    created_at: asStringOrNull(rec.created_at),
-    paper_trading_only: rec.paper_trading_only !== false,
+    emitted,
+    residual_alpha: asFiniteNumber(signal.residual_alpha),
+    t_stat: asFiniteNumber(signal.residual_alpha_t_stat),
+    evidence,
+    weights: normalizeWeights(signal.weights),
+    created_at: runDateIso,
+    paper_trading_only: paper,
   };
 }
 
-function normalizeHypothesis(raw: unknown, index: number): Hypothesis {
-  const rec = asRecord(raw);
-  const validated = rec.validated === true;
+function normalizeHypothesisFromProposed(
+  proposed: unknown,
+  verdict: Record<string, unknown> | undefined,
+  rejected: Record<string, unknown> | undefined,
+  index: number,
+): Hypothesis {
+  const rec = asRecord(proposed);
+  const validated = verdict?.valid === true;
   return {
     name: asStringOrNull(rec.name) ?? `hypothesis_${index + 1}`,
     description: asStringOrNull(rec.description),
     predicted_direction: asStringOrNull(rec.predicted_direction),
     validated,
-    reason: asStringOrNull(rec.reason),
+    reason: validated
+      ? null
+      : asStringOrNull(verdict?.reason) ?? asStringOrNull(rejected?.reason),
   };
 }
 
+/**
+ * Parse `{run_date, hypotheses: {proposed, verdicts, …}, paper_trading_only}`.
+ * Joins proposed tickets with verdict / rejected evidence into UI rows.
+ */
 function normalizeHypotheses(raw: unknown): Hypotheses | null {
   const rec = asRecord(raw);
-  if (!Array.isArray(rec.items)) return null;
+  if (!("hypotheses" in rec)) return null;
+  const hyp = asRecord(rec.hypotheses);
+  const proposed = Array.isArray(hyp.proposed) ? hyp.proposed : [];
+  const verdicts = Array.isArray(hyp.verdicts) ? hyp.verdicts : [];
+  const rejected = Array.isArray(hyp.rejected) ? hyp.rejected : [];
+
+  const verdictByName = new Map<string, Record<string, unknown>>();
+  for (const entry of verdicts) {
+    const vr = asRecord(entry);
+    const name = asStringOrNull(vr.name);
+    if (name) verdictByName.set(name, vr);
+  }
+  const rejectedByName = new Map<string, Record<string, unknown>>();
+  for (const entry of rejected) {
+    const rr = asRecord(entry);
+    const name = asStringOrNull(rr.name);
+    if (name) rejectedByName.set(name, rr);
+  }
+
+  let items: Hypothesis[];
+  if (proposed.length > 0) {
+    items = proposed.map((p, i) => {
+      const name =
+        asStringOrNull(asRecord(p).name) ?? `hypothesis_${i + 1}`;
+      return normalizeHypothesisFromProposed(
+        p,
+        verdictByName.get(name),
+        rejectedByName.get(name),
+        i,
+      );
+    });
+  } else if (verdicts.length > 0) {
+    // No proposed tickets persisted — still surface validator evidence.
+    items = verdicts.map((v, i) => {
+      const vr = asRecord(v);
+      const validated = vr.valid === true;
+      return {
+        name: asStringOrNull(vr.name) ?? `hypothesis_${i + 1}`,
+        description: null,
+        predicted_direction: null,
+        validated,
+        reason: validated ? null : asStringOrNull(vr.reason),
+      };
+    });
+  } else {
+    items = [];
+  }
+
   return {
-    items: rec.items.map((item, i) => normalizeHypothesis(item, i)),
+    items,
     paper_trading_only: rec.paper_trading_only !== false,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Mock store (in-memory; used whenever the live alpha API is absent)
-// ---------------------------------------------------------------------------
-
-const MOCK_RUN_SEEDS: AlphaRun[] = [
-  {
-    id: "run-2026-07-24",
-    started_at: "2026-07-24T06:00:00.000Z",
-    finished_at: "2026-07-24T06:05:12.000Z",
-    status: "no_signal",
-    residual_alpha: 0.004,
-    t_stat: 1.38,
-    signal_emitted: false,
-  },
-  {
-    id: "run-2026-07-23",
-    started_at: "2026-07-23T06:00:00.000Z",
-    finished_at: "2026-07-23T06:04:47.000Z",
-    status: "genuine_edge",
-    residual_alpha: 0.018,
-    t_stat: 2.74,
-    signal_emitted: true,
-  },
-  {
-    id: "run-2026-07-22",
-    started_at: "2026-07-22T06:00:00.000Z",
-    finished_at: "2026-07-22T06:05:03.000Z",
-    status: "no_signal",
-    residual_alpha: 0.002,
-    t_stat: 0.94,
-    signal_emitted: false,
-  },
-  {
-    id: "run-2026-07-21",
-    started_at: "2026-07-21T06:00:00.000Z",
-    finished_at: "2026-07-21T06:03:58.000Z",
-    status: "portfolio_not_constructed",
-    residual_alpha: null,
-    t_stat: null,
-    signal_emitted: false,
-  },
-  {
-    id: "run-2026-07-20",
-    started_at: "2026-07-20T06:00:00.000Z",
-    finished_at: "2026-07-20T06:04:21.000Z",
-    status: "no_signal",
-    residual_alpha: 0.006,
-    t_stat: 1.62,
-    signal_emitted: false,
-  },
-];
-
-function buildMockRuns(): AlphaRuns {
-  return {
-    items: MOCK_RUN_SEEDS.map((run) => ({ ...run })),
-    paper_trading_only: true,
-  };
+function emptyRuns(): AlphaRuns {
+  return { items: [], paper_trading_only: true };
 }
 
-function buildMockLatestSignal(): LatestSignal {
-  // Mirrors the newest seeded run: no signal today, evidence on record.
+function emptyLatestSignal(): LatestSignal {
   return {
     emitted: false,
-    residual_alpha: 0.004,
-    t_stat: 1.38,
-    evidence:
-      "Residual alpha t-stat 1.38 is below the 2.5 threshold — the combined research portfolio did not beat the closing line out-of-sample.",
+    residual_alpha: null,
+    t_stat: null,
+    evidence: "",
     weights: null,
-    created_at: "2026-07-24T06:05:12.000Z",
+    created_at: null,
     paper_trading_only: true,
   };
 }
 
-const MOCK_HYPOTHESIS_SEEDS: Hypothesis[] = [
-  {
-    name: "back_to_back_fade",
-    description:
-      "Fade teams on the second night of a back-to-back when the closing price has moved against them.",
-    predicted_direction: "no",
-    validated: true,
-    reason: null,
-  },
-  {
-    name: "rest_advantage",
-    description:
-      "Teams with 2+ rest days against an equally rested opponent cover more often in the OOS window.",
-    predicted_direction: "yes",
-    validated: true,
-    reason: null,
-  },
-  {
-    name: "injury_overreaction",
-    description:
-      "Markets overreact to star-injury news within the first hour; mean-reversion edge on the opposite side.",
-    predicted_direction: "yes",
-    validated: false,
-    reason: "Did not beat the closing line out-of-sample (t-stat 1.21).",
-  },
-  {
-    name: "nationally_televised_overshoot",
-    description:
-      "Nationally televised games overshoot the projected total in the first half.",
-    predicted_direction: "yes",
-    validated: false,
-    reason: "Too few uncorrelated event clusters to validate.",
-  },
-];
-
-function buildMockHypotheses(): Hypotheses {
-  return {
-    items: MOCK_HYPOTHESIS_SEEDS.map((h) => ({ ...h })),
-    paper_trading_only: true,
-  };
+function emptyHypotheses(): Hypotheses {
+  return { items: [], paper_trading_only: true };
 }
-
-/** Canonical seeded payloads — exported for fixtures and offline fallback. */
-export const MOCK_ALPHA_RUNS: AlphaRuns = buildMockRuns();
-export const MOCK_LATEST_SIGNAL: LatestSignal = buildMockLatestSignal();
-export const MOCK_HYPOTHESES: Hypotheses = buildMockHypotheses();
 
 // ---------------------------------------------------------------------------
 // Fetch layer (the only place the UI talks to the alpha runs API)
@@ -351,8 +387,8 @@ async function tryLiveJson<T>(
 }
 
 /**
- * Run history for the daily alpha research tail. Live first; paper mock
- * fallback. Never rejects.
+ * Run history for the daily alpha research tail. Live first; honest empty on
+ * failure. Never rejects. Never fabricates seed rows.
  */
 export async function getRuns(
   token: string | null = null,
@@ -360,12 +396,12 @@ export async function getRuns(
   const live = await tryLiveJson<unknown>("/api/v1/alpha/runs", token);
   const normalized = normalizeRuns(live);
   if (normalized) return { data: normalized, source: "live" };
-  return { data: buildMockRuns(), source: "mock" };
+  return { data: emptyRuns(), source: "mock" };
 }
 
 /**
  * Latest emitted (or withheld) signal with its evidence line. Live first;
- * paper mock fallback. Never rejects.
+ * honest empty on failure. Never rejects. Never fabricates seed rows.
  */
 export async function getLatestSignal(
   token: string | null = null,
@@ -373,12 +409,12 @@ export async function getLatestSignal(
   const live = await tryLiveJson<unknown>("/api/v1/alpha/latest-signal", token);
   const normalized = normalizeLatestSignal(live);
   if (normalized) return { data: normalized, source: "live" };
-  return { data: buildMockLatestSignal(), source: "mock" };
+  return { data: emptyLatestSignal(), source: "mock" };
 }
 
 /**
- * Idea-generator proposals with validation verdicts. Live first; paper mock
- * fallback. Never rejects.
+ * Idea-generator proposals with validation verdicts. Live first; honest empty
+ * on failure. Never rejects. Never fabricates seed rows.
  */
 export async function getHypotheses(
   token: string | null = null,
@@ -386,5 +422,5 @@ export async function getHypotheses(
   const live = await tryLiveJson<unknown>("/api/v1/alpha/hypotheses", token);
   const normalized = normalizeHypotheses(live);
   if (normalized) return { data: normalized, source: "live" };
-  return { data: buildMockHypotheses(), source: "mock" };
+  return { data: emptyHypotheses(), source: "mock" };
 }

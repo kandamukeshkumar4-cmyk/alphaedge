@@ -46,9 +46,9 @@ import {
  * Factor scores + independent OOS validation for the canonical paper market,
  * beside the portfolio-wide validated-factor report. Paper-only: nothing
  * here touches the order path, and edge is displayed only for factors that
- * beat the closing line out-of-sample. Live API first, seeded paper mock
- * when the backend is absent (alpha-api client decides; the badge shows
- * which source is live).
+ * beat the closing line out-of-sample. Live API first; honest empty when a
+ * source is absent. The badge is worst-of across ALL sources — any non-live
+ * component means the page must not claim LIVE API.
  */
 
 const PAPER_BANNER =
@@ -61,10 +61,23 @@ function formatAsOf(asOf: string | null): string {
   return new Date(ms).toISOString().slice(0, 16).replace("T", " ");
 }
 
+/** LIVE only when every known component is live; otherwise PAPER MOCK. */
+function worstOfSources(sources: Array<ApiSource | null | undefined>): ApiSource | null {
+  const known = sources.filter((s): s is ApiSource => s === "live" || s === "mock");
+  if (known.length === 0) return null;
+  return known.every((s) => s === "live") ? "live" : "mock";
+}
+
 export function AlphaResearchPage() {
   const [factors, setFactors] = useState<AlphaFactors | null>(null);
   const [report, setReport] = useState<AlphaReport | null>(null);
-  const [source, setSource] = useState<ApiSource | null>(null);
+  const [factorsSource, setFactorsSource] = useState<ApiSource | null>(null);
+  const [reportSource, setReportSource] = useState<ApiSource | null>(null);
+  const [runsSource, setRunsSource] = useState<ApiSource | null>(null);
+  const [signalSource, setSignalSource] = useState<ApiSource | null>(null);
+  const [hypothesesSource, setHypothesesSource] = useState<ApiSource | null>(
+    null,
+  );
   const [loaded, setLoaded] = useState(false);
   const [runs, setRuns] = useState<AlphaRuns | null>(null);
   const [latestSignal, setLatestSignal] = useState<LatestSignal | null>(null);
@@ -80,8 +93,8 @@ export function AlphaResearchPage() {
       if (cancelled) return;
       setFactors(f.data);
       setReport(r.data);
-      // Factors endpoint drives the badge; report falls back the same way.
-      setSource(f.source);
+      setFactorsSource(f.source);
+      setReportSource(r.source);
       setLoaded(true);
     });
     // Research tail (runs + latest signal + hypotheses) loads independently
@@ -92,6 +105,9 @@ export function AlphaResearchPage() {
         setRuns(h.data);
         setLatestSignal(s.data);
         setHypotheses(p.data);
+        setRunsSource(h.source);
+        setSignalSource(s.source);
+        setHypothesesSource(p.source);
         setTailLoaded(true);
       },
     );
@@ -99,6 +115,14 @@ export function AlphaResearchPage() {
       cancelled = true;
     };
   }, []);
+
+  const source = worstOfSources([
+    factorsSource,
+    reportSource,
+    runsSource,
+    signalSource,
+    hypothesesSource,
+  ]);
 
   const rows = factors?.factors ?? [];
   const validCount = rows.filter((f) => f.valid).length;
