@@ -62,11 +62,13 @@ test.describe("G1 social journeys", () => {
       pageA.getByRole("heading", { name: new RegExp(displayB, "i") }).first(),
     ).toBeVisible({ timeout: 25_000 });
 
-    // Profile stats tiles
-    await expect(pageA.getByText(/^Win rate$/i).first()).toBeVisible();
+    // Profile stats tiles. The win-rate and trade-count tiles ship the more
+    // precise labels "Settled win rate" / "All paper trades" (TraderDetail.tsx)
+    // — same tiles, exact-matched here so a missing tile still fails.
+    await expect(pageA.getByText(/^Settled win rate$/i).first()).toBeVisible();
     await expect(pageA.getByText(/^ROI$/i).first()).toBeVisible();
     await expect(pageA.getByText(/^Followers$/i).first()).toBeVisible();
-    await expect(pageA.getByText(/^All trades$/i).first()).toBeVisible();
+    await expect(pageA.getByText(/^All paper trades$/i).first()).toBeVisible();
 
     const followBtn = pageA.getByRole("button", { name: /Follow trader/i });
     await expect(followBtn).toBeVisible({ timeout: 15_000 });

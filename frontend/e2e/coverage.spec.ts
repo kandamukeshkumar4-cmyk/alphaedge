@@ -50,6 +50,56 @@ test.describe("Q4 coverage journeys", () => {
     assertNoConsoleErrors(errors, `/markets/${CANONICAL_SLUG}`);
   });
 
+  // Loop117 D1b: the price socket publishes `yes_price`, the hook read `yes`,
+  // so every tick produced `undefined` -> NaN in the chart header and NaN in
+  // the outcome strip (prod rendered `YES NaN¢ ▼ NaN¢ (NaN%)`).
+  test("market detail never renders NaN prices", async ({ page }) => {
+    await visit(page, `/markets/${CANONICAL_SLUG}`);
+    await expect(
+      page.getByRole("heading", { name: /Lakers|Celtics|Will the Lakers/i }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+    // Let the price socket connect and push at least one tick.
+    await settled(page, 6000);
+
+    const body = await page.locator("main").innerText();
+    expect(body, "market detail must not render NaN").not.toMatch(/NaN/);
+  });
+
+  // Loop117 D14: the server render used to claim the API was disconnected and
+  // ship a fabricated sample order book, because it only fetched /detail while
+  // the demo flag keyed off the client-only catalog fetch.
+  test("market detail SSR is live, not demo, while the API is up", async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    const apiPort = process.env.E2E_API_PORT || "18017";
+    const api = await request.get(
+      `http://127.0.0.1:${apiPort}/api/v1/markets/${CANONICAL_SLUG}`,
+    );
+    expect(api.ok(), "local API must be up for this assertion to mean anything").toBe(
+      true,
+    );
+
+    const ssr = await request.get(`${baseURL}/markets/${CANONICAL_SLUG}`);
+    expect(ssr.ok()).toBe(true);
+    const html = await ssr.text();
+    expect(html, "SSR must not claim the API is disconnected").not.toContain(
+      "Showing demo market data. Connect the API",
+    );
+    expect(html, "SSR must not ship a fabricated sample book").not.toContain(
+      "Sample book — displayed sizes are not live",
+    );
+    // The real market, not a slug-derived placeholder.
+    expect(html).toContain("Lakers vs Celtics");
+
+    // And the same holds after hydration.
+    await visit(page, `/markets/${CANONICAL_SLUG}`);
+    await settled(page, 2500);
+    const body = await page.locator("main").innerText();
+    expect(body).not.toContain("Showing demo market data. Connect the API");
+  });
+
   test("leaderboard loads with data or honest empty state", async ({ page }) => {
     const errors = collectConsoleErrors(page);
     await visit(page, "/leaderboard");

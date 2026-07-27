@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageHeader, PageShell, Panel, StatRow, StatTile } from "@/components/ui/kit";
+import { FollowTraderButton } from "@/components/traders/FollowTraderButton";
 import { fetchTraderDetail, type TraderDetail as TraderDetailData } from "@/lib/traders-api";
 
 const currency = new Intl.NumberFormat(undefined, {
@@ -46,11 +47,15 @@ export function TraderDetail({ name }: { name: string }) {
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // Live follower count returned by the follow/unfollow mutation, so the
+  // track-record tile reflects the click without a full refetch.
+  const [followersOverride, setFollowersOverride] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     setMissing(false);
+    setFollowersOverride(null);
     try {
       const result = await fetchTraderDetail(name);
       setData(result);
@@ -81,11 +86,14 @@ export function TraderDetail({ name }: { name: string }) {
             Public paper record
           </span>
           <h1 className="mt-3 text-2xl font-black text-text">
-            {error ? "Trader data unavailable" : "Trader not found"}
+            {error ? "Trader data unavailable" : "Profile not available"}
           </h1>
+          {/* The API cannot tell "unknown name" apart from "trader opted out of
+              a public profile" — both return no record. Say exactly that
+              instead of asserting the name does not exist. */}
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted" role={error ? "alert" : undefined}>
             {error ??
-              "This name is not present in the live ranking or public trader directory. No substitute profile is shown."}
+              "This profile is unavailable or private: the name is unknown to the live ranking and public directory, or the trader opted out of a public profile. No substitute profile is shown."}
           </p>
           <span className="mt-5 flex flex-wrap gap-2">
             {error ? (
@@ -124,12 +132,20 @@ export function TraderDetail({ name }: { name: string }) {
             : "Ranked paper-trading record"
         }
         actions={
-          <Link
-            href="/traders"
-            className="inline-flex min-h-11 items-center rounded-xl border border-border bg-surface px-4 py-2 text-sm font-black text-text outline-none transition hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            All traders
-          </Link>
+          <span className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/traders"
+              className="inline-flex min-h-11 items-center rounded-xl border border-border bg-surface px-4 py-2 text-sm font-black text-text outline-none transition hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              All traders
+            </Link>
+            {profile ? (
+              <FollowTraderButton
+                trader={displayName}
+                onFollowersChange={setFollowersOverride}
+              />
+            ) : null}
+          </span>
         }
       />
 
@@ -223,7 +239,7 @@ export function TraderDetail({ name }: { name: string }) {
                 Followers
               </dt>
               <dd className="mt-1 font-mono text-lg font-black tabular-nums text-text">
-                {profile.followers_count.toLocaleString()}
+                {(followersOverride ?? profile.followers_count).toLocaleString()}
               </dd>
             </span>
             <span>
