@@ -1341,16 +1341,65 @@ async def _kalshi_stream_loop() -> None:
 
 
 async def _polymarket_stream_loop() -> None:
-    from app.data.streams.runner import run_polymarket_stream_loop
+    from app.data.streams.runner import polymarket_token_slug_map, _persist_tick_event
+    from app.data.streams.polymarket_ws import PolymarketMarketStream
+    import time
 
     while True:
         try:
             record_heartbeat("polymarket_ws", detail="stream loop starting")
-            await run_polymarket_stream_loop(
+            mapping = await polymarket_token_slug_map()
+            if not mapping:
+                logger.info(
+                    "Polymarket stream: no open mirrored markets with token ids yet, "
+                    "retrying in 60s"
+                )
+                await asyncio.sleep(60)
+                continue
+
+            stream = PolymarketMarketStream(
+                mapping,
                 ws_url=settings.polymarket_ws_url,
                 reconnect_cap_sec=settings.stream_reconnect_max_sec,
                 heartbeat_timeout_sec=settings.stream_heartbeat_timeout_sec,
             )
+            logger.info("Polymarket stream: subscribing to %d markets", len(mapping))
+
+            last_beat = time.time()
+            msg_count = 0
+
+            async def _tracking_callback(event):
+                nonlocal last_beat, msg_count
+                await _persist_tick_event(event)
+                msg_count += 1
+                now = time.time()
+                if now - last_beat >= 60:
+                    record_heartbeat("polymarket_ws", detail=f"messages-since-last:{msg_count}")
+                    msg_count = 0
+                    last_beat = now
+
+            async def _poll_state():
+                nonlocal last_beat, msg_count
+                while getattr(stream, "state", None) != "stopped":
+                    await asyncio.sleep(60)
+                    now = time.time()
+                    if now - last_beat >= 60:
+                        state_val = getattr(stream, "state", None)
+                        if state_val:
+                            state_val = getattr(state_val, "value", str(state_val))
+
+                        if state_val == "reconnecting":
+                            record_heartbeat("polymarket_ws", detail="reconnecting")
+                        else:
+                            record_heartbeat("polymarket_ws", detail=f"messages-since-last:{msg_count}")
+                        msg_count = 0
+                        last_beat = now
+
+            task = asyncio.create_task(_poll_state())
+            try:
+                await stream.run(_tracking_callback)
+            finally:
+                task.cancel()
             return
         except asyncio.CancelledError:
             raise
