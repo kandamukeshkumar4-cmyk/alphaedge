@@ -1342,6 +1342,15 @@
    ]
   }
  },
+ "/api/v1/scanners/compile/testfire": {
+  "post": {
+   "has_success_response": true,
+   "summary": "Testfire Compile Draft",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
  "/api/v1/scanners/featured": {
   "get": {
    "has_success_response": true,
