@@ -3,13 +3,12 @@ import { assertNoConsoleErrors, collectConsoleErrors } from "./helpers/console";
 import { dismissOnboardingIfPresent, skipOnboarding } from "./helpers/session";
 
 /**
- * Loop 102 (AR1–AR3) — alpha runs / latest-signal / hypotheses UI smoke.
+ * Alpha runs / latest-signal / hypotheses UI smoke.
  *
- * The alpha-runs client falls back to a deterministic paper mock when the
- * backend is absent, so /alpha renders fully on a dev-server-only stack:
- * the latest-signal hero (mint when emitted, gray + evidence when
- * withheld — never red), the daily run-history ledger, and the
- * idea-generator hypotheses with VALIDATED / REJECTED verdicts.
+ * Asserts the REAL rendered truth from the local stack: honest empty states
+ * when the research tail has no rows, or real rows when the API returns them.
+ * Never asserts fabricated seed counts (the old five-row / four-hypothesis
+ * mock contract is gone).
  */
 test.describe("Loop102 alpha runs UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -42,26 +41,41 @@ test.describe("Loop102 alpha runs UI", () => {
       await expect(page.getByTestId("alpha-latest-signal-weights")).toBeVisible();
     }
 
-    // Run history: five seeded daily runs, exactly one emitted a signal
-    // (mint YES); withheld rows wear gray NO, never red.
+    // Run history: honest empty OR real rows from the local stack — never
+    // invent a five-seed ledger.
     const history = page.getByTestId("alpha-run-history");
     await expect(history).toBeVisible({ timeout: 20_000 });
+    const empty = page.getByTestId("alpha-runs-empty-state");
     const rows = page.getByTestId("alpha-run-row");
-    await expect(rows.first()).toBeVisible();
-    await expect(rows).toHaveCount(5);
-    await expect(
-      rows.filter({ has: page.locator('[data-signal="yes"]') }),
-    ).toHaveCount(1);
-    await expect(
-      rows.filter({ has: page.locator('[data-signal="yes"]') }).first(),
-    ).toContainText("Edge confirmed");
-    await expect(rows.filter({ hasText: "Portfolio not constructed" })).toHaveCount(1);
+    if (await empty.isVisible()) {
+      await expect(empty).toContainText(/No research runs yet/i);
+      await expect(rows).toHaveCount(0);
+    } else {
+      await expect(rows.first()).toBeVisible();
+      const count = await rows.count();
+      expect(count).toBeGreaterThan(0);
+      // Every row carries a yes|no signal badge (mint YES / gray NO).
+      for (let i = 0; i < count; i++) {
+        await expect(rows.nth(i).locator("[data-signal]")).toHaveAttribute(
+          "data-signal",
+          /^(yes|no)$/,
+        );
+      }
+      // Must not claim a fabricated "Edge confirmed" when nothing emitted.
+      const emitted = rows.filter({ has: page.locator('[data-signal="yes"]') });
+      const emittedCount = await emitted.count();
+      if (emittedCount > 0) {
+        await expect(emitted.first()).toContainText(/Edge confirmed|genuine/i);
+      }
+    }
 
     await page.waitForTimeout(1000);
     assertNoConsoleErrors(errors, "/alpha runs + latest signal");
   });
 
-  test("/alpha renders proposed hypotheses with validated/rejected verdicts", async ({ page }) => {
+  test("/alpha renders hypotheses section (honest empty or real verdicts)", async ({
+    page,
+  }) => {
     const errors = collectConsoleErrors(page);
     await page.goto("/alpha", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await dismissOnboardingIfPresent(page);
@@ -71,24 +85,28 @@ test.describe("Loop102 alpha runs UI", () => {
     const section = page.getByTestId("alpha-hypotheses");
     await expect(section).toBeVisible({ timeout: 20_000 });
 
-    // Four seeded proposals: two validated (mint), two rejected (gray) with
-    // the validator's reason on record.
+    // Honest empty OR real proposal rows — never assert the old four-seed board.
+    const empty = page.getByTestId("alpha-hypotheses-empty-state");
     const rows = page.getByTestId("alpha-hypothesis-row");
-    await expect(rows.first()).toBeVisible();
-    await expect(rows).toHaveCount(4);
-    await expect(rows.filter({ hasText: "VALIDATED" })).toHaveCount(2);
-    await expect(rows.filter({ hasText: "REJECTED" })).toHaveCount(2);
-
-    const validatedRow = rows.filter({ hasText: "back_to_back_fade" });
-    await expect(validatedRow).toContainText("VALIDATED");
-    // Predicted-direction chip (rendered lowercase; CSS uppercases it).
-    await expect(validatedRow.getByText("no", { exact: true }).first()).toBeVisible();
-
-    const rejectedRow = rows.filter({ hasText: "injury_overreaction" });
-    await expect(rejectedRow).toContainText("REJECTED");
-    await expect(rejectedRow).toContainText(/closing line out-of-sample/i);
-    // A rejected hypothesis is gray evidence, never a red error.
-    await expect(rejectedRow).not.toHaveClass(/danger|error|red/i);
+    if (await empty.isVisible()) {
+      await expect(empty).toContainText(/No hypotheses proposed yet/i);
+      await expect(rows).toHaveCount(0);
+    } else {
+      await expect(rows.first()).toBeVisible();
+      const count = await rows.count();
+      expect(count).toBeGreaterThan(0);
+      // Each row wears VALIDATED or REJECTED (never red).
+      for (let i = 0; i < count; i++) {
+        const row = rows.nth(i);
+        await expect(row).toHaveAttribute("data-validated", /^(true|false)$/);
+        if ((await row.getAttribute("data-validated")) === "true") {
+          await expect(row).toContainText("VALIDATED");
+        } else {
+          await expect(row).toContainText("REJECTED");
+        }
+        await expect(row).not.toHaveClass(/danger|error|red/i);
+      }
+    }
 
     await page.waitForTimeout(1000);
     assertNoConsoleErrors(errors, "/alpha hypotheses");
