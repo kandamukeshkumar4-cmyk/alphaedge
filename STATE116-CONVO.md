@@ -93,9 +93,26 @@ $ npx playwright test e2e/scanners.spec.ts --grep loop116
 ```
 
 ### Full backend suite
-(pasted below after run completes — see LOOP LOG)
+```text
+$ cd backend && uv run --extra dev pytest -q --tb=no
+1 failed, 2209 passed, 30 skipped in 451.84s (0:07:31)
 
-## Guardrails
+FAILED tests/test_loop109_scanner_dsl.py::test_existing_seeded_scanners_still_compile
+  AssertionError: Election Edge Watch — assert is_featured is True (got False)
+```
+Unrelated to this wave (featured-seed flag / loop115 curation). Not in charter;
+listed, not fixed. Loop116 named tests + scanners compile/authz/openapi green.
+
+### Orchestration gate
+Not re-run here (auditor re-runs). Done claim for this wave = named tests +
+ruff + heads + snapshot + frontend gates above.
+
+## Commits
+- `1509e0c` feat(loop116): conversational scanner compile with clarify + testfire
+- `e1be71c` feat(loop116): chat-style scanner authoring with testfire preview
+- `ba083a3` chore(loop116): authz + openapi for compile/testfire route
+- `685fdce` docs(loop116): record STATE116-CONVO verification handoff
+
 
 - `PAPER_TRADING_ONLY` untouched; no execution / order language.
 - LLM never silently invents thresholds — asks.
