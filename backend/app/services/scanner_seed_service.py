@@ -64,6 +64,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "Big Mover Radar",
         "description": "Flags markets whose price moved sharply over the last day.",
         "cooldown_minutes": 120,
+        "is_featured": True,
         "spec": _spec(
             name="Big Mover Radar",
             categories=_ALL_CATEGORIES,
@@ -77,6 +78,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "Whale Flow Watch",
         "description": "Surfaces markets where big paper-money flow is pushing hard in one direction.",
         "cooldown_minutes": 180,
+        "is_featured": True,
         "spec": _spec(
             name="Whale Flow Watch",
             categories=_ALL_CATEGORIES,
@@ -90,6 +92,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "Model Edge Radar",
         "description": "Finds markets where our forecast model disagrees most with the current price.",
         "cooldown_minutes": 360,
+        "is_featured": True,
         "spec": _spec(
             name="Model Edge Radar",
             categories=_ALL_CATEGORIES,
@@ -103,6 +106,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "High-Volume Momentum",
         "description": "Tracks the busiest markets riding a clear multi-day price trend.",
         "cooldown_minutes": 240,
+        "is_featured": False,
         "spec": _spec(
             name="High-Volume Momentum",
             categories=_ALL_CATEGORIES,
@@ -117,6 +121,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "News Pulse Confirmed",
         "description": "Watches fresh news sentiment and only keeps markets where price agrees.",
         "cooldown_minutes": 240,
+        "is_featured": False,
         "spec": _spec(
             name="News Pulse Confirmed",
             categories=_ALL_CATEGORIES,
@@ -134,6 +139,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "Triple Confirmation",
         "description": "Only fires when whale flow, price trend, and model edge all point the same way.",
         "cooldown_minutes": 1440,
+        "is_featured": True,
         "spec": _spec(
             name="Triple Confirmation",
             categories=_ALL_CATEGORIES,
@@ -153,6 +159,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "NBA Sharp Money",
         "description": "NBA-only: big paper-money flow that the recent price move agrees with.",
         "cooldown_minutes": 120,
+        "is_featured": False,
         "spec": _spec(
             name="NBA Sharp Money",
             categories=["nba"],
@@ -170,6 +177,7 @@ STARTER_SCANNERS: list[dict[str, Any]] = [
         "name": "Election Edge Watch",
         "description": "Election markets only: where our model price sits furthest from the market.",
         "cooldown_minutes": 720,
+        "is_featured": False,
         "spec": _spec(
             name="Election Edge Watch",
             categories=["election"],

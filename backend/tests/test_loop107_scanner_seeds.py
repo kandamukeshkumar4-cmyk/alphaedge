@@ -23,6 +23,13 @@ from app.services.scanner_seed_service import STARTER_SCANNERS, seed_starter_sca
 
 EXPECTED_NAMES = {entry["name"] for entry in STARTER_SCANNERS}
 
+FLAGSHIP_FOUR = {
+    "Big Mover Radar",
+    "Whale Flow Watch",
+    "Model Edge Radar",
+    "Triple Confirmation",
+}
+
 
 def test_seeds_compile_through_the_real_compiler():
     """Each seed spec passes the compiler's schema check with zero warnings."""
@@ -76,6 +83,21 @@ async def test_seeded_scanners_are_public_and_listed(db_session):
         assert item["owner"] is None
         assert item["description"]
         assert isinstance(item["spec"].get("steps"), list)
+
+
+@pytest.mark.asyncio
+async def test_featured_curation_is_flagship_four(db_session):
+    """Exactly the flagship four starters are featured; the other six are not."""
+    await seed_starter_scanners(db_session)
+
+    rows = (await db_session.scalars(select(Scanner))).all()
+    featured = {row.name for row in rows if row.is_featured}
+    not_featured = {row.name for row in rows if not row.is_featured}
+
+    assert featured == FLAGSHIP_FOUR
+    assert not_featured == EXPECTED_NAMES - FLAGSHIP_FOUR
+    assert len(featured) == 4
+    assert len(not_featured) == 6
 
 
 @pytest.mark.asyncio
