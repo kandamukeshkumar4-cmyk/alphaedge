@@ -155,6 +155,38 @@ async def _latest_run(db: AsyncSession, scanner_id: UUID) -> ScannerRun | None:
     )
 
 
+async def _latest_runs_batch(
+    db: AsyncSession, scanner_ids: list[UUID]
+) -> dict[UUID, ScannerRun]:
+    """One query: most recent ScannerRun per scanner_id (SQLite + Postgres).
+
+    Postgres DISTINCT ON is not portable to SQLite tests; row_number() is.
+    """
+    if not scanner_ids:
+        return {}
+    rn = (
+        func.row_number()
+        .over(
+            partition_by=ScannerRun.scanner_id,
+            order_by=ScannerRun.started_at.desc(),
+        )
+        .label("rn")
+    )
+    ranked = (
+        select(ScannerRun.id.label("run_id"), rn)
+        .where(ScannerRun.scanner_id.in_(scanner_ids))
+        .subquery()
+    )
+    runs = (
+        await db.scalars(
+            select(ScannerRun)
+            .join(ranked, ScannerRun.id == ranked.c.run_id)
+            .where(ranked.c.rn == 1)
+        )
+    ).all()
+    return {r.scanner_id: r for r in runs}
+
+
 async def _get_visible_scanner(
     db: AsyncSession, scanner_id: UUID, user: User | None
 ) -> Scanner:
@@ -339,7 +371,10 @@ async def list_scanners(
     scanners = (
         await db.scalars(select(Scanner).where(clause).order_by(Scanner.created_at.desc()))
     ).all()
-    return [_scanner_out(s) for s in scanners]
+    if not scanners:
+        return []
+    runs_by_id = await _latest_runs_batch(db, [s.id for s in scanners])
+    return [_scanner_out(s, latest_run=runs_by_id.get(s.id)) for s in scanners]
 
 
 @router.get("/trending", response_model=ScannerTrendingListOut)
@@ -436,7 +471,12 @@ async def featured_scanners(
             .order_by(Scanner.name.asc())
         )
     ).all()
-    return ScannerFeaturedListOut(items=[_scanner_out(s) for s in scanners])
+    if not scanners:
+        return ScannerFeaturedListOut(items=[])
+    runs_by_id = await _latest_runs_batch(db, [s.id for s in scanners])
+    return ScannerFeaturedListOut(
+        items=[_scanner_out(s, latest_run=runs_by_id.get(s.id)) for s in scanners]
+    )
 
 
 async def _last_error_for(db: AsyncSession, scanner_id: UUID) -> str | None:
