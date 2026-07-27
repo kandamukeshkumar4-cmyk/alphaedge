@@ -36,6 +36,22 @@ export function OrderBook({ market }: { market: Market }) {
     1,
   );
 
+  // Loop117 (D14): an empty book is an empty book. Labelling it a "Sample
+  // book" alongside zero rows implied fabricated depth was coming; the real
+  // /book endpoint returns `{yes:{bids:[],asks:[]},…}` for most markets.
+  const isEmpty = bids.length === 0 && asks.length === 0;
+
+  if (isEmpty) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-4">
+        <h3 className="text-sm font-black text-text">Order book</h3>
+        <p className="mt-2 text-center text-xs text-muted-2">
+          No resting paper orders on this market.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <h3 className="text-sm font-black text-text">Order book</h3>
