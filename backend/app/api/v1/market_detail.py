@@ -15,7 +15,7 @@ from app.schemas.market import (
     MarketDetailResponse,
 )
 from app.services.forecast_service import ForecastService
-from app.services.market_service import CATALOG_SLUGS, MarketService
+from app.services.market_lookup import get_catalog_market, resolve_implied_yes
 from app.services.order_book_service import OrderBookService
 
 router = APIRouter(prefix="/api/v1", tags=["markets"])
@@ -30,10 +30,11 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
     nothing user-specific can enter the shared cache. Aggregate
     ``watching_count`` may lag up to ``MARKET_DETAIL_TTL_SEC`` (10s) unless a
     watchlist mutation invalidates the map.
-    """
-    if slug not in CATALOG_SLUGS:
-        raise HTTPException(status_code=404, detail="Market not found")
 
+    Loop117 D1: reachability is decided by the catalog itself (a ``Market``
+    row), not by the 22-slug seed set — a market the catalog lists always gets
+    a detail response, with honest nulls for sections that hold no data.
+    """
     cache_key = ("market_detail", slug)
     cached = market_detail_cache.get(cache_key, MARKET_DETAIL_TTL_SEC)
     if cached is not None:
@@ -50,14 +51,16 @@ async def get_market_detail(slug: str, db: AsyncSession = Depends(get_db)):
 
 async def _build_market_detail(slug: str, db: AsyncSession) -> MarketDetailResponse:
     """Compose the public detail payload (no user identity)."""
-    svc = MarketService(db)
-    market = await svc.get_market_by_slug(slug)
+    market = await get_catalog_market(db, slug)
     if market is None:
         raise HTTPException(status_code=404, detail="Market not found")
 
     book = await OrderBookService(db).get_l2(market.id, depth=1)
-    yes_price = _best_outcome_price(book.get("yes", {}), 0.5)
-    no_price = _best_outcome_price(book.get("no", {}), round(1.0 - yes_price, 4))
+    # D5: the snapshot store wins so /detail can never disagree with the card,
+    # the screener or the candles for the same slug. None stays None.
+    implied = await resolve_implied_yes(db, slug, book=book)
+    yes_price = implied.price
+    no_price = None if yes_price is None else round(1.0 - yes_price, 4)
 
     resolution = await db.scalar(select(MarketResolution).where(MarketResolution.slug == slug))
     resolved = resolution is not None or market.status == MarketStatus.RESOLVED
@@ -68,7 +71,11 @@ async def _build_market_detail(slug: str, db: AsyncSession) -> MarketDetailRespo
     resolved_at = market.resolved_at
 
     forecast_payload: MarketDetailForecast | None = None
-    forecast_result = ForecastService.predict(slug, implied_yes=yes_price)
+    # No stored price means no honest anchor for the forecast — omit it rather
+    # than score the model against an invented number.
+    forecast_result = (
+        None if yes_price is None else ForecastService.predict(slug, implied_yes=yes_price)
+    )
     if forecast_result is not None:
         forecast_payload = MarketDetailForecast(
             model_prob=forecast_result.model_prob,
@@ -93,6 +100,7 @@ async def _build_market_detail(slug: str, db: AsyncSession) -> MarketDetailRespo
             MarketDetailOutcome(label="YES", implied_prob=yes_price, price=yes_price),
             MarketDetailOutcome(label="NO", implied_prob=no_price, price=no_price),
         ],
+        price_source=implied.source,
         forecast=forecast_payload,
         volume_usd=market.volume,
         traders=market.traders,
@@ -105,13 +113,3 @@ async def _build_market_detail(slug: str, db: AsyncSession) -> MarketDetailRespo
         watching_count=watching_count,
         cached=False,
     )
-
-
-def _best_outcome_price(book_side: dict, fallback: float) -> float:
-    asks = book_side.get("asks") or []
-    bids = book_side.get("bids") or []
-    if asks:
-        return round(float(asks[0]["price"]), 4)
-    if bids:
-        return round(float(bids[0]["price"]), 4)
-    return round(fallback, 4)

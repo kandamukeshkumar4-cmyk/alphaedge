@@ -81,6 +81,46 @@ def _clear_markets_cache():
 
 
 @pytest.fixture(autouse=True)
+def _clear_market_detail_cache():
+    """Loop117: /detail is now priced from stored data, so a slug-keyed TTL hit
+    from an earlier test would leak that test's price into the next one."""
+    from app.core import market_detail_cache
+
+    market_detail_cache.invalidate()
+    yield
+    market_detail_cache.invalidate()
+
+
+@pytest_asyncio.fixture
+async def catalog_api_client(db_session):
+    """HTTP client bound to the test session, with the seed catalog present.
+
+    Loop117 (D1): the market-scoped read endpoints (/detail, /prediction,
+    /explain, /agent-trace) resolve a slug through the ``Market`` table instead
+    of a hard-coded seed set, so their integration tests must be served a
+    database rather than relying on the process-wide engine.
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    from app.db.session import get_db
+    from app.main import app
+
+    await MarketService(db_session).seed_catalog_markets()
+
+    async def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
 def _clear_desk_cache():
     """I03 micro-cache on /desk must not leak state between tests."""
     from app.core import desk_cache

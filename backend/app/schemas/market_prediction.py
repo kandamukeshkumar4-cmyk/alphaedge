@@ -26,12 +26,24 @@ class EnsembleForecast(BaseModel):
 
 
 class MarketPredictionResponse(BaseModel):
+    """Model read for one market.
+
+    Loop117: ``available`` is False (with null ``predicted_prob``/``edge``) when
+    the market has no stored price and no logged forecast — the honest shape for
+    "no prediction available", served as a 200 instead of a 404.
+    """
+
     slug: str
-    predicted_prob: float
+    available: bool = True
+    predicted_prob: Optional[float] = None
     confidence: float
-    edge: float
+    edge: Optional[float] = None
     is_edge: bool
     reason: str
     provisional: bool
+    # The market-implied YES the edge was computed against — the same price
+    # /markets, /prices/latest and /candles serve for this slug (D5).
+    market_implied: Optional[float] = None
+    price_source: str = "unavailable"
     paper_trading_only: bool = True
     ensemble: Optional[EnsembleForecast] = None

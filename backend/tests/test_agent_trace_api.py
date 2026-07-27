@@ -10,10 +10,8 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from app.api.v1.agent_trace import derive_verdict
-from app.main import app
 
 VALID_SLUG = "nba-2025-01-15-lal-bos"
 UNKNOWN_SLUG = "totally-fake-slug-xyz"
@@ -79,29 +77,20 @@ def test_verdict_custom_thresholds():
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_unknown_slug_returns_404():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{UNKNOWN_SLUG}/agent-trace")
+async def test_agent_trace_unknown_slug_returns_404(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{UNKNOWN_SLUG}/agent-trace")
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_valid_slug_returns_200():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
+async def test_agent_trace_valid_slug_returns_200(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     assert response.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_schema_fields():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
+async def test_agent_trace_schema_fields(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     assert response.status_code == 200
     payload = response.json()
     assert payload["slug"] == VALID_SLUG
@@ -114,20 +103,14 @@ async def test_agent_trace_schema_fields():
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_paper_trading_only_always_true():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
+async def test_agent_trace_paper_trading_only_always_true(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     assert response.json()["paper_trading_only"] is True
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_steps_have_correct_node_names():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
+async def test_agent_trace_steps_have_correct_node_names(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     steps = response.json()["steps"]
     names = [s["step_name"] for s in steps]
     assert names == [
@@ -145,11 +128,8 @@ async def test_agent_trace_steps_have_correct_node_names():
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_steps_have_input_and_output():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
+async def test_agent_trace_steps_have_input_and_output(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     for step in response.json()["steps"]:
         assert "input_data" in step
         assert "output_data" in step
@@ -158,12 +138,9 @@ async def test_agent_trace_steps_have_input_and_output():
 
 
 @pytest.mark.asyncio
-async def test_agent_trace_no_order_submission_field():
+async def test_agent_trace_no_order_submission_field(catalog_api_client):
     """The trace endpoint must not surface any order-submission controls."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/agent-trace")
     payload = response.json()
     # Top-level response must not have an 'order' or 'submit' key
     for forbidden in ("order_submitted", "submit", "execute_order"):

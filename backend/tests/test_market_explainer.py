@@ -3,32 +3,21 @@
 from __future__ import annotations
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
 
 VALID_SLUG = "nba-2025-01-15-lal-bos"
 UNKNOWN_SLUG = "not-a-real-market-slug"
 
 
 @pytest.mark.asyncio
-async def test_explainer_unknown_slug_returns_404():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{UNKNOWN_SLUG}/explain")
+async def test_explainer_unknown_slug_returns_404(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{UNKNOWN_SLUG}/explain")
 
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_explainer_returns_deterministic_advisor_fields():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/explain")
+async def test_explainer_returns_deterministic_advisor_fields(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/explain")
 
     assert response.status_code == 200
     payload = response.json()
@@ -40,29 +29,22 @@ async def test_explainer_returns_deterministic_advisor_fields():
 
 
 @pytest.mark.asyncio
-async def test_explainer_paper_trading_only_true():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/explain")
+async def test_explainer_paper_trading_only_true(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/explain")
 
     assert response.status_code == 200
     assert response.json()["paper_trading_only"] is True
 
 
 @pytest.mark.asyncio
-async def test_explainer_response_has_all_fields():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{VALID_SLUG}/explain")
+async def test_explainer_response_has_all_fields(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{VALID_SLUG}/explain")
 
     assert response.status_code == 200
     payload = response.json()
     for key in (
         "slug",
+        "available",
         "model_prob",
         "market_implied",
         "edge",
@@ -71,6 +53,7 @@ async def test_explainer_response_has_all_fields():
         "news_signals",
         "trade_rationale",
         "provisional",
+        "price_source",
         "paper_trading_only",
     ):
         assert key in payload

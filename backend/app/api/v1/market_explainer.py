@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.graph import prefetch_news_for_market
-from app.api.v1.market_prediction import _implied_prob_from_catalog, _is_provisional
+from app.api.v1.market_prediction import (
+    NO_PREDICTION_REASON,
+    _is_provisional,
+    has_logged_prediction,
+    prediction_anchor,
+    require_catalog_market,
+)
+from app.db.session import get_db
 from app.forecasting.predictor import predict_market
 from app.schemas.market_explainer import MarketExplainerResponse, NewsSignalItem
-from app.services.market_service import CATALOG_SLUGS
 from app.signals.news_signal import get_cached_signal
 
 router = APIRouter(prefix="/api/v1", tags=["markets"])
@@ -65,11 +72,37 @@ def _news_items(slug: str) -> list[NewsSignalItem]:
 
 
 @router.get("/markets/{slug}/explain", response_model=MarketExplainerResponse)
-async def explain_market(slug: str, background_tasks: BackgroundTasks) -> MarketExplainerResponse:
-    if slug not in CATALOG_SLUGS:
-        raise HTTPException(status_code=404, detail="Market not found")
+async def explain_market(
+    slug: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+) -> MarketExplainerResponse:
+    """Explain the model-vs-market read for any market the catalog lists.
 
-    market_implied = _implied_prob_from_catalog(slug)
+    Loop117: no seed-set gate (D1), the edge is computed against the same price
+    ``/markets`` serves (D5), and a market with nothing to score returns an
+    honest ``available: false`` body instead of a 404.
+    """
+    await require_catalog_market(db, slug)
+
+    anchor = await prediction_anchor(db, slug)
+    if not anchor.available and not await has_logged_prediction(db, slug):
+        return MarketExplainerResponse(
+            slug=slug,
+            available=False,
+            model_prob=None,
+            market_implied=None,
+            edge=None,
+            edge_direction="unavailable",
+            confidence_label="Unavailable",
+            news_signals=_news_items(slug),
+            trade_rationale=NO_PREDICTION_REASON,
+            provisional=True,
+            explanation=NO_PREDICTION_REASON,
+            price_source=anchor.source,
+        )
+
+    market_implied = anchor.price if anchor.price is not None else 0.5
     prediction = await asyncio.to_thread(
         predict_market,
         {"market_slug": slug, "implied_yes": market_implied},
@@ -87,6 +120,7 @@ async def explain_market(slug: str, background_tasks: BackgroundTasks) -> Market
 
     return MarketExplainerResponse(
         slug=slug,
+        available=True,
         model_prob=round(prediction.predicted_prob, 4),
         market_implied=round(market_implied, 4),
         edge=round(edge, 4),
@@ -97,5 +131,6 @@ async def explain_market(slug: str, background_tasks: BackgroundTasks) -> Market
         provisional=provisional,
         explanation=trade_rationale,
         model_used="deterministic",
+        price_source=anchor.source,
         paper_trading_only=True,
     )

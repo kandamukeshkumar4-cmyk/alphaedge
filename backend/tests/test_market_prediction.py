@@ -1,17 +1,18 @@
 import pytest
-from httpx import ASGITransport, AsyncClient
 
-from app.main import app
 from app.services.market_service import CATALOG_SLUGS
 
 REQUIRED_FIELDS = (
     "slug",
+    "available",
     "predicted_prob",
     "confidence",
     "edge",
     "is_edge",
     "reason",
     "provisional",
+    "market_implied",
+    "price_source",
     "paper_trading_only",
 )
 
@@ -20,23 +21,17 @@ FIFA_SLUG = "wc2026-m1-mex-homewin"
 
 
 @pytest.mark.asyncio
-async def test_unknown_slug_returns_404():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get("/api/v1/markets/unknown-market-slug/prediction")
+async def test_unknown_slug_returns_404(catalog_api_client):
+    response = await catalog_api_client.get(
+        "/api/v1/markets/unknown-market-slug/prediction"
+    )
 
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_valid_nba_slug_returns_prediction():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
+async def test_valid_nba_slug_returns_prediction(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
 
     assert response.status_code == 200
     payload = response.json()
@@ -45,12 +40,8 @@ async def test_valid_nba_slug_returns_prediction():
 
 
 @pytest.mark.asyncio
-async def test_valid_fifa_slug_is_provisional():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{FIFA_SLUG}/prediction")
+async def test_valid_fifa_slug_is_provisional(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{FIFA_SLUG}/prediction")
 
     assert response.status_code == 200
     payload = response.json()
@@ -58,12 +49,8 @@ async def test_valid_fifa_slug_is_provisional():
 
 
 @pytest.mark.asyncio
-async def test_response_has_all_required_fields():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
+async def test_response_has_all_required_fields(catalog_api_client):
+    response = await catalog_api_client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
 
     assert response.status_code == 200
     payload = response.json()
@@ -72,7 +59,7 @@ async def test_response_has_all_required_fields():
 
 
 @pytest.mark.asyncio
-async def test_ensemble_absent_falls_back_to_baseline(monkeypatch):
+async def test_ensemble_absent_falls_back_to_baseline(catalog_api_client, monkeypatch):
     """Flag ON but no LLM keys -> ensemble degrades to None, the response is the
     exact single-model baseline (fallback proof).
 
@@ -93,18 +80,14 @@ async def test_ensemble_absent_falls_back_to_baseline(monkeypatch):
     ):
         monkeypatch.setattr(mp.settings, key_attr, "", raising=False)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
+    response = await catalog_api_client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
 
     assert response.status_code == 200
     assert response.json().get("ensemble") is None
 
 
 @pytest.mark.asyncio
-async def test_ensemble_attached_when_providers_answer(monkeypatch):
+async def test_ensemble_attached_when_providers_answer(catalog_api_client, monkeypatch):
     """When the ensemble returns an aggregate, the API exposes prob/stdev/
     n_models/per-model rationales alongside the XGBoost judge probability."""
     import app.api.v1.market_prediction as mp
@@ -125,11 +108,7 @@ async def test_ensemble_attached_when_providers_answer(monkeypatch):
     monkeypatch.setattr(mp, "ensemble_forecast", _fake_forecast)
     monkeypatch.setattr(mp.settings, "ensemble_enabled", True)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
+    response = await catalog_api_client.get(f"/api/v1/markets/{NBA_SLUG}/prediction")
 
     assert response.status_code == 200
     payload = response.json()
@@ -143,14 +122,10 @@ async def test_ensemble_attached_when_providers_answer(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_provisional_markets_have_no_edge():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        for slug in sorted(CATALOG_SLUGS):
-            response = await client.get(f"/api/v1/markets/{slug}/prediction")
-            assert response.status_code == 200
-            payload = response.json()
-            if payload["provisional"]:
-                assert payload["is_edge"] is False
+async def test_provisional_markets_have_no_edge(catalog_api_client):
+    for slug in sorted(CATALOG_SLUGS):
+        response = await catalog_api_client.get(f"/api/v1/markets/{slug}/prediction")
+        assert response.status_code == 200
+        payload = response.json()
+        if payload["provisional"]:
+            assert payload["is_edge"] is False
