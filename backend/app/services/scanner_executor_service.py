@@ -582,6 +582,20 @@ async def _run_step_with_heal(
         raise
 
 
+async def _attach_artifact(db: AsyncSession, scanner: Scanner, run: ScannerRun) -> None:
+    """Build + persist the run's dashboard artifact (loop116). Never raises.
+
+    Imported lazily so the executor keeps no import-time dependency on the
+    presentation layer, and wrapped so an artifact failure can never fail a scan.
+    """
+    try:
+        from app.services.scanner_artifact_service import attach_run_artifact
+
+        await attach_run_artifact(db, scanner, run)
+    except Exception:  # noqa: BLE001 — presentation must never gate the run
+        logger.warning("scanner %s artifact attach failed", scanner.id, exc_info=True)
+
+
 def _test_mode_result_fields(scanner: Scanner, test_mode: bool) -> dict[str, Any]:
     """Result markers for pre-publish test runs (loop86 F-B).
 
@@ -660,6 +674,10 @@ async def run_scanner(
         universe_count = len(candidates)
         repairs: list[dict[str, Any]] = []
         dropped_slugs: list[str] = []
+        # loop116: measured per-step funnel (in -> out). Recorded as the run
+        # progresses because a candidate dropped at step 3 is not recoverable
+        # from the final candidate list.
+        step_counters: list[dict[str, Any]] = []
 
         def _counts(*, candidates_n: int, aligned_n: int) -> dict[str, Any]:
             counts: dict[str, Any] = {
@@ -678,6 +696,9 @@ async def run_scanner(
         def _attach_repairs(body: dict[str, Any]) -> dict[str, Any]:
             if repairs:
                 body["repairs"] = list(repairs)
+            # loop116: the measured funnel feeds the run artifact's step counters.
+            if step_counters:
+                body["step_counters"] = list(step_counters)
             return body
 
         if universe_count == 0:
@@ -692,6 +713,7 @@ async def run_scanner(
                 }
             )
             await db.flush()
+            await _attach_artifact(db, scanner, run)
             await db.refresh(run)
             return run
 
@@ -714,6 +736,7 @@ async def run_scanner(
                 await db.refresh(run)
                 return run
 
+            step_in = len(candidates)
             try:
                 candidates = await _run_step_with_heal(
                     db,
@@ -742,6 +765,15 @@ async def run_scanner(
                 await db.refresh(run)
                 return run
 
+            step_counters.append(
+                {
+                    "index": index,
+                    "step": str(step.get("type") or "STEP").upper(),
+                    "type": str(step.get("type") or "STEP").upper(),
+                    "in": step_in,
+                    "out": len(candidates),
+                }
+            )
             run.checkpoint = {"node": index}
             await db.flush()
 
@@ -781,6 +813,10 @@ async def run_scanner(
         run.status = "empty" if not candidates else "completed"
         run.finished_at = datetime.now(UTC)
         await db.flush()
+
+        # loop116: assemble the rendered dashboard artifact for this run. Fired
+        # and clean-empty runs both get one — an empty artifact says so honestly.
+        await _attach_artifact(db, scanner, run)
 
         # C6: surface fired runs on the signals/toast feed (cooldown-gated).
         # Test-mode runs must stay silent: no alert feed rows and no email

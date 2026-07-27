@@ -1475,6 +1475,15 @@
    ]
   }
  },
+ "/api/v1/scanners/{scanner_id}/runs/{run_id}/artifact": {
+  "get": {
+   "has_success_response": true,
+   "summary": "Rendered dashboard artifact for one scanner run",
+   "tags": [
+    "scanners"
+   ]
+  }
+ },
  "/api/v1/scanners/{scanner_id}/test-email": {
   "post": {
    "has_success_response": true,

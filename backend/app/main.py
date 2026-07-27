@@ -52,6 +52,7 @@ from app.api.v1.terminal import router as terminal_router
 from app.api.v1.skills import router as skills_router
 from app.api.v1.scanners import router as scanners_router
 from app.api.v1.scanner_convergence import router as scanner_convergence_router
+from app.api.v1.scanner_artifacts import router as scanner_artifacts_router
 from app.api.v1.search import router as search_router
 from app.api.v1.alpha import router as alpha_router
 from app.api.v1.indicators import router as indicators_router
@@ -1528,6 +1529,7 @@ app.include_router(models_router)
 app.include_router(admin_router)
 app.include_router(agent_admin_router)
 app.include_router(metrics_router)
+app.include_router(scanner_artifacts_router)  # loop116: run dashboard artifact
 
 
 @app.get(
