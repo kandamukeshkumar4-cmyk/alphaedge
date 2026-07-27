@@ -314,8 +314,8 @@ a7f9f78 feat(loop116): executor records the step funnel and stamps the run artif
 94fd406 feat(loop116): GET /scanners/{id}/runs/{run_id}/artifact
 8108a20 test(loop116): artifact assembly, honest empty runs, paper-law filter, endpoint authz
 af4ca40 feat(loop116): RunArtifact document on the scanner detail surface
-<hash>  test(loop116): prove executor wiring; retarget the alembic head asserts at 070
-<hash>  docs(loop116): STATE116-ARTIFACT
+f0e4299 test(loop116): prove executor wiring; retarget the alembic head asserts at 070
+7acb9e6 docs(loop116): STATE116-ARTIFACT (this file — tip of loop116-artifact/node)
 ```
 
 ## Files touched
