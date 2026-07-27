@@ -478,3 +478,392 @@ async def compile_scanner_flow(
 
     warnings = validate_spec(deterministic)
     return {"spec": deterministic, "compiler": compiler, "warnings": warnings}
+
+
+# ---------------------------------------------------------------------------
+# Loop 116 — conversational clarify state machine (deterministic decisions)
+# ---------------------------------------------------------------------------
+
+MAX_CLARIFY_ROUNDS = 2
+MAX_QUESTIONS_PER_ROUND = 3
+
+ClarifyKind = Literal["schedule", "threshold", "universe", "delivery", "other"]
+
+_VAGUE_THRESHOLD_RE = re.compile(
+    r"\b(big|heavy|soon|large|huge|significant|high|major|massive)\b",
+    re.IGNORECASE,
+)
+_NUMERIC_THRESHOLD_RE = re.compile(
+    r"(?:volume\s+above|min(?:imum)?\s+volume|above\s+)\s*\d"
+    r"|\b\d[\d,]*\s*(?:volume|vol)\b"
+    r"|\btop\s+\d+\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_SCHEDULE_RE = re.compile(
+    r"\bevery\s+\d+\s*(?:minutes?|hours?|mins?|hrs?)\b"
+    r"|\bevery\s+hour\b"
+    r"|\bdaily\b"
+    r"|\bevery\s+day\b",
+    re.IGNORECASE,
+)
+_DELIVERY_MENTION_RE = re.compile(
+    r"\b(?:email|e-mail|notify|notification|delivery|sms|webhook|inbox|alert\s+me)\b",
+    re.IGNORECASE,
+)
+_UNIVERSE_WORD_RE = re.compile(
+    r"\b(?:nba|sports|election|crypto)\b",
+    re.IGNORECASE,
+)
+
+# Honest in-app delivery suggestions — never promise external channels.
+_DELIVERY_SUGGESTIONS: tuple[str, ...] = (
+    "In-app only",
+    "In-app when matches fire",
+    "Stored in-app (paper sim)",
+)
+
+_SCHEDULE_SUGGESTIONS: tuple[str, ...] = (
+    "Every 15 minutes",
+    "Every 30 minutes",
+    "Every hour",
+    "Daily",
+)
+_THRESHOLD_SUGGESTIONS: tuple[str, ...] = (
+    "Volume above 10,000",
+    "Volume above 50,000",
+    "Top 10 markets",
+)
+_UNIVERSE_SUGGESTIONS: tuple[str, ...] = (
+    "NBA",
+    "Sports",
+    "Election",
+    "Crypto",
+)
+
+# In-process draft scratch (mirrors launch_limits — single API process).
+_compile_drafts: dict[str, dict[str, Any]] = {}
+
+
+def reset_compile_drafts() -> None:
+    """Clear in-memory compile drafts (test helper)."""
+    _compile_drafts.clear()
+
+
+def get_compile_draft(draft_id: str) -> dict[str, Any] | None:
+    draft = _compile_drafts.get(draft_id)
+    return dict(draft) if draft is not None else None
+
+
+def _save_compile_draft(draft: dict[str, Any]) -> None:
+    _compile_drafts[str(draft["draft_id"])] = draft
+
+
+def has_explicit_schedule(prompt: str) -> bool:
+    return bool(_EXPLICIT_SCHEDULE_RE.search(prompt or ""))
+
+
+def has_vague_threshold(prompt: str) -> bool:
+    return bool(_VAGUE_THRESHOLD_RE.search(prompt or ""))
+
+
+def has_numeric_threshold(prompt: str) -> bool:
+    return bool(_NUMERIC_THRESHOLD_RE.search(prompt or ""))
+
+
+def mentions_delivery(prompt: str) -> bool:
+    return bool(_DELIVERY_MENTION_RE.search(prompt or ""))
+
+
+def has_universe_category(prompt: str, spec: dict[str, Any]) -> bool:
+    universe = spec.get("universe") if isinstance(spec.get("universe"), dict) else {}
+    categories = universe.get("categories") if isinstance(universe.get("categories"), list) else []
+    if categories:
+        return True
+    return bool(_UNIVERSE_WORD_RE.search(prompt or ""))
+
+
+def detect_clarification_kinds(
+    prompt: str,
+    spec: dict[str, Any],
+    *,
+    answered_kinds: set[str] | frozenset[str] | None = None,
+) -> list[ClarifyKind]:
+    """Deterministic clarification needs, ordered. Unit-testable; no LLM."""
+    answered = {str(k) for k in (answered_kinds or set())}
+    needs: list[ClarifyKind] = []
+    if "schedule" not in answered and not has_explicit_schedule(prompt):
+        needs.append("schedule")
+    if (
+        "threshold" not in answered
+        and has_vague_threshold(prompt)
+        and not has_numeric_threshold(prompt)
+    ):
+        needs.append("threshold")
+    if "universe" not in answered and not has_universe_category(prompt, spec):
+        needs.append("universe")
+    if "delivery" not in answered and mentions_delivery(prompt):
+        needs.append("delivery")
+    return needs
+
+
+def _question_for_kind(kind: ClarifyKind, index: int) -> dict[str, Any]:
+    if kind == "schedule":
+        return {
+            "id": f"q{index}_schedule",
+            "question": "How often should this scanner run?",
+            "kind": "schedule",
+            "suggestions": list(_SCHEDULE_SUGGESTIONS),
+        }
+    if kind == "threshold":
+        return {
+            "id": f"q{index}_threshold",
+            "question": "What numeric threshold should we use (volume or top-N)?",
+            "kind": "threshold",
+            "suggestions": list(_THRESHOLD_SUGGESTIONS),
+        }
+    if kind == "universe":
+        return {
+            "id": f"q{index}_universe",
+            "question": "Which market universe should we scan?",
+            "kind": "universe",
+            "suggestions": list(_UNIVERSE_SUGGESTIONS),
+        }
+    if kind == "delivery":
+        return {
+            "id": f"q{index}_delivery",
+            "question": "How should matches be delivered? (in-app only today)",
+            "kind": "delivery",
+            "suggestions": list(_DELIVERY_SUGGESTIONS),
+        }
+    return {
+        "id": f"q{index}_other",
+        "question": "Can you clarify this detail?",
+        "kind": "other",
+        "suggestions": [],
+    }
+
+
+def build_clarification_questions(
+    kinds: list[ClarifyKind], *, limit: int = MAX_QUESTIONS_PER_ROUND
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for i, kind in enumerate(kinds[:limit]):
+        out.append(_question_for_kind(kind, i + 1))
+    return out
+
+
+def _apply_schedule_answer(spec: dict[str, Any], answer: str) -> None:
+    lower = (answer or "").strip().lower()
+    schedule = spec.setdefault("schedule", {})
+    if not isinstance(schedule, dict):
+        schedule = {}
+        spec["schedule"] = schedule
+    if re.search(r"\bdaily\b|\bevery\s+day\b", lower):
+        schedule["interval_minutes"] = 1440
+        return
+    if re.search(r"\bevery\s+hour\b|\bhourly\b", lower):
+        schedule["interval_minutes"] = 60
+        return
+    m_min = re.search(r"(\d+)\s*(?:minutes?|mins?)", lower)
+    if m_min:
+        schedule["interval_minutes"] = max(_INTERVAL_MIN, min(_INTERVAL_MAX, int(m_min.group(1))))
+        return
+    m_hr = re.search(r"(\d+)\s*(?:hours?|hrs?)", lower)
+    if m_hr:
+        schedule["interval_minutes"] = max(
+            _INTERVAL_MIN, min(_INTERVAL_MAX, int(m_hr.group(1)) * 60)
+        )
+
+
+def _apply_threshold_answer(spec: dict[str, Any], answer: str) -> None:
+    lower = (answer or "").strip().lower()
+    universe = spec.setdefault("universe", {})
+    if not isinstance(universe, dict):
+        universe = {}
+        spec["universe"] = universe
+    m_vol = re.search(r"(?:volume\s+above|above)\s*(\d[\d,]*)", lower)
+    if not m_vol:
+        m_vol = re.search(r"(\d[\d,]*)\s*(?:volume|vol)\b", lower)
+    if m_vol:
+        universe["minimum_volume"] = int(m_vol.group(1).replace(",", ""))
+    m_top = re.search(r"\btop\s+(\d+)\b", lower)
+    if m_top:
+        spec["limit"] = int(m_top.group(1))
+    # Bare number → treat as minimum volume when no other parse hit.
+    if not m_vol and not m_top:
+        m_bare = re.search(r"(\d[\d,]*)", lower)
+        if m_bare:
+            universe["minimum_volume"] = int(m_bare.group(1).replace(",", ""))
+
+
+def _apply_universe_answer(spec: dict[str, Any], answer: str) -> None:
+    lower = (answer or "").strip().lower()
+    universe = spec.setdefault("universe", {})
+    if not isinstance(universe, dict):
+        universe = {}
+        spec["universe"] = universe
+    cats: list[str] = list(universe.get("categories") or []) if isinstance(
+        universe.get("categories"), list
+    ) else []
+    for cat in ("nba", "sports", "election", "crypto"):
+        if re.search(rf"\b{re.escape(cat)}\b", lower) and cat not in cats:
+            cats.append(cat)
+    # "all" / empty keep categories as-is (best-effort may leave empty).
+    universe["categories"] = cats
+
+
+def _apply_delivery_answer(spec: dict[str, Any], answer: str) -> None:
+    """Always in-app; never enable email regardless of wording."""
+    del answer  # answers are advisory; delivery channel is flag-gated off
+    delivery = spec.setdefault("delivery", {})
+    if not isinstance(delivery, dict):
+        delivery = {}
+        spec["delivery"] = delivery
+    delivery["in_app"] = True
+    delivery["email"] = False
+
+
+def apply_clarification_answers(
+    spec: dict[str, Any],
+    questions: list[dict[str, Any]],
+    answers: list[dict[str, str]],
+) -> set[str]:
+    """Merge answers into spec. Returns the set of kinds that were answered."""
+    by_id = {str(q.get("id")): q for q in questions if isinstance(q, dict)}
+    answered: set[str] = set()
+    for item in answers:
+        if not isinstance(item, dict):
+            continue
+        qid = str(item.get("question_id") or "")
+        answer = str(item.get("answer") or "")
+        q = by_id.get(qid)
+        if q is None:
+            continue
+        kind = str(q.get("kind") or "other")
+        answered.add(kind)
+        if kind == "schedule":
+            _apply_schedule_answer(spec, answer)
+        elif kind == "threshold":
+            _apply_threshold_answer(spec, answer)
+        elif kind == "universe":
+            _apply_universe_answer(spec, answer)
+        elif kind == "delivery":
+            _apply_delivery_answer(spec, answer)
+    return answered
+
+
+def _new_draft_id() -> str:
+    import uuid
+
+    return str(uuid.uuid4())
+
+
+async def compile_scanner_conversational(
+    *,
+    prompt: str,
+    answers: list[dict[str, str]] | None = None,
+    draft_id: str | None = None,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Clarify-state compile: ready | needs_clarification (max 2 rounds, ≤3 Qs).
+
+    Clarification *decisions* are deterministic. The optional NIM planner may
+    still enrich the base spec via ``compile_scanner_flow``, but never silently
+    invents thresholds — gaps become questions instead.
+
+    Detection re-runs against ``prompt + accumulated answer text`` so a
+    non-resolving answer does not permanently silence a kind; the round cap
+    forces best-effort ready instead.
+    """
+    answers = list(answers or [])
+    draft: dict[str, Any] | None = None
+    if draft_id:
+        draft = _compile_drafts.get(draft_id)
+        if draft is None:
+            return {
+                "error": "draft_not_found",
+                "draft_id": draft_id,
+            }
+
+    if draft is None:
+        base = await compile_scanner_flow(prompt, settings)
+        draft = {
+            "draft_id": _new_draft_id(),
+            "prompt": prompt,
+            "spec": dict(base["spec"]),
+            "compiler": base["compiler"],
+            "round": 0,
+            "answer_texts": [],
+            "asked_kinds": [],
+            "pending_questions": [],
+            "status": "open",
+        }
+    else:
+        # Re-prompt with original prompt; ignore conflicting new prompt text.
+        prompt = str(draft.get("prompt") or prompt)
+
+    spec = dict(draft["spec"] or {})
+    answer_texts: list[str] = list(draft.get("answer_texts") or [])
+    asked_kinds: set[str] = {str(k) for k in (draft.get("asked_kinds") or [])}
+
+    if answers and draft.get("pending_questions"):
+        apply_clarification_answers(
+            spec, list(draft["pending_questions"]), answers
+        )
+        for item in answers:
+            if isinstance(item, dict) and item.get("answer"):
+                answer_texts.append(str(item["answer"]))
+        draft["pending_questions"] = []
+
+    draft["spec"] = spec
+    draft["answer_texts"] = answer_texts
+
+    # Re-detect from prompt + answers so unresolved gaps stay visible.
+    combined = prompt
+    if answer_texts:
+        combined = prompt + "\n" + "\n".join(answer_texts)
+    needs = detect_clarification_kinds(combined, spec)
+    # Prefer kinds not yet asked this session (avoid re-asking identical Qs
+    # within a round cycle); fall back to full needs if that filters all.
+    fresh = [k for k in needs if k not in asked_kinds]
+    ask_kinds = fresh if fresh else list(needs)
+    round_n = int(draft.get("round") or 0)
+
+    if ask_kinds and round_n < MAX_CLARIFY_ROUNDS:
+        questions = build_clarification_questions(ask_kinds)
+        for q in questions:
+            asked_kinds.add(str(q.get("kind")))
+        draft["asked_kinds"] = sorted(asked_kinds)
+        draft["pending_questions"] = questions
+        draft["round"] = round_n + 1
+        draft["status"] = "needs_clarification"
+        _save_compile_draft(draft)
+        return {
+            "status": "needs_clarification",
+            "draft_id": draft["draft_id"],
+            "spec_partial": spec,
+            "questions": questions,
+            "compiler": draft.get("compiler") or "deterministic",
+            "warnings": validate_spec(spec),
+        }
+
+    # Ready — either no gaps, or best-effort after max rounds.
+    warnings = validate_spec(spec)
+    if needs and round_n >= MAX_CLARIFY_ROUNDS:
+        warnings = list(warnings) + ["best-effort: clarification rounds exhausted"]
+    # Enforce honest delivery defaults on ready specs.
+    delivery = spec.setdefault("delivery", {})
+    if isinstance(delivery, dict):
+        delivery["in_app"] = True
+        delivery["email"] = False
+    draft["spec"] = spec
+    draft["status"] = "ready"
+    draft["pending_questions"] = []
+    _save_compile_draft(draft)
+    return {
+        "status": "ready",
+        "draft_id": draft["draft_id"],
+        "spec": spec,
+        "warnings": warnings,
+        "compiler": draft.get("compiler") or "deterministic",
+    }

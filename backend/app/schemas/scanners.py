@@ -8,14 +8,53 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class CompileAnswerIn(BaseModel):
+    question_id: str = Field(min_length=1, max_length=64)
+    answer: str = Field(min_length=0, max_length=500)
+
+
 class ScannerCompileRequest(BaseModel):
-    text: str = Field(min_length=0, max_length=4000)
+    """Loop 116 conversational compile. ``prompt`` is canonical; ``text`` is
+    kept as a backward-compatible alias for one-shot clients.
+    """
+
+    prompt: str | None = Field(default=None, max_length=4000)
+    text: str | None = Field(default=None, max_length=4000)
+    answers: list[CompileAnswerIn] | None = None
+    draft_id: str | None = Field(default=None, max_length=64)
+
+    def resolved_prompt(self) -> str:
+        if self.prompt is not None:
+            return self.prompt
+        if self.text is not None:
+            return self.text
+        return ""
+
+
+class ClarifyQuestionOut(BaseModel):
+    id: str
+    question: str
+    kind: Literal["schedule", "threshold", "universe", "delivery", "other"]
+    suggestions: list[str] = Field(default_factory=list)
 
 
 class ScannerCompileOut(BaseModel):
-    spec: dict[str, Any]
+    """Ready or needs_clarification. One-shot clients still read ``spec`` /
+    ``compiler`` / ``warnings`` when status is ready (and may see ``spec``
+    mirrored from ``spec_partial`` during clarification for soft back-compat).
+    """
+
+    status: Literal["ready", "needs_clarification"] = "ready"
+    draft_id: str | None = None
+    spec: dict[str, Any] | None = None
+    spec_partial: dict[str, Any] | None = None
+    questions: list[ClarifyQuestionOut] = Field(default_factory=list)
     compiler: Literal["deterministic", "llm-assisted"] = "deterministic"
     warnings: list[str] = Field(default_factory=list)
+
+
+class ScannerTestfireRequest(BaseModel):
+    draft_id: str = Field(min_length=1, max_length=64)
 
 
 class ScannerCreate(BaseModel):
@@ -49,6 +88,15 @@ class ScannerRunOut(BaseModel):
     # loop87 H3: healing visibility (API only — UI later).
     repairs_count: int = 0
     repairs: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ScannerTestfireOut(BaseModel):
+    """POST /scanners/compile/testfire — dry-run via real executor (is_test)."""
+
+    draft_id: str
+    run: ScannerRunOut
+    summary: dict[str, Any]
+    top_matches: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ScannerTestEmailOut(BaseModel):
