@@ -250,6 +250,8 @@ AUTH_CLASS: dict[tuple[str, str], str] = {
     ("post", "/api/v1/scanners/{scanner_id}/rollback"): "user",
     ("post", "/api/v1/scanners/{scanner_id}/run"): "user",
     ("get", "/api/v1/scanners/{scanner_id}/runs"): "public",
+    # loop116: run dashboard artifact (get_optional_user, same as /runs).
+    ("get", "/api/v1/scanners/{scanner_id}/runs/{run_id}/artifact"): "public",
     ("post", "/api/v1/scanners/{scanner_id}/test-email"): "user",
     ("post", "/api/v1/scanners/{scanner_id}/test-run"): "user",
     ("get", "/api/v1/screener"): "public",
@@ -483,8 +485,8 @@ def _no_network(monkeypatch):
 def test_auth_class_table_covers_snapshot_surface():
     """197 paths in the snapshot; every operation has an auth class."""
     snap = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert len(snap) == 209, f"expected 209 paths, got {len(snap)}"
-    assert len(_OPS) == 230, f"expected 230 ops, got {len(_OPS)}"
+    assert len(snap) == 210, f"expected 210 paths, got {len(snap)}"
+    assert len(_OPS) == 231, f"expected 231 ops, got {len(_OPS)}"
     counts: dict[str, int] = {}
     for _m, _p, auth in _OPS:
         counts[auth] = counts.get(auth, 0) + 1
@@ -492,7 +494,7 @@ def test_auth_class_table_covers_snapshot_surface():
     assert counts["user"] == 70
     assert counts["optional_user"] == 3
     assert counts["admin_metrics"] == 1
-    assert counts["public"] == 115
+    assert counts["public"] == 116
 
 
 # Soft-checked app defects (must still not be uncaught). Loop V27 cleared
