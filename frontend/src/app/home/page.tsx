@@ -167,7 +167,7 @@ function ModelStatus({ view }: { view: HomeView }) {
   const m = view.modelAb;
   return (
     <Panel
-      title="Model A/B readiness"
+      title="Forecast A/B readiness"
       action={
         <Link href="/eval" className="text-[11px] font-semibold text-accent hover:underline">
           Model eval →
@@ -281,7 +281,7 @@ export default function HomePage() {
               <Panel title="Digest">
                 <CardSkeleton lines={2} />
               </Panel>
-              <Panel title="Model A/B readiness">
+              <Panel title="Forecast A/B readiness">
                 <CardSkeleton lines={2} />
               </Panel>
             </div>

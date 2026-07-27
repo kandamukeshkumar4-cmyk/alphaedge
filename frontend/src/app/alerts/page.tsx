@@ -96,7 +96,7 @@ export default function AlertsPage() {
       <PageHeader
         kicker="Alerts"
         title="Signal alerts"
-        subtitle={`Model mispricings, unusual flow, screener and cross-venue signals grouped by market. ${scopeNote} Research only — notify only, never trades.`}
+        subtitle={`Forecast mispricings, unusual flow, screener and cross-venue signals grouped by market. ${scopeNote} Research only — notify only, never trades.`}
       />
 
       <AlertsDigest />
@@ -144,7 +144,7 @@ export default function AlertsPage() {
           body={
             scope === "watchlist"
               ? "None of the markets you track have fired an alert recently. Track more markets, or switch to All signals to see the public stream."
-              : "Alerts land here as the pipeline flags model mispricings, unusual flow, and screener hits. Track markets on your watchlist to scope them to what you care about."
+              : "Alerts land here as the pipeline flags forecast mispricings, unusual flow, and screener hits. Track markets on your watchlist to scope them to what you care about."
           }
         />
       ) : (

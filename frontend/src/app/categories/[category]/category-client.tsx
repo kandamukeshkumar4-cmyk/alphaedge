@@ -65,7 +65,7 @@ export default function CategoryDashboardClient() {
       <PageHeader
         kicker="Category intelligence"
         title={category || "Category"}
-        subtitle="A per-category read-only aggregate: how far the model sits from the market, where the biggest edges are, how active the signals are, and how the model has actually done on resolved markets in this category. Analysis only — this is NOT an order feed."
+        subtitle="A per-category read-only aggregate: how far the recorded forecast sits from the market, where the biggest edges are, how active the signals are, and how the recorded forecast has actually done on resolved markets in this category. Analysis only — this is NOT an order feed."
         actions={
           <Link
             href="/markets"

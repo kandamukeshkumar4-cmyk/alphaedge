@@ -73,11 +73,11 @@ function CompareColumn({ col }: { col: CompareColumnView }) {
 
           <div className="mt-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-2">
-              Model vs market
+              Forecast vs market
             </p>
             {col.edgeLabel || col.modelLabel ? (
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs font-bold">
-                {col.modelLabel ? <span className="text-text">model {col.modelLabel}</span> : null}
+                {col.modelLabel ? <span className="text-text">forecast {col.modelLabel}</span> : null}
                 {col.marketLabel ? <span className="text-muted">market {col.marketLabel}</span> : null}
                 {col.edgeLabel ? (
                   <span className={cn("font-black", EDGE_TONE[col.edgeTone])}>edge {col.edgeLabel}</span>

@@ -67,7 +67,7 @@ function ResolvedRowCard({ row }: { row: ResolvedRowView }) {
           resolved {row.outcome}
         </span>
         <span className="rounded-lg bg-surface-2 px-2.5 py-1.5 font-mono text-xs font-bold text-text">
-          model {row.modelLabel}
+          forecast {row.modelLabel}
         </span>
         <span className="rounded-lg bg-surface-2 px-2.5 py-1.5 font-mono text-xs font-bold text-muted">
           Brier {row.brierLabel}
@@ -129,7 +129,7 @@ export default function ResolvedPage() {
       <PageHeader
         kicker="Public track record"
         title="Resolved-market review"
-        subtitle="Every resolved market with the model's probability at close vs the REAL outcome, scored by a per-market Brier. Misses count as much as wins — nothing is curated. Read-only analysis; this is NOT an order feed."
+        subtitle="Every resolved market with the recorded probability at close (market-implied baseline) vs the REAL outcome, scored by a per-market Brier. Misses count as much as wins — nothing is curated. Read-only analysis; this is NOT an order feed."
         actions={
           <Link
             href="/track-record"
@@ -146,7 +146,7 @@ export default function ResolvedPage() {
           value={loaded ? <AnimatedNumber value={summaryView.n} format={intFmt} /> : "—"}
         />
         <StatTile
-          label="Model accuracy"
+          label="Baseline accuracy (market-implied)"
           value={
             loaded && summaryView.accuracy !== null ? (
               <AnimatedNumber value={summaryView.accuracy} format={pctFmt} />
@@ -157,7 +157,7 @@ export default function ResolvedPage() {
           accent
         />
         <StatTile
-          label="Mean Brier"
+          label="Mean Brier (market-implied)"
           value={
             loaded && summaryView.meanBrier !== null ? (
               <AnimatedNumber value={summaryView.meanBrier} format={brierFmt} />

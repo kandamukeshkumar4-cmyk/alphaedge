@@ -1,6 +1,6 @@
 "use client";
 
-// R02: "Why the model thinks this" — forecast drivers for one market from
+// R02: "Why the forecast reads this way" — forecast drivers for one market from
 // GET /api/v1/markets/{slug}/drivers (backend N02). For/against driver rows with
 // family labels + F04 citations, honest {found:false} / empty states. Rendered
 // inside the market-detail Intelligence panel. Analysis only — no order path.
@@ -45,7 +45,7 @@ export function ForecastDriversPanel({ slug }: { slug: string }) {
   if (!loaded) {
     return (
       <div className="mt-4">
-        <SectionTitle>Why the model thinks this</SectionTitle>
+        <SectionTitle>Why the forecast reads this way</SectionTitle>
         <div className="skeleton mt-2 h-24 w-full rounded-xl" aria-hidden />
       </div>
     );
@@ -54,7 +54,7 @@ export function ForecastDriversPanel({ slug }: { slug: string }) {
   if (!view || !view.found) {
     return (
       <div className="mt-4">
-        <SectionTitle>Why the model thinks this</SectionTitle>
+        <SectionTitle>Why the forecast reads this way</SectionTitle>
         <p className="mt-1.5 text-xs text-muted">
           {view === null || view.slug === ""
             ? "Drivers unreachable — the explanation needs the backend API."
@@ -65,9 +65,9 @@ export function ForecastDriversPanel({ slug }: { slug: string }) {
   }
 
   return (
-    <section className="mt-4" aria-label="Why the model thinks this">
+    <section className="mt-4" aria-label="Why the forecast reads this way">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionTitle>Why the model thinks this</SectionTitle>
+        <SectionTitle>Why the forecast reads this way</SectionTitle>
         {view.gapLabel ? (
           <span
             className={cn(
@@ -75,7 +75,7 @@ export function ForecastDriversPanel({ slug }: { slug: string }) {
               DIRECTION_TONE[view.gapTone],
             )}
           >
-            model {view.modelLabel} vs market {view.marketLabel} · {view.gapLabel}
+            forecast {view.modelLabel} vs market {view.marketLabel} · {view.gapLabel}
           </span>
         ) : null}
       </div>

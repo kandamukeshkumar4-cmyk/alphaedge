@@ -50,7 +50,7 @@ export type BacktestSummaryView = {
   caveat: string | null;
   brierLabel: string;
   marketBrierLabel: string;
-  /** "model beats market" | "market beats model" | null when incomparable. */
+  /** "baseline beats market" | "market beats baseline" | null when incomparable. */
   brierVerdict: string | null;
   roiLabel: string;
   roiTone: "up" | "down" | "neutral";
@@ -118,10 +118,10 @@ export function buildBacktestSummaryView(raw: BacktestSummary | null): BacktestS
   if (brier !== null && marketBrier !== null) {
     brierVerdict =
       brier < marketBrier
-        ? "model beats market"
+        ? "baseline beats market"
         : brier > marketBrier
-          ? "market beats model"
-          : "model ties market";
+          ? "market beats baseline"
+          : "baseline ties market";
   }
 
   const threshold = isFiniteNum(raw.thin_data_threshold) ? raw.thin_data_threshold : 30;

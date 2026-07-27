@@ -89,7 +89,7 @@ useEffect(() => {
   return (
     <PageShell width="medium">
       <PageHeader
-        kicker="Model proof"
+        kicker="Forecast track record"
         title="Proof dashboard"
         subtitle="Brier · calibration · backtest summary. Research only — paper trading, simulated funds."
       />
@@ -97,7 +97,7 @@ useEffect(() => {
       {/* ── Single-model eval aggregates ── */}
       {aggregates ? (
         <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatCard label="Mean Brier (7d)" value={aggregates.mean_brier?.toFixed(4) ?? "—"} />
+          <StatCard label="Mean Brier (7d) — market-baseline" value={aggregates.mean_brier?.toFixed(4) ?? "—"} />
           <StatCard
             label="Calibration error"
             value={aggregates.calibration_error?.toFixed(4) ?? "—"}
@@ -110,9 +110,14 @@ useEffect(() => {
         </p>
       )}
 
+      <p className="mt-3 text-xs leading-relaxed text-muted-2">
+        Current predictions mirror market prices (baseline). Model-generated forecasts appear here
+        once a trained artifact is activated.
+      </p>
+
       {/* ── U08 Ensemble vs single-model Brier comparison ── */}
       <section data-testid="ensemble-autolab-section" className="mt-10">
-        <h2 className="text-lg font-black text-text">Ensemble vs single-model (U08 AutoLab)</h2>
+        <h2 className="text-lg font-black text-text">Ensemble vs single-model (U08 AutoLab) — market-baseline</h2>
         <p className="mt-1 text-sm text-muted">
           Walk-forward Brier comparison — ensemble flag is{" "}
           {autolab?.ensemble_enabled ? (
@@ -157,7 +162,7 @@ useEffect(() => {
           <div data-testid="ensemble-measured" className="mt-4 space-y-4">
             <dl className="grid grid-cols-2 gap-3">
               <StatCard
-                label="Single-model Brier"
+                label="Single-model Brier (market-baseline)"
                 value={autolab!.baseline_brier?.toFixed(4) ?? "—"}
               />
               <div className="rounded-2xl border border-border bg-surface p-4">

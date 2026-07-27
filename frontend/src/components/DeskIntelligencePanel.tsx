@@ -109,11 +109,11 @@ export function DeskIntelligencePanel({ slug }: { slug: string }) {
 
       {/* Model-vs-market edge chip */}
       <div className="mt-3">
-        <SectionTitle>Model vs market</SectionTitle>
+        <SectionTitle>Forecast vs market</SectionTitle>
         {view.edge ? (
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <span className="rounded-lg bg-surface-2 px-2.5 py-1.5 font-mono text-sm font-black text-text">
-              model {view.edge.modelLabel}
+              forecast {view.edge.modelLabel}
             </span>
             {view.edge.edgeLabel ? (
               <span

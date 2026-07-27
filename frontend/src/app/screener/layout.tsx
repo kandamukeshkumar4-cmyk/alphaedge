@@ -9,7 +9,7 @@ import { pageMetadata } from "@/lib/site-metadata";
 export const metadata: Metadata = pageMetadata({
   title: "Screener",
   description:
-    "Dense sortable table of paper markets ranked by model edge. Read-only research — simulated funds only.",
+    "Dense sortable table of paper markets ranked by forecast edge (market-baseline). Read-only research — simulated funds only.",
   path: "/screener",
 });
 

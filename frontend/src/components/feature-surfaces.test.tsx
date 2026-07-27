@@ -140,7 +140,7 @@ describe("Brief evidence surface", () => {
   it("renders model-vs-market metrics derived from the brief citation", () => {
     const html = renderToStaticMarkup(React.createElement(BriefEvidencePanel, { brief: baseBrief }));
 
-    expect(html).toContain("Model vs market");
+    expect(html).toContain("Forecast vs market");
     expect(html).toContain("63.0%");
     expect(html).toContain("60.5%");
     expect(html).toContain("+2.5%");

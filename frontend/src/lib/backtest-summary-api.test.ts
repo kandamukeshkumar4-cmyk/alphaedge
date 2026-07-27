@@ -63,7 +63,7 @@ describe("buildBacktestSummaryView", () => {
     const view = buildBacktestSummaryView(BASE);
     expect(view.brierLabel).toBe("0.0900");
     expect(view.marketBrierLabel).toBe("0.2500");
-    expect(view.brierVerdict).toBe("model beats market");
+    expect(view.brierVerdict).toBe("baseline beats market");
   });
 
   it("is honest when the market Brier is unavailable (no implied prices)", () => {

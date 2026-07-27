@@ -2,7 +2,7 @@ import { ScreenerShell } from "@/components/screener/ScreenerShell";
 
 /**
  * Loop V85 (L2) — /screener page. Dense, sortable table of paper markets
- * ranked by model edge. Read-only research surface. Paper trading only.
+ * ranked by forecast edge (market-baseline). Read-only research surface. Paper trading only.
  */
 export default function ScreenerPage() {
   return (
