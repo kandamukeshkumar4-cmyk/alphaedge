@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { formatUSD, type Market } from "@/lib/mock-data";
 import { placePaperOrder } from "@/lib/orders-api";
 import { useAuth } from "@/hooks/useAuth";
-import { useMarketPrice } from "@/hooks/useMarketPrice";
+import { liveNo, liveYes, useMarketPrice } from "@/hooks/useMarketPrice";
 import { useToast } from "./ToastProvider";
 import { cn } from "@/lib/cn";
 
@@ -29,12 +29,8 @@ export function TradePanel({
   const staticYes = market.outcomes[0]?.price ?? 0.5;
   const price =
     outcome === "yes"
-      ? livePrice.connected && livePrice.yes > 0
-        ? livePrice.yes
-        : staticYes
-      : livePrice.connected && livePrice.no > 0
-        ? livePrice.no
-        : 1 - staticYes;
+      ? liveYes(livePrice) ?? staticYes
+      : liveNo(livePrice) ?? 1 - staticYes;
 
   const cost = useMemo(() => shares * price, [shares, price]);
 

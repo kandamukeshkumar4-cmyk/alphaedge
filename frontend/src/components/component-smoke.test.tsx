@@ -30,10 +30,12 @@ vi.mock("@/hooks/useAuth", () => ({
 vi.mock("@/hooks/useMarketPrice", () => ({
   useMarketPrice: () => ({
     connected: false,
-    yes: 0,
-    no: 0,
+    yes: null,
+    no: null,
     ts: null,
   }),
+  liveYes: () => null,
+  liveNo: () => null,
 }));
 
 vi.mock("@/components/ToastProvider", () => ({

@@ -7,12 +7,18 @@ import { cn } from "@/lib/cn";
 
 type MarketPrediction = {
   slug: string;
-  predicted_prob: number;
+  // Loop117: false when the market has no stored price and no logged forecast.
+  // The endpoint answers 200 with nulls instead of 404 — render the honest
+  // "no prediction" state, never a 0% model read.
+  available?: boolean;
+  predicted_prob: number | null;
   confidence: number;
-  edge: number;
+  edge: number | null;
   is_edge: boolean;
   reason: string;
   provisional: boolean;
+  market_implied?: number | null;
+  price_source?: string;
   paper_trading_only: boolean;
 };
 
@@ -59,8 +65,25 @@ export function PredictionWidget({ slug, className }: PredictionWidgetProps) {
     return null;
   }
 
+  const modelProb =
+    typeof prediction.predicted_prob === "number" &&
+    Number.isFinite(prediction.predicted_prob)
+      ? prediction.predicted_prob
+      : null;
+
+  if (prediction.available === false || modelProb === null) {
+    return (
+      <div
+        className={cn("rounded-2xl border border-border bg-bg/60 p-4", className)}
+      >
+        <h3 className="text-sm font-black text-text">Market prediction</h3>
+        <p className="mt-2 text-sm text-muted">No prediction available yet.</p>
+      </div>
+    );
+  }
+
   const confidencePct = Math.round(prediction.confidence * 100);
-  const modelPct = Math.round(prediction.predicted_prob * 100);
+  const modelPct = Math.round(modelProb * 100);
 
   return (
     <div

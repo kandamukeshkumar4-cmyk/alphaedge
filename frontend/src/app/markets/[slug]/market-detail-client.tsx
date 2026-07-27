@@ -25,7 +25,7 @@ import { WatchlistStar } from "@/components/WatchlistStar";
 import { OrderbookDepthChart } from "@/components/OrderbookDepthChart";
 import { ProbabilityHistoryChart } from "@/components/ProbabilityHistoryChartLazy";
 import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanelLazy";
-import { useMarketPrice } from "@/hooks/useMarketPrice";
+import { liveNo, liveYes, useMarketPrice } from "@/hooks/useMarketPrice";
 import { cn } from "@/lib/cn";
 import {
   fetchMarketDetail,
@@ -50,16 +50,24 @@ const PAPER_DISCLAIMER =
 export default function MarketDetailClient({
   slug,
   initialDetail = null,
+  initialMarket = null,
 }: {
   slug: string;
   initialDetail?: MarketDetailApi | null;
+  /** SSR-resolved live market so the first paint is never the demo catalog (D14). */
+  initialMarket?: Market | null;
 }) {
   const { openPanel } = useAtlasPanel();
-  const [apiMarket, setApiMarket] = useState<Market | null>(null);
+  const [apiMarket, setApiMarket] = useState<Market | null>(initialMarket);
   const [apiDetail, setApiDetail] = useState<MarketDetailApi | null>(initialDetail);
   const [loadedApi, setLoadedApi] = useState(false);
   const localMarket = getMarket(slug);
   const market = apiMarket ?? localMarket;
+  // Loop117 (D14): "demo" means the API gave us nothing for this slug — a
+  // seed-sourced market that the API DID serve is real paper-market data, so
+  // the "Connect the API" banner must not claim otherwise. The bundled-catalog
+  // panels below still take the wider `isDemoMarket` flag.
+  const apiUnavailable = !apiMarket && !apiDetail;
   const isDemoMarket = !apiMarket || market?.source === "seed";
   const forecastProvisional = apiDetail?.forecast?.provisional ?? true;
   const resolutionOutcome = apiDetail?.resolution_outcome ?? null;
@@ -131,7 +139,7 @@ export default function MarketDetailClient({
         outcome={isResolved ? displayOutcome : null}
         resolvedAt={apiDetail?.resolved_at}
       />
-      {isDemoMarket ? (
+      {apiUnavailable ? (
         <p className="mt-4 text-center text-xs text-muted-2">
           Showing demo market data. Connect the API to view live prices and paper-market activity.
         </p>
@@ -174,7 +182,7 @@ export default function MarketDetailClient({
                 mode: "analyze",
                 marketSlug: market.slug,
                 marketTitle: market.title,
-                seedPrompt: `Deep-dive ${market.title}. Current YES ~${Math.round((livePrice.connected && livePrice.yes > 0 ? livePrice.yes : market.outcomes[0]?.price ?? 0.5) * 100)}¢.`,
+                seedPrompt: `Deep-dive ${market.title}. Current YES ~${Math.round((liveYes(livePrice) ?? market.outcomes[0]?.price ?? 0.5) * 100)}¢.`,
               })
             }
             className="rounded-lg border border-primary/40 bg-primary-dim px-3 py-2 text-sm font-bold text-primary shadow-glow transition hover:bg-primary hover:text-bg"
@@ -219,10 +227,7 @@ export default function MarketDetailClient({
         {/* Left: chart, outcomes, book, AI, tabs */}
         <div className="min-w-0 space-y-5">
           {(() => {
-            const yes =
-              livePrice.connected && livePrice.yes > 0
-                ? livePrice.yes
-                : market.outcomes[0]?.price ?? 0.5;
+            const yes = liveYes(livePrice) ?? market.outcomes[0]?.price ?? 0.5;
             const chance = Math.round(yes * 100);
             const deltaPts = Math.round((yes - (market.forecast?.prob ?? yes)) * 100);
             return (
@@ -250,11 +255,7 @@ export default function MarketDetailClient({
             <PriceChart
               slug={market.slug}
               live={lifecycle === "live" && !isResolved}
-              endPrice={
-                livePrice.connected && livePrice.yes > 0
-                  ? livePrice.yes
-                  : market.outcomes[0].price
-              }
+              endPrice={liveYes(livePrice) ?? market.outcomes[0].price}
               modelProb={apiDetail?.forecast?.model_prob ?? market.forecast.prob}
               height={360}
             />
@@ -269,11 +270,11 @@ export default function MarketDetailClient({
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {market.outcomes.map((o) => {
               const displayPrice =
-                livePrice.connected && o.label === "YES"
-                  ? livePrice.yes
-                  : livePrice.connected && o.label === "NO"
-                    ? livePrice.no
-                    : o.price;
+                (o.label === "YES"
+                  ? liveYes(livePrice)
+                  : o.label === "NO"
+                    ? liveNo(livePrice)
+                    : null) ?? o.price;
 
               return (
                 <div
@@ -367,11 +368,7 @@ export default function MarketDetailClient({
                   : "open"
             }
             closeTime={market.endsAt}
-            initialYesPrice={
-              livePrice.connected && livePrice.yes > 0
-                ? livePrice.yes
-                : market.outcomes[0]?.price ?? 0.5
-            }
+            initialYesPrice={liveYes(livePrice) ?? market.outcomes[0]?.price ?? 0.5}
           />
         </div>
       </div>

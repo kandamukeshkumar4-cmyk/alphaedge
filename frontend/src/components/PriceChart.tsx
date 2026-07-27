@@ -39,6 +39,16 @@ const RANGES: { key: RangeKey; points: number; stepSec: number }[] = [
 
 type Mode = "area" | "candle";
 
+/** Loop117 (D1b): a price we cannot plot or format is null, never NaN. */
+function finiteOrNull(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** Honest dash for a price the API has not supplied. */
+function centsOrDash(value: number | null): string {
+  return value === null ? "—" : cents(value);
+}
+
 // Theme tokens: chart-colors resolves CSS vars off <html>; re-apply on .light.
 
 function applyChartTheme(
@@ -101,9 +111,11 @@ export function PriceChart({
   const [range, setRange] = useState<RangeKey>("1d");
   const [mode, setMode] = useState<Mode>("area");
   const [apiCandles, setApiCandles] = useState<Candle[] | null>(null);
-  const [last, setLast] = useState(endPrice);
+  const [last, setLast] = useState<number | null>(() => finiteOrNull(endPrice));
   const [hovered, setHovered] = useState<number | null>(null);
-  const [openPrice, setOpenPrice] = useState(endPrice);
+  const [openPrice, setOpenPrice] = useState<number | null>(() =>
+    finiteOrNull(endPrice),
+  );
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
 
   const livePrice = useMarketPrice(slug, live);
@@ -220,8 +232,19 @@ export function PriceChart({
 
   // Load data when range or API candles change.
   useEffect(() => {
-    const candles =
+    const raw =
       apiCandles ?? generateCandles(slug, cfg.points, endPrice, cfg.stepSec);
+    // Loop117 (D1b): lightweight-charts asserts on NaN/Infinity and the throw
+    // lands in this effect, taking the whole page down. Drop unusable candles
+    // rather than plot them.
+    const candles = raw.filter(
+      (c) =>
+        Number.isFinite(c.time) &&
+        Number.isFinite(c.open) &&
+        Number.isFinite(c.high) &&
+        Number.isFinite(c.low) &&
+        Number.isFinite(c.close),
+    );
     isApiModeRef.current = apiCandles !== null;
     dataRef.current = candles;
     const areaData = candles.map((c) => ({
@@ -244,8 +267,8 @@ export function PriceChart({
     candleRef.current?.setData(candleData);
     volRef.current?.setData(volData);
     chartRef.current?.timeScale().fitContent();
-    setOpenPrice(candles[0]?.close ?? endPrice);
-    setLast(candles[candles.length - 1]?.close ?? endPrice);
+    setOpenPrice(candles[0]?.close ?? finiteOrNull(endPrice));
+    setLast(candles[candles.length - 1]?.close ?? finiteOrNull(endPrice));
   }, [slug, cfg, endPrice, apiCandles]);
 
   // Toggle series visibility.
@@ -262,7 +285,7 @@ export function PriceChart({
       area.removePriceLine(modelLineRef.current);
       modelLineRef.current = null;
     }
-    if (typeof modelProb === "number") {
+    if (typeof modelProb === "number" && Number.isFinite(modelProb)) {
       modelLineRef.current = area.createPriceLine({
         price: modelProb,
         color: readLwcChartTheme().model,
@@ -275,9 +298,13 @@ export function PriceChart({
   }, [modelProb, range]);
 
   // Live ticks from WS hub when connected; fall back to no-op in seed mode.
+  // Loop117 (D1b/D19): a tick without a finite price must never reach
+  // lightweight-charts — `setData`/`update` assert on NaN, and that assertion
+  // throws inside this effect, which unmounts the entire market page.
   useEffect(() => {
     if (!livePrice.connected || livePrice.ts === null) return;
     const newClose = livePrice.yes;
+    if (newClose === null || !Number.isFinite(newClose)) return;
     const data = dataRef.current;
     if (data.length === 0) return;
     const lastCandle = data[data.length - 1];
@@ -305,10 +332,13 @@ export function PriceChart({
     return () => clearTimeout(flashTimer);
   }, [livePrice.yes, livePrice.ts, livePrice.connected]);
 
+  // Loop117 (D1b): render a dash when there is no price, never `NaN¢`.
   const shown = hovered ?? last;
-  const change = shown - openPrice;
-  const changePct = openPrice ? (change / openPrice) * 100 : 0;
-  const up = change >= 0;
+  const change =
+    shown !== null && openPrice !== null ? shown - openPrice : null;
+  const changePct =
+    change !== null && openPrice ? (change / openPrice) * 100 : null;
+  const up = (change ?? 0) >= 0;
 
   return (
     <div className="flex flex-col">
@@ -322,27 +352,33 @@ export function PriceChart({
                 flash === "down" && "animate-flash-red",
               )}
             >
-              {cents(shown)}
+              {centsOrDash(shown)}
             </span>
-            <span
-              className={cn(
-                "font-mono text-sm font-bold tabular",
-                up ? "text-primary" : "text-danger",
-              )}
-            >
-              {up ? "▲" : "▼"} {Math.abs(change * 100).toFixed(1)}¢ ({up ? "+" : ""}
-              {changePct.toFixed(1)}%)
-            </span>
+            {change !== null && changePct !== null ? (
+              <span
+                className={cn(
+                  "font-mono text-sm font-bold tabular",
+                  up ? "text-primary" : "text-danger",
+                )}
+              >
+                {up ? "▲" : "▼"} {Math.abs(change * 100).toFixed(1)}¢ ({up ? "+" : ""}
+                {changePct.toFixed(1)}%)
+              </span>
+            ) : (
+              <span className="font-mono text-sm font-bold tabular text-muted">
+                — no price change data
+              </span>
+            )}
           </div>
           <div className="mt-1 flex items-center gap-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm bg-accent" />
               {hovered !== null ? "hovered" : live ? "Market · live" : "Market · snapshot"}
             </span>
-            {typeof modelProb === "number" && (
+            {finiteOrNull(modelProb) !== null && (
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-sm bg-secondary" />
-                AI {cents(modelProb)}
+                AI {centsOrDash(finiteOrNull(modelProb))}
               </span>
             )}
           </div>
@@ -392,8 +428,10 @@ export function PriceChart({
         className="mt-3 w-full"
         style={{ height }}
         role="img"
-        aria-label={`Price history chart, currently ${cents(shown)}${
-          typeof modelProb === "number" ? `, AI estimate ${cents(modelProb)}` : ""
+        aria-label={`Price history chart, currently ${centsOrDash(shown)}${
+          finiteOrNull(modelProb) !== null
+            ? `, AI estimate ${centsOrDash(finiteOrNull(modelProb))}`
+            : ""
         }`}
       />
       <ChartAttribution className="mt-1 px-1" />
