@@ -143,3 +143,44 @@ D0 copy now frames every mapped surface as market-baseline / recorded forecast w
 `provenance_model_types == ["implied_passthrough"]`. When a trained artifact activates,
 relabel back (or make the qualifier provenance-conditional) — the residue list above is the
 starting inventory for that pass.
+
+---
+
+## useLiveMarket fix
+
+**Date:** 2026-07-27 (second micro-fix on this worktree, on top of the merged relabel commit)
+**Scope:** `frontend/src/hooks/useLiveMarket.ts` ONLY.
+
+Bug flagged by the detail-chain node: `ws.onmessage` parsed the frame as
+`{ yes?: number; ts?: number }` and guarded on `typeof d.yes !== "number"`, but the
+`/api/v1/ws/prices` frame is actually `{slug, yes_price, ts}` — so the guard rejected
+every tick and the hook silently dropped all WS updates instead of crashing.
+
+Fix mirrors the corrected `parsePriceFrame` pattern from
+`E:/polymarket-worktrees/loop117-detail/frontend/src/hooks/useMarketPrice.ts`
+(fixed in loop117-detail): accept `yes_price` (with `yes` as a legacy-publisher
+fallback), coerce to number, apply only when finite and within 0–1, otherwise drop
+the frame (publish nothing). `ts` is coerced with a `Date.now() / 1000` fallback,
+matching the file's existing convention. HTTP-poll path (`fetchLatestPrice`) untouched.
+
+### Verification (verbatim)
+
+```text
+$ cd frontend && npm run typecheck ; npx vitest run
+
+> alphaedge-frontend@0.1.0 typecheck
+> tsc --noEmit
+
+(exit 0)
+
+ RUN  v4.1.8 E:/polymarket-worktrees/loop117-relabel/frontend
+
+ Test Files  101 passed (101)
+      Tests  569 passed (569)
+   Start at  15:36:18
+   Duration  12.22s (transform 4.40s, setup 0ms, import 17.40s, tests 4.06s, environment 27ms)
+```
+
+Both gates green on first attempt. 0 failures.
+
+**AutoLab:** not applicable (no iterative measure)

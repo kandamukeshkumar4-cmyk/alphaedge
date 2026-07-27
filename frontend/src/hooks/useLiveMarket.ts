@@ -65,9 +65,24 @@ export function useLiveMarket(slug: string, enabled = true): LiveMarketTick {
 
       ws.onmessage = (ev) => {
         try {
-          const d = JSON.parse(ev.data) as { yes?: number; ts?: number; keepalive?: boolean };
-          if (d.keepalive || typeof d.yes !== "number") return;
-          applyTick(d.yes, d.ts ?? Date.now() / 1000, true);
+          // The `/api/v1/ws/prices` frame is `{slug, yes_price, ts}` — this
+          // handler used to read `d.yes`, which the guard then rejected, so
+          // every tick was silently dropped. Mirrors parsePriceFrame in
+          // useMarketPrice.ts: only a finite 0..1 number is ever applied;
+          // anything else is dropped (published as "no new tick").
+          const d = JSON.parse(ev.data) as {
+            yes_price?: unknown;
+            yes?: unknown;
+            ts?: unknown;
+            keepalive?: boolean;
+          };
+          if (d.keepalive) return;
+          // `yes_price` is the wire field; `yes` is accepted for any legacy publisher.
+          const value = d.yes_price ?? d.yes;
+          const yes = typeof value === "number" ? value : Number(value);
+          if (!Number.isFinite(yes) || yes < 0 || yes > 1) return;
+          const ts = Number(d.ts);
+          applyTick(yes, Number.isFinite(ts) ? ts : Date.now() / 1000, true);
         } catch {
           /* ignore */
         }
