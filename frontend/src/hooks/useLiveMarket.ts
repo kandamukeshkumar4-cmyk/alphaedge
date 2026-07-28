@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchLatestPrice } from "@/lib/alphaedge-api";
 import { wsBase } from "@/lib/live-price";
+import { parsePriceFrame } from "./useMarketPrice";
 
 export type LiveMarketTick = {
   yes: number;
@@ -14,6 +15,20 @@ export type LiveMarketTick = {
 
 const RECONNECT_DELAY_MS = 2000;
 const POLL_MS = 1000;
+
+/**
+ * Raw socket payload → validated tick, or null for keepalives, malformed
+ * JSON, and frames without a finite 0..1 price. All field handling
+ * (`yes_price` wire field, legacy `yes`, ts default) lives in the shared
+ * parsePriceFrame from useMarketPrice.
+ */
+export function parseSocketMessage(data: unknown): ReturnType<typeof parsePriceFrame> {
+  try {
+    return parsePriceFrame(JSON.parse(String(data)));
+  } catch {
+    return null;
+  }
+}
 
 /** WebSocket ticks plus fast HTTP poll so the hero feels live like Kalshi. */
 export function useLiveMarket(slug: string, enabled = true): LiveMarketTick {
@@ -64,28 +79,9 @@ export function useLiveMarket(slug: string, enabled = true): LiveMarketTick {
       ws.onopen = () => setState((s) => ({ ...s, connected: true }));
 
       ws.onmessage = (ev) => {
-        try {
-          // The `/api/v1/ws/prices` frame is `{slug, yes_price, ts}` — this
-          // handler used to read `d.yes`, which the guard then rejected, so
-          // every tick was silently dropped. Mirrors parsePriceFrame in
-          // useMarketPrice.ts: only a finite 0..1 number is ever applied;
-          // anything else is dropped (published as "no new tick").
-          const d = JSON.parse(ev.data) as {
-            yes_price?: unknown;
-            yes?: unknown;
-            ts?: unknown;
-            keepalive?: boolean;
-          };
-          if (d.keepalive) return;
-          // `yes_price` is the wire field; `yes` is accepted for any legacy publisher.
-          const value = d.yes_price ?? d.yes;
-          const yes = typeof value === "number" ? value : Number(value);
-          if (!Number.isFinite(yes) || yes < 0 || yes > 1) return;
-          const ts = Number(d.ts);
-          applyTick(yes, Number.isFinite(ts) ? ts : Date.now() / 1000, true);
-        } catch {
-          /* ignore */
-        }
+        const tick = parseSocketMessage(ev.data);
+        if (!tick) return;
+        applyTick(tick.yes, tick.ts, true);
       };
 
       ws.onclose = () => {
