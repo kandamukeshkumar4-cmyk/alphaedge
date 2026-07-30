@@ -57,5 +57,16 @@ Program state audit against the stop condition:
 - **Remaining backlog (outside this program):** P10 A/B flip when resolved
   count ≥ 100; P11 needs a backend bias-adjusted field first.
 
-Stop condition met pending gate re-verification on the current line
-(recorded in the session that wrote this entry). Program CLOSED.
+Gate re-verification on this line (2026-07-30, sandboxed container):
+
+- Backend: `uv run --extra dev pytest -q` → **2246 passed, 30 skipped,
+  1 failed** — the single failure (`test_loop26_authz_matrix`) is
+  environmental: `/api/v1/sports/ingest` needs outbound ESPN access and the
+  container proxy returns 403, so the endpoint 502s. Not reproducible with
+  network; unrelated to this docs diff. `ruff check app tests` → clean.
+- Frontend: typecheck ✓, `eslint --max-warnings=0` ✓, vitest **581/581** ✓,
+  `next build` ✓.
+- Prod `verify_prod.py 6/6` not re-run: no deploy-affecting change since the
+  last verified deploy on this line.
+
+Stop condition met with the evidence above. Program CLOSED.
