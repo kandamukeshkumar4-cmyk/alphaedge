@@ -1,6 +1,9 @@
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
+// Statically generated (default Node runtime): `runtime = "edge"` is
+// incompatible with the `output: export` Azure SWA build, which requires
+// every metadata route to be force-static.
+export const dynamic = "force-static";
 export const alt = "AlphaEdge — paper-trading prediction markets";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
