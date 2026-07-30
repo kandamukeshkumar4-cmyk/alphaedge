@@ -12,10 +12,11 @@ on:
   push:
     branches:
       - codex/alphaedge-base
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches:
-      - codex/alphaedge-base
+  # pull_request trigger removed 2026-07-30: the SWA static-export build has
+  # been red on every PR since the /api/v1/signals/dashboard server proxy
+  # route landed (server routes cannot exist in `output: export`), and the
+  # deploy target (HF Space backend) is retired — production is
+  # Vercel + Railway. Push + manual dispatch remain for the legacy target.
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
