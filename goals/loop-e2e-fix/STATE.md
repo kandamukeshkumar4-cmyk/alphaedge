@@ -46,6 +46,13 @@ these surfaces). The failures predate the PR and came out of frontend waves
 PAPER_TRADING_ONLY untouched; no order-path changes; no fabricated data;
 scope = frontend specs/components implicated by E1–E5 only.
 
+## OUTCOME (2026-07-30)
+
+CI on `3b2fe76`: Backend ✓, Frontend ✓, **Local-stack Playwright ✓** — all
+10 pre-existing failures repaired across 3 iterations. AutoLab:
+baseline=10 failed e2e tests on base | benchmark=CI Playwright failure
+count | iterations=3 (10 → 6 → 6 → 0) | budget=3/3 | outcome=improved.
+
 ## LOOP LOG
 
 | iter | date | ticket | result | proof |
