@@ -17,6 +17,9 @@ test.describe("Coach marks first-visit", () => {
     await page.addInitScript(() => {
       try {
         localStorage.setItem("alphaedge.onboarded", "true");
+        // Loop 104 added the OnboardingTour (z-100) gated on this key; without
+        // it the tour covers the coach marks (z-40) and the test times out.
+        localStorage.setItem("ae_onboarded_v1", "true");
         localStorage.removeItem("alphaedge.coachmarks.v1");
       } catch {
         /* ignore */

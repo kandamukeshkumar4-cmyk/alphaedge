@@ -50,7 +50,6 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 export default function EvalDashboard() {
   const [aggregates, setAggregates] = useState<EvalAggregates | null>(null);
   const [autolab, setAutolab] = useState<AutoLabMeasurement | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
 
 useEffect(() => {
     if (!API) return;
@@ -78,7 +77,7 @@ useEffect(() => {
         return r.json();
       })
       .then((data) => setAutolab(data as AutoLabMeasurement))
-      .catch(() => setUnavailable(true));
+      .catch(() => setAutolab(notRun));
   }, []);
 
   const ensembleBetter =
@@ -128,19 +127,9 @@ useEffect(() => {
           . Flag only turns ON when ensemble Brier is measurably lower than baseline.
         </p>
 
-        {autolab === null && !unavailable ? (
+        {autolab === null ? (
           <p className="mt-4 text-sm text-muted-2">Loading…</p>
-        ) : unavailable ? (
-          <div
-            data-testid="ensemble-unavailable"
-            className="mt-4 rounded-2xl border border-muted/30 bg-muted/10 p-4"
-          >
-            <p className="text-sm font-medium text-text">
-              Ensemble AutoLab: not yet measured. This section will populate when
-              the ensemble evaluation pipeline ships.
-            </p>
-          </div>
-        ) : autolab && (autolab.outcome === "not_run" || autolab.outcome === "insufficient_data") ? (
+        ) : autolab.outcome === "not_run" || autolab.outcome === "insufficient_data" ? (
           /* Honest "not yet measured" state — never fabricate bars */
           <div
             data-testid="ensemble-not-measured"

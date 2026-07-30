@@ -83,36 +83,7 @@ test.describe("Loop 98 marketplace maturity", () => {
     assertNoConsoleErrors(errors, "/scanners rating");
   });
 
-  test("/library shows Trending + Featured above tabs", async ({ page }) => {
-    const errors = collectConsoleErrors(page);
-    await page.goto("/library", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await clearOnboarding(page);
-
-    await expect(page.getByTestId("library-hub")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("marketplace-spotlight")).toBeVisible({
-      timeout: 20_000,
-    });
-
-    // Rows hydrate from mock catalogs (or show empty with reserved height).
-    const trending = page.getByTestId("marketplace-trending-row");
-    const trendingEmpty = page.getByTestId("marketplace-trending-empty");
-    await expect(trending.or(trendingEmpty)).toBeVisible({ timeout: 20_000 });
-
-    const featured = page.getByTestId("marketplace-featured-row");
-    const featuredEmpty = page.getByTestId("marketplace-featured-empty");
-    await expect(featured.or(featuredEmpty)).toBeVisible({ timeout: 20_000 });
-
-    // Tabs still present below spotlight.
-    await expect(page.getByTestId("library-tab-all")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Trending" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
-
-    if (await trending.isVisible()) {
-      await expect(
-        page.locator('[data-testid="marketplace-trending-row"] [data-testid="star-rating"]').first(),
-      ).toBeVisible();
-    }
-
-    assertNoConsoleErrors(errors, "/library spotlight");
-  });
+  // "/library shows Trending + Featured above tabs" was removed 2026-07-30:
+  // Loop 104 intentionally refactored /library from the marketplace-spotlight
+  // view into the research archive (see library.spec.ts for its coverage).
 });

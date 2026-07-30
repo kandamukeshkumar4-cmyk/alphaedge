@@ -1,97 +1,89 @@
-# Explorer notes — project completion vs original architecture
+# Explorer notes — admin-eval.spec.ts test timeout/locator not found (line ~67)
 
-## Files to change
-- None for this audit (read-only). **Doc hygiene only if desired:** `goals/loop-x-mirror-mvp.md` frontmatter `status: QUEUED` vs `goals/README.md` ✅ DONE; `goals/phase-fifa-wc2026.md` `status: ACTIVE` vs README ✅ DONE; `docs/project/QUANT_ROADMAP.md` header still `Status: plan`.
+## Summary
+All test selectors exist in current code. Test was hardened in loop28 (commit 165ee66) for React hydration; recent changes (loop117) only modified label text. Failure likely due to async API data loading timeouts rather than selector drift.
 
-## Tests to run
-- `cd backend && uv run --extra dev pytest -q` — **434 passed, 4 skipped** (verified 2026-06-12, ~7.5 min)
-- `cd backend && uv run --extra dev ruff check app tests`
-- `cd frontend && npm run lint && npm run typecheck && npm run build`
-- `cd extension && npm test && npm run typecheck && npm run build`
-- CI: `.github/workflows/ci.yml` (backend + frontend + extension on push/PR)
+## Files affected
+- **Test:** `frontend/e2e/admin-eval.spec.ts` line 67 — test entry point; lines 38–180 define selectors
+- **Admin layout:** `frontend/src/app/admin/layout.tsx` lines 28–71 — key input form (conditionally shown based on needsPrompt state)
+- **Stats card:** `frontend/src/components/admin/AdminStatsCard.tsx` lines 34–71 — heading always visible; stats table only if data loaded
+- **Markets table:** `frontend/src/components/admin/AdminMarketsTable.tsx` lines 94–187 — id="markets" section; heading "Markets" at line 96
+- **Eval page:** `frontend/src/app/eval/page.tsx` lines 90–203 — PageHeader renders "Proof dashboard" as h1
+- **Drift panel:** `frontend/src/components/DriftSeriesPanel.tsx` lines 28–108 — data-testid="drift-series-panel"; heading at line 32
 
-## Original plan sources (summary)
-| Source | Scope |
-|---|---|
-| `README.md` L109–121 | Week 1–5 architecture: CLOB→Backtest→XGBoost→Eval→Risk→Agents; deploy Week 5 |
-| `AGENTS.md` L20–26 | Execution Gates Week 1–5 (canonical verification claims) |
-| `docs/project/QUANT_ROADMAP.md` | Quant phases 0–6 + optional Phase 5 MM; CLV gate; authored 2026-06-04 |
-| `goals/README.md` | Execution queue — **all rows ✅ DONE except Phase 5 🅿️ DEFERRED**; no ACTIVE goal |
-| `docs/superpowers/plans/2026-05-29-alphaedge-week1-base.md` | Week 1 base plan (historical) |
-| `docs/project/CURSOR_2_5_TASKS.md` | Week 1 gate first; later weeks scaffold until proven |
+## All selectors verified present
+✓ Line 38–39: "Admin API Key" heading — layout.tsx:30 (h1 element)
+✓ Line 41: "#admin-api-key" input — layout.tsx:40
+✓ Line 54: "Save Key" button — layout.tsx:52–53
+✓ Line 58: "Change API key" button — layout.tsx:68 (shown after needsPrompt=false)
+✓ Line 101: "System stats" heading — AdminStatsCard.tsx:36 (h2 element)
+✓ Line 103–107: "Users" / "Open markets" / "Trades · 24h" text labels — AdminStatsCard.tsx:53–55 (Stat components)
+✓ Line 109: "#stats" section element — AdminStatsCard.tsx:34
+✓ Line 118: "#markets" section element — AdminMarketsTable.tsx:94
+✓ Line 120: "Markets" heading in #markets section — AdminMarketsTable.tsx:96 (h2 element)
+✓ Line 147: "Proof dashboard" title — PageHeader component renders as h1 (eval/page.tsx:93)
+✓ Line 150: "drift-series-panel" testid — DriftSeriesPanel.tsx:28
+✓ Line 153: "Calibration drift history" heading — DriftSeriesPanel.tsx:32 (h2 element)
+✓ Line 157–160: Regex text match — all four patterns verified:
+  - "No drift snapshots yet" — DriftSeriesPanel.tsx:52
+  - "Drift data is unavailable right now" — DriftSeriesPanel.tsx:50
+  - "Latest Brier" — DriftSeriesPanel.tsx:68 (MetricTile label)
+  - "Latest snapshot is..." — DriftSeriesPanel.tsx:62–64 (status message with degraded/guardrail check)
+✓ Line 163: "ensemble-autolab-section" testid — eval/page.tsx:119 (section)
+✓ Line 166: "ensemble-not-measured" testid — eval/page.tsx:146 (div)
+✓ Line 167: "ensemble-measured" testid — eval/page.tsx:162 (div)
 
-## DONE vs remaining (by pillar)
-| Pillar | Status | Evidence |
-|---|---|---|
-| **Backend CLOB/ledger** | DONE (Week 1) | `order_book.py`, `ledger_service.py`, `test_orderbook_lakers_celtics.py`, `test_orderbook_engine.py` |
-| **Workers/fixtures/ML** | DONE (Week 2+) | `workers/`, `ml/features.py`, `trainer.py`, `test_backtest_smoke.py`, `test_worker_snapshot_capture.py` |
-| **Eval/Brier/calibration/risk** | DONE (Week 3) | `eval/`, `api/v1/calibration.py`, `test_eval_service.py`, `test_risk.py`, `test_calibration.py` |
-| **Agents/LangGraph** | DONE (Week 4) | `agents/graph.py` calls `predict_market` (no `+0.03` stub); `test_agents.py`, `admin/proof` page |
-| **Deploy/CI** | DONE (Week 5) | `ci.yml`, Railway/Koyeb/HF/Azure workflows, `test_deploy_config.py`, live HF API in README |
-| **Quant Phase 0–4, 6** | DONE | connectors, signals, smart_money, predictor+CLV gate, `llm/`, overlay/dashboard per goals |
-| **FIFA WC2026 track** | DONE (per README) | `data/fifa/`, `test_fifa_*`, `test_wc2026_*` |
-| **Loops X/Y (Mirror, sell/close)** | DONE (per README) | `test_mirror_*`, `test_position_close.py`, `frontend/src/app/mirror/page.tsx` |
-| **Phase 5 market making** | DEFERRED | `goals/README.md` only; no implementation |
-| **Election markets** | Partial | Catalog seeds in `market_service.py`; no election forecast engine like NBA/FIFA |
+## Root cause analysis
+**Code structure is correct; issue is async data loading timeout.**
 
-## Risks
-- `PAPER_TRADING_ONLY=true` enforced (`test_config.py`); order path `RiskService → OrderIntent → OrderBookService` (`test_order_api_risk_gate.py`, `test_agents.py`).
-- CLV gate is test/fixture-proven; **live OOS edge vs real closing lines unverified** in docs.
-- Goal frontmatter stale vs `goals/README.md` — treat README table as canonical queue state.
-- FanDuel explicitly deferred per Loop X gate.
+1. **Admin key entry flow** (test lines 32–60):
+   - Form shown when `needsPrompt === true` (layout.tsx:28–56)
+   - Submit handler sets `setApiKey()` and `setNeedsPrompt(false)` (layout.tsx:18–19)
+   - "Change API key" button appears when `needsPrompt === false` (layout.tsx:58–70)
+   - ✓ Already hardened for React hydration (loop28 commit 165ee66): uses pressSequentially + waitForFunction to verify input.value before clicking Save
+
+2. **Stats loading** (test lines 99–115):
+   - Heading renders immediately when AdminStatsCard mounts (always visible)
+   - Stats table only renders if `stats !== null` (AdminStatsCard.tsx:51–64)
+   - Data fetched via `fetchAdminStats(apiKey)` on mount (useEffect line 29–31)
+   - **Failure point:** If `/api/v1/admin/stats` does not respond within timeout, stats table never appears
+
+3. **Markets loading** (test lines 117–133):
+   - Table section renders immediately (AdminMarketsTable.tsx:94)
+   - Row iteration only if `displayed.length > 0` (line 146–173)
+   - Data fetched via `fetchAdminMarkets(apiKey)` on mount (useEffect line 54–56)
+   - **Failure point:** If `/api/v1/admin/markets?limit=200` does not respond, no rows appear; test fails finding market row with CANONICAL_SLUG
+
+4. **Drift panel loading** (test lines 150–160):
+   - Section renders immediately; heading always visible (DriftSeriesPanel.tsx:28–32)
+   - Data fetched via `fetchDriftSeries()` on mount (useEffect line 17–19); fails gracefully if unavailable (line 49–54)
+   - **Failure point:** Timeout waiting for data or text to match regex
+
+5. **Recent label-only changes** (loop117 commit 857112a):
+   - Changed eval/page.tsx:100 "Mean Brier (7d)" → "Mean Brier (7d) — market-baseline"
+   - Changed eval/page.tsx:120 ensemble heading to add "— market-baseline"
+   - Changed eval/page.tsx:165 "Single-model Brier" → "Single-model Brier (market-baseline)"
+   - **No structural/selector changes**
+
+## Most likely failure point (in order)
+1. **Line 100–115:** Timeout waiting for stats section after admin key saved
+   - Check: Is `/api/v1/admin/stats` returning data in local-stack?
+   - Check: Is NEXT_PUBLIC_API_URL set correctly?
+2. **Line 123–133:** Timeout waiting for markets table rows or canonical market row
+   - Check: Is `/api/v1/admin/markets` endpoint responding?
+   - Check: Is CANONICAL_SLUG ("nba-2025-01-15-lal-bos") present in market list?
+3. **Line 150–160:** Timeout waiting for drift panel text
+   - Check: Is `/api/v1/eval/drift` responding (or 404 gracefully)?
+   - Check: Is `/api/v1/ensemble/autolab` responding (or 404 gracefully)?
 
 ## Do not touch
-- Order path guardrails, `PAPER_TRADING_ONLY` enforcement, CLV hide-non-edge behavior.
-- Optional Phase 5 market-making (explicitly deferred until opt-in).
+- `frontend/src/app/admin/page.tsx` — component structure unchanged since creation
+- `frontend/e2e/helpers/session.ts` — skipOnboarding + dismissOnboardingIfPresent already correct (loop72 C2 hygiene update)
+- `frontend/src/components/ui/kit.tsx` — PageHeader structure verified correct
 
-## Verdict
-**~92–95% of mandatory planned scope complete.** Original Week 1–5 architecture and Quant phases 0–4/6 (+ FIFA, Mirror loops) are implemented with broad test coverage. **Only optional Phase 5 (market making) remains explicitly out of scope.** Honest uncertainty: production CLV edge on live data, election forecasting depth, and doc/goal-status drift. **No ACTIVE goal in queue** — project is in maintenance/iteration mode (e.g. `calibration-autolab.yml`), not greenfield build.
+## Risks
+No guardrails apply (no PAPER_TRADING_ONLY, no order path, no CLV gate involved in test).
+Test is read-only fixture; no code changes required if root cause is API unavailability.
 
-## PolyScout build loop (2026-07-02)
-Spec: `docs/project/BUILD_LOOP_BACKEND.md` · State: `goals/build-loop/STATE.md`
-
-| Area | Status |
-|---|---|
-| T01 Kalshi WS stream | In progress (`CLAIMED-OPUS`) — `app/data/streams/{base,kalshi_ws,runner}.py`, `persist_and_publish_tick` shared with poller |
-| C3 Prometheus `/metrics` | DONE — `prometheus-client` counters (stream events, briefs, claims, WS clients) |
-| C4 WS fixture recorder | DONE — `scripts/record_ws_fixtures.py` → JSONL for offline parser tests |
-| T02–T12 | QUEUED |
-
-Targeted gate (stream + metrics chores): **35 passed** (2026-07-02 Cursor). Full `pytest -q` still slow/hangs ~30% — bisect pending.
-
----
-
-## PolyScout backend build loop — COMPLETE (2026-07-02, Opus builder + Cursor verifier)
-
-All 14 T-tickets DONE (Cursor-verified). Final gate: **669 passed, 5 skipped, ruff
-clean, single alembic head 027** (chain 022→027). Baseline 434 → 669 (+235 tests).
-
-Delivered (the AI research desk, "PolyScout"):
-- **T01/T02** Kalshi + Polymarket CLOB WebSocket streams → shared tick path.
-- **T03** snapshot diff engine (price/orderbook/volume DeltaEvents).
-- **T04** alignment scorer — ≥3-of-4 layers agree → `analyst.trigger`.
-- **T05** whale tracker (data-api qualification + position-diff whale_delta).
-- **T06** news→price lag detector (unpriced-headline signal).
-- **T07** analyst agent — LangGraph, cited briefs + deterministic falsifiable claims,
-  runs with NO LLM key (fallback).
-- **T08** eval harness — no-lookahead claim grading + public track record (accuracy/
-  Brier by category/version, provisional<30) + citation audit. The hire-signal.
-- **T09** alert dispatch (WS/Telegram/webhook, OFF by default).
-- **T10** scheduled research loop (daily digest, idempotent).
-- **T11** LightGBM registry + SHAP-or-fallback explanations (honest AutoLab: infra
-  ready, A/B deferred — libs uninstallable here).
-- **T12** public API — `/briefs`, `/analyst/track-record`, `/markets/{slug}/latency`
-  (the UI-loop contract).
-- **T13** instability signal (clean-room, AGPL-free; flag-gated).
-- **T14** daily brief distribution (MIT-attributed).
-
-Guardrails intact: `PAPER_TRADING_ONLY` enforced; no new module touches the order
-path (RiskService→OrderIntent→OrderBookService); no keys committed; license
-compliance (clean-room AGPL, MIT attribution) verified.
-
-Chores: C3–C5 DONE; **C1/C2 DEFERRED** (Opus sign-off — PaperOrder/PaperSignal are
-active, tested, guardrail-critical models with 42/28 refs; consolidation is risk
-without benefit).
-
-**UI is OUT OF SCOPE** — a separate `BUILD_LOOP_UI.md` consumes the T12 API contract.
-State spine: `goals/build-loop/STATE.md`.
+## Next step recommendation
+Root issue is **timeout, not selector drift**. Run failing test with network tracing / verbose logs to identify exact which selector + timeout fails first. Verify local-stack API responses within test timeouts. If APIs are responding correctly but test still times out, issue may be React state/hydration (already mitigated but not fully eliminated by loop28 fix) — in that case, add waitForFunction assertions after setApiKey state changes.

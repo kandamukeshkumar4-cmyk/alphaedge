@@ -179,7 +179,9 @@ export function NotificationCenter() {
           {/* Reserved height: skeletons/empty states hold the panel steady. */}
           <div className="min-h-[196px]">
             {loading ? (
-              <ul aria-hidden="true" className="divide-y divide-border/60">
+              <div data-testid="notifications-loading" role="status">
+                <p className="sr-only">Loading notifications…</p>
+                <ul aria-hidden="true" className="divide-y divide-border/60">
                 {[0, 1, 2].map((row) => (
                   <li key={row} className="flex items-start gap-3 px-4 py-3">
                     <span className="h-8 w-8 shrink-0 animate-pulse rounded-lg bg-surface-3 motion-reduce:animate-none" />
@@ -189,7 +191,8 @@ export function NotificationCenter() {
                     </span>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </div>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center gap-1 px-4 py-10 text-center">
                 <span aria-hidden="true" className="text-xl">🔔</span>
