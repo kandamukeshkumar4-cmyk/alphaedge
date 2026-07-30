@@ -430,9 +430,9 @@ function v90UnreadCount(items: NotificationV90[]): number {
 
 /**
  * List notifications (contract: GET /api/v1/notifications?limit=30).
- * Live-first; falls back to the seeded PAPER mock whenever the live API is
- * absent, errors, or returns an empty/invalid page — the UI stays verifiable
- * while node E-A lands. Never rejects.
+ * Live-first; falls back to the seeded PAPER mock only when the live API is
+ * absent, errors, or returns a malformed page. A valid empty live page is an
+ * honest empty, never replaced with mock items. Never rejects.
  */
 export async function list(
   token: string | null = null,
@@ -447,11 +447,13 @@ export async function list(
   );
   if (response && response.ok) {
     const rec = asV90Record(await readJsonTolerant(response));
-    const rawItems = Array.isArray(rec.items) ? rec.items : [];
-    const items = rawItems
-      .map(normalizeNotificationV90)
-      .filter((item): item is NotificationV90 => item !== null);
-    if (items.length > 0) {
+    // A valid live page — including an EMPTY one — is authoritative. Swapping
+    // an honest "no notifications" for seeded mock items would fabricate data;
+    // the mock fallback is only for an absent/error/malformed live API.
+    if (Array.isArray(rec.items)) {
+      const items = rec.items
+        .map(normalizeNotificationV90)
+        .filter((item): item is NotificationV90 => item !== null);
       const unread = typeof rec.unread === "number" ? rec.unread : v90UnreadCount(items);
       return { items, unread, source: "live" };
     }
