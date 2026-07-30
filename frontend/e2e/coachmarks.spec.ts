@@ -20,7 +20,13 @@ test.describe("Coach marks first-visit", () => {
         // Loop 104 added the OnboardingTour (z-100) gated on this key; without
         // it the tour covers the coach marks (z-40) and the test times out.
         localStorage.setItem("ae_onboarded_v1", "true");
-        localStorage.removeItem("alphaedge.coachmarks.v1");
+        // Init scripts rerun on EVERY navigation (including the reload at the
+        // end of this test) — clear the seen-flag only on the first load, or
+        // the dismissal can never persist across the reload assertion.
+        if (!sessionStorage.getItem("e2e.coachmarks.seeded")) {
+          sessionStorage.setItem("e2e.coachmarks.seeded", "true");
+          localStorage.removeItem("alphaedge.coachmarks.v1");
+        }
       } catch {
         /* ignore */
       }

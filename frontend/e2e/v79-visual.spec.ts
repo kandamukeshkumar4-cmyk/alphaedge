@@ -5,6 +5,9 @@ import { dismissOnboardingIfPresent, skipOnboarding } from "./helpers/session";
 test.describe("A7 visual", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
+    // Shots capture the seeded MOCK terminal session — force the offline
+    // mock path (the local-stack terminal API requires auth, honest empty).
+    await page.route("**/api/v1/terminal/**", (route) => route.abort());
   });
 
   test("shots", async ({ page }) => {

@@ -10,6 +10,10 @@ import { dismissOnboardingIfPresent, skipOnboarding } from "./helpers/session";
 test.describe("V79 terminal", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
+    // These smokes verify the seeded MOCK session ("without the backend
+    // stream"). The local-stack backend's terminal API requires auth and
+    // returns an honest signed-out state — force the offline mock path.
+    await page.route("**/api/v1/terminal/**", (route) => route.abort());
   });
 
   test("/terminal renders a session with steps and scoreboard", async ({ page }) => {
