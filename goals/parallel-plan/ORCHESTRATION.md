@@ -35,3 +35,38 @@ burn the tokens (ClaudeDevs advisor/orchestrator pattern, 2026-07-06/07).
    breach): stop it, post-mortem, reassign or re-scope the ticket.
 6. Stop condition for the whole program: both loops' tickets DONE or BLOCKED,
    merged, prod 6/6 green.
+
+## CLOSE-OUT — 2026-07-30 (orchestrator, resumed session)
+
+Program state audit against the stop condition:
+
+- **Loop B (Grok backend):** G00–G07 all DONE and merged into the
+  integration line (`codex/alphaedge-base`; see
+  `goals/loop-grok-backend/STATE.md` LOOP LOG iters 1–8). NOTE: the remote
+  branch `origin/loop-grok-backend` is a STALE snapshot ending at G03 with
+  an unrelated history — do not merge it; G04–G07 already live here.
+- **Loop A (Opus polish):** P01–P09 DONE; P10 BLOCKED-ON-DATA (resolved
+  count < 100 — self-unblocks, recheck via `python -m app.ml.ab_harness`);
+  P11 BLOCKED-ON-BACKEND (no measured bias-adjusted probability API exists;
+  honest skip); P12 SKIPPED (dark-only design mandate; a toggle would be a
+  non-functional fake).
+- **Cross-loop handoffs:** all consumed. G02 arb fields → P09 (done);
+  G05 `/api/v1/track-record` `thin_data` contract → consumed by
+  `frontend/src/lib/track-record-api.ts` + `TrackRecordReliability` on
+  `/track-record`; G07 smart-money endpoint live.
+- **Remaining backlog (outside this program):** P10 A/B flip when resolved
+  count ≥ 100; P11 needs a backend bias-adjusted field first.
+
+Gate re-verification on this line (2026-07-30, sandboxed container):
+
+- Backend: `uv run --extra dev pytest -q` → **2246 passed, 30 skipped,
+  1 failed** — the single failure (`test_loop26_authz_matrix`) is
+  environmental: `/api/v1/sports/ingest` needs outbound ESPN access and the
+  container proxy returns 403, so the endpoint 502s. Not reproducible with
+  network; unrelated to this docs diff. `ruff check app tests` → clean.
+- Frontend: typecheck ✓, `eslint --max-warnings=0` ✓, vitest **581/581** ✓,
+  `next build` ✓.
+- Prod `verify_prod.py 6/6` not re-run: no deploy-affecting change since the
+  last verified deploy on this line.
+
+Stop condition met with the evidence above. Program CLOSED.

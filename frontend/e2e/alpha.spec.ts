@@ -18,6 +18,13 @@ test.describe("Loop99 alpha UI", () => {
 
   test("/alpha renders the factor ledger and validated-factor report", async ({ page }) => {
     const errors = collectConsoleErrors(page);
+    // Force the documented "backend absent → deterministic paper mock" path:
+    // against a live local stack the API returns honest-empty factor data,
+    // which is correct UI behaviour but not what this mock-rendering smoke
+    // asserts (7 seeded factors, momentum killed by the CLV validator).
+    await page.route("**/api/v1/alpha/**", (route) =>
+      route.fulfill({ status: 404, contentType: "application/json", body: "{}" }),
+    );
     await page.goto("/alpha", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await dismissOnboardingIfPresent(page);
 

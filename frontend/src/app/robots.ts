@@ -6,6 +6,10 @@ import { SITE_URL } from "@/lib/site-metadata";
  * Loop V67 (L2) — robots.txt for public launch.
  * Public routes allowed; admin (and related private tooling) disallowed.
  */
+// Required for `output: export` builds (Azure SWA): metadata routes must be
+// statically generated or the export build fails collecting page data.
+export const dynamic = "force-static";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [

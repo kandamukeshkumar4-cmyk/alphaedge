@@ -89,16 +89,16 @@ test.describe("Q2 notification bell + /eval loading", () => {
 
     const center = page.locator('[aria-label="Notification center"]');
     await expect(center).toBeVisible({ timeout: 10_000 });
-    await expect(center.getByText(/Loading notifications…/i)).toBeVisible({
+    await expect(center.getByTestId("notifications-loading")).toBeVisible({
       timeout: 10_000,
     });
 
     release();
 
     await expect(
-      center.getByText(/You’re up to date|You're up to date/i),
+      center.getByText(/You’re all caught up|You're all caught up/i),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(center.getByText(/Loading notifications…/i)).toHaveCount(0);
+    await expect(center.getByTestId("notifications-loading")).toHaveCount(0);
 
     assertNoConsoleErrors(errors, "notif bell loading");
   });

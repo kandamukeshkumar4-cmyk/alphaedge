@@ -82,6 +82,11 @@ test.describe("V91 search palette", () => {
   test("typing shows paper mock results after the debounce", async ({ page }) => {
     const errors = collectConsoleErrors(page);
 
+    // This test verifies the PAPER mock fallback + honest source chip, so the
+    // live search API must be unreachable — in the local-stack CI the backend
+    // is actually up, which would return live rows instead.
+    await page.route("**/api/v1/search**", (route) => route.abort());
+
     await openPaletteViaHotkey(page);
     const input = page.getByTestId("search-input");
     await input.pressSequentially("Lakers", { delay: 20 });
@@ -124,6 +129,10 @@ test.describe("V91 search palette", () => {
 
   test("clicking a result navigates to its market page", async ({ page }) => {
     const errors = collectConsoleErrors(page);
+
+    // Force the paper-mock catalog (the seeded live DB has no Bitcoin market,
+    // so the live path would honestly return zero rows).
+    await page.route("**/api/v1/search**", (route) => route.abort());
 
     await openPaletteViaTriggerClick(page);
     const input = page.getByTestId("search-input");
