@@ -13,6 +13,16 @@ advisor model is called at most once per task and never implements; extra
 scope is a defect; deploy-affecting work must pass
 `py -3.13 scripts/verify_prod.py` against production.
 
+## Pre-Implementation Workflow
+
+Load `.agents/skills/pre-implementation-workflow/SKILL.md` before starting any
+non-trivial implementation. Investigate the repository before asking the user
+anything; then produce Goal / Blocking questions (0-3, each with a recommended
+default) / Assumptions (max 5, load-bearing only) / Plan, and stop for
+approval before implementing. Typo-class changes under ~20 lines with one
+clear solution skip the process; new modules, schema changes, auth, money,
+migrations, and deletions always use it in full.
+
 ## Codex First Skill
 
 Load `.agents/skills/codex-first/SKILL.md` for any non-trivial implementation,
