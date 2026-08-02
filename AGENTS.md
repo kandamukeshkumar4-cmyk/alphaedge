@@ -61,6 +61,12 @@ When rules conflict, the earlier section wins.
   or refactoring code: surface assumptions, simplicity first, surgical changes
   only, and verifiable success criteria. Binds every agent and every runner
   brief in this repo.
+- Read `.agents/skills/pre-implementation-workflow/SKILL.md` before starting
+  any non-trivial implementation: investigate the repo before asking anything,
+  then produce Goal / Blocking questions / Assumptions / Plan and stop for
+  approval. Skip only for typo-class changes under ~20 lines with one clear
+  solution; new modules, schema, auth, money, migrations, and deletions always
+  get the full process.
 - Read `.agents/skills/graph-design/SKILL.md` before authoring any multi-agent
   plan or wave: draw the graph (nodes/real edges/state), delete fake edges,
   default to the diamond topology, put verifiers on edges, cap cycles, tier
